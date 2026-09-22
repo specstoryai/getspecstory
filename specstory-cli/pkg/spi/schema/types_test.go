@@ -4,6 +4,61 @@ import (
 	"testing"
 )
 
+func TestGetIntFromMap(t *testing.T) {
+	tests := []struct {
+		name     string
+		m        map[string]interface{}
+		key      string
+		expected int
+	}{
+		{
+			name:     "float64 value (JSON default)",
+			m:        map[string]interface{}{"tokens": float64(1234)},
+			key:      "tokens",
+			expected: 1234,
+		},
+		{
+			name:     "int value",
+			m:        map[string]interface{}{"tokens": 5678},
+			key:      "tokens",
+			expected: 5678,
+		},
+		{
+			name:     "int64 value",
+			m:        map[string]interface{}{"tokens": int64(9999)},
+			key:      "tokens",
+			expected: 9999,
+		},
+		{
+			name:     "missing key returns 0",
+			m:        map[string]interface{}{"other": float64(100)},
+			key:      "tokens",
+			expected: 0,
+		},
+		{
+			name:     "nil map returns 0",
+			m:        nil,
+			key:      "tokens",
+			expected: 0,
+		},
+		{
+			name:     "wrong type returns 0",
+			m:        map[string]interface{}{"tokens": "not a number"},
+			key:      "tokens",
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GetIntFromMap(tt.m, tt.key)
+			if result != tt.expected {
+				t.Errorf("GetIntFromMap() = %d, want %d", result, tt.expected)
+			}
+		})
+	}
+}
+
 // Helper function to create a valid SessionData for tests
 func validSessionData() SessionData {
 	return SessionData{

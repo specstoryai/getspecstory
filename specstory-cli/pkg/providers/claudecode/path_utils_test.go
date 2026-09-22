@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 )
 
 func TestGetClaudeCodeProjectsDir(t *testing.T) {
@@ -13,10 +15,13 @@ func TestGetClaudeCodeProjectsDir(t *testing.T) {
 		t.Fatalf("Failed to get original home directory: %v", err)
 	}
 
+	// Isolate from a CLAUDE_CONFIG_DIR set in the developer's shell.
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+
 	t.Run("projects directory exists", func(t *testing.T) {
 		// Create a temporary home directory
 		tempHome := t.TempDir()
-		t.Setenv("HOME", tempHome)
+		testutil.SetHome(t, tempHome)
 
 		// Create the .claude/projects directory
 		projectsDir := filepath.Join(tempHome, ".claude", "projects")
@@ -38,7 +43,7 @@ func TestGetClaudeCodeProjectsDir(t *testing.T) {
 	t.Run("projects directory does not exist", func(t *testing.T) {
 		// Create a temporary home directory without .claude/projects
 		tempHome := t.TempDir()
-		t.Setenv("HOME", tempHome)
+		testutil.SetHome(t, tempHome)
 
 		// Test the function
 		_, err := GetClaudeCodeProjectsDir()
@@ -47,22 +52,29 @@ func TestGetClaudeCodeProjectsDir(t *testing.T) {
 		}
 	})
 
+	t.Run("CLAUDE_CONFIG_DIR overrides home", func(t *testing.T) {
+		testutil.SetHome(t, t.TempDir())
+		configDir := t.TempDir()
+		t.Setenv("CLAUDE_CONFIG_DIR", configDir)
+		projectsDir := filepath.Join(configDir, "projects")
+		if err := os.MkdirAll(projectsDir, 0755); err != nil {
+			t.Fatalf("Failed to create test projects directory: %v", err)
+		}
+
+		result, err := GetClaudeCodeProjectsDir()
+		if err != nil {
+			t.Errorf("GetClaudeCodeProjectsDir() returned error: %v", err)
+		}
+		if result != projectsDir {
+			t.Errorf("GetClaudeCodeProjectsDir() = %v, want %v", result, projectsDir)
+		}
+	})
+
 	// Restore original home directory
-	t.Setenv("HOME", originalHome)
+	testutil.SetHome(t, originalHome)
 }
 
 func TestGetClaudeCodeProjectDir(t *testing.T) {
-	// Save original working directory
-	originalWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get original working directory: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(originalWd); err != nil {
-			t.Errorf("Failed to restore working directory: %v", err)
-		}
-	}()
-
 	// Save original home directory
 	originalHome, err := os.UserHomeDir()
 	if err != nil {
@@ -100,7 +112,7 @@ func TestGetClaudeCodeProjectDir(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a temporary home directory
 			tempHome := t.TempDir()
-			t.Setenv("HOME", tempHome)
+			testutil.SetHome(t, tempHome)
 
 			// Create the .claude/projects directory
 			projectsDir := filepath.Join(tempHome, ".claude", "projects")
@@ -110,9 +122,7 @@ func TestGetClaudeCodeProjectDir(t *testing.T) {
 
 			// Create a temporary working directory
 			tempWd := t.TempDir()
-			if err := os.Chdir(tempWd); err != nil {
-				t.Fatalf("Failed to change to temp working directory: %v", err)
-			}
+			t.Chdir(tempWd)
 
 			// Mock the working directory path for testing
 			// Since we can't actually change the path structure, we'll just verify
@@ -130,5 +140,5 @@ func TestGetClaudeCodeProjectDir(t *testing.T) {
 	}
 
 	// Restore original home directory
-	t.Setenv("HOME", originalHome)
+	testutil.SetHome(t, originalHome)
 }

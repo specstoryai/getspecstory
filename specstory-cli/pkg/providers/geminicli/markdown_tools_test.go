@@ -18,7 +18,7 @@ func TestFormatToolAsMarkdownShell(t *testing.T) {
 
 	out := formatToolAsMarkdown(tool)
 
-	// Should NOT have wrapper tags (those are added by pkg/markdown)
+	// Should NOT have wrapper tags (those are added by pkg/session)
 	if strings.Contains(out, "<tool-use") {
 		t.Fatalf("should not contain <tool-use> wrapper tags: %s", out)
 	}
@@ -246,5 +246,35 @@ func TestFormatToolAsMarkdownWebFetch(t *testing.T) {
 	// Should have Result: prefix for this tool
 	if !strings.Contains(out, "Result:") {
 		t.Errorf("expected 'Result:' prefix for web_fetch: %s", out)
+	}
+}
+
+// Agent output routinely contains its own ``` fences (a written markdown file, a
+// command that cats one). Every fenced site must size its wrapper past the
+// longest inner run, or the inner fence closes the block early and the rest of
+// the rendered document is swallowed. These sites once hardcoded three backticks.
+func TestFencedSitesOutrunEmbeddedBackticks(t *testing.T) {
+	inner := "before\n```go\nx := 1\n```\nafter"
+
+	tests := []struct {
+		name string
+		got  string
+	}{
+		{"shell command", formatShellBodyFromInput(map[string]interface{}{"command": inner})},
+		{"write_file content", formatWriteFileBodyFromInput(map[string]interface{}{"file_path": "a.md", "content": inner})},
+		{"replace new_string", formatReplaceBodyFromInput(map[string]interface{}{"file_path": "a.go", "new_string": inner})},
+		{"multi-line result", formatOutputText(inner)},
+		{"generic JSON fallback", formatToolBodyFromInput(&ToolInfo{Name: "an_unmapped_tool", Input: map[string]interface{}{"k": inner}})},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !strings.Contains(tt.got, "````") {
+				t.Errorf("wrapper fence not widened past the embedded run:\n%s", tt.got)
+			}
+			if !strings.Contains(tt.got, "```go") {
+				t.Errorf("inner content must pass through unaltered:\n%s", tt.got)
+			}
+		})
 	}
 }

@@ -1,0 +1,344 @@
+// Package cmd contains CLI command implementations for the SpecStory CLI.
+package cmd
+
+import (
+	"errors"
+	"fmt"
+	"log/slog"
+	"strings"
+
+	"github.com/spf13/cobra"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/config"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
+)
+
+// CreateCheckCommand dynamically creates the check command with provider information.
+func CreateCheckCommand() *cobra.Command {
+	registry := factory.GetRegistry()
+	ids := registry.ListIDs()
+
+	// Build dynamic examples
+	var examplesBuilder strings.Builder
+	examplesBuilder.WriteString(`
+# Check all coding agents
+specstory check`)
+
+	if len(ids) > 0 {
+		examplesBuilder.WriteString("\n\n# Check specific coding agent")
+		for _, id := range ids {
+			fmt.Fprintf(&examplesBuilder, "\nspecstory check %s", id)
+		}
+
+		// Use first provider for custom command example
+		fmt.Fprintf(&examplesBuilder, "\n\n# Check a specific coding agent with a custom command\nspecstory check %s -c \"/custom/path/to/agent\"", ids[0])
+	}
+	examples := examplesBuilder.String()
+
+	cmd := &cobra.Command{
+		Use:   "check [provider-id]",
+		Short: "Check if the configuration is valid and terminal coding agents are properly installed",
+		Long: `Check if the configuration is valid and terminal coding agents are properly installed and can be invoked by SpecStory.
+
+Ensures the user level and project level configuration files are valid.
+
+By default, checks all registered coding agents providers.
+Specify a specific agent ID to check only a specific coding agent.`,
+		Example: examples,
+		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument
+		RunE: func(cmd *cobra.Command, args []string) error {
+			slog.Info("Running in check-install mode")
+			registry := factory.GetRegistry()
+
+			// Get custom command if provided via flag
+			customCmd, _ := cmd.Flags().GetString("command")
+			providersFlag, _ := cmd.Flags().GetStringSlice("providers")
+
+			// Apply per-provider user-data-dir overrides before any provider lookup runs.
+			userDataDirOverrides, _ := cmd.Flags().GetStringSlice("user-data-dir")
+			ApplyUserDataDirOverrides(userDataDirOverrides)
+
+			resolvedIDs, err := ResolveProviderIDs(registry, args, providersFlag)
+			if err != nil {
+				return err
+			}
+
+			// Validate that -c flag requires exactly one provider
+			if customCmd != "" {
+				if len(resolvedIDs) == 0 {
+					ids := registry.ListIDs()
+					example := "specstory check <provider> -c \"/custom/path/to/agent\""
+					if len(ids) > 0 {
+						example = fmt.Sprintf("specstory check %s -c \"/custom/path/to/agent\"", ids[0])
+					}
+					return utils.ValidationError{
+						Message: "The -c/--command flag requires a provider to be specified.\n" +
+							"Example: " + example,
+					}
+				}
+				if len(resolvedIDs) > 1 {
+					return utils.ValidationError{Message: "The -c/--command flag can only be used with a single provider ID"}
+				}
+			}
+
+			// Check config files first
+			configOK := checkConfigFiles()
+			printDivider()
+
+			var providerErr error
+			if len(resolvedIDs) == 1 {
+				providerErr = checkSingleProvider(registry, resolvedIDs[0], customCmd)
+			} else {
+				providerErr = checkAllProviders(registry, resolvedIDs)
+			}
+
+			// Fail if either config or provider checks failed
+			if !configOK && providerErr != nil {
+				return providerErr
+			}
+			if !configOK {
+				return errors.New("config check failed")
+			}
+			return providerErr
+		},
+	}
+
+	cmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
+	AddProvidersFlag(cmd)
+	AddUserDataDirFlag(cmd)
+
+	return cmd
+}
+
+// printDivider prints a divider line for visual separation
+func printDivider() {
+	fmt.Println("\n--------")
+}
+
+// checkSingleProvider checks a specific provider
+func checkSingleProvider(registry *factory.Registry, providerID, customCmd string) error {
+	provider, err := registry.Get(providerID)
+	if err != nil {
+		// Provider not found - show helpful error
+		fmt.Printf("❌ Provider '%s' is not a valid provider implementation\n\n", providerID)
+
+		ids := registry.ListIDs()
+		if len(ids) > 0 {
+			fmt.Println("The registered providers are:")
+			for _, id := range ids {
+				if p, _ := registry.Get(id); p != nil {
+					fmt.Printf("  • %s - %s\n", id, p.Name())
+				}
+			}
+			fmt.Println("\nExample: specstory check " + ids[0])
+		}
+		return err
+	}
+
+	// Set the agent provider for analytics
+	analytics.SetAgentProviders([]string{provider.Name()})
+
+	// Run the check
+	result := provider.Check(customCmd)
+
+	// Display results with the nice formatting
+	if result.Success {
+		fmt.Printf("\n✨ %s is installed and ready! ✨\n\n", provider.Name())
+		// IDE-backed providers report no version (none is discoverable cheaply);
+		// omit the line rather than printing an empty value.
+		if result.Version != "" {
+			fmt.Printf("  📦 Version: %s\n", result.Version)
+		}
+		fmt.Printf("  📍 Location: %s\n", result.Location)
+		fmt.Printf("  ✅ Status: All systems go!\n\n")
+
+		fmt.Println("🚀 Ready to sync your sessions! 💪")
+		normalizedID := strings.ToLower(providerID)
+		fmt.Printf("   • specstory run %s\n", normalizedID)
+		fmt.Println("   • specstory sync - Save markdown files for existing sessions")
+		fmt.Println()
+
+		return nil
+	} else {
+		fmt.Print(formatCheckFailure(provider.Name(), result, customCmd, false))
+		return errors.New("check failed")
+	}
+}
+
+// formatCheckFailure softens missing optional agents without hiding broken
+// installs or an explicitly requested custom command that cannot be found.
+// Older providers with no classification retain the failure presentation.
+func formatCheckFailure(name string, result spi.CheckResult, customCmd string, summary bool) string {
+	if result.ErrorType == spi.CheckErrorNotFound && strings.TrimSpace(customCmd) == "" {
+		message := fmt.Sprintf("\nℹ️  %s not found.\n", name)
+		if summary {
+			return message + "   Optional — skipping.\n"
+		}
+		if result.ErrorMessage != "" {
+			message += "\n" + result.ErrorMessage + "\n"
+		}
+		return message
+	}
+	message := fmt.Sprintf("\n❌ %s check failed!\n", name)
+	if result.ErrorMessage != "" {
+		if summary {
+			firstLine := strings.SplitN(result.ErrorMessage, "\n", 2)[0]
+			message += "\n  Error: " + strings.TrimSpace(firstLine) + "\n"
+		} else {
+			message += "\n" + result.ErrorMessage + "\n"
+		}
+	}
+	return message
+}
+
+// checkAllProviders checks all (or a filtered subset of) registered providers.
+// filterIDs, if non-empty, limits which providers are checked; nil or empty means check all.
+func checkAllProviders(registry *factory.Registry, filterIDs []string) error {
+	ids := registry.ListIDs()
+	if len(filterIDs) > 0 {
+		ids = filterIDs
+	}
+
+	// Collect all provider names for analytics
+	var providerNames []string
+	for _, id := range ids {
+		if provider, err := registry.Get(id); err == nil {
+			providerNames = append(providerNames, provider.Name())
+		}
+	}
+	analytics.SetAgentProviders(providerNames)
+
+	anySuccess := false
+	type providerInfo struct {
+		id   string
+		name string
+	}
+	var successfulProviders []providerInfo
+	first := true
+
+	for _, id := range ids {
+		provider, _ := registry.Get(id)
+		// Invoke Check() here to keep registry limited to registration/lookup
+		result := provider.Check("")
+
+		// Add divider between providers (but not before the first one)
+		if !first {
+			printDivider()
+		}
+		first = false
+
+		if result.Success {
+			anySuccess = true
+			successfulProviders = append(successfulProviders, providerInfo{id: id, name: provider.Name()})
+			fmt.Printf("\n✨ %s is installed and ready! ✨\n\n", provider.Name())
+			// IDE-backed providers report no version; omit the line rather than
+			// printing an empty value.
+			if result.Version != "" {
+				fmt.Printf("  📦 Version: %s\n", result.Version)
+			}
+			fmt.Printf("  📍 Location: %s\n", result.Location)
+			fmt.Printf("  ✅ Status: All systems go!\n")
+		} else {
+			fmt.Print(formatCheckFailure(provider.Name(), result, "", true))
+		}
+	}
+
+	// Show ready message if at least one provider is working
+	if anySuccess {
+		printDivider()
+		fmt.Println("\n🚀 Ready to sync your sessions! 💪")
+		for _, info := range successfulProviders {
+			fmt.Printf("   • specstory run %s\n", info.id)
+		}
+		fmt.Println("   • specstory sync - Save markdown files for existing sessions")
+		fmt.Println()
+	} else {
+		printDivider()
+		fmt.Println("\n⚠️  No providers are currently available")
+		fmt.Println("   Install at least one provider to use SpecStory")
+		fmt.Println("\n💡 Tip: Use 'specstory check <provider>' for detailed installation help")
+
+		// Try to show an example with the first registered provider ID
+		ids := registry.ListIDs()
+		if len(ids) > 0 {
+			fmt.Printf("   Example: specstory check %s\n", ids[0])
+		} else {
+			fmt.Println("   Example: specstory check <provider>")
+		}
+	}
+
+	// Return error only if ALL providers failed
+	if !anySuccess {
+		return errors.New("check failed")
+	}
+
+	return nil
+}
+
+// checkConfigFiles validates user-level and project-level config files.
+// Returns true if all existing config files are valid, false if any have errors.
+func checkConfigFiles() bool {
+	fmt.Println("\n📋 Configuration Files")
+
+	allOK := true
+	checked := 0
+
+	// Check user-level config
+	userPath := config.GetUserConfigPath()
+	if userPath != "" {
+		result := config.ValidateConfigFile(userPath)
+		checked++
+		printConfigResult("User config", result)
+		if result.Exists && (!result.ValidTOML || len(result.UnknownKeys) > 0) {
+			allOK = false
+		}
+	}
+
+	// Check project-level config
+	localPath := config.GetLocalConfigPath()
+	if localPath != "" {
+		result := config.ValidateConfigFile(localPath)
+		checked++
+		printConfigResult("Project config", result)
+		if result.Exists && (!result.ValidTOML || len(result.UnknownKeys) > 0) {
+			allOK = false
+		}
+	}
+
+	if checked == 0 {
+		fmt.Println("  ⚠️  Could not determine config file paths")
+	}
+
+	return allOK
+}
+
+// printConfigResult displays the validation result for a single config file.
+func printConfigResult(label string, result config.ConfigValidationResult) {
+	if !result.Exists {
+		fmt.Printf("\n  ℹ️  %s: not found\n", label)
+		fmt.Printf("     %s\n", result.Path)
+		return
+	}
+
+	if !result.ValidTOML {
+		fmt.Printf("\n  ❌ %s: invalid TOML\n", label)
+		fmt.Printf("     %s\n", result.Path)
+		fmt.Printf("     Error: %s\n", result.ParseError)
+		return
+	}
+
+	if len(result.UnknownKeys) > 0 {
+		fmt.Printf("\n  ⚠️  %s: valid TOML, but has unknown keys\n", label)
+		fmt.Printf("     %s\n", result.Path)
+		for _, key := range result.UnknownKeys {
+			fmt.Printf("     • unknown key: %s\n", key)
+		}
+		return
+	}
+
+	fmt.Printf("\n  ✅ %s: valid\n", label)
+	fmt.Printf("     %s\n", result.Path)
+}

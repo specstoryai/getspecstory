@@ -3,6 +3,7 @@ package claudecode
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -17,9 +18,9 @@ import (
 )
 
 const (
-	KB                    = 1024
-	MB                    = 1024 * 1024
-	maxReasonableLineSize = 250 * MB // 250MB sanity limit to prevent OOM from malformed or malicious files
+	KB = 1024
+	// MB labels the large-line debug log; the record cap is spi.MaxRecordLineSize.
+	MB = 1024 * 1024
 )
 
 // sessionIDRegex extracts sessionId from JSONL without full JSON parsing.
@@ -246,17 +247,19 @@ func extractSessionIDFromFile(filePath string) (string, error) {
 	reader := bufio.NewReader(file)
 
 	for {
-		line, err := reader.ReadString('\n')
-		if err != nil && err != io.EOF {
+		// An oversized record comes back empty, so the regex simply does not
+		// match it and the scan moves on to the next record.
+		line, _, err := spi.ReadRecordLine(reader, spi.MaxRecordLineSize)
+		if err != nil && !errors.Is(err, io.EOF) {
 			return "", fmt.Errorf("error reading file: %w", err)
 		}
 
 		// Try to find sessionId via regex (faster than JSON parsing)
-		if matches := sessionIDRegex.FindStringSubmatch(line); len(matches) > 1 {
+		if matches := sessionIDRegex.FindStringSubmatch(string(line)); len(matches) > 1 {
 			return matches[1], nil
 		}
 
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 	}
@@ -306,8 +309,6 @@ func (p *JSONLParser) parseSessionFile(filePath string) ([]JSONLRecord, error) {
 	}
 	defer func() { _ = file.Close() }() // Read-only file; close errors not actionable
 
-	// Use bufio.Reader instead of Scanner to handle arbitrarily large lines
-	// Scanner has a token size limit (even with custom buffer), but Reader does not
 	reader := bufio.NewReader(file)
 
 	lineNumber := 0
@@ -319,22 +320,33 @@ func (p *JSONLParser) parseSessionFile(filePath string) ([]JSONLRecord, error) {
 	var pendingSummary string
 
 	for {
-		// Read line using ReadString which has no size limit
-		line, err := reader.ReadString('\n')
-		line = strings.TrimSuffix(line, "\n")
+		rawLine, oversized, err := spi.ReadRecordLine(reader, spi.MaxRecordLineSize)
+		line := strings.TrimSuffix(string(rawLine), "\n")
 
 		// EOF is expected at end of file, other errors are genuine failures
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, fmt.Errorf("error reading line %d: %w", lineNumber+1, err)
 		}
 
 		// Determine if we're at end of file and if we have content to process
-		atEOF := err == io.EOF
+		atEOF := errors.Is(err, io.EOF)
 		hasContent := len(line) > 0
 
 		// Increment line number for every line read (including empty lines) to match text editor line numbers
-		if hasContent || !atEOF {
+		if hasContent || oversized || !atEOF {
 			lineNumber++
+		}
+
+		// One pathological record costs that record, not the rest of the session.
+		if oversized {
+			slog.Warn("Skipping oversized JSONL line",
+				"file", filepath.Base(filePath),
+				"line", lineNumber,
+				"limit", spi.MaxRecordLineSize)
+			if atEOF {
+				break
+			}
+			continue
 		}
 
 		// If no content, either skip empty line or exit at EOF
@@ -343,17 +355,6 @@ func (p *JSONLParser) parseSessionFile(filePath string) ([]JSONLRecord, error) {
 				break // Reached end of file with no content
 			}
 			continue // Empty line in middle of file, skip it
-		}
-
-		// Sanity check to prevent OOM from pathological files
-		if len(line) > maxReasonableLineSize {
-			slog.Warn("line exceeds reasonable size limit",
-				"lineNumber", lineNumber,
-				"sizeMB", len(line)/MB,
-				"limitMB", maxReasonableLineSize/MB,
-				"file", filepath.Base(filePath))
-			return nil, fmt.Errorf("line %d exceeds reasonable size limit (%d MB): refusing to process potentially malformed file",
-				lineNumber, maxReasonableLineSize/MB)
 		}
 
 		// Log when processing unusually large lines (helps debug performance issues)
@@ -478,23 +479,48 @@ func (p *JSONLParser) eliminateDuplicates(records []JSONLRecord) []JSONLRecord {
 		uniqueRecords = append(uniqueRecords, record)
 	}
 
-	// Sort by timestamp for deterministic order
+	// recordMap iteration order is random, so the sort below must be a total
+	// order (recordLess) — a timestamp-only comparator would leave equal-
+	// timestamp records in a different order on every run.
 	sort.Slice(uniqueRecords, func(i, j int) bool {
-		tsI, _ := uniqueRecords[i].Data["timestamp"].(string)
-		tsJ, _ := uniqueRecords[j].Data["timestamp"].(string)
-		return tsI < tsJ
+		return recordLess(uniqueRecords[i], uniqueRecords[j])
 	})
 
 	return uniqueRecords
 }
 
+// recordLess orders records by timestamp, then source file, then line number.
+// It is a total order: no two records compare equal, so every sort using it
+// produces the same result regardless of input order — several callers feed
+// their sorts from randomized map iteration, and without a total order the
+// regenerated markdown would differ from run to run on unchanged sessions.
+// The tiebreak matters because Claude Code writes related records (e.g. a
+// local-command caveat and its command message) with identical timestamps;
+// for those, JSONL append order is the true conversation order, and parents
+// are appended before their children.
+func recordLess(a, b JSONLRecord) bool {
+	tsA, _ := a.Data["timestamp"].(string)
+	tsB, _ := b.Data["timestamp"].(string)
+	if tsA != tsB {
+		return tsA < tsB
+	}
+	if a.File != b.File {
+		return a.File < b.File
+	}
+	return a.Line < b.Line
+}
+
 // mergeDagsWithSameSessionId merges DAGs that have the same session ID
 // This handles cases where Claude Code resumes a session, creating multiple roots for the same session
 func (p *JSONLParser) mergeDagsWithSameSessionId(dags [][]JSONLRecord) [][]JSONLRecord {
-	// Map to group DAGs by session ID
+	// Map to group DAGs by session ID. sessionOrder preserves first-appearance
+	// order because map iteration is random: merging (and returning) in map
+	// order would concatenate a resumed session's DAGs differently on every
+	// run, reordering equal-timestamp records in the regenerated markdown.
 	sessionDagMap := make(map[string][][]JSONLRecord)
+	sessionOrder := []string{}
 
-	for _, dag := range dags {
+	for i, dag := range dags {
 		if len(dag) == 0 {
 			continue
 		}
@@ -508,17 +534,22 @@ func (p *JSONLParser) mergeDagsWithSameSessionId(dags [][]JSONLRecord) [][]JSONL
 			}
 		}
 
-		// If no session ID found, treat it as a unique DAG
+		// If no session ID found, treat it as a unique DAG (index-keyed so the
+		// placeholder is deterministic across runs)
 		if sessionId == "" {
-			sessionId = fmt.Sprintf("no-session-%p", &dag)
+			sessionId = fmt.Sprintf("no-session-%d", i)
 		}
 
+		if _, seen := sessionDagMap[sessionId]; !seen {
+			sessionOrder = append(sessionOrder, sessionId)
+		}
 		sessionDagMap[sessionId] = append(sessionDagMap[sessionId], dag)
 	}
 
-	// Merge DAGs with the same session ID
+	// Merge DAGs with the same session ID, in first-appearance order
 	mergedDags := [][]JSONLRecord{}
-	for sessionId, dagsForSession := range sessionDagMap {
+	for _, sessionId := range sessionOrder {
+		dagsForSession := sessionDagMap[sessionId]
 		if len(dagsForSession) == 1 {
 			// No merging needed
 			mergedDags = append(mergedDags, dagsForSession[0])
@@ -538,26 +569,40 @@ func (p *JSONLParser) mergeDagsWithSameSessionId(dags [][]JSONLRecord) [][]JSONL
 
 // buildDAGs constructs parent/child DAGs from records
 func (p *JSONLParser) buildDAGs(records []JSONLRecord) [][]JSONLRecord {
-	// Create a map for quick lookup by uuid
-	recordByUuid := make(map[string]JSONLRecord)
+	// Build a parentUuid->children adjacency map in one pass. Precomputing children here is what
+	// keeps DAG building O(N): the traversal below can then look a node's children up directly.
+	// The previous version re-scanned the entire record set to find children at every node it
+	// visited, making a whole-project parse O(N²) — tens of seconds for a project with ~25k
+	// records (the dominant cost of `specstory sync`).
+	childrenByParent := make(map[string][]JSONLRecord)
+	roots := []JSONLRecord{}
 	for _, record := range records {
-		if uuid, ok := record.Data["uuid"].(string); ok {
-			recordByUuid[uuid] = record
+		if _, ok := record.Data["uuid"].(string); !ok {
+			continue // a record with no uuid can be neither traversed nor linked
+		}
+		if parentUuid, ok := record.Data["parentUuid"].(string); ok {
+			childrenByParent[parentUuid] = append(childrenByParent[parentUuid], record)
+		} else if record.Data["parentUuid"] == nil {
+			// A nil parentUuid marks a root node (the start of a conversation).
+			roots = append(roots, record)
 		}
 	}
 
-	// Find all root nodes (parentUuid == null)
-	roots := []JSONLRecord{}
-	for _, record := range records {
-		if record.Data["parentUuid"] == nil {
-			roots = append(roots, record)
-		}
+	// Sort each child list once (total order via recordLess, so equal-timestamp
+	// siblings keep a stable order), giving the same deterministic traversal
+	// order the per-node sort used to — but paid O(N log N) total across the
+	// forest instead of per visit.
+	for parentUuid := range childrenByParent {
+		children := childrenByParent[parentUuid]
+		sort.Slice(children, func(i, j int) bool {
+			return recordLess(children[i], children[j])
+		})
 	}
 
 	// Build a DAG for each root
 	dags := [][]JSONLRecord{}
 	for _, root := range roots {
-		dag := p.buildDAGFromRoot(root, recordByUuid)
+		dag := p.buildDAGFromRoot(root, childrenByParent)
 		if len(dag) > 0 {
 			dags = append(dags, dag)
 		}
@@ -566,8 +611,9 @@ func (p *JSONLParser) buildDAGs(records []JSONLRecord) [][]JSONLRecord {
 	return dags
 }
 
-// buildDAGFromRoot builds a DAG starting from a root node
-func (p *JSONLParser) buildDAGFromRoot(root JSONLRecord, recordByUuid map[string]JSONLRecord) []JSONLRecord {
+// buildDAGFromRoot builds a DAG starting from a root node, following the precomputed
+// parentUuid->children adjacency (already timestamp-sorted in buildDAGs).
+func (p *JSONLParser) buildDAGFromRoot(root JSONLRecord, childrenByParent map[string][]JSONLRecord) []JSONLRecord {
 	dag := []JSONLRecord{}
 	visited := make(map[string]bool)
 
@@ -581,27 +627,8 @@ func (p *JSONLParser) buildDAGFromRoot(root JSONLRecord, recordByUuid map[string
 		visited[uuid] = true
 		dag = append(dag, node)
 
-		// Find all children and collect them first
-		children := []JSONLRecord{}
-		for _, record := range recordByUuid {
-			parentUuid, ok := record.Data["parentUuid"].(string)
-			if ok && parentUuid == uuid {
-				// Check if this child exists in our map (to handle orphans)
-				if _, exists := recordByUuid[record.Data["uuid"].(string)]; exists {
-					children = append(children, record)
-				}
-			}
-		}
-
-		// Sort children by timestamp for deterministic traversal order
-		sort.Slice(children, func(i, j int) bool {
-			tsI, _ := children[i].Data["timestamp"].(string)
-			tsJ, _ := children[j].Data["timestamp"].(string)
-			return tsI < tsJ
-		})
-
-		// Traverse children in sorted order
-		for _, child := range children {
+		// Children are precomputed and already sorted by timestamp.
+		for _, child := range childrenByParent[uuid] {
 			traverse(child)
 		}
 	}
@@ -610,31 +637,17 @@ func (p *JSONLParser) buildDAGFromRoot(root JSONLRecord, recordByUuid map[string
 	return dag
 }
 
-// flattenDAG flattens a DAG into an array ordered by timestamp
+// flattenDAG flattens a DAG into an array ordered by timestamp.
+// Equal-timestamp ordering comes from recordLess's file/line tiebreak, which
+// preserves parent-before-child (parents are appended to the JSONL first). An
+// earlier comparator checked parentUuid directly for ties, but only for
+// adjacent pairs — that is not a valid strict weak ordering (it can cycle
+// through an unrelated third record), and sort.Slice on an invalid comparator
+// produces input-order-dependent results, which reordered equal-timestamp
+// records from run to run.
 func (p *JSONLParser) flattenDAG(dag []JSONLRecord) []JSONLRecord {
-	// Sort by timestamp, with parent-child relationships as tiebreaker
 	sort.Slice(dag, func(i, j int) bool {
-		tsI, _ := dag[i].Data["timestamp"].(string)
-		tsJ, _ := dag[j].Data["timestamp"].(string)
-		if tsI != tsJ {
-			return tsI < tsJ
-		}
-		// If timestamps are equal, check parent-child relationship
-		uuidI, _ := dag[i].Data["uuid"].(string)
-		uuidJ, _ := dag[j].Data["uuid"].(string)
-		parentI, _ := dag[i].Data["parentUuid"].(string)
-		parentJ, _ := dag[j].Data["parentUuid"].(string)
-
-		// If j is the parent of i, j should come first
-		if parentI == uuidJ {
-			return false
-		}
-		// If i is the parent of j, i should come first
-		if parentJ == uuidI {
-			return true
-		}
-		// Otherwise, sort by UUID for deterministic ordering
-		return uuidI < uuidJ
+		return recordLess(dag[i], dag[j])
 	})
 
 	return dag

@@ -1,0 +1,3 @@
+{"uuid":"u-1","parentUuid":null,"sessionId":"99999999-8888-7777-6666-555555555555","timestamp":"2026-08-07T10:00:00.000Z","type":"user","provenance":"real_user","cwd":"/Users/dev/project","version":"0.21.7","message":{"role":"user","parts":[{"text":"hello"}]}}
+this line is not valid JSON {{{
+{"uuid":"a-1","parentUuid":"u-1","sessionId":"99999999-8888-7777-6666-555555555555","timestamp":"2026-08-07T10:00:05.000Z","type":"assistant","provenance":"assistant_output","cwd":"/Users/dev/project","version":"0.21.7","model":"qwen3-coder-plus","message":{"role":"model","parts":[{"text":"Hi there."}]}}

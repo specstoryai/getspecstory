@@ -1,3 +1,12 @@
+# Contributing
+
+This monorepo hosts two projects:
+
+- **[specstory-cli](./specstory-cli)** - the SpecStory CLI (Go). Guidance below.
+- **[lore](./lore)** - SpecStory Lore, the skill that forges agent skills from your session
+  histories (zero-dependency Node). See [lore/CONTRIBUTING.md](./lore/CONTRIBUTING.md) for its
+  rules (fixtures-are-the-spec, golden files, `lore/vX.Y.Z` release tags).
+
 # Contributing to the SpecStory CLI
 
 ## Getting Started

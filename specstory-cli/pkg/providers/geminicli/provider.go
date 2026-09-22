@@ -31,54 +31,42 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	cmdName, _ := parseGeminiCommand(customCommand)
 	isCustom := customCommand != ""
 
-	resolvedPath, err := exec.LookPath(cmdName)
+	attempt := analytics.CheckAttempt{Provider: "gemini", CustomCommand: isCustom, CommandPath: cmdName, VersionFlag: "--version"}
+	resolvedPath, err := spi.LookPathForCheck(cmdName)
+	attempt.ResolvedPath = resolvedPath
 	if err != nil {
-		errorMessage := buildGeminiCheckErrorMessage("not_found", cmdName, isCustom, "")
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "gemini",
-			"custom_command": isCustom,
-			"command_path":   cmdName,
-			"error_type":     "not_found",
-			"error_message":  err.Error(),
-		})
+		errorType := spi.ClassifyCheckError(err)
+		errorMessage := buildGeminiCheckErrorMessage(errorType, cmdName, isCustom, "")
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Location:     "",
 			ErrorMessage: errorMessage,
 		}
 	}
 
-	cmd := exec.Command(cmdName, "--version")
+	cmd := exec.Command(resolvedPath, "--version")
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		errorType := classifyGeminiCheckError(err)
+		errorType := spi.ClassifyCheckExecutionError(err)
 		errorMessage := buildGeminiCheckErrorMessage(errorType, resolvedPath, isCustom, strings.TrimSpace(stderr.String()))
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "gemini",
-			"custom_command": isCustom,
-			"command_path":   resolvedPath,
-			"error_type":     errorType,
-			"error_message":  err.Error(),
-		})
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), strings.TrimSpace(stderr.String()))
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
 		}
 	}
 
 	version := strings.TrimSpace(stdout.String())
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
-		"provider":       "gemini",
-		"custom_command": isCustom,
-		"command_path":   resolvedPath,
-		"version":        version,
-	})
+	analytics.TrackCheckSuccess(attempt, version)
 
 	return spi.CheckResult{
 		Success:  true,
@@ -165,7 +153,23 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	if err := WatchGeminiProject(projectPath, sessionCallback); err != nil {
 		slog.Error("Failed to start watcher", "error", err)
 	}
-	defer StopWatcher()
+	// Include both hashed and named project stores, since a first run may
+	// choose its directory after the watcher starts. The final sweep selects
+	// only files in the resolved project directory.
+	hashDir, _ := GetGeminiProjectDir(projectPath)
+	finalChanges := spi.SessionFileChanges(filepath.Dir(hashDir), "*/chats/*.json")
+	defer func() {
+		StopWatcher()
+		resolved, err := ResolveGeminiProjectDir(projectPath)
+		if err != nil {
+			return
+		}
+		for _, path := range finalChanges() {
+			if filepath.Dir(path) == filepath.Join(resolved, "chats") {
+				processSessionChange(path)
+			}
+		}
+	}()
 
 	if resumeSessionID != "" {
 		slog.Info("Attempting to resume Gemini CLI session", "sessionId", resumeSessionID)
@@ -201,23 +205,6 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 	return ctx.Err()
 }
 
-func classifyGeminiCheckError(err error) string {
-	var execErr *exec.Error
-	var pathErr *os.PathError
-
-	switch {
-	case errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound:
-		return "not_found"
-	case errors.As(err, &pathErr):
-		if errors.Is(pathErr.Err, os.ErrPermission) {
-			return "permission_denied"
-		}
-	case errors.Is(err, os.ErrPermission):
-		return "permission_denied"
-	}
-	return "version_failed"
-}
-
 func buildGeminiCheckErrorMessage(errorType string, geminiCmd string, isCustom bool, stderr string) string {
 	var b strings.Builder
 
@@ -226,19 +213,19 @@ func buildGeminiCheckErrorMessage(errorType string, geminiCmd string, isCustom b
 		b.WriteString("Gemini CLI could not be found.\n\n")
 		if isCustom {
 			b.WriteString("• Verify the path you supplied actually points to the `gemini` executable.\n")
-			b.WriteString(fmt.Sprintf("• Provided command: %s\n", geminiCmd))
+			fmt.Fprintf(&b, "• Provided command: %s\n", geminiCmd)
 		} else {
 			b.WriteString("• Install Gemini CLI from https://ai.google.dev/gemini-cli/get-started\n")
 			b.WriteString("• Ensure `gemini` is on your PATH or pass a custom command via `specstory check gemini -c \"path/to/gemini\"`.\n")
 		}
 	case "permission_denied":
 		b.WriteString("Gemini CLI exists but isn't executable.\n\n")
-		b.WriteString(fmt.Sprintf("• Fix permissions: `chmod +x %s`\n", geminiCmd))
+		fmt.Fprintf(&b, "• Fix permissions: `chmod +x %s`\n", geminiCmd)
 		b.WriteString("• Some package managers install the binary as root; run SpecStory with a path you can execute.\n")
 	default:
 		b.WriteString("`gemini --version` failed.\n\n")
 		if stderr != "" {
-			b.WriteString(fmt.Sprintf("Error output:\n%s\n\n", stderr))
+			fmt.Fprintf(&b, "Error output:\n%s\n\n", stderr)
 		}
 		b.WriteString("• Try running `gemini --version` directly in your terminal.\n")
 		b.WriteString("• If you upgraded recently, reinstall the CLI to refresh dependencies.\n")
@@ -301,9 +288,9 @@ func convertToAgentChatSession(session *GeminiSession, workspaceRoot string, deb
 	// Write provider-specific debug files if requested
 	if debugRaw {
 		if err := writeDebugRawFiles(session); err != nil {
-			slog.Debug("convertToAgentChatSession: failed to write debug files",
+			slog.Warn("convertToAgentChatSession: failed to write debug files",
 				"sessionId", session.ID,
-				"error", err)
+				"path", spi.GetDebugDir(session.ID), "error", err)
 		}
 	}
 
@@ -319,14 +306,10 @@ func convertToAgentChatSession(session *GeminiSession, workspaceRoot string, deb
 // writeDebugRawFiles writes debug JSON files for a Gemini CLI session.
 // Each message is written as a numbered JSON file in .specstory/debug/<session-id>/
 func writeDebugRawFiles(session *GeminiSession) error {
-	debugDir := spi.GetDebugDir(session.ID)
-	if err := os.MkdirAll(debugDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create debug dir: %w", err)
-	}
-
+	records := make([]map[string]interface{}, len(session.Messages))
 	for idx, msg := range session.Messages {
 		number := idx + 1
-		entry := map[string]interface{}{
+		records[idx] = map[string]interface{}{
 			"index":      number,
 			"type":       msg.Type,
 			"timestamp":  msg.Timestamp,
@@ -338,19 +321,124 @@ func writeDebugRawFiles(session *GeminiSession) error {
 			"tokens":     msg.Tokens,
 			"logs":       session.LogsForMessage(msgContent(msg)),
 		}
-
-		data, err := json.MarshalIndent(entry, "", "  ")
-		if err != nil {
-			slog.Debug("writeDebugRawFiles: failed to marshal", "index", number, "error", err)
-			continue
-		}
-
-		filename := filepath.Join(debugDir, fmt.Sprintf("%d.json", number))
-		if err := os.WriteFile(filename, data, 0o644); err != nil {
-			slog.Debug("writeDebugRawFiles: failed to write", "index", number, "error", err)
-			continue
-		}
-		slog.Debug("writeDebugRawFiles: wrote file", "path", filename, "index", number)
 	}
-	return nil
+	return spi.WriteDebugRecords(spi.GetDebugDir(session.ID), records)
+}
+
+// ListAgentChatSessions retrieves lightweight session metadata without full parsing
+func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+	projectDir, err := ResolveGeminiProjectDir(projectPath)
+	if err != nil {
+		return nil, err
+	}
+
+	sessions, err := FindSessions(projectDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract metadata from each session
+	result := make([]spi.SessionMetadata, 0, len(sessions))
+	for _, session := range sessions {
+		metadata := extractGeminiSessionMetadata(session)
+		if metadata == nil {
+			slog.Debug("Skipping empty session", "sessionID", session.ID)
+			continue
+		}
+		result = append(result, *metadata)
+	}
+
+	return result, nil
+}
+
+// extractGeminiSessionMetadata extracts lightweight metadata from a Gemini session
+// Returns nil if the session has no user messages
+func extractGeminiSessionMetadata(session *GeminiSession) *spi.SessionMetadata {
+	// Find first user message
+	var firstUserMessage string
+	for _, msg := range session.Messages {
+		if msg.Type == "user" {
+			firstUserMessage = msgContent(msg)
+			if firstUserMessage != "" {
+				break
+			}
+		}
+	}
+
+	// If no user message found, session is empty
+	if firstUserMessage == "" {
+		return nil
+	}
+
+	// Generate slug from first user message
+	slug := spi.GenerateFilenameFromUserMessage(firstUserMessage)
+	if slug == "" {
+		slug = "gemini-session"
+	}
+
+	// Generate human-readable name from first user message
+	name := spi.GenerateReadableName(firstUserMessage)
+
+	return &spi.SessionMetadata{
+		SessionID: session.ID,
+		CreatedAt: session.StartTime,
+		Slug:      slug,
+		Name:      name,
+	}
+}
+
+// ListAllAgentChatSessions enumerates every session in this provider's native store,
+// regardless of project. See docs/SESSIONS-DB.md.
+//
+// Gemini associates a tmp directory (~/.gemini/tmp/<hash>/) with a project via a
+// .project_root marker file holding the project path, which is the originating cwd
+// for every session in that directory.
+func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
+	tmpDir, err := GetGeminiTmpDir()
+	if err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []spi.GlobalSessionRef{}, nil
+		}
+		return nil, fmt.Errorf("failed to read Gemini tmp directory: %w", err)
+	}
+
+	var refs []spi.GlobalSessionRef
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		dir := filepath.Join(tmpDir, entry.Name())
+
+		// The .project_root marker holds the project path — the originating cwd shared
+		// by every session in this tmp directory.
+		var cwd string
+		if content, err := os.ReadFile(filepath.Join(dir, ".project_root")); err == nil {
+			cwd = strings.TrimSpace(string(content))
+		}
+
+		sessions, err := FindSessions(dir)
+		if err != nil {
+			slog.Debug("reindex: failed to find gemini sessions", "dir", dir, "error", err)
+			continue
+		}
+		for _, session := range sessions {
+			metadata := extractGeminiSessionMetadata(session)
+			if metadata == nil {
+				continue // empty session
+			}
+			refs = append(refs, spi.GlobalSessionRef{
+				SessionID:  metadata.SessionID,
+				CreatedAt:  metadata.CreatedAt,
+				Slug:       metadata.Slug,
+				Name:       metadata.Name,
+				NativePath: session.FilePath,
+				OriginCwd:  cwd,
+			})
+		}
+	}
+	return refs, nil
 }

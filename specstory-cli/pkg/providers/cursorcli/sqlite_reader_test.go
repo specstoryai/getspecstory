@@ -2,8 +2,41 @@ package cursorcli
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"testing"
 )
+
+// A watcher can read the schema before Cursor commits its first message.
+func TestReadSessionDataEmptyThenPopulated(t *testing.T) {
+	root := t.TempDir()
+	db := createWatcherDatabase(t, root, "initializing")
+	if _, err := db.Exec("DELETE FROM blobs"); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, "initializing")
+	createdAt, slug, records, orphans, err := ReadSessionData(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if createdAt == "" || slug != "" || len(records) != 0 || len(orphans) != 0 {
+		t.Fatalf("unexpected empty session: timestamp=%q slug=%q records=%v orphans=%v", createdAt, slug, records, orphans)
+	}
+
+	message := watcherMessage("first committed message")
+	if _, err := db.Exec("INSERT INTO blobs VALUES ('first', ?)", message); err != nil {
+		t.Fatal(err)
+	}
+	nextCreatedAt, slug, records, orphans, err := ReadSessionData(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nextCreatedAt != createdAt || slug != "first-committed-message" || len(records) != 1 || len(orphans) != 0 {
+		t.Fatalf("unexpected populated session: timestamp=%q slug=%q records=%v orphans=%v", nextCreatedAt, slug, records, orphans)
+	}
+	if records[0].ID != "first" || string(records[0].Data) != string(message) {
+		t.Fatalf("first message was not preserved: %+v", records[0])
+	}
+}
 
 func TestExtractSlugFromBlobs(t *testing.T) {
 	tests := []struct {
@@ -132,6 +165,9 @@ func TestExtractSlugFromBlobs(t *testing.T) {
 			expected: "",
 		},
 		{
+			// spi.GenerateFilenameFromUserMessage converts @ to "at" and # to "hash"
+			// so "Create a @component with #hashtag!" becomes words: create, a, at, component, with, hash, hashtag
+			// and takes first 4: create-a-at-component
 			name: "User message with special characters",
 			blobs: []BlobRecord{
 				{
@@ -147,7 +183,7 @@ func TestExtractSlugFromBlobs(t *testing.T) {
 					}`),
 				},
 			},
-			expected: "create-a-component-with",
+			expected: "create-a-at-component",
 		},
 		{
 			name:     "Empty blob list",

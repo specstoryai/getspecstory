@@ -19,14 +19,38 @@ import (
 var (
 	watcherCtx      context.Context
 	watcherCancel   context.CancelFunc
-	watcherWg       sync.WaitGroup
+	watcherWg       = new(sync.WaitGroup)
 	watcherCallback func(*spi.AgentChatSession) // Callback for session updates
 	watcherDebugRaw bool                        // Whether to write debug raw data files
 	watcherMutex    sync.RWMutex                // Protects watcherCallback and watcherDebugRaw
 )
 
-func init() {
-	watcherCtx, watcherCancel = context.WithCancel(context.Background())
+// watchReconcileInterval is how often the project directory is re-listed to
+// detect newly created session files, re-watch dormant sessions that have woken
+// (a write to an unwatched file produces no fsnotify event, so polling is the
+// only way to notice it), and drop watches on files idle beyond the window.
+const watchReconcileInterval = 2 * time.Second
+
+// reconcileFileWatches computes which session files should gain or lose an
+// fsnotify watch. files maps each JSONL path currently on disk to its
+// modification time; watched is the set of paths currently watched. A file
+// deserves a watch iff it was modified on or after cutoff, so add contains
+// unwatched files inside the window (new sessions and dormant sessions that
+// have woken), and remove contains watched files that aged out of the window
+// or no longer exist.
+func reconcileFileWatches(files map[string]time.Time, watched map[string]bool, cutoff time.Time) (add []string, remove []string) {
+	for path, mtime := range files {
+		if !watched[path] && !mtime.Before(cutoff) {
+			add = append(add, path)
+		}
+	}
+	for path := range watched {
+		mtime, exists := files[path]
+		if !exists || mtime.Before(cutoff) {
+			remove = append(remove, path)
+		}
+	}
+	return add, remove
 }
 
 // SetWatcherCallback sets the callback function for session updates
@@ -70,14 +94,20 @@ func getWatcherCallback() func(*spi.AgentChatSession) {
 // StopWatcher gracefully stops the watcher goroutine
 func StopWatcher() {
 	slog.Info("StopWatcher: Signaling watcher to stop")
-	watcherCancel()
+	if watcherCancel != nil {
+		watcherCancel()
+	}
 	slog.Info("StopWatcher: Waiting for watcher goroutine to finish")
 	watcherWg.Wait()
+	// No event or deadline scans can add work now. Save synchronously before
+	// the caller clears the callback and closes its persistence dependencies.
+	flushDeferredScans()
 	slog.Info("StopWatcher: Watcher stopped")
 }
 
 // WatchForProjectDir watches for a project directory that matches the current working directory
 func WatchForProjectDir() error {
+	watcherCtx, watcherCancel = context.WithCancel(context.Background())
 	slog.Info("WatchForProjectDir: Determining project directory to monitor")
 	claudeProjectDir, err := GetClaudeCodeProjectDir("")
 	if err != nil {
@@ -105,14 +135,9 @@ func startProjectWatcher(claudeProjectDir string) error {
 		return fmt.Errorf("failed to create file watcher: %v", err)
 	}
 
-	// Increment wait group before starting goroutine
-	watcherWg.Add(1)
-
-	// Start watching in a goroutine
-	go func() {
-		// Decrement wait group when done
-		defer watcherWg.Done()
-
+	// Start watching in a goroutine tracked by the wait group, so Stop can
+	// block until it has finished
+	watcherWg.Go(func() {
 		// Log when goroutine starts
 		slog.Info("startProjectWatcher: Goroutine started")
 
@@ -200,12 +225,84 @@ func startProjectWatcher(claudeProjectDir string) error {
 		}
 		slog.Info("startProjectWatcher: Now monitoring project directory for changes",
 			"directory", actualProjectDir)
-		if err := watcher.Add(actualProjectDir); err != nil {
-			log.UserWarn("Error watching project directory: %v", err)
-			slog.Error("startProjectWatcher: Failed to monitor directory", "error", err)
-			return
+
+		// Session files watched individually, one fd each. The project directory
+		// itself is never added to the watcher — see spi.WatchWindowDays for why.
+		watchedFiles := make(map[string]bool)
+
+		// reconcile lists the project directory and converges the watched set on
+		// the files modified within the window. Files gaining a watch are scanned
+		// when scanAdds is set, because a watch appearing outside startup means
+		// activity happened while the file was unwatched (a brand-new session
+		// file, or a dormant session waking) and that activity produced no event.
+		reconcile := func(scanAdds bool) {
+			entries, err := os.ReadDir(actualProjectDir)
+			if err != nil {
+				slog.Debug("startProjectWatcher: Cannot read project directory",
+					"directory", actualProjectDir,
+					"error", err)
+				return
+			}
+
+			files := make(map[string]time.Time)
+			for _, entry := range entries {
+				if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jsonl") {
+					continue
+				}
+				info, err := entry.Info()
+				if err != nil {
+					// File vanished between the listing and the stat; the next
+					// reconcile pass will see the directory's true state
+					continue
+				}
+				files[filepath.Join(actualProjectDir, entry.Name())] = info.ModTime()
+			}
+
+			// Claude Code stores every session ever run in a project as a flat
+			// directory of JSONL files, so the shared trailing window applies
+			// to modification times: only files touched within the window are
+			// watched individually (one fd each), and the reconcile pass
+			// re-watches any dormant file the moment its mtime moves again.
+			cutoff := time.Now().AddDate(0, 0, -spi.WatchWindowDays)
+			add, remove := reconcileFileWatches(files, watchedFiles, cutoff)
+
+			for _, file := range remove {
+				// Removal can fail if the file was deleted; the kernel already
+				// released its fd in that case, so just drop our bookkeeping
+				if err := watcher.Remove(file); err != nil {
+					slog.Debug("startProjectWatcher: Failed to remove file watch",
+						"file", file,
+						"error", err)
+				}
+				delete(watchedFiles, file)
+				slog.Info("startProjectWatcher: Removed file watch", "file", file)
+			}
+
+			for _, file := range add {
+				if err := watcher.Add(file); err != nil {
+					slog.Debug("startProjectWatcher: Failed to watch file",
+						"file", file,
+						"error", err)
+					continue
+				}
+				watchedFiles[file] = true
+				slog.Info("startProjectWatcher: Added file watch", "file", file)
+				// Scan after adding the watch so writes landing in between are
+				// covered by either the scan or a subsequent event
+				if scanAdds {
+					scanJSONLFiles(claudeProjectDir, file)
+				}
+			}
 		}
+
+		// Initial pass watches recent files without scanning them: startup sync
+		// is the command layer's job, and the prior directory-watch behavior
+		// likewise generated no scans until the first file event
+		reconcile(false)
 		slog.Info("startProjectWatcher: Successfully monitoring project directory for future changes")
+
+		ticker := time.NewTicker(watchReconcileInterval)
+		defer ticker.Stop()
 
 		// Watch for file events
 		for {
@@ -223,20 +320,24 @@ func startProjectWatcher(claudeProjectDir string) error {
 					continue
 				}
 
+				// A watched file that is deleted or renamed away no longer has a
+				// live watch; drop it from the set so a same-named successor
+				// would be re-added by reconcile
+				if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
+					delete(watchedFiles, event.Name)
+					continue
+				}
+
 				if !event.Has(fsnotify.Create) && !event.Has(fsnotify.Write) {
 					continue
 				}
 
-				// Handle different event types
-				switch {
-				case event.Has(fsnotify.Create):
-					slog.Info("New JSONL file created", "file", event.Name)
-					scanJSONLFiles(claudeProjectDir, event.Name)
-				case event.Has(fsnotify.Write):
-					slog.Info("JSONL file modified", "file", event.Name)
-					slog.Info("Triggering scan due to file modification")
-					scanJSONLFiles(claudeProjectDir, event.Name)
-				}
+				slog.Info("JSONL file modified", "file", event.Name, "operation", event.Op.String())
+				scanJSONLFiles(claudeProjectDir, event.Name)
+
+			case <-ticker.C:
+				reconcile(true)
+				flushExpiredDeferredScans(time.Now())
 
 			case err, ok := <-watcher.Errors:
 				if !ok {
@@ -245,13 +346,25 @@ func startProjectWatcher(claudeProjectDir string) error {
 				log.UserError("Watcher error: %v", err)
 			}
 		}
-	}()
+	})
 
 	return nil
 }
 
 // scanJSONLFiles scans JSONL files and optionally filters processing to a specific changed file
 func scanJSONLFiles(claudeProjectDir string, changedFile ...string) {
+	var targetFile string
+	if len(changedFile) > 0 {
+		targetFile = changedFile[0]
+	}
+	scanJSONLFilesWithOptions(claudeProjectDir, targetFile, false)
+}
+
+// scanJSONLFilesWithOptions is scanJSONLFiles with the shell gate made explicit:
+// force saves the targeted session even while a shell tool call is open. The
+// deadline and shutdown flushes and final post-exit sweep use it; event scans do
+// not. Call only on the watcher loop, or after StopWatcher has joined it.
+func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force bool) {
 	// Ensure logs are flushed even if we panic
 	defer func() {
 		if r := recover(); r != nil {
@@ -261,9 +374,7 @@ func scanJSONLFiles(claudeProjectDir string, changedFile ...string) {
 	}()
 
 	slog.Info("ScanJSONLFiles: === START SCAN ===", "timestamp", time.Now().Format(time.RFC3339))
-	var targetFile string
-	if len(changedFile) > 0 && changedFile[0] != "" {
-		targetFile = changedFile[0]
+	if targetFile != "" {
 		slog.Info("ScanJSONLFiles: Scanning JSONL files with changed file",
 			"directory", claudeProjectDir,
 			"changedFile", targetFile)
@@ -334,12 +445,28 @@ func scanJSONLFiles(claudeProjectDir string, changedFile ...string) {
 			continue
 		}
 
+		// Shell gate: while a Bash call is open, saving would land inside
+		// Claude Code's before/after diff of that command and surface our
+		// files as its edits. Wait for the tool_result event instead. This
+		// runs before convertToAgentChatSession because the debug-raw files
+		// are written in there too.
+		pendingSession := deferredSession{claudeProjectDir: claudeProjectDir, sessionID: session.SessionUuid}
+		if targetFile != "" && !force {
+			if open := openShellToolUses(session.Records); len(open) > 0 {
+				deferScan(pendingSession, targetFile, open)
+				continue
+			}
+		}
+		if targetFile != "" {
+			clearDeferredScan(pendingSession)
+		}
+
 		// Convert to AgentChatSession (workspaceRoot extracted from records' cwd field)
 		agentSession := convertToAgentChatSession(session, "", getWatcherDebugRaw())
 		if agentSession != nil {
 			slog.Info("ScanJSONLFiles: Calling callback for session", "sessionId", agentSession.SessionID)
-			// Call the callback in a goroutine to avoid blocking
-			go func(s *spi.AgentChatSession) {
+			// Deliver synchronously so Stop joins every save in order.
+			func(s *spi.AgentChatSession) {
 				defer func() {
 					if r := recover(); r != nil {
 						slog.Error("ScanJSONLFiles: Callback panicked", "panic", r)
@@ -356,15 +483,15 @@ func scanJSONLFiles(claudeProjectDir string, changedFile ...string) {
 // WatchForClaudeSetup watches for the creation of Claude directories
 func WatchForClaudeSetup() error {
 	slog.Info("WatchForClaudeSetup: Starting Claude directory setup watcher")
-	homeDir, err := os.UserHomeDir()
+	claudeDir, err := claudeConfigDir()
 	if err != nil {
-		return fmt.Errorf("failed to get user home directory: %v", err)
+		return err
 	}
-
-	claudeDir := filepath.Join(homeDir, ".claude")
+	// Watch the config dir's parent for its creation; for the default this is the home dir.
+	parentDir := filepath.Dir(claudeDir)
 	projectsDir := filepath.Join(claudeDir, "projects")
 	slog.Info("WatchForClaudeSetup: Directories",
-		"homeDir", homeDir,
+		"parentDir", parentDir,
 		"claudeDir", claudeDir,
 		"projectsDir", projectsDir)
 
@@ -373,17 +500,17 @@ func WatchForClaudeSetup() error {
 	var watchingFor string
 
 	if _, err := os.Stat(claudeDir); os.IsNotExist(err) {
-		// .claude doesn't exist, watch home directory
-		watchDir = homeDir
-		watchingFor = ".claude"
-		slog.Warn("WatchForClaudeSetup: .claude directory does not exist")
-		slog.Info("Claude directory not found, watching for creation of ~/.claude\n")
+		// The config dir doesn't exist, watch its parent
+		watchDir = parentDir
+		watchingFor = filepath.Base(claudeDir)
+		slog.Warn("WatchForClaudeSetup: Claude config directory does not exist", "claudeDir", claudeDir)
+		slog.Info("Claude directory not found, watching for its creation", "claudeDir", claudeDir)
 	} else {
-		// .claude exists but projects doesn't, watch .claude
+		// The config dir exists but projects doesn't, watch the config dir
 		watchDir = claudeDir
 		watchingFor = "projects"
-		slog.Warn("WatchForClaudeSetup: .claude directory exists, checking for projects")
-		slog.Info("Claude directory found, watching for creation of ~/.claude/projects\n")
+		slog.Warn("WatchForClaudeSetup: Claude config directory exists, checking for projects", "claudeDir", claudeDir)
+		slog.Info("Claude directory found, watching for creation of projects directory", "projectsDir", projectsDir)
 	}
 	slog.Info("WatchForClaudeSetup: Will watch directory",
 		"watchDir", watchDir,
@@ -406,11 +533,13 @@ func WatchForClaudeSetup() error {
 	slog.Info("WatchForClaudeSetup: Successfully started watching", "directory", watchDir)
 
 	// Start watching in a goroutine
-	go func() {
+	watcherWg.Go(func() {
 		defer func() { _ = watcher.Close() }() // Cleanup on exit; errors not recoverable
 
 		for {
 			select {
+			case <-watcherCtx.Done():
+				return
 			case event, ok := <-watcher.Events:
 				if !ok {
 					return
@@ -429,9 +558,9 @@ func WatchForClaudeSetup() error {
 					time.Sleep(1 * time.Second)
 
 					// Check what we should do next
-					if watchingFor == ".claude" {
-						slog.Info("WatchForClaudeSetup: .claude was created, checking if projects exists")
-						// We were watching for .claude, now check if projects exists
+					if watchingFor == filepath.Base(claudeDir) {
+						slog.Info("WatchForClaudeSetup: Claude config directory was created, checking if projects exists", "claudeDir", claudeDir)
+						// We were watching for the config dir, now check if projects exists
 						if _, err := os.Stat(projectsDir); os.IsNotExist(err) {
 							slog.Info("WatchForClaudeSetup: projects directory does not exist, switching watcher")
 							// Need to watch for projects directory
@@ -442,11 +571,11 @@ func WatchForClaudeSetup() error {
 								"watchDir", watchDir,
 								"watchingFor", watchingFor)
 							if err := watcher.Add(watchDir); err != nil {
-								log.UserWarn("Error switching to watch .claude directory: %v", err)
+								log.UserWarn("Error switching to watch Claude directory %s: %v", claudeDir, err)
 								slog.Error("WatchForClaudeSetup: Failed to switch watcher", "error", err)
 								return
 							}
-							slog.Info("Now watching for creation of ~/.claude/projects\n")
+							slog.Info("Now watching for creation of projects directory", "projectsDir", projectsDir)
 							continue
 						} else {
 							slog.Info("WatchForClaudeSetup: projects directory already exists!")
@@ -485,7 +614,7 @@ func WatchForClaudeSetup() error {
 				slog.Error("WatchForClaudeSetup: Watcher error", "error", err)
 			}
 		}
-	}()
+	})
 
 	return nil
 }
@@ -499,10 +628,12 @@ func convertToAgentChatSession(session Session, workspaceRoot string, debugRaw b
 	}
 
 	// Write debug files first (even for warmup-only sessions)
-	_ = make(map[int]int) // recordToFileNumber no longer needed
 	if debugRaw {
 		// Write debug files
-		writeDebugRawFiles(session)
+		if err := writeDebugRawFiles(session); err != nil {
+			slog.Warn("Failed to write debug raw files", "sessionId", session.SessionUuid,
+				"path", spi.GetDebugDir(session.SessionUuid), "error", err)
+		}
 	}
 
 	// Filter warmup messages

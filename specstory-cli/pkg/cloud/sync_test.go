@@ -274,12 +274,9 @@ func TestTrackSessionInCategory_Concurrent(t *testing.T) {
 			// Launch goroutines for concurrent operations
 			var wg sync.WaitGroup
 			for _, category := range tt.operations {
-				wg.Add(1)
-				cat := category // Capture for goroutine
-				go func() {
-					defer wg.Done()
-					stats.trackSessionInCategory(sessionID, cat)
-				}()
+				wg.Go(func() {
+					stats.trackSessionInCategory(sessionID, category)
+				})
 			}
 
 			// Wait for all operations to complete
@@ -340,10 +337,8 @@ func TestTrackSessionInCategory_ManyConcurrentSessions(t *testing.T) {
 	// Track 100 sessions concurrently
 	// 25 skipped, 25 errored, 25 updated, 25 created
 	for i := 0; i < numSessions; i++ {
-		wg.Add(1)
 		sessionID := i
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			category := categorySkipped
 			switch sessionID % 4 {
 			case 0:
@@ -356,7 +351,7 @@ func TestTrackSessionInCategory_ManyConcurrentSessions(t *testing.T) {
 				category = categoryCreated
 			}
 			stats.trackSessionInCategory(string(rune(sessionID)), category)
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -456,20 +451,30 @@ func TestRequiresSync_WithBulkSizes(t *testing.T) {
 			description:   "When skipHeadCheck is true, should return true immediately without checking bulk sizes",
 		},
 		{
-			name:          "bulk sizes available, session exists, sizes match",
+			name:          "bulk sizes available, session exists, sizes match, has SessionData blob",
 			sessionID:     "session-1",
 			localContent:  "1234567890", // 10 bytes
-			bulkSizes:     map[string]int{"session-1": 10},
+			bulkSizes:     map[string]int{"session-1": 10, "session-1:sessionData": 5},
 			skipHeadCheck: false,
 			wantNeedsSync: false,
 			wantErr:       false,
-			description:   "When local and server sizes match, no sync needed",
+			description:   "When sizes match AND a SessionData blob already exists, no sync needed",
+		},
+		{
+			name:          "bulk sizes available, sizes match but no SessionData blob triggers self-heal",
+			sessionID:     "session-1",
+			localContent:  "1234567890",                    // 10 bytes
+			bulkSizes:     map[string]int{"session-1": 10}, // no ":sessionData" key => legacy session
+			skipHeadCheck: false,
+			wantNeedsSync: true,
+			wantErr:       false,
+			description:   "Legacy session without a SessionData blob re-syncs to backfill it, even when markdown matches",
 		},
 		{
 			name:          "bulk sizes available, session exists, local larger",
 			sessionID:     "session-1",
-			localContent:  "12345678901234567890", // 20 bytes
-			bulkSizes:     map[string]int{"session-1": 10},
+			localContent:  "12345678901234567890",                                      // 20 bytes
+			bulkSizes:     map[string]int{"session-1": 10, "session-1:sessionData": 5}, // has blob, but markdown grew
 			skipHeadCheck: false,
 			wantNeedsSync: true,
 			wantErr:       false,
@@ -478,12 +483,12 @@ func TestRequiresSync_WithBulkSizes(t *testing.T) {
 		{
 			name:          "bulk sizes available, session exists, local smaller",
 			sessionID:     "session-1",
-			localContent:  "12345", // 5 bytes
-			bulkSizes:     map[string]int{"session-1": 10},
+			localContent:  "12345",                                                     // 5 bytes
+			bulkSizes:     map[string]int{"session-1": 10, "session-1:sessionData": 5}, // has blob
 			skipHeadCheck: false,
 			wantNeedsSync: false,
 			wantErr:       false,
-			description:   "When local size < server size, no sync needed",
+			description:   "When local size < server size and a SessionData blob exists, no sync needed",
 		},
 		{
 			name:          "bulk sizes available, session not in map",
@@ -572,39 +577,52 @@ func TestRequiresSync_WithBulkSizes(t *testing.T) {
 // TestRequiresSync_BulkSizesEdgeCases tests edge cases for bulk sizes
 func TestRequiresSync_BulkSizesEdgeCases(t *testing.T) {
 	tests := []struct {
-		name          string
-		localContent  string
-		serverSize    int
-		wantNeedsSync bool
-		description   string
+		name           string
+		localContent   string
+		serverSize     int
+		hasSessionData bool // when true, the bulk map carries a "<id>:sessionData" key
+		wantNeedsSync  bool
+		description    string
 	}{
 		{
-			name:          "zero length local, zero length server",
-			localContent:  "",
-			serverSize:    0,
-			wantNeedsSync: false,
-			description:   "Empty files with matching sizes",
+			name:           "zero length local, zero length server, has SessionData blob",
+			localContent:   "",
+			serverSize:     0,
+			hasSessionData: true,
+			wantNeedsSync:  false,
+			description:    "Empty files with matching sizes and an existing SessionData blob",
 		},
 		{
-			name:          "zero length local, non-zero server",
-			localContent:  "",
-			serverSize:    10,
-			wantNeedsSync: false,
-			description:   "Empty local file, server has content - no sync needed",
+			name:           "zero length local, non-zero server, has SessionData blob",
+			localContent:   "",
+			serverSize:     10,
+			hasSessionData: true,
+			wantNeedsSync:  false,
+			description:    "Empty local file, server has content and a SessionData blob - no sync needed",
 		},
 		{
-			name:          "non-zero local, zero server",
-			localContent:  "content",
-			serverSize:    0,
-			wantNeedsSync: true,
-			description:   "Local has content, server empty - sync needed",
+			name:           "sizes match but no SessionData blob triggers self-heal",
+			localContent:   "content",
+			serverSize:     7, // matches len("content")
+			hasSessionData: false,
+			wantNeedsSync:  true,
+			description:    "Legacy session with no SessionData blob re-syncs to backfill it",
 		},
 		{
-			name:          "very large size difference",
-			localContent:  string(make([]byte, 1000000)), // 1MB
-			serverSize:    100,
-			wantNeedsSync: true,
-			description:   "Large local file, small server file",
+			name:           "non-zero local, zero server",
+			localContent:   "content",
+			serverSize:     0,
+			hasSessionData: true,
+			wantNeedsSync:  true,
+			description:    "Local has content, server empty - sync needed",
+		},
+		{
+			name:           "very large size difference",
+			localContent:   string(make([]byte, 1000000)), // 1MB
+			serverSize:     100,
+			hasSessionData: true,
+			wantNeedsSync:  true,
+			description:    "Large local file, small server file",
 		},
 	}
 
@@ -616,9 +634,13 @@ func TestRequiresSync_BulkSizesEdgeCases(t *testing.T) {
 				t.Fatal("Failed to get sync manager")
 			}
 
-			// Set bulk sizes with test session
+			// Set bulk sizes with test session. When the session already has a SessionData
+			// blob, include the suffixed key so the self-heal check is satisfied.
 			sessionID := "edge-case-session"
 			bulkSizes := map[string]int{sessionID: tt.serverSize}
+			if tt.hasSessionData {
+				bulkSizes[sessionID+":sessionData"] = 1
+			}
 			syncMgr.bulkSizesMu.Lock()
 			syncMgr.bulkSizes = bulkSizes
 			syncMgr.bulkSizesMu.Unlock()

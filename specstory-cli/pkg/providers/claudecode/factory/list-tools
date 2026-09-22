@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Enumerate Claude Code's tool inventory, for TOOL-AUDIT.
+#
+# Source: the harness's own declaration. In `claude -p --output-format
+# stream-json --verbose`, the first event is a `system`/`init` record carrying
+# the list of tools the CLI loaded for the session — deferred tools included.
+# That is the set of names that can appear in session data, read from the wire
+# rather than asked of the model (the model's self-report matched it name for
+# name on 2.1.258, but is nondeterministic and costs a judged run).
+#
+# Run this in an empty throwaway directory under an isolated $HOME (the
+# caller's job — no user settings, no MCP servers, no plugins: the inventory is
+# the agent's built-in surface). Auth arrives as CLAUDE_CODE_OAUTH_TOKEN in the
+# environment; the init event is only emitted once the session is authenticated.
+#
+# Factory SPI contract: print the raw tool list, one name per line, to stdout
+# and exit 0. Non-zero exit means enumeration failed — never an empty or
+# partial inventory — with the reason on stderr so credential rot is
+# distinguishable from agent breakage. The event stream is left in
+# ./stream.jsonl for diagnosis.
+set -euo pipefail
+claude="$HOME/.local/bin/claude"
+export DISABLE_AUTOUPDATER=1   # a native install auto-updates in the background; the audit pins its version
+
+rm -f stream.jsonl
+status=0
+"$claude" -p "Reply with exactly the word OK." \
+  --output-format stream-json --verbose --max-turns 1 --strict-mcp-config \
+  < /dev/null > stream.jsonl || status=$?
+
+tools=$(jq -r 'select(.type=="system" and .subtype=="init") | .tools[]' stream.jsonl 2>/dev/null || true)
+if [ -z "$tools" ]; then
+  echo "list-tools: no init event with tools (claude exit $status)" >&2
+  jq -r 'select(.type=="result") | "result: is_error=\(.is_error) \(.result // "" | .[0:300])"' stream.jsonl >&2 2>/dev/null || head -c 600 stream.jsonl >&2
+  exit 1
+fi
+printf '%s\n' "$tools"

@@ -2,7 +2,6 @@ package cursorcli
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -11,303 +10,272 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
-	_ "modernc.org/sqlite" // Pure Go SQLite driver
 )
 
-// CursorWatcher monitors Cursor SQLite databases for changes
-type CursorWatcher struct {
-	projectPath     string
-	hashDir         string // The hash directory for this project
-	pollInterval    time.Duration
-	ctx             context.Context
-	cancel          context.CancelFunc
-	wg              sync.WaitGroup
-	callbackWg      sync.WaitGroup              // Track callback goroutines
-	lastCounts      map[string]int              // Track record counts per session
-	knownSessions   map[string]bool             // Sessions that existed at startup (don't process unless resumed)
-	resumedSession  string                      // Session ID being resumed (watch for changes)
-	sessionCallback func(*spi.AgentChatSession) // Callback for session updates
-	debugRaw        bool                        // Whether to write debug raw data files
-	mu              sync.RWMutex                // Protects maps
+type fileStamp struct {
+	size     int64
+	modified time.Time
 }
 
-// NewCursorWatcher creates a new Cursor database watcher
+// File metadata is only a discovery/watch-window hint. A WAL write can precede
+// its commit, so committed changes are tracked separately through data_version.
+type databaseStamp [2]fileStamp
+
+func cursorDatabaseStamp(path string) databaseStamp {
+	var stamp databaseStamp
+	for i, suffix := range []string{"", "-wal"} {
+		if info, err := os.Stat(path + suffix); err == nil {
+			stamp[i] = fileStamp{size: info.Size(), modified: info.ModTime()}
+		}
+	}
+	return stamp
+}
+
+// CursorWatcher monitors this project's session directories with fsnotify.
+// Its single worker owns discovery, parsing, and callback delivery.
+type CursorWatcher struct {
+	projectPath     string
+	hashDir         string
+	debugRaw        bool
+	sessionCallback func(*spi.AgentChatSession)
+	tsCache         *MessageTimestampCache
+	mu              sync.Mutex // Serializes starts and stops, including the final save.
+	cancel          context.CancelFunc
+	wg              sync.WaitGroup
+	watcher         *fsnotify.Watcher
+	watched         map[string]bool
+	stamps          map[string]databaseStamp
+	walEnabled      map[string]bool
+	databases       map[string]*watchedCursorDatabase
+}
+
+// NewCursorWatcher creates a watcher without starting it.
 func NewCursorWatcher(projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) (*CursorWatcher, error) {
-	// Get the project hash directory
 	hashDir, err := GetProjectHashDir(projectPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get project hash directory: %w", err)
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	return &CursorWatcher{
-		projectPath:     projectPath,
-		hashDir:         hashDir,
-		pollInterval:    5 * time.Second, // 5-second polling interval
-		ctx:             ctx,
-		cancel:          cancel,
-		lastCounts:      make(map[string]int),
-		knownSessions:   make(map[string]bool),
-		resumedSession:  "",
-		sessionCallback: sessionCallback,
-		debugRaw:        debugRaw,
-	}, nil
+	return &CursorWatcher{projectPath: projectPath, hashDir: hashDir, debugRaw: debugRaw, sessionCallback: sessionCallback}, nil
 }
 
-// SetInitialState sets the sessions that existed at startup and which session is being resumed
-func (w *CursorWatcher) SetInitialState(existingSessionIDs map[string]bool, resumedSessionID string) {
+// Start records existing sessions without emitting them and arms watches before
+// returning, so a launched agent's first write cannot precede the baseline.
+func (w *CursorWatcher) Start() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.knownSessions = existingSessionIDs
-	w.resumedSession = resumedSessionID
-	if resumedSessionID != "" {
-		slog.Info("Watcher will monitor resumed session for changes", "sessionId", resumedSessionID)
+	if w.cancel != nil {
+		return fmt.Errorf("cursor watcher already started")
 	}
-	slog.Debug("Watcher initialized with existing sessions", "count", len(existingSessionIDs))
-}
-
-// Start begins monitoring the Cursor databases
-func (w *CursorWatcher) Start() error {
-	slog.Info("Starting Cursor CLI watcher",
-		"projectPath", w.projectPath,
-		"hashDir", w.hashDir,
-		"pollInterval", w.pollInterval)
-
-	// Check if hash directory exists
-	stat, err := os.Stat(w.hashDir)
+	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		if os.IsNotExist(err) {
-			slog.Info("Project hash directory doesn't exist yet, will watch for it", "hashDir", w.hashDir)
-		} else {
-			slog.Warn("Cannot access project hash directory", "hashDir", w.hashDir, "error", err)
-		}
-		// Start watching for the directory to be created
-		w.wg.Add(1)
-		go w.watchForDirectory()
-		return nil
+		return err
 	}
-
-	// Log that we found the directory
-	slog.Info("Project hash directory exists", "hashDir", w.hashDir, "isDir", stat.IsDir())
-
-	// Directory exists, start watching sessions
-	w.wg.Add(1)
-	go w.watchLoop()
-
+	w.watcher = watcher
+	w.watched = make(map[string]bool)
+	w.stamps = make(map[string]databaseStamp)
+	w.walEnabled = make(map[string]bool)
+	w.databases = make(map[string]*watchedCursorDatabase)
+	w.tsCache = NewMessageTimestampCache()
+	if err := w.reconcile(false); err != nil {
+		w.closeDatabases()
+		_ = watcher.Close()
+		return err
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	w.cancel = cancel
+	w.wg.Go(func() { w.watchLoop(ctx) })
+	slog.Info("Cursor watcher started", "projectPath", w.projectPath)
 	return nil
 }
 
-// Stop gracefully stops the watcher
+// Stop joins the event worker, including its final scan and all callbacks.
 func (w *CursorWatcher) Stop() {
-	slog.Info("Stopping Cursor watcher")
-
-	// Perform one final check before stopping to catch any last-minute changes
-	slog.Info("Performing final check for changes before stopping")
-	w.checkForChanges()
-
-	// Now stop the watcher goroutines
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.cancel == nil {
+		return
+	}
 	w.cancel()
 	w.wg.Wait()
-
-	// Wait for any pending callback goroutines to complete
-	slog.Info("Waiting for pending callbacks to complete")
-	w.callbackWg.Wait()
-
+	w.cancel = nil
 	slog.Info("Cursor watcher stopped")
 }
 
-// watchForDirectory waits for the project hash directory to be created
-func (w *CursorWatcher) watchForDirectory() {
-	defer w.wg.Done()
-
-	ticker := time.NewTicker(w.pollInterval)
+func (w *CursorWatcher) watchLoop(ctx context.Context) {
+	defer func() { _ = w.watcher.Close() }()
+	defer w.closeDatabases()
+	// Events drive change detection. Reconciliation recovers missed events and
+	// prunes idle directory watches as the store ages.
+	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
-
+	// Publishing a WAL commit can happen after its last filesystem event.
+	// Check committed versions without rescanning or parsing session history.
+	commits := time.NewTicker(250 * time.Millisecond)
+	defer commits.Stop()
+	debounce := time.NewTimer(time.Hour)
+	debounce.Stop()
+	defer debounce.Stop()
+	var pending <-chan time.Time
 	for {
 		select {
-		case <-w.ctx.Done():
+		case <-ctx.Done():
+			if err := w.reconcile(true); err != nil {
+				slog.Warn("Cursor final session scan failed", "error", err)
+			}
 			return
-		case <-ticker.C:
-			// Check if directory now exists
-			if _, err := os.Stat(w.hashDir); err == nil {
-				slog.Info("Project hash directory detected, starting session watcher", "hashDir", w.hashDir)
-				// Directory exists now, start watching sessions
-				w.wg.Add(1)
-				go w.watchLoop()
+		case _, ok := <-w.watcher.Events:
+			if !ok {
 				return
 			}
-		}
-	}
-}
-
-// watchLoop is the main monitoring loop
-func (w *CursorWatcher) watchLoop() {
-	defer w.wg.Done()
-
-	ticker := time.NewTicker(w.pollInterval)
-	defer ticker.Stop()
-
-	// Do an initial check immediately
-	w.checkForChanges()
-
-	for {
-		select {
-		case <-w.ctx.Done():
-			return
-		case <-ticker.C:
-			// Uncomment this to see the ticker in action when debugging the watcher
-			//slog.Debug("Watcher tick - checking for changes")
-			w.checkForChanges()
-		}
-	}
-}
-
-// checkForChanges scans all session directories for database changes
-func (w *CursorWatcher) checkForChanges() {
-
-	// Get all session directories
-	sessionIDs, err := GetCursorSessionDirs(w.hashDir)
-	if err != nil {
-		slog.Debug("Failed to get session directories", "error", err)
-		return
-	}
-
-	for _, sessionID := range sessionIDs {
-		// Check if this is a NEW session or the resumed session
-		w.mu.RLock()
-		isKnown := w.knownSessions[sessionID]
-		isResumed := sessionID == w.resumedSession
-		w.mu.RUnlock()
-
-		// Skip known sessions unless it's the one being resumed
-		if isKnown && !isResumed {
+			// A SQLite commit often produces a burst across the database and
+			// WAL. Read after the burst, rather than parsing each partial write.
+			debounce.Reset(50 * time.Millisecond)
+			pending = debounce.C
 			continue
-		}
-
-		// Check if this session has a store.db file
-		dbPath := filepath.Join(w.hashDir, sessionID, "store.db")
-
-		// Check if database exists
-		fileInfo, err := os.Stat(dbPath)
-		if err != nil {
-			continue // Skip sessions without store.db
-		}
-
-		// For NEW sessions, process them once and then watch for changes
-		if !isKnown {
-			// Check if we've already seen this new session
-			if w.hasSessionChanged(sessionID, fileInfo, dbPath) {
-				slog.Info("Detected NEW Cursor session", "sessionId", sessionID)
-				w.processSessionChanges(sessionID, dbPath)
+		case err, ok := <-w.watcher.Errors:
+			if !ok {
+				return
 			}
-		} else if isResumed {
-			// For resumed session, check for changes
-			slog.Debug("Polling resumed session for changes", "sessionId", sessionID)
-			if w.hasSessionChanged(sessionID, fileInfo, dbPath) {
-				slog.Info("Detected changes in resumed Cursor session", "sessionId", sessionID)
-				w.processSessionChanges(sessionID, dbPath)
-			} else {
-				slog.Debug("No changes detected in resumed session", "sessionId", sessionID)
-			}
+			slog.Warn("Cursor watcher event error", "error", err)
+		case <-ticker.C:
+		case <-commits.C:
+			w.checkDatabaseCommits()
+			continue
+		case <-pending:
+			pending = nil
+		}
+		if err := w.reconcile(true); err != nil {
+			slog.Warn("Cursor watcher reconciliation failed", "error", err)
 		}
 	}
 }
 
-// hasSessionChanged checks if a session database has new records
-func (w *CursorWatcher) hasSessionChanged(sessionID string, fileInfo os.FileInfo, dbPath string) bool {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	// Always check record count - don't rely on file modification time
-	// SQLite with WAL mode may not update file mtime when records are added
-
-	// Open database to count records (with WAL mode)
-	db, err := sql.Open("sqlite", dbPath+"?mode=ro")
-	if err != nil {
-		slog.Error("Failed to open database", "sessionId", sessionID, "error", err)
-		return false
-	}
-	defer func() {
-		if err := db.Close(); err != nil {
-			slog.Debug("Failed to close database", "error", err)
+func (w *CursorWatcher) reconcile(emit bool) error {
+	// Watch the nearest existing ancestor for a first-ever agent session.
+	root := w.hashDir
+	for {
+		info, err := os.Stat(root)
+		if err == nil {
+			if !info.IsDir() {
+				return fmt.Errorf("not a directory: %s", root)
+			}
+			break
 		}
-	}()
-
-	// Enable WAL mode for non-blocking reads
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		slog.Debug("Failed to enable WAL mode in watcher", "error", err)
-	}
-
-	// Count total records in the blobs table
-	var count int
-	err = db.QueryRow("SELECT COUNT(*) FROM blobs").Scan(&count)
-	if err != nil {
-		slog.Error("Failed to count blobs", "sessionId", sessionID, "error", err)
-		return false
-	}
-
-	// Check if record count changed
-	lastCount, countExists := w.lastCounts[sessionID]
-	w.lastCounts[sessionID] = count
-
-	if !countExists {
-		// First time seeing this session - only process if it has content
-		if count > 0 {
-			slog.Debug("First check of session with content", "sessionId", sessionID, "recordCount", count)
-			return true
+		if !os.IsNotExist(err) {
+			return err
 		}
-		slog.Debug("First check of session but empty", "sessionId", sessionID)
-		return false
+		parent := filepath.Dir(root)
+		if parent == root {
+			return err
+		}
+		root = parent
 	}
-
-	if count > lastCount {
-		// Records added to existing session
-		slog.Debug("Session has new records", "sessionId", sessionID, "oldCount", lastCount, "newCount", count)
-		return true
+	wanted := map[string]bool{root: true}
+	// A deleted directory loses its OS watch even if recreated under the same
+	// name; the watcher's live list is authoritative at each reconciliation.
+	live := make(map[string]bool)
+	for _, path := range w.watcher.WatchList() {
+		live[path] = true
 	}
-
-	// Uncomment this to see the ticker in action when debugging the watcher
-	//slog.Debug("No new records in session", "sessionId", sessionID, "count", count)
-	return false
+	w.watched = live
+	add := func(path string) error {
+		if w.watched[path] {
+			return nil
+		}
+		if err := w.watcher.Add(path); err != nil {
+			return err
+		}
+		w.watched[path] = true
+		return nil
+	}
+	if err := add(root); err != nil {
+		return err
+	}
+	if root == w.hashDir {
+		ids, err := GetCursorSessionDirs(w.hashDir)
+		if err != nil {
+			return err
+		}
+		for _, id := range ids {
+			dir := filepath.Join(w.hashDir, id)
+			path := filepath.Join(dir, "store.db")
+			stamp := cursorDatabaseStamp(path)
+			previous, known := w.stamps[id]
+			// New and changed sessions are always adopted, including dormant
+			// sessions outside the ordinary watch window.
+			active := stamp[0].modified.IsZero() || (emit && (!known || stamp != previous)) || stamp[0].modified.After(spi.WatchWindowCutoff(time.Now())) || stamp[1].modified.After(spi.WatchWindowCutoff(time.Now()))
+			if active {
+				wanted[dir] = true
+				if err := add(dir); err != nil {
+					return err
+				}
+			}
+			if !w.walEnabled[id] && !stamp[0].modified.IsZero() {
+				if err := spi.EnsureWALMode(path); err != nil {
+					slog.Warn("Cursor watcher could not enable WAL", "path", path, "error", err)
+				} else {
+					w.walEnabled[id] = true
+				}
+			}
+			w.stamps[id] = cursorDatabaseStamp(path)
+			if active && !stamp[0].modified.IsZero() {
+				w.checkDatabaseCommit(id, path, emit)
+			}
+		}
+	}
+	for path := range w.watched {
+		if !wanted[path] {
+			_ = w.watcher.Remove(path)
+			delete(w.watched, path)
+		}
+	}
+	for id, db := range w.databases {
+		if !wanted[filepath.Join(w.hashDir, id)] {
+			db.close()
+			delete(w.databases, id)
+			delete(w.walEnabled, id)
+		}
+	}
+	return nil
 }
 
 // processSessionChanges handles changes detected in a session
-func (w *CursorWatcher) processSessionChanges(sessionID string, dbPath string) {
+func (w *CursorWatcher) processSessionChanges(sessionID string, dbPath string) bool {
 	slog.Info("Processing Cursor session changes", "sessionId", sessionID)
 
 	// Read the session data
 	sessionPath := filepath.Dir(dbPath) // Get the session directory from db path
-	createdAt, slug, blobRecords, _, err := ReadSessionData(sessionPath)
+	createdAt, slug, blobRecords, orphanRecords, err := ReadSessionData(sessionPath)
 	if err != nil {
 		slog.Error("Failed to read session data", "sessionId", sessionID, "error", err)
-		return
+		return false
 	}
 
 	if len(blobRecords) == 0 {
 		slog.Debug("Session has no message records", "sessionId", sessionID)
-		return
+		return false
 	}
 
 	// Generate SessionData from blob records
-	sessionData, err := GenerateAgentSession(blobRecords, w.projectPath, sessionID, createdAt, slug)
+	sessionData, err := GenerateAgentSession(blobRecords, w.projectPath, sessionID, createdAt, slug, w.tsCache)
 	if err != nil {
 		slog.Error("Failed to generate SessionData", "sessionId", sessionID, "error", err)
-		return
+		return false
 	}
 
 	// Marshal blob records to JSON for raw data
 	rawDataJSON, err := json.Marshal(blobRecords)
 	if err != nil {
 		slog.Error("Failed to marshal blob records", "sessionId", sessionID, "error", err)
-		return
+		return false
 	}
 
 	// Write provider-specific debug output if requested
 	if w.debugRaw {
-		if err := writeDebugOutput(sessionID, string(rawDataJSON), nil); err != nil {
-			slog.Debug("Failed to write debug output", "sessionID", sessionID, "error", err)
+		if err := writeDebugOutput(sessionID, string(rawDataJSON), orphanRecords); err != nil {
+			slog.Warn("Failed to write debug output", "sessionID", sessionID, "path", spi.GetDebugDir(sessionID), "error", err)
 			// Don't fail the operation if debug output fails
 		}
 	}
@@ -321,34 +289,28 @@ func (w *CursorWatcher) processSessionChanges(sessionID string, dbPath string) {
 		RawData:     string(rawDataJSON),
 	}
 
-	// Call the callback asynchronously to avoid blocking the watcher
+	// One worker delivers updates in order and Stop joins the final callback.
 	if w.sessionCallback != nil {
-		w.callbackWg.Add(1)
-		go func(s *spi.AgentChatSession) {
-			defer w.callbackWg.Done()
+		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("Session callback panicked", "panic", r, "sessionId", s.SessionID)
+					slog.Error("Cursor session callback panicked", "sessionId", sessionID, "panic", r)
 				}
 			}()
-			w.sessionCallback(s)
-		}(agentSession)
-
-		// Log that we detected changes and invoked the callback
-		slog.Info("Detected session changes, callback invoked", "sessionId", sessionID)
+			w.sessionCallback(agentSession)
+		}()
 	}
+	return true
 }
 
-// WatchCursorProject starts monitoring a Cursor project
+// WatchCursorProject starts monitoring a Cursor project.
 func WatchCursorProject(projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) (*CursorWatcher, error) {
 	watcher, err := NewCursorWatcher(projectPath, debugRaw, sessionCallback)
 	if err != nil {
 		return nil, err
 	}
-
 	if err := watcher.Start(); err != nil {
 		return nil, err
 	}
-
 	return watcher, nil
 }

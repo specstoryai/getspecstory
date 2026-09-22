@@ -18,7 +18,7 @@ type GeminiToolCall struct {
 	Result                 []GeminiToolResult `json:"result"`
 	Status                 string             `json:"status"`
 	Timestamp              string             `json:"timestamp"`
-	ResultDisplay          string             `json:"resultDisplay"`
+	ResultDisplay          json.RawMessage    `json:"resultDisplay"`
 	DisplayName            string             `json:"displayName"`
 	Description            string             `json:"description"`
 	RenderOutputAsMarkdown bool               `json:"renderOutputAsMarkdown"`
@@ -531,9 +531,37 @@ func decodeContent(raw json.RawMessage) string {
 	return strings.Trim(string(raw), "\"")
 }
 
+// resultDisplayString decodes the polymorphic ResultDisplay field.
+// It handles both string values (shell commands) and object values (file operations).
+func resultDisplayString(raw json.RawMessage) string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return ""
+	}
+
+	// Try as a simple string first (most common for shell commands)
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s
+	}
+
+	// It's an object — extract the most useful display field.
+	// Gemini's file-operation resultDisplay includes fileDiff which is ideal for display.
+	var obj map[string]any
+	if err := json.Unmarshal(raw, &obj); err == nil {
+		if diff, ok := obj["fileDiff"].(string); ok && diff != "" {
+			return diff
+		}
+		if output, ok := obj["output"].(string); ok && output != "" {
+			return output
+		}
+	}
+
+	return ""
+}
+
 func toolOutput(tc GeminiToolCall) string {
-	if tc.ResultDisplay != "" {
-		return tc.ResultDisplay
+	if display := resultDisplayString(tc.ResultDisplay); display != "" {
+		return display
 	}
 	for _, result := range tc.Result {
 		if result.FunctionResponse != nil {

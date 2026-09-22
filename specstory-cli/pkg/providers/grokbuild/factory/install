@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Channel: exact stable artifacts named by the official x.ai/cli/install.sh.
+# Download the binary directly: the general installer also edits shell startup
+# files and probes ambient credentials, neither of which a factory needs.
+# Factory SPI: install <version> under $HOME/.local/bin/grok, disable updates,
+# verify the binary's reported version, and print that version alone on stdout.
+set -euo pipefail
+version=${1:?usage: install <version>}
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo 'install: expected a stable X.Y.Z version' >&2
+  exit 1
+fi
+case "$(uname -s)" in Darwin) platform=macos ;; Linux) platform=linux ;; *) echo 'install: unsupported OS' >&2; exit 1 ;; esac
+case "$(uname -m)" in arm64|aarch64) arch=aarch64 ;; x86_64|amd64) arch=x86_64 ;; *) echo 'install: unsupported architecture' >&2; exit 1 ;; esac
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 \
+  "https://x.ai/cli/grok-${version}-${platform}-${arch}" -o "$tmp/grok"
+chmod 755 "$tmp/grok"
+installed=$(GROK_DISABLE_AUTOUPDATER=1 "$tmp/grok" --version | awk 'NR==1 && $1=="grok" {print $2}')
+if [ "$installed" != "$version" ]; then
+  echo "install: wanted $version, binary reports $installed" >&2
+  exit 1
+fi
+mkdir -p "$HOME/.local/bin" "$HOME/.grok"
+install -m 755 "$tmp/grok" "$HOME/.local/bin/grok"
+printf '[cli]\nauto_update = false\n' > "$HOME/.grok/config.toml"
+printf '%s\n' "$installed"

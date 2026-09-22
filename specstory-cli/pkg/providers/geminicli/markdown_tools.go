@@ -3,12 +3,13 @@ package geminicli
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // formatToolAsMarkdown generates formatted markdown for a ToolInfo (input + output)
-// Returns the inner content only (no <tool-use> tags - those are added by pkg/markdown)
+// Returns the inner content only (no <tool-use> tags - those are added by pkg/session)
 // Also sets tool.Summary if a custom summary is needed
 func formatToolAsMarkdown(tool *ToolInfo) string {
 	if tool == nil {
@@ -94,7 +95,7 @@ func formatToolBodyFromInput(tool *ToolInfo) string {
 		// Don't show input args - parameters are in the summary
 		return ""
 	default:
-		return formatGenericBodyFromInput(tool.Input)
+		return spi.RenderGenericJSON(tool.Input)
 	}
 }
 
@@ -122,8 +123,8 @@ func formatReadFileResultFromOutput(tool *ToolInfo) string {
 	}
 
 	filePath := inputAsString(tool.Input, "file_path")
-	lang := languageFromPath(filePath)
-	return fmt.Sprintf("```%s\n%s\n```", lang, output)
+	lang := spi.LanguageFromPath(filePath)
+	return spi.CodeFence(lang, output)
 }
 
 // formatSearchListResultFromOutput shows raw output without code fence
@@ -152,7 +153,7 @@ func formatDefaultResultFromOutput(output map[string]interface{}) string {
 // formatOutputText wraps multi-line output in code fence, leaves single-line as-is
 func formatOutputText(output string) string {
 	if strings.Contains(output, "\n") {
-		return fmt.Sprintf("```text\n%s\n```", output)
+		return spi.CodeFence("text", output)
 	}
 	return output
 }
@@ -175,13 +176,11 @@ func formatShellBodyFromInput(input map[string]interface{}) string {
 
 	var builder strings.Builder
 	if dir != "" {
-		builder.WriteString(fmt.Sprintf("Directory: `%s`\n\n", dir))
+		fmt.Fprintf(&builder, "Directory: `%s`\n\n", dir)
 	}
 
 	if command != "" {
-		builder.WriteString("```bash\n")
-		builder.WriteString(command)
-		builder.WriteString("\n```")
+		builder.WriteString(spi.CodeFence("bash", command))
 	}
 
 	return builder.String()
@@ -196,14 +195,10 @@ func formatWriteFileBodyFromInput(input map[string]interface{}) string {
 
 	var builder strings.Builder
 	if path != "" {
-		builder.WriteString(fmt.Sprintf("Path: `%s`\n\n", path))
+		fmt.Fprintf(&builder, "Path: `%s`\n\n", path)
 	}
 	if content != "" {
-		builder.WriteString("```")
-		builder.WriteString(languageFromPath(path))
-		builder.WriteString("\n")
-		builder.WriteString(content)
-		builder.WriteString("\n```")
+		builder.WriteString(spi.CodeFence(spi.LanguageFromPath(path), content))
 	}
 	return builder.String()
 }
@@ -217,12 +212,10 @@ func formatReplaceBodyFromInput(input map[string]interface{}) string {
 
 	var builder strings.Builder
 	if path != "" {
-		builder.WriteString(fmt.Sprintf("Path: `%s`\n\n", path))
+		fmt.Fprintf(&builder, "Path: `%s`\n\n", path)
 	}
 	if newString != "" {
-		builder.WriteString("```diff\n")
-		builder.WriteString(truncate(newString, 2000))
-		builder.WriteString("\n```")
+		builder.WriteString(spi.CodeFence("diff", truncate(newString, 2000)))
 	}
 	return builder.String()
 }
@@ -256,7 +249,7 @@ func formatTodoBodyFromInput(input map[string]interface{}) string {
 		if todo, ok := raw.(map[string]interface{}); ok {
 			desc, _ := todo["description"].(string)
 			status, _ := todo["status"].(string)
-			builder.WriteString(fmt.Sprintf("- [%s] %s\n", todoStatusSymbol(status), strings.TrimSpace(desc)))
+			fmt.Fprintf(&builder, "- [%s] %s\n", todoStatusSymbol(status), strings.TrimSpace(desc))
 		}
 	}
 	return builder.String()
@@ -271,17 +264,6 @@ func todoStatusSymbol(status string) string {
 	default:
 		return " "
 	}
-}
-
-func formatGenericBodyFromInput(input map[string]interface{}) string {
-	if len(input) == 0 {
-		return ""
-	}
-	bytes, err := json.MarshalIndent(input, "", "  ")
-	if err != nil {
-		return ""
-	}
-	return fmt.Sprintf("```json\n%s\n```", string(bytes))
 }
 
 // inputAsString extracts a string value from tool input
@@ -331,17 +313,6 @@ func outputAsString(output map[string]interface{}) string {
 	}
 
 	return ""
-}
-
-func languageFromPath(path string) string {
-	if path == "" {
-		return "text"
-	}
-	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
-	if ext == "" {
-		return "text"
-	}
-	return ext
 }
 
 func truncate(text string, limit int) string {

@@ -1,6 +1,7 @@
 package cursorcli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -69,26 +70,6 @@ func expandTilde(path string) string {
 	return path
 }
 
-// getPathType determines the type of path being used for Cursor CLI.
-// Returns one of the following for analytics tracking:
-//   - "cursor_bin": Cursor's standard installation directory (~/.cursor/bin/)
-//   - "user_local": User's local bin directory (~/.local/bin/)
-//   - "absolute_path": Custom absolute path provided by user
-//   - "system_path": Found in system PATH environment variable
-//
-// This helps understand how users have Cursor CLI installed for support and usage patterns.
-func getPathType(cursorCmd, resolvedPath string) string {
-	if strings.Contains(resolvedPath, "/.cursor/bin/") {
-		return "cursor_bin"
-	} else if strings.Contains(resolvedPath, "/.local/bin/") {
-		return "user_local"
-	} else if filepath.IsAbs(cursorCmd) {
-		return "absolute_path"
-	} else {
-		return "system_path"
-	}
-}
-
 // parseCursorCommand parses a custom command string into executable and arguments.
 // If customCommand is empty, returns the default command.
 // Supports quoted strings with spaces: cursor-agent --arg "value with spaces"
@@ -111,9 +92,9 @@ func ExecuteCursorCLI(customCommand string, resumeSessionId string) error {
 	// Parse the command and any custom arguments
 	cursorCmd, customArgs := parseCursorCommand(customCommand)
 
-	// Add --resume flag if sessionId is provided
+	// The requested session overrides any resume id in the configured command.
 	if resumeSessionId != "" {
-		customArgs = append(customArgs, "--resume", resumeSessionId)
+		customArgs = spi.EnsureResumeFlagArgs(customArgs, resumeSessionId, "--resume")
 		slog.Info("ExecuteCursorCLI: Resuming session", "sessionId", resumeSessionId)
 	}
 
@@ -147,33 +128,37 @@ func ExecuteCursorCLI(customCommand string, resumeSessionId string) error {
 		done <- cmd.Wait()
 	}()
 
+	var err error
 	select {
-	case err := <-done:
-		if err != nil {
-			// Don't return error if the command exited with a non-zero status
-			// This is normal for many CLI applications
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				exitCode := exitErr.ExitCode()
-				slog.Info("ExecuteCursorCLI: Cursor CLI exited", "exitCode", exitCode)
-				os.Exit(exitCode)
-			}
-			slog.Error("ExecuteCursorCLI: Cursor CLI exited with error", "error", err)
-			return fmt.Errorf("cursor-agent execution failed: %w", err)
-		}
-		slog.Info("ExecuteCursorCLI: Cursor CLI exited normally", "exitCode", 0)
-		return nil
+	case err = <-done:
 	case sig := <-sigChan:
 		slog.Info("ExecuteCursorCLI: Received signal, terminating Cursor CLI", "signal", sig)
-		// Give the process a chance to clean up
-		if err := cmd.Process.Signal(os.Interrupt); err != nil {
-			slog.Error("ExecuteCursorCLI: Failed to send interrupt signal", "error", err)
-			// If interrupt fails, force kill
-			if err := cmd.Process.Kill(); err != nil {
-				slog.Error("ExecuteCursorCLI: Failed to kill process", "error", err)
+		if signalErr := cmd.Process.Signal(os.Interrupt); signalErr != nil {
+			slog.Debug("ExecuteCursorCLI: Could not interrupt child", "error", signalErr)
+			if killErr := cmd.Process.Kill(); killErr != nil {
+				slog.Debug("ExecuteCursorCLI: Could not kill child", "error", killErr)
 			}
 		}
-		// Wait a bit to allow Cursor CLI a clean shutdown from the interrupt signal we sent
-		time.Sleep(2 * time.Second)
-		return fmt.Errorf("process interrupted by signal: %v", sig)
+		// Join the child before stopping its watcher: it may still be writing
+		// while handling the interrupt. Bound the grace period, then reap it.
+		timer := time.NewTimer(2 * time.Second)
+		defer timer.Stop()
+		select {
+		case err = <-done:
+		case <-timer.C:
+			if killErr := cmd.Process.Kill(); killErr != nil {
+				slog.Debug("ExecuteCursorCLI: Could not kill child", "error", killErr)
+			}
+			err = <-done
+		}
 	}
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return &spi.AgentExitError{Agent: "Cursor CLI", Code: exitErr.ExitCode()}
+		}
+		return fmt.Errorf("cursor-agent execution failed: %w", err)
+	}
+	slog.Info("ExecuteCursorCLI: Cursor CLI exited normally", "exitCode", 0)
+	return nil
 }

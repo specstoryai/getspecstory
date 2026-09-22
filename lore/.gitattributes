@@ -1,0 +1,8 @@
+# Excluded from `git archive` so the released .skill artifact ships only the
+# runtime (SKILL.md, scripts/, docs). Fixtures and tests are the repo's spec,
+# not the installed skill's payload.
+fixtures/       export-ignore
+tests/          export-ignore
+.claude-plugin/ export-ignore
+.gitattributes  export-ignore
+.gitignore      export-ignore

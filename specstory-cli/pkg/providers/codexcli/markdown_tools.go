@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // Todo status constants (used by formatUpdatePlan)
@@ -57,7 +59,7 @@ func formatUpdatePlan(toolName string, argumentsJSON string) string {
 			}
 
 			// Format the todo line (no priority emoji for Codex)
-			result.WriteString(fmt.Sprintf("%s %s\n", checkbox, step))
+			fmt.Fprintf(&result, "%s %s\n", checkbox, step)
 		}
 	}
 
@@ -85,7 +87,7 @@ func formatShellWithSummary(argumentsJSON string) (string, string) {
 	// Multi-line commands go in body with bash code fence
 	// Single-line commands go in summary with inline backticks
 	if strings.Contains(command, "\n") {
-		return "", fmt.Sprintf("```bash\n%s\n```", command)
+		return "", spi.CodeFence("bash", command)
 	}
 	return fmt.Sprintf("`%s`", command), ""
 }
@@ -124,9 +126,8 @@ func capitalizeFirst(s string) string {
 func writePatchSection(result *strings.Builder, operation, filename string, patchContent *strings.Builder) {
 	if patchContent.Len() > 0 {
 		fmt.Fprintf(result, "**%s: `%s`**\n\n", capitalizeFirst(operation), filename)
-		result.WriteString("```diff\n")
-		result.WriteString(patchContent.String())
-		result.WriteString("```\n\n")
+		result.WriteString(spi.CodeFence("diff", strings.TrimRight(patchContent.String(), "\n")))
+		result.WriteString("\n\n")
 	}
 }
 
@@ -197,7 +198,7 @@ func formatApplyPatch(toolName string, input string) string {
 			currentFile = strings.TrimPrefix(line, "*** Delete File: ")
 			patchContent.Reset()
 			// For delete operations, just show the header
-			result.WriteString(fmt.Sprintf("**Delete: `%s`**\n\n", currentFile))
+			fmt.Fprintf(&result, "**Delete: `%s`**\n\n", currentFile)
 			currentFile = ""
 			currentOp = ""
 		} else if currentFile != "" {
@@ -233,14 +234,9 @@ func formatCustomToolCall(toolName string, input string) string {
 	case "apply_patch":
 		return formatApplyPatch(toolName, input)
 	default:
-		// For unknown custom tools, show truncated input if too long
+		// Preserve arbitrary custom input, including embedded Markdown fences.
 		if input != "" {
-			// Show first 200 characters if input is long
-			if len(input) > 200 {
-				return fmt.Sprintf("\n\nInput (truncated): ```\n%s\n...\n```\n", input[:200])
-			} else {
-				return fmt.Sprintf("\n\nInput: ```\n%s\n```\n", input)
-			}
+			return "\n\nInput:\n" + spi.CodeFence("", input) + "\n"
 		}
 		return ""
 	}

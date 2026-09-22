@@ -101,6 +101,24 @@ func TestExtractWordsFromMessage(t *testing.T) {
 			maxWords: 4,
 			expected: []string{"visit", "https", "example", "com"},
 		},
+		{
+			name:     "Markdown heading stripped",
+			message:  "# Plan: Replace Gemini Watcher",
+			maxWords: 4,
+			expected: []string{"plan", "replace", "gemini", "watcher"},
+		},
+		{
+			name:     "Multi-level markdown heading stripped",
+			message:  "## Fix: Config Template Issue",
+			maxWords: 4,
+			expected: []string{"fix", "config", "template", "issue"},
+		},
+		{
+			name:     "Non-heading hash preserved",
+			message:  "Fix bug in #login component",
+			maxWords: 4,
+			expected: []string{"fix", "bug", "in", "hash"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -151,6 +169,16 @@ func TestGenerateFilenameFromWords(t *testing.T) {
 			name:     "Multiple consecutive hyphens",
 			words:    []string{"test", "", "", "case"},
 			expected: "test-case",
+		},
+		{
+			name:     "Uppercase words are lowercased",
+			words:    []string{"Hello", "World"},
+			expected: "hello-world",
+		},
+		{
+			name:     "Mixed case words are lowercased",
+			words:    []string{"Create", "A", "CLI", "Battleship"},
+			expected: "create-a-cli-battleship",
 		},
 	}
 
@@ -218,6 +246,36 @@ func TestGenerateFilenameFromUserMessage(t *testing.T) {
 		{
 			name:     "Code related",
 			message:  "Fix the bug in foo.bar() method",
+			expected: "fix-the-bug-in",
+		},
+		{
+			name:     "Markdown heading produces clean slug",
+			message:  "# Plan: Replace Gemini Watcher Polling",
+			expected: "plan-replace-gemini-watcher",
+		},
+		{
+			name:     "Uppercase message produces lowercase filename",
+			message:  "Create A New Feature",
+			expected: "create-a-new-feature",
+		},
+		{
+			name:     "All caps message produces lowercase filename",
+			message:  "IMPLEMENT THE LOGIN HANDLER NOW",
+			expected: "implement-the-login-handler",
+		},
+		{
+			name:     "IDE tag prefix before real message",
+			message:  "<ide_opened_file>The user opened the file /Users/foo/bar.go in the IDE.</ide_opened_file>\n\nThe @specstory-cli/ is a go CLI that reads the AI chats",
+			expected: "the-at-specstory-cli",
+		},
+		{
+			name:     "Only IDE tag with no real content",
+			message:  "<ide_opened_file>The user opened the file /Users/foo/bar.go in the IDE.</ide_opened_file>",
+			expected: "",
+		},
+		{
+			name:     "Multiple IDE tags before real message",
+			message:  "<ide_opened_file>foo.go</ide_opened_file>\n<ide_selection>some code</ide_selection>\n\nFix the bug in the login handler",
 			expected: "fix-the-bug-in",
 		},
 	}

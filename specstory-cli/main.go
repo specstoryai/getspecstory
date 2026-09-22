@@ -1,17 +1,13 @@
 package main
 
 import (
-	"bufio" // For reading user terminal input
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"os/signal"
-	"path/filepath"
-	"regexp"
-	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -21,10 +17,16 @@ import (
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
+	cmdpkg "github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd" // Aliased to avoid shadowing cobra's `cmd` parameter
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/config"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
-	"github.com/specstoryai/getspecstory/specstory-cli/pkg/markdown"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/provenance"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/redact"
+	sessionpkg "github.com/specstoryai/getspecstory/specstory-cli/pkg/session"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
 
@@ -36,10 +38,16 @@ var version = "dev" // Replaced with actual version in the production build proc
 // General Options
 var noAnalytics bool    // flag to disable usage analytics
 var noVersionCheck bool // flag to skip checking for newer versions
-var outputDir string    // custom output directory for markdown and debug files
+var outputDir string    // custom output directory for markdown files
+var debugDir string     // custom output directory for debug files
+var configDir string    // custom directory for the project-level config.toml
+var localTimeZone bool  // flag to use local timezone instead of UTC
 // Sync Options
 var noCloudSync bool   // flag to disable cloud sync
 var onlyCloudSync bool // flag to skip local markdown writes and only sync to cloud
+var onlyStats bool     // flag to only update statistics, skip local markdown and cloud sync
+var noStats bool       // flag to skip statistics entirely (no read or write of statistics.json)
+var printToStdout bool // flag to output markdown to stdout instead of saving (only with -s flag)
 var cloudURL string    // custom cloud API URL (hidden flag)
 // Authentication Options
 var cloudToken string // cloud refresh token for this session only (used by VSC VSIX, bypasses normal login)
@@ -48,12 +56,23 @@ var console bool // flag to enable logging to the console
 var logFile bool // flag to enable logging to the log file
 var debug bool   // flag to enable debug level logging
 var silent bool  // flag to enable silent output (no user messages)
+// Provenance Options
+var provenanceEnabled bool // flag to enable AI provenance tracking
+// Project Identity Override Options
+var projectPathOverride string // flag to override the project path used for session discovery and identity (hidden)
+var gitOriginOverride string   // flag to override git remote origin URL for project identity (hidden)
+
+// Loaded configuration (populated in main before commands are created)
+var loadedConfig *config.Config
+
+// Telemetry State
+var telemetryEndpoint string    // OTLP gRPC collector endpoint
+var telemetryServiceName string // override the default service name
+var noTelemetryPrompts bool     // flag to disable sending prompt text in telemetry
+var noRedactSecrets bool        // flag to disable secret redaction in markdown output
 
 // Run Mode State
 var lastRunSessionID string // tracks the session ID from the most recent run command for deep linking
-
-// UUID regex pattern: 8-4-4-4-12 hexadecimal characters
-var uuidRegex = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 // pluralSession returns "session" or "sessions" based on count for proper grammar
 func pluralSession(count int) string {
@@ -71,108 +90,36 @@ type SyncStats struct {
 	SessionsCreated int // Newly created markdown files
 }
 
-// Login command quit constants - commands that cancel the login flow
-const (
-	QuitCommandFull  = "QUIT"
-	QuitCommandShort = "Q"
-	ExitCommand      = "EXIT"
-)
-
 // validateFlags checks for mutually exclusive flag combinations
 func validateFlags() error {
 	if console && silent {
-		return utils.ValidationError{Message: "cannot use --console and --silent together. These flags are mutually exclusive"}
+		return utils.ValidationError{Message: "cannot use `console` and `silent` together. These are mutually exclusive"}
 	}
 	if debug && !console && !logFile {
-		return utils.ValidationError{Message: "--debug requires either --console or --log to be specified"}
+		return utils.ValidationError{Message: "`debug` requires either `console` or `log` to be specified"}
 	}
 	if onlyCloudSync && noCloudSync {
-		return utils.ValidationError{Message: "cannot use --only-cloud-sync and --no-cloud-sync together. These flags are mutually exclusive"}
+		return utils.ValidationError{Message: "cannot use `only-cloud-sync` and `no-cloud-sync` together. These are mutually exclusive"}
+	}
+	if noStats && onlyStats {
+		return utils.ValidationError{Message: "cannot use --no-stats and --only-stats together. These flags are mutually exclusive"}
+	}
+	if onlyStats && onlyCloudSync {
+		return utils.ValidationError{Message: "cannot use --only-stats and --only-cloud-sync together. These flags are mutually exclusive"}
+	}
+	if onlyStats && noCloudSync {
+		return utils.ValidationError{Message: "--only-stats already skips cloud sync, no need for --no-cloud-sync"}
+	}
+	if onlyStats && printToStdout {
+		return utils.ValidationError{Message: "cannot use --only-stats and --print together. These flags are mutually exclusive"}
+	}
+	if printToStdout && onlyCloudSync {
+		return utils.ValidationError{Message: "cannot use --print and `only-cloud-sync` together. These are mutually exclusive"}
+	}
+	if printToStdout && console {
+		return utils.ValidationError{Message: "cannot use --print and `console` together. Console debug output would interleave with markdown on stdout"}
 	}
 	return nil
-}
-
-// validateUUID checks if the given string is a valid UUID format
-func validateUUID(uuid string) bool {
-	return uuidRegex.MatchString(uuid)
-}
-
-// normalizeDeviceCode normalizes and validates a 6-character device code.
-// Accepts formats: "ABC123" or "ABC-123" (case insensitive)
-// Returns the normalized code (without dash) and whether it's valid
-func normalizeDeviceCode(code string) (string, bool) {
-	// Remove dash if present (handle xxx-xxx format)
-	// Only remove a single dash in the middle position
-	if len(code) == 7 && code[3] == '-' {
-		code = code[:3] + code[4:]
-	}
-
-	// Validate code format (6 alphanumeric characters after normalization)
-	// Accept both uppercase and lowercase letters
-	if len(code) != 6 {
-		return "", false
-	}
-
-	for _, ch := range code {
-		// Check if character is alphanumeric
-		if (ch < 'A' || ch > 'Z') && (ch < 'a' || ch > 'z') && (ch < '0' || ch > '9') {
-			return "", false
-		}
-	}
-
-	return code, true
-}
-
-// getUseUTC reads the local-time-zone flag and converts it to useUTC format.
-// When --local-time-zone is false (default), useUTC is true.
-func getUseUTC(cmd *cobra.Command) bool {
-	useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
-	return !useLocalTimezone
-}
-
-func checkAndWarnAuthentication() {
-	if !noCloudSync && !cloud.IsAuthenticated() && !silent {
-		// Check if this was due to a 401 authentication failure
-		if cloud.HadAuthFailure() {
-			// Show the specific message for auth failures with orange warning and emoji
-			slog.Warn("Cloud sync authentication failed (401)")
-			log.UserWarn("⚠️ Unable to authenticate with SpecStory Cloud. This could be due to revoked or expired credentials, or network/server issues.\n")
-			log.UserMessage("ℹ️ If this persists, run `specstory logout` then `specstory login` to reset your SpecStory Cloud authentication.\n")
-		} else {
-			// Regular "not authenticated" message
-			msg := "⚠️ Cloud sync not available. You're not authenticated."
-			slog.Warn(msg)
-			log.UserWarn("%s\n", msg)
-			log.UserMessage("ℹ️ Use `specstory login` to authenticate, or `--no-cloud-sync` to skip this warning.\n")
-		}
-	}
-}
-
-func displayLogoAndHelp(cmd *cobra.Command) {
-	fmt.Println() // Add visual separation before the logo
-	fmt.Println(utils.GetRandomLogo())
-	_ = cmd.Help()
-}
-
-// Opens the default browser to the specified URL, used in the login command to auth the user
-func openBrowser(url string) error {
-	var cmd string
-	var args []string
-
-	switch runtime.GOOS {
-	case "darwin":
-		cmd = "open"
-		args = []string{url}
-	case "linux":
-		cmd = "xdg-open"
-		args = []string{url}
-	default:
-		slog.Warn("Unsupported platform for opening browser", "platform", runtime.GOOS)
-		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
-	}
-
-	slog.Debug("Opening browser", "command", cmd, "url", url)
-	return exec.Command(cmd, args...).Start()
 }
 
 // createRootCommand dynamically creates the root command with provider information
@@ -240,7 +187,7 @@ specstory watch`
 				// Create output config to get proper log path if needed
 				var logPath string
 				if logFile {
-					config, err := utils.SetupOutputConfig(outputDir)
+					config, err := utils.SetupOutputConfig(outputDir, debugDir)
 					if err != nil {
 						return err
 					}
@@ -307,14 +254,14 @@ specstory watch`
 
 			return nil
 		},
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: func(c *cobra.Command, args []string) {
 			// Track help command usage (when no command is specified)
 			analytics.TrackEvent(analytics.EventHelpCommand, analytics.Properties{
 				"help_topic":  "general",
 				"help_reason": "requested",
 			})
 			// If no command is specified, show logo then help
-			displayLogoAndHelp(cmd)
+			cmdpkg.DisplayLogoAndHelp(c)
 		},
 	}
 }
@@ -352,10 +299,8 @@ specstory run --output-dir ~/my-sessions`
 
 	// Determine default agent name
 	defaultAgent := "the default agent"
-	if len(ids) > 0 {
-		if provider, err := registry.Get(ids[0]); err == nil {
-			defaultAgent = provider.Name()
-		}
+	if provider, err := registry.GetDefault(); err == nil {
+		defaultAgent = provider.Name()
 	}
 
 	longDesc := fmt.Sprintf(`Launch terminal coding agents in interactive mode with auto-save markdown file generation.
@@ -392,6 +337,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			config.EnsureDefaultProjectConfig(configDir)
 			slog.Info("Running in interactive mode")
 
 			// Get custom command if provided via flag
@@ -399,16 +345,8 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 
 			// Get the provider
 			registry := factory.GetRegistry()
-			var providerID string
-			if len(args) == 0 {
-				// Default to first registered provider
-				ids := registry.ListIDs()
-				if len(ids) > 0 {
-					providerID = ids[0]
-				} else {
-					return fmt.Errorf("no providers registered")
-				}
-			} else {
+			providerID := factory.DefaultProviderID
+			if len(args) > 0 {
 				providerID = args[0]
 			}
 
@@ -430,16 +368,23 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 				return err
 			}
 
+			// Fall back to config file provider command if -c flag wasn't provided
+			if customCmd == "" && loadedConfig != nil {
+				customCmd = loadedConfig.GetProviderCmd(providerID)
+			}
+
 			slog.Info("Launching agent", "provider", provider.Name())
 
 			// Set the agent provider for analytics
 			analytics.SetAgentProviders([]string{provider.Name()})
 
 			// Setup output configuration
-			config, err := utils.SetupOutputConfig(outputDir)
+			config, err := utils.SetupOutputConfig(outputDir, debugDir)
 			if err != nil {
 				return err
 			}
+			// Tell cloud sync where .project.json lives (respects --output-dir)
+			cloud.SetSpecstoryDir(config.GetSpecstoryDir())
 			// Ensure history directory exists for interactive mode
 			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
 				return err
@@ -451,14 +396,34 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 				slog.Error("Failed to get current working directory", "error", err)
 				return err
 			}
-			identityManager := utils.NewProjectIdentityManager(cwd)
+			// effectiveProjectPath is what providers use for session discovery.
+			// When --project-path is set, it resolves to that path; otherwise uses cwd.
+			effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
+			identityManager := utils.NewProjectIdentityManagerWithOverrides(cwd, config.GetSpecstoryDir(), projectPathOverride, gitOriginOverride)
 			if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 				// Log error but don't fail the command
 				slog.Error("Failed to ensure project identity", "error", err)
 			}
 
+			// Create context for graceful cancellation (Ctrl+C handling)
+			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer cancel()
+
+			// Start provenance infrastructure before the agent so all file changes are captured
+			provenanceEngine, provenanceCleanup, err := provenance.StartEngine(provenanceEnabled)
+			if err != nil {
+				return err
+			}
+			defer provenanceCleanup()
+
+			fsCleanup, err := provenance.StartFSWatcher(ctx, provenanceEngine, cwd)
+			if err != nil {
+				return err
+			}
+			defer fsCleanup()
+
 			// Check authentication for cloud sync
-			checkAndWarnAuthentication()
+			cmdpkg.CheckAndWarnAuthentication(noCloudSync)
 			// Track extension activation
 			analytics.TrackEvent(analytics.EventExtensionActivated, nil)
 
@@ -471,9 +436,16 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 				slog.Info("Resuming session", "sessionId", resumeSessionID)
 			}
 
-			// Get debug-raw flag value (must be before callback to capture in closure)
+			// Get debug-raw flag value for the agent watcher; the autosave
+			// callback resolves its own copy via ResolveProcessingOptions
 			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-			useUTC := getUseUTC(cmd)
+
+			// Keep sessions.db current in real time alongside the markdown writes (nil/no-op
+			// if the index can't be opened — never block the running agent on it). Keyed to
+			// the effective project path so --project-path sessions index under the project
+			// they belong to, not the launch directory.
+			liveIndex := cmdpkg.NewLiveIndexer(effectiveProjectPath)
+			defer liveIndex.Close()
 
 			// This callback pattern enables real-time processing of agent sessions
 			// without blocking the agent's execution. As the agent writes updates to its
@@ -481,32 +453,44 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			// allowing immediate markdown generation and cloud sync. Errors are logged but
 			// don't stop execution because transient failures (e.g., network issues) shouldn't
 			// interrupt the user's coding session.
+			// IDE-backed providers leave this terminal idle while the user works in
+			// the IDE, so per-save feedback belongs here. CLI agents own the
+			// terminal with their own TUI and must not have output interleaved.
+			var onSaved func(providerID string, sess *spi.AgentChatSession, fileExisted bool, markdownSize int)
+			if providerID == "cursoride" || strings.HasPrefix(providerID, "copilotide") {
+				onSaved = func(_ string, sess *spi.AgentChatSession, fileExisted bool, _ int) {
+					if log.IsSilent() {
+						return
+					}
+					// Same shape as the watch command's per-update line.
+					emoji := "♻️"
+					if !fileExisted {
+						emoji = "✨"
+					}
+					fmt.Printf("  %s  %s  %s\n", time.Now().Format("15:04:05"), emoji, sess.Slug)
+				}
+			}
+
+			autosave := cmdpkg.NewAutosaveCallback(cmdpkg.AutosaveDeps{
+				Ctx:        ctx,
+				Config:     config,
+				Processing: cmdpkg.ResolveProcessingOptions(cmd, true /* isAutosave */, false /* showOutput */),
+				LiveIndex:  liveIndex,
+				Provenance: provenanceEngine,
+				OnSaved:    onSaved,
+			})
 			sessionCallback := func(session *spi.AgentChatSession) {
 				if session == nil {
 					return
 				}
-
 				// Track the session ID for deep linking on exit
 				lastRunSessionID = session.SessionID
-
-				// Process the session (write markdown and sync to cloud)
-				// Don't show output during interactive run mode
-				// This is autosave mode (true)
-				err := processSingleSession(session, provider, config, false, true, debugRaw, useUTC)
-				if err != nil {
-					// Log error but continue - don't fail the whole run
-					// In interactive mode, we prioritize keeping the agent running.
-					// Failed markdown writes or cloud syncs can be retried later via
-					// the sync command, so we just log and continue.
-					slog.Error("Failed to process session update",
-						"sessionId", session.SessionID,
-						"error", err)
-				}
+				autosave(providerID, session)
 			}
 
 			// Execute the agent and watch for updates
 			slog.Info("Starting agent execution and monitoring", "provider", provider.Name())
-			err = provider.ExecAgentAndWatch(cwd, customCmd, resumeSessionID, debugRaw, sessionCallback)
+			err = provider.ExecAgentAndWatch(effectiveProjectPath, customCmd, resumeSessionID, debugRaw, sessionCallback)
 
 			if err != nil {
 				slog.Error("Agent execution failed", "provider", provider.Name(), "error", err)
@@ -518,195 +502,6 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 }
 
 var runCmd *cobra.Command
-
-// createWatchCommand dynamically creates the watch command with provider information
-func createWatchCommand() *cobra.Command {
-	registry := factory.GetRegistry()
-	ids := registry.ListIDs()
-	providerList := registry.GetProviderList()
-
-	// Build dynamic examples
-	examples := `
-# Watch all registered agent providers for activity
-specstory watch`
-
-	if len(ids) > 0 {
-		examples += "\n\n# Watch for activity from a specific agent"
-		for _, id := range ids {
-			examples += fmt.Sprintf("\nspecstory watch %s", id)
-		}
-	}
-
-	examples += `
-
-# Watch with custom output directory
-specstory watch --output-dir ~/my-sessions`
-
-	longDesc := `Watch for coding agent activity in the current directory and auto-save markdown files.
-
-Unlike 'run', this command does not launch a coding agent - it only monitors for agent activity.
-Use this when you want to run the agent separately, but still want auto-saved markdown files.
-
-By default, 'watch' is for activity from all registered agent providers. Specify a specific agent ID to watch for activity from only that agent.`
-	if providerList != "No providers registered" {
-		longDesc += "\n\nAvailable provider IDs: " + providerList + "."
-	}
-
-	return &cobra.Command{
-		Use:     "watch [provider-id]",
-		Aliases: []string{"w"},
-		Short:   "Watch for coding agent activity with auto-save",
-		Long:    longDesc,
-		Example: examples,
-		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument (provider ID)
-		RunE: func(cmd *cobra.Command, args []string) error {
-			slog.Info("Running in watch mode")
-
-			registry := factory.GetRegistry()
-
-			// Get debug-raw flag value
-			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-			useUTC := getUseUTC(cmd)
-
-			// Setup output configuration
-			config, err := utils.SetupOutputConfig(outputDir)
-			if err != nil {
-				return err
-			}
-
-			// Ensure history directory exists for watch mode
-			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
-				return err
-			}
-
-			// Initialize project identity (needed for cloud sync)
-			cwd, err := os.Getwd()
-			if err != nil {
-				slog.Error("Failed to get current working directory", "error", err)
-				return err
-			}
-			if _, err := utils.NewProjectIdentityManager(cwd).EnsureProjectIdentity(); err != nil {
-				// Log error but don't fail the command
-				slog.Error("Failed to ensure project identity", "error", err)
-			}
-
-			// Check authentication for cloud sync
-			checkAndWarnAuthentication()
-
-			// Validate that --only-cloud-sync requires authentication
-			if onlyCloudSync && !cloud.IsAuthenticated() {
-				return utils.ValidationError{Message: "--only-cloud-sync requires authentication. Please run 'specstory login' first"}
-			}
-
-			providerIDs := registry.ListIDs()
-			if len(providerIDs) == 0 {
-				return fmt.Errorf("no providers registered")
-			}
-			if len(args) > 0 {
-				providerIDs = []string{args[0]}
-			}
-
-			// Collect provider names for analytics
-			providers := make(map[string]spi.Provider)
-			for _, id := range providerIDs {
-				if provider, err := registry.Get(id); err == nil {
-					providers[id] = provider
-				} else {
-					return fmt.Errorf("no provider %s found", id)
-				}
-			}
-			var providerNames []string
-			// Get all provider names from the providers map
-			for _, provider := range providers {
-				providerNames = append(providerNames, provider.Name())
-			}
-			analytics.SetAgentProviders(providerNames)
-
-			// Track watch command activation
-			analytics.TrackEvent(analytics.EventWatchActivated, nil)
-
-			// Create context for graceful cancellation (Ctrl+C handling)
-			// This allows providers to clean up resources when user presses Ctrl+C
-			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-			defer cancel()
-
-			if !silent {
-				fmt.Println()
-				agentWord := "agents"
-				if len(providerNames) == 1 {
-					agentWord = "agent"
-				}
-				fmt.Println("👀 Watching for activity from " + agentWord + ": " + strings.Join(providerNames, ", "))
-				fmt.Println("   Press Ctrl+C to stop watching")
-				fmt.Println()
-			}
-
-			// Watch each provider concurrently
-			errChan := make(chan error, len(providerIDs))
-			for _, id := range providerIDs {
-				provider := providers[id]
-
-				// Launch a goroutine for each provider
-				go func(p spi.Provider) {
-					slog.Info("Starting agent monitoring", "provider", p.Name())
-
-					// Create session callback for this provider
-					sessionCallback := func(session *spi.AgentChatSession) {
-						if session == nil {
-							return
-						}
-
-						// Process the session (write markdown and sync to cloud)
-						// Don't show output during watch mode
-						// This is autosave mode (true)
-						err := processSingleSession(session, p, config, false, true, debugRaw, useUTC)
-						if err != nil {
-							// Log error but continue - don't fail the whole watch
-							// In watch mode, we prioritize keeping the watcher running.
-							// Failed markdown writes or cloud syncs can be retried later via
-							// the sync command, so we just log and continue.
-							slog.Error("Failed to process session update",
-								"sessionId", session.SessionID,
-								"provider", p.Name(),
-								"error", err)
-						}
-					}
-
-					err := p.WatchAgent(ctx, cwd, debugRaw, sessionCallback)
-					if err != nil {
-						// Context cancellation is expected when user presses Ctrl+C, not an error
-						if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-							slog.Info("Agent monitoring stopped", "provider", p.Name())
-							errChan <- nil
-						} else {
-							slog.Error("Agent watching failed", "provider", p.Name(), "error", err)
-							errChan <- fmt.Errorf("%s: %w", p.Name(), err)
-						}
-					} else {
-						errChan <- nil
-					}
-				}(provider)
-			}
-
-			// Wait for all watchers to complete (or error)
-			// In practice, they should run indefinitely until Ctrl+C
-			var lastError error
-			for i := 0; i < len(providerIDs); i++ {
-				if err := <-errChan; err != nil {
-					// Ignore context cancellation - it's expected on Ctrl+C
-					if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-						lastError = err
-						slog.Error("Provider watch error", "error", err)
-					}
-				}
-			}
-
-			return lastError
-		},
-	}
-}
-
-var watchCmd *cobra.Command
 
 // createSyncCommand dynamically creates the sync command with provider information
 func createSyncCommand() *cobra.Command {
@@ -734,6 +529,12 @@ specstory sync -s <session-id>
 # Sync multiple sessions
 specstory sync -s <session-id-1> -s <session-id-2> -s <session-id-3>
 
+# Output session markdown to stdout without saving
+specstory sync -s <session-id> --print
+
+# Output multiple sessions to stdout
+specstory sync -s <session-id-1> -s <session-id-2> --print
+
 # Sync all sessions for the current directory, with console output
 specstory sync --console
 
@@ -756,10 +557,30 @@ Provide a specific agent ID to sync a specific provider.`
 		Example: examples,
 		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument (provider ID)
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			// Session ID validation is now provider-specific, so no validation here
+			// Validate that --print requires -s flag
+			sessionIDs, _ := cmd.Flags().GetStringSlice("session")
+			if printToStdout && len(sessionIDs) == 0 {
+				return utils.ValidationError{Message: "--print requires the -s/--session flag to specify which sessions to output"}
+			}
+			if onlyStats && len(sessionIDs) > 0 {
+				return utils.ValidationError{Message: "cannot use --only-stats with -s/--session. Use --only-stats without -s to collect statistics for all sessions"}
+			}
+			// -s takes the session-specific sync path, which never consults the
+			// provider filter — reject the combination rather than silently ignore it
+			providersFlag, _ := cmd.Flags().GetStringSlice("providers")
+			if len(sessionIDs) > 0 && len(providersFlag) > 0 {
+				return utils.ValidationError{Message: "cannot use --providers with -s/--session. Session IDs already identify their provider"}
+			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			config.EnsureDefaultProjectConfig(configDir)
+
+			// Apply per-provider user-data-dir overrides before any provider lookup runs.
+			// Done here at the top so both the regular and -s/--session paths pick it up.
+			userDataDirOverrides, _ := cmd.Flags().GetStringSlice("user-data-dir")
+			cmdpkg.ApplyUserDataDirOverrides(userDataDirOverrides)
+
 			// Get session IDs if provided via flag
 			sessionIDs, _ := cmd.Flags().GetStringSlice("session")
 
@@ -771,19 +592,22 @@ Provide a specific agent ID to sync a specific provider.`
 			slog.Info("Running sync command")
 			registry := factory.GetRegistry()
 
-			// Check if user specified a provider
-			if len(args) > 0 {
-				// Sync specific provider
-				return syncSingleProvider(registry, args[0], cmd)
-			} else {
-				// Sync all providers with activity
-				return syncAllProviders(registry, cmd)
+			providersFlag, _ := cmd.Flags().GetStringSlice("providers")
+			resolvedIDs, err := cmdpkg.ResolveProviderIDs(registry, args, providersFlag)
+			if err != nil {
+				return err
 			}
+
+			if len(resolvedIDs) == 1 {
+				return syncSingleProvider(registry, resolvedIDs[0], cmd)
+			}
+			return syncAllProviders(registry, cmd, resolvedIDs)
 		},
 	}
 }
 
 // syncSpecificSessions syncs one or more sessions by their IDs
+// When printToStdout is set, outputs markdown to stdout instead of saving to files.
 // args[0] is the optional provider ID
 func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string) error {
 	if len(sessionIDs) == 1 {
@@ -794,31 +618,43 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 
 	// Get debug-raw flag value
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-	useUTC := getUseUTC(cmd)
+	useUTC := !localTimeZone
 
-	// Setup output configuration
-	config, err := utils.SetupOutputConfig(outputDir)
-	if err != nil {
-		return err
-	}
-
-	// Initialize project identity
 	cwd, err := os.Getwd()
 	if err != nil {
 		slog.Error("Failed to get current working directory", "error", err)
 		return err
 	}
-	identityManager := utils.NewProjectIdentityManager(cwd)
-	if _, err := identityManager.EnsureProjectIdentity(); err != nil {
-		slog.Error("Failed to ensure project identity", "error", err)
-	}
+	effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
 
-	// Check authentication for cloud sync
-	checkAndWarnAuthentication()
+	// Setup file output and cloud sync (not needed for --print mode)
+	var config utils.OutputConfig
+	// liveIndex keeps sessions.db current for the sessions we save. Skipped for --print, which
+	// outputs to stdout without saving (so there's nothing to "sync"). Best-effort no-op on nil.
+	var liveIndex *cmdpkg.LiveIndexer
+	if !printToStdout {
+		config, err = utils.SetupOutputConfig(outputDir, debugDir)
+		if err != nil {
+			return err
+		}
+		// Tell cloud sync where .project.json lives (respects --output-dir)
+		cloud.SetSpecstoryDir(config.GetSpecstoryDir())
 
-	// Ensure history directory exists
-	if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
-		return err
+		identityManager := utils.NewProjectIdentityManagerWithOverrides(cwd, config.GetSpecstoryDir(), projectPathOverride, gitOriginOverride)
+		if _, err := identityManager.EnsureProjectIdentity(); err != nil {
+			slog.Error("Failed to ensure project identity", "error", err)
+		}
+
+		cmdpkg.CheckAndWarnAuthentication(noCloudSync || onlyStats)
+
+		if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+			return err
+		}
+
+		// Keyed to the effective project path so --project-path sessions index
+		// under the project they belong to, not the launch directory.
+		liveIndex = cmdpkg.NewLiveIndexer(effectiveProjectPath)
+		defer liveIndex.Close()
 	}
 
 	registry := factory.GetRegistry()
@@ -833,84 +669,132 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 		providerID := args[0]
 		provider, err := registry.Get(providerID)
 		if err != nil {
-			fmt.Printf("❌ Provider '%s' not found\n", providerID)
-			return err
+			if !printToStdout {
+				fmt.Printf("❌ Provider '%s' not found\n", providerID)
+			}
+			return fmt.Errorf("provider '%s' not found: %w", providerID, err)
 		}
 		specifiedProvider = provider
 	}
 
 	// Process each session ID
+	var printedSessions int // tracks sessions printed to stdout for separator logic
 	for _, sessionID := range sessionIDs {
 		sessionID = strings.TrimSpace(sessionID)
 		if sessionID == "" {
 			continue // Skip empty session IDs
 		}
 
+		// Find session across providers
+		var session *spi.AgentChatSession
+		var foundAgentID string // registry id of the provider that has this session (for indexing)
+
 		// Case A: Provider was specified - use it directly
 		if specifiedProvider != nil {
-			session, err := specifiedProvider.GetAgentChatSession(cwd, sessionID, debugRaw)
+			session, err = specifiedProvider.GetAgentChatSession(effectiveProjectPath, sessionID, debugRaw)
 			if err != nil {
-				fmt.Printf("❌ Error getting session '%s' from %s: %v\n", sessionID, specifiedProvider.Name(), err)
+				if !printToStdout {
+					fmt.Printf("❌ Error getting session '%s' from %s: %v\n", sessionID, specifiedProvider.Name(), err)
+				}
+				slog.Error("Error getting session from provider", "sessionId", sessionID, "provider", specifiedProvider.Name(), "error", err)
 				errorCount++
 				lastError = err
 				continue
 			}
 			if session == nil {
-				fmt.Printf("❌ Session '%s' not found in %s\n", sessionID, specifiedProvider.Name())
+				if !printToStdout {
+					fmt.Printf("❌ Session '%s' not found in %s\n", sessionID, specifiedProvider.Name())
+				}
+				slog.Warn("Session not found in provider", "sessionId", sessionID, "provider", specifiedProvider.Name())
 				notFoundCount++
 				continue
 			}
+			foundAgentID = args[0]
+		} else {
+			// Case B: No provider specified - try all providers
+			providerIDs := registry.ListIDs()
+			for _, id := range providerIDs {
+				provider, err := registry.Get(id)
+				if err != nil {
+					continue
+				}
 
-			// Process the session (show output for sync command)
-			// This is manual sync mode (false)
-			if err := processSingleSession(session, specifiedProvider, config, true, false, debugRaw, useUTC); err != nil {
+				session, err = provider.GetAgentChatSession(effectiveProjectPath, sessionID, debugRaw)
+				if err != nil {
+					slog.Debug("Error checking provider for session", "provider", id, "sessionId", sessionID, "error", err)
+					continue
+				}
+				if session != nil {
+					foundAgentID = id
+					if !silent && !printToStdout {
+						fmt.Printf("✅ Found session '%s' for %s\n", sessionID, provider.Name())
+					}
+					break // Found it, don't check other providers
+				}
+			}
+
+			if session == nil {
+				if !printToStdout {
+					fmt.Printf("❌ Session '%s' not found in any provider\n", sessionID)
+				}
+				slog.Warn("Session not found in any provider", "sessionId", sessionID)
+				notFoundCount++
+				continue
+			}
+		}
+
+		// Process the found session
+		if printToStdout {
+			sessionpkg.ValidateSessionData(session, debugRaw)
+			sessionpkg.WriteDebugSessionData(session, debugRaw)
+
+			markdownContent, err := sessionpkg.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
+			if err != nil {
+				slog.Error("Failed to generate markdown", "sessionId", session.SessionID, "error", err)
+				analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+					"session_id": session.SessionID,
+					"error":      err.Error(),
+					"mode":       "print",
+				})
+				errorCount++
+				lastError = err
+				continue
+			}
+
+			// Redact secrets before emitting — --print output is routinely
+			// piped into files, so it deserves the same protection as saved
+			// markdown history.
+			if !noRedactSecrets {
+				markdownContent, _ = redact.RedactContent(markdownContent)
+			}
+
+			// Separate multiple sessions with a horizontal rule
+			if printedSessions > 0 {
+				fmt.Print("\n---\n\n")
+			}
+			fmt.Print(markdownContent)
+			printedSessions++
+			successCount++
+			analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
+				"session_id": session.SessionID,
+				"mode":       "print",
+			})
+		} else {
+			// Normal sync: write to file and optionally cloud sync
+			if _, err := sessionpkg.ProcessSingleSession(context.Background(), foundAgentID, session, config,
+				cmdpkg.ResolveProcessingOptions(cmd, false /* isAutosave */, true /* showOutput */)); err != nil {
 				errorCount++
 				lastError = err
 			} else {
 				successCount++
+				// Mirror the synced session into the restore index.
+				liveIndex.Record(foundAgentID, session)
 			}
-			continue
-		}
-
-		// Case B: No provider specified - try all providers
-		found := false
-		providerIDs := registry.ListIDs()
-		for _, id := range providerIDs {
-			provider, err := registry.Get(id)
-			if err != nil {
-				continue
-			}
-
-			session, err := provider.GetAgentChatSession(cwd, sessionID, debugRaw)
-			if err != nil {
-				slog.Debug("Error checking provider for session", "provider", id, "sessionId", sessionID, "error", err)
-				continue
-			}
-			if session != nil {
-				// Found the session!
-				found = true
-				if !silent {
-					fmt.Printf("✅ Found session '%s' for %s\n", sessionID, provider.Name())
-				}
-				// This is manual sync mode (false)
-				if err := processSingleSession(session, provider, config, true, false, debugRaw, useUTC); err != nil {
-					errorCount++
-					lastError = err
-				} else {
-					successCount++
-				}
-				break // Found it, don't check other providers
-			}
-		}
-
-		if !found {
-			fmt.Printf("❌ Session '%s' not found in any provider\n", sessionID)
-			notFoundCount++
 		}
 	}
 
-	// Print summary if multiple sessions were processed
-	if len(sessionIDs) > 1 && !silent {
+	// Print summary if multiple sessions were processed (not for --print mode)
+	if !printToStdout && len(sessionIDs) > 1 && !silent {
 		fmt.Println()
 		fmt.Println("📊 Session sync summary:")
 		fmt.Printf("  ✅ %d %s successfully synced\n", successCount, pluralSession(successCount))
@@ -929,178 +813,6 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 			return lastError
 		}
 		return fmt.Errorf("%d %s not found", notFoundCount, pluralSession(notFoundCount))
-	}
-
-	return nil
-}
-
-// validateSessionData runs schema validation on SessionData when in debug mode.
-// Validation is only performed when debugRaw is true to avoid overhead in normal operation.
-// Returns true if validation passed or was skipped, false if validation failed.
-func validateSessionData(session *spi.AgentChatSession, debugRaw bool) bool {
-	if !debugRaw || session.SessionData == nil {
-		return true
-	}
-	if !session.SessionData.Validate() {
-		slog.Warn("SessionData failed schema validation, proceeding anyway",
-			"sessionId", session.SessionID)
-		return false
-	}
-	return true
-}
-
-// writeDebugSessionData writes debug session data when debugRaw is enabled.
-// Logs warnings on failure but does not fail the operation.
-func writeDebugSessionData(session *spi.AgentChatSession, debugRaw bool) {
-	if !debugRaw || session.SessionData == nil {
-		return
-	}
-	if err := spi.WriteDebugSessionData(session.SessionID, session.SessionData); err != nil {
-		slog.Warn("Failed to write debug session data", "sessionId", session.SessionID, "error", err)
-	}
-}
-
-// formatFilenameTimestamp formats a timestamp for use in filenames
-// The format is filesystem-safe and matches the markdown title format
-func formatFilenameTimestamp(t time.Time, useUTC bool) string {
-	if useUTC {
-		// Use UTC with Z suffix: "2006-01-02_15-04-05Z"
-		return t.UTC().Format("2006-01-02_15-04-05") + "Z"
-	}
-	// Use local timezone with offset: "2006-01-02_15-04-05-0700"
-	return t.Local().Format("2006-01-02_15-04-05-0700")
-}
-
-// processSingleSession writes markdown and triggers cloud sync for a single session
-// isAutosave indicates if this is being called from the run command (true) or sync command (false)
-// debugRaw enables schema validation (only run in debug mode to avoid overhead)
-// useUTC controls timestamp format (true=UTC, false=local)
-func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, config utils.OutputConfig, showOutput bool, isAutosave bool, debugRaw bool, useUTC bool) error {
-	validateSessionData(session, debugRaw)
-	writeDebugSessionData(session, debugRaw)
-
-	// Generate markdown from SessionData
-	markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
-	if err != nil {
-		slog.Error("Failed to generate markdown from SessionData", "sessionId", session.SessionID, "error", err)
-		return fmt.Errorf("failed to generate markdown: %w", err)
-	}
-
-	// Generate filename from timestamp and slug
-	timestamp, _ := time.Parse(time.RFC3339, session.CreatedAt)
-	timestampStr := formatFilenameTimestamp(timestamp, useUTC)
-
-	filename := timestampStr
-	if session.Slug != "" {
-		filename = fmt.Sprintf("%s-%s", timestampStr, session.Slug)
-	}
-	fileFullPath := filepath.Join(config.GetHistoryDir(), filename+".md")
-
-	if showOutput && !silent {
-		fmt.Printf("Processing session %s...", session.SessionID)
-	}
-
-	// Check if file already exists with same content
-	var outcome string
-	identicalContent := false
-	fileExists := false
-	if existingContent, err := os.ReadFile(fileFullPath); err == nil {
-		fileExists = true
-		if string(existingContent) == markdownContent {
-			identicalContent = true
-			slog.Info("Markdown file already exists with same content, skipping write",
-				"sessionId", session.SessionID,
-				"path", fileFullPath)
-		}
-	}
-
-	// Write file if needed (skip if only-cloud-sync is enabled)
-	if !onlyCloudSync {
-		if !identicalContent {
-			// Ensure history directory exists (handles deletion during long-running watch/run)
-			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
-				return fmt.Errorf("failed to ensure history directory: %w", err)
-			}
-			err := os.WriteFile(fileFullPath, []byte(markdownContent), 0644)
-			if err != nil {
-				// Track write error
-				if isAutosave {
-					analytics.TrackEvent(analytics.EventAutosaveError, analytics.Properties{
-						"session_id":      session.SessionID,
-						"error":           err.Error(),
-						"only_cloud_sync": onlyCloudSync,
-					})
-				} else {
-					analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
-						"session_id":      session.SessionID,
-						"error":           err.Error(),
-						"only_cloud_sync": onlyCloudSync,
-					})
-				}
-				return fmt.Errorf("error writing markdown file: %w", err)
-			}
-
-			// Track successful write
-			if isAutosave {
-				if !fileExists {
-					// New file created during autosave
-					analytics.TrackEvent(analytics.EventAutosaveNew, analytics.Properties{
-						"session_id":      session.SessionID,
-						"only_cloud_sync": onlyCloudSync,
-					})
-				} else {
-					// File updated during autosave
-					analytics.TrackEvent(analytics.EventAutosaveSuccess, analytics.Properties{
-						"session_id":      session.SessionID,
-						"only_cloud_sync": onlyCloudSync,
-					})
-				}
-			} else {
-				if !fileExists {
-					// New file created during manual sync
-					analytics.TrackEvent(analytics.EventSyncMarkdownNew, analytics.Properties{
-						"session_id":      session.SessionID,
-						"only_cloud_sync": onlyCloudSync,
-					})
-				} else {
-					// File updated during manual sync
-					analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
-						"session_id":      session.SessionID,
-						"only_cloud_sync": onlyCloudSync,
-					})
-				}
-			}
-
-			slog.Info("Successfully wrote file",
-				"sessionId", session.SessionID,
-				"path", fileFullPath)
-		}
-
-		// Determine outcome for user feedback
-		if identicalContent {
-			outcome = "up to date (skipped)"
-		} else if fileExists {
-			outcome = "updated"
-		} else {
-			outcome = "created"
-		}
-	} else {
-		// Only cloud sync mode - no local file operations
-		outcome = "synced to cloud only"
-		slog.Info("Skipping local file write (only-cloud-sync mode)",
-			"sessionId", session.SessionID)
-	}
-
-	// Trigger cloud sync with provider-specific data
-	// In only-cloud-sync mode: always sync (no file to check for identical content)
-	// In normal mode: skip sync only if identical content AND in autosave mode
-	if onlyCloudSync || !identicalContent || !isAutosave {
-		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), provider.Name(), isAutosave)
-	}
-
-	if showOutput && !silent {
-		fmt.Printf(" %s\n", outcome)
-		fmt.Println() // Visual separation
 	}
 
 	return nil
@@ -1144,14 +856,25 @@ func preloadBulkSessionSizesIfNeeded(identityManager *utils.ProjectIdentityManag
 	}
 }
 
-// syncProvider performs the actual sync for a single provider
-// Returns (sessionCount, error) for analytics tracking
-func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, useUTC bool) (int, error) {
+// syncProvider performs the actual sync for a single provider.
+// The caller-provided statsCollector accumulates statistics across providers so
+// they can be flushed to disk in a single I/O operation after all providers are done.
+// Returns (sessionCount, error) for analytics tracking.
+func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, useUTC bool, statsCollector *sessionpkg.StatisticsCollector) (int, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		slog.Error("Failed to get current working directory", "error", err)
 		return 0, err
 	}
+	projectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
+
+	// Keep sessions.db current for this project as we sync. We already hold each session's
+	// SessionData below, so indexing it is essentially free. Best-effort: a nil indexer (open
+	// failure) is a safe no-op and never affects the sync. Scoped to the synced project —
+	// the effective project path, so --project-path sessions index under the project they
+	// belong to, not the launch directory.
+	liveIndex := cmdpkg.NewLiveIndexer(projectPath)
+	defer liveIndex.Close()
 
 	// Create progress callback for parsing phase
 	// The callback updates the "Parsing..." line in place with [n/m] progress
@@ -1165,7 +888,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 	}
 
 	// Get all sessions from the provider
-	sessions, err := provider.GetAgentChatSessions(cwd, debugRaw, parseProgress)
+	sessions, err := provider.GetAgentChatSessions(projectPath, debugRaw, parseProgress)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get sessions: %w", err)
 	}
@@ -1179,7 +902,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		return 0, nil
 	}
 
-	if !silent {
+	if !silent && !onlyStats {
 		fmt.Printf("\nSyncing markdown files for %s", provider.Name())
 	}
 
@@ -1189,141 +912,170 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 	}
 
 	historyPath := config.GetHistoryDir()
-
-	// Track used filenames to detect collisions within this sync run
-	// Maps base filename (without .md) to the session ID that claimed it
-	usedFilenames := make(map[string]string)
+	agentName := provider.Name()
+	ctx := context.Background()
 
 	// Process each session
 	for i := range sessions {
 		session := &sessions[i]
-		validateSessionData(session, debugRaw)
-		writeDebugSessionData(session, debugRaw)
 
-		// Generate markdown from SessionData
-		markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
-		if err != nil {
-			slog.Error("Failed to generate markdown from SessionData",
-				"sessionId", session.SessionID,
-				"error", err)
-			// Track sync error
-			analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
-				"session_id": session.SessionID,
-				"error":      err.Error(),
-			})
-			continue
-		}
+		// Process session in a closure so defers scope to each iteration,
+		// ensuring spans are ended and metrics recorded even on early returns.
+		func() {
+			processingStart := time.Now()
 
-		// Generate filename from timestamp and slug
-		timestamp, _ := time.Parse(time.RFC3339, session.CreatedAt)
-		timestampStr := formatFilenameTimestamp(timestamp, useUTC)
+			// Create a context with a deterministic trace ID from the session ID
+			sessionCtx := telemetry.ContextWithSessionTrace(ctx, session.SessionID)
 
-		baseFilename := timestampStr
-		if session.Slug != "" {
-			baseFilename = fmt.Sprintf("%s-%s", timestampStr, session.Slug)
-		}
+			// Start an OTel span for this session processing
+			sessionCtx, span := telemetry.Tracer("specstory").Start(sessionCtx, "process_session")
+			defer span.End()
 
-		// Check for filename collision with another session in this sync run
-		filename := baseFilename
-		if existingSessionID, exists := usedFilenames[baseFilename]; exists && existingSessionID != session.SessionID {
-			// Collision detected - append short session ID to make unique
-			// Use last 8 characters of session ID for brevity
-			shortID := session.SessionID
-			if len(shortID) > 8 {
-				shortID = shortID[len(shortID)-8:]
+			// Compute session statistics
+			sessionStats := telemetry.ComputeSessionStats(agentName, session)
+			defer func() {
+				telemetry.RecordSessionMetrics(sessionCtx, sessionStats, time.Since(processingStart))
+			}()
+
+			// Set session span attributes
+			telemetry.SetSessionSpanAttributes(span, sessionStats)
+
+			// Create child spans for each exchange
+			if session.SessionData != nil && len(session.SessionData.Exchanges) > 0 {
+				telemetry.ProcessExchangeSpans(sessionCtx, sessionStats, session.SessionData.Exchanges, noTelemetryPrompts)
 			}
-			filename = fmt.Sprintf("%s-%s", baseFilename, shortID)
-			slog.Debug("Filename collision detected, using unique filename",
-				"baseFilename", baseFilename,
-				"sessionId", session.SessionID,
-				"collidingSessionId", existingSessionID,
-				"newFilename", filename)
-		}
-		usedFilenames[baseFilename] = session.SessionID
 
-		fileFullPath := filepath.Join(historyPath, filename+".md")
+			sessionpkg.ValidateSessionData(session, debugRaw)
+			sessionpkg.WriteDebugSessionData(session, debugRaw)
 
-		// Check if file already exists with same content
-		identicalContent := false
-		fileExists := false
-		if existingContent, err := os.ReadFile(fileFullPath); err == nil {
-			fileExists = true
-			if string(existingContent) == markdownContent {
-				identicalContent = true
-				slog.Info("Markdown file already exists with same content, skipping write",
+			// Mirror this session into the restore index as we sync it (covers normal and
+			// only-stats modes — we have the SessionData either way).
+			liveIndex.Record(providerID, session)
+
+			// Generate markdown from SessionData
+			markdownContent, err := sessionpkg.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
+			if err != nil {
+				slog.Error("Failed to generate markdown from SessionData",
 					"sessionId", session.SessionID,
-					"path", fileFullPath)
-			}
-		}
-
-		// Write file if needed (skip if only-cloud-sync is enabled)
-		if !onlyCloudSync {
-			if !identicalContent {
-				// Ensure history directory exists (handles deletion during long-running sync)
-				if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
-					slog.Error("Failed to ensure history directory", "error", err)
-					continue
-				}
-				err := os.WriteFile(fileFullPath, []byte(markdownContent), 0644)
-				if err != nil {
-					slog.Error("Error writing markdown file",
-						"sessionId", session.SessionID,
-						"error", err)
-					// Track sync error
-					analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
-						"session_id":      session.SessionID,
-						"error":           err.Error(),
-						"only_cloud_sync": onlyCloudSync,
-					})
-					continue
-				}
-				slog.Info("Successfully wrote file",
-					"sessionId", session.SessionID,
-					"path", fileFullPath)
-
-				// Track successful sync
-				if !fileExists {
-					analytics.TrackEvent(analytics.EventSyncMarkdownNew, analytics.Properties{
-						"session_id":      session.SessionID,
-						"only_cloud_sync": onlyCloudSync,
-					})
-				} else {
-					analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
-						"session_id":      session.SessionID,
-						"only_cloud_sync": onlyCloudSync,
-					})
-				}
+					"error", err)
+				// Track sync error
+				analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+					"session_id": session.SessionID,
+					"error":      err.Error(),
+				})
+				return
 			}
 
-			// Update statistics for normal mode
-			if identicalContent {
+			// Redact secrets before any downstream use (statistics,
+			// identical-content compare, file write, cloud sync) so every
+			// consumer sees the same content — mirrors ProcessSingleSession.
+			redactedCount := 0
+			if !noRedactSecrets {
+				markdownContent, redactedCount = redact.RedactContent(markdownContent)
+			}
+
+			// Compute and record statistics unless --no-stats was requested
+			if !noStats {
+				sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
+				statsCollector.AddSessionStats(session.SessionID, sessionStatistics)
+			}
+
+			// In only-stats mode, skip file writes and cloud sync
+			if onlyStats {
 				stats.SessionsSkipped++
-			} else if fileExists {
-				stats.SessionsUpdated++
-			} else {
-				stats.SessionsCreated++
+				slog.Info("Skipping local file write (only-stats mode)", "sessionId", session.SessionID)
+				return
 			}
-		} else {
-			// In cloud-only mode, count as skipped since no local file operation occurred
-			stats.SessionsSkipped++
-			slog.Info("Skipping local file write (only-cloud-sync mode)",
-				"sessionId", session.SessionID)
-		}
 
-		// Trigger cloud sync with provider-specific data
-		// Manual sync command: perform immediate sync with HEAD check (not autosave mode)
-		// In only-cloud-sync mode: always sync
-		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), provider.Name(), false)
+			// Generate filename from timestamp and slug
+			fileFullPath := sessionpkg.BuildSessionFilePath(session, historyPath, useUTC)
+
+			// Check if file already exists with same content
+			identicalContent := false
+			fileExists := false
+			if existingContent, err := os.ReadFile(fileFullPath); err == nil {
+				fileExists = true
+				if string(existingContent) == markdownContent {
+					identicalContent = true
+					slog.Info("Markdown file already exists with same content, skipping write",
+						"sessionId", session.SessionID,
+						"path", fileFullPath)
+				}
+			}
+
+			// Write file if needed (skip if only-cloud-sync is enabled)
+			if !onlyCloudSync {
+				if !identicalContent {
+					// Ensure history directory exists (handles deletion during long-running sync)
+					if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+						slog.Error("Failed to ensure history directory", "error", err)
+						return
+					}
+					err := os.WriteFile(fileFullPath, []byte(markdownContent), 0644)
+					if err != nil {
+						slog.Error("Error writing markdown file",
+							"sessionId", session.SessionID,
+							"error", err)
+						// Track sync error
+						analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+							"session_id":      session.SessionID,
+							"error":           err.Error(),
+							"only_cloud_sync": onlyCloudSync,
+						})
+						return
+					}
+					slog.Info("Successfully wrote file",
+						"sessionId", session.SessionID,
+						"path", fileFullPath)
+
+					// Track successful sync
+					if !fileExists {
+						analytics.TrackEvent(analytics.EventSyncMarkdownNew, analytics.Properties{
+							"session_id":        session.SessionID,
+							"only_cloud_sync":   onlyCloudSync,
+							"redaction_enabled": !noRedactSecrets,
+							"redacted_count":    redactedCount,
+						})
+					} else {
+						analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
+							"session_id":        session.SessionID,
+							"only_cloud_sync":   onlyCloudSync,
+							"redaction_enabled": !noRedactSecrets,
+							"redacted_count":    redactedCount,
+						})
+					}
+				}
+
+				// Update statistics for normal mode
+				if identicalContent {
+					stats.SessionsSkipped++
+				} else if fileExists {
+					stats.SessionsUpdated++
+				} else {
+					stats.SessionsCreated++
+				}
+			} else {
+				// In cloud-only mode, count as skipped since no local file operation occurred
+				stats.SessionsSkipped++
+				slog.Info("Skipping local file write (only-cloud-sync mode)",
+					"sessionId", session.SessionID)
+			}
+
+			// Trigger cloud sync with provider-specific data
+			// Manual sync command: perform immediate sync with HEAD check (not autosave mode)
+			// In only-cloud-sync mode: always sync
+			cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), session.SessionDataJSON(), provider.Name(), spi.ReadableTitleFromSessionData(session.SessionData), !noRedactSecrets, false)
+		}()
 
 		// Print progress with [n/m] format
-		if !silent {
+		if !silent && !onlyStats {
 			fmt.Printf("\rSyncing markdown files for %s [%d/%d]", provider.Name(), i+1, sessionCount)
 			_ = os.Stdout.Sync()
 		}
 	}
 
 	// Print newline after progress
-	if !silent && sessionCount > 0 && !onlyCloudSync {
+	if !silent && sessionCount > 0 && !onlyCloudSync && !onlyStats {
 		fmt.Println()
 
 		// Calculate actual total of processed sessions
@@ -1347,19 +1099,26 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 	return sessionCount, nil
 }
 
-// syncAllProviders syncs all providers that have activity in the current directory
-func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
+// syncAllProviders syncs all (or a filtered subset of) providers that have activity in the current directory
+// filterIDs, if non-nil, limits which providers are synced; nil means sync all registered providers.
+func syncAllProviders(registry *factory.Registry, cmd *cobra.Command, filterIDs []string) error {
 	// Get debug-raw flag value
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-	useUTC := getUseUTC(cmd)
+	useUTC := !localTimeZone
 
 	cwd, err := os.Getwd()
 	if err != nil {
 		slog.Error("Failed to get current working directory", "error", err)
 		return err
 	}
+	// effectiveProjectPath is what providers use for session discovery.
+	// When --project-path is set, it resolves to that path; otherwise uses cwd.
+	effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
 
 	providerIDs := registry.ListIDs()
+	if len(filterIDs) > 0 {
+		providerIDs = filterIDs
+	}
 	providersWithActivity := []string{}
 
 	// Check each provider for activity
@@ -1370,7 +1129,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 			continue
 		}
 
-		if provider.DetectAgent(cwd, false) {
+		if provider.DetectAgent(effectiveProjectPath, false) {
 			providersWithActivity = append(providersWithActivity, id)
 		}
 	}
@@ -1381,7 +1140,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 			fmt.Println() // Add visual separation
 			log.UserWarn("No coding agent activity found for this project directory.\n\n")
 
-			log.UserMessage("We checked for activity in '%s' from the following agents:\n", cwd)
+			log.UserMessage("We checked for activity in '%s' from the following agents:\n", effectiveProjectPath)
 			for _, id := range providerIDs {
 				if provider, err := registry.Get(id); err == nil {
 					log.UserMessage("- %s\n", provider.Name())
@@ -1408,19 +1167,21 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 	analytics.SetAgentProviders(providerNames)
 
 	// Setup output configuration (once for all providers)
-	config, err := utils.SetupOutputConfig(outputDir)
+	config, err := utils.SetupOutputConfig(outputDir, debugDir)
 	if err != nil {
 		return err
 	}
+	// Tell cloud sync where .project.json lives (respects --output-dir)
+	cloud.SetSpecstoryDir(config.GetSpecstoryDir())
 
 	// Initialize project identity (once for all providers)
-	identityManager := utils.NewProjectIdentityManager(cwd)
+	identityManager := utils.NewProjectIdentityManagerWithOverrides(cwd, config.GetSpecstoryDir(), projectPathOverride, gitOriginOverride)
 	if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 		slog.Error("Failed to ensure project identity", "error", err)
 	}
 
 	// Check authentication for cloud sync (once)
-	checkAndWarnAuthentication()
+	cmdpkg.CheckAndWarnAuthentication(noCloudSync || onlyStats)
 
 	// Ensure history directory exists (once)
 	if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
@@ -1430,11 +1191,15 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 	// Preload session sizes for batch sync optimization (ONCE for all providers)
 	preloadBulkSessionSizesIfNeeded(identityManager)
 
+	// Create a single statistics collector shared across all providers so the
+	// statistics.json file is written only once after all providers are processed.
+	statsCollector := sessionpkg.SharedStatisticsCollector(config.GetStatisticsPath())
+
 	// Sync each provider with activity
 	totalSessionCount := 0
 	var lastError error
 
-	for _, id := range providersWithActivity {
+	for idx, id := range providersWithActivity {
 		provider, err := registry.Get(id)
 		if err != nil {
 			continue
@@ -1444,13 +1209,38 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 			fmt.Printf("\nParsing %s sessions", provider.Name())
 		}
 
-		sessionCount, err := syncProvider(provider, id, config, debugRaw, useUTC)
+		sessionCount, err := syncProvider(provider, id, config, debugRaw, useUTC, statsCollector)
 		totalSessionCount += sessionCount
 
 		if err != nil {
 			lastError = err
 			slog.Error("Error syncing provider", "provider", id, "error", err)
 		}
+
+		// Print divider between provider sync summaries (not after the last one,
+		// since the cloud sync output prints its own divider)
+		isLast := idx == len(providersWithActivity)-1
+		if !silent && !onlyCloudSync && !onlyStats && sessionCount > 0 && !isLast {
+			fmt.Println("────────────")
+		}
+	}
+
+	// Flush all accumulated statistics to disk in a single write
+	if err := statsCollector.Flush(); err != nil {
+		slog.Warn("Failed to flush statistics", "error", err)
+	}
+
+	// Show statistics path once after all providers are done (only in --only-stats mode)
+	if totalSessionCount > 0 && !silent && onlyStats {
+		fmt.Printf("\n📊 Statistics collected: %s\n", config.GetStatisticsPath())
+	}
+
+	// Track stats-only usage separately so we can measure adoption
+	if onlyStats {
+		analytics.TrackEvent(analytics.EventSyncStatsComplete, analytics.Properties{
+			"provider":      "all",
+			"session_count": totalSessionCount,
+		})
 	}
 
 	// Track overall analytics
@@ -1477,7 +1267,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobra.Command) error {
 	// Get debug-raw flag value
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-	useUTC := getUseUTC(cmd)
+	useUTC := !localTimeZone
 
 	provider, err := registry.Get(providerID)
 	if err != nil {
@@ -1505,27 +1295,32 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 		slog.Error("Failed to get current working directory", "error", err)
 		return err
 	}
+	// effectiveProjectPath is what providers use for session discovery.
+	// When --project-path is set, it resolves to that path; otherwise uses cwd.
+	effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
 
 	// Check if provider has activity, with helpful output if not
-	if !provider.DetectAgent(cwd, true) {
+	if !provider.DetectAgent(effectiveProjectPath, true) {
 		// Provider already output helpful message
 		return nil
 	}
 
 	// Setup output configuration
-	config, err := utils.SetupOutputConfig(outputDir)
+	config, err := utils.SetupOutputConfig(outputDir, debugDir)
 	if err != nil {
 		return err
 	}
+	// Tell cloud sync where .project.json lives (respects --output-dir)
+	cloud.SetSpecstoryDir(config.GetSpecstoryDir())
 
 	// Initialize project identity
-	identityManager := utils.NewProjectIdentityManager(cwd)
+	identityManager := utils.NewProjectIdentityManagerWithOverrides(cwd, config.GetSpecstoryDir(), projectPathOverride, gitOriginOverride)
 	if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 		slog.Error("Failed to ensure project identity", "error", err)
 	}
 
 	// Check authentication for cloud sync
-	checkAndWarnAuthentication()
+	cmdpkg.CheckAndWarnAuthentication(noCloudSync || onlyStats)
 
 	// Ensure history directory exists
 	if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
@@ -1535,12 +1330,33 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 	// Preload session sizes for batch sync optimization
 	preloadBulkSessionSizesIfNeeded(identityManager)
 
+	// Create statistics collector for this provider
+	statsCollector := sessionpkg.SharedStatisticsCollector(config.GetStatisticsPath())
+
 	if !silent {
 		fmt.Printf("\nParsing %s sessions", provider.Name())
 	}
 
 	// Perform the sync
-	sessionCount, syncErr := syncProvider(provider, providerID, config, debugRaw, useUTC)
+	sessionCount, syncErr := syncProvider(provider, providerID, config, debugRaw, useUTC, statsCollector)
+
+	// Flush statistics to disk
+	if err := statsCollector.Flush(); err != nil {
+		slog.Warn("Failed to flush statistics", "error", err)
+	}
+
+	// Show statistics path (only in --only-stats mode)
+	if sessionCount > 0 && !silent && onlyStats {
+		fmt.Printf("\n📊 Statistics collected: %s\n", config.GetStatisticsPath())
+	}
+
+	// Track stats-only usage separately so we can measure adoption
+	if onlyStats {
+		analytics.TrackEvent(analytics.EventSyncStatsComplete, analytics.Properties{
+			"provider":      providerID,
+			"session_count": sessionCount,
+		})
+	}
 
 	// Track analytics
 	if syncErr != nil {
@@ -1564,533 +1380,33 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 
 var syncCmd *cobra.Command
 
-// Command to show current version information
-var versionCmd = &cobra.Command{
-	Use:     "version",
-	Aliases: []string{"v", "ver"},
-	Short:   "Show SpecStory version information",
-	Run: func(cmd *cobra.Command, args []string) {
-		// Track version command usage
-		analytics.TrackEvent(analytics.EventVersionCommand, analytics.Properties{
-			"version": version,
-		})
-		fmt.Printf("%s (SpecStory)\n", version)
-	},
-}
-
-// createCheckCommand dynamically creates the check command with provider information
-func createCheckCommand() *cobra.Command {
-	registry := factory.GetRegistry()
-	ids := registry.ListIDs()
-
-	// Build dynamic examples
-	examples := `
-# Check all coding agents
-specstory check`
-
-	if len(ids) > 0 {
-		examples += "\n\n# Check specific coding agent"
-		for _, id := range ids {
-			examples += fmt.Sprintf("\nspecstory check %s", id)
-		}
-
-		// Use first provider for custom command example
-		examples += fmt.Sprintf("\n\n# Check a specific coding agent with a custom command\nspecstory check %s -c \"/custom/path/to/agent\"", ids[0])
+// quietAgentExitErrorHandler keeps fang from rendering an error box for an
+// agent's own non-zero exit status (main exits with that status instead, and
+// the agent already reported its error on the shared terminal). Every other
+// error is rendered by fang's default handler.
+func quietAgentExitErrorHandler(w io.Writer, styles fang.Styles, err error) {
+	var agentExit *spi.AgentExitError
+	if errors.As(err, &agentExit) {
+		return
 	}
-
-	return &cobra.Command{
-		Use:   "check [provider-id]",
-		Short: "Check if terminal coding agents are properly installed",
-		Long: `Check if terminal coding agents are properly installed and can be invoked by SpecStory.
-
-By default, checks all registered coding agents providers.
-Specify a specific agent ID to check only a specific coding agent.`,
-		Example: examples,
-		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument
-		RunE: func(cmd *cobra.Command, args []string) error {
-			slog.Info("Running in check-install mode")
-			registry := factory.GetRegistry()
-
-			// Get custom command if provided via flag
-			customCmd, _ := cmd.Flags().GetString("command")
-
-			// Validate that -c flag requires a provider
-			if customCmd != "" && len(args) == 0 {
-				registry := factory.GetRegistry()
-				ids := registry.ListIDs()
-				example := "specstory check <provider> -c \"/custom/path/to/agent\""
-				if len(ids) > 0 {
-					example = fmt.Sprintf("specstory check %s -c \"/custom/path/to/agent\"", ids[0])
-				}
-				return utils.ValidationError{
-					Message: "The -c/--command flag requires a provider to be specified.\n" +
-						"Example: " + example,
-				}
-			}
-
-			if len(args) == 0 {
-				// Check all providers
-				return checkAllProviders(registry)
-			} else {
-				// Check specific provider
-				return checkSingleProvider(registry, args[0], customCmd)
-			}
-		},
-	}
-}
-
-var checkCmd *cobra.Command
-
-// printDivider prints a divider line for visual separation
-func printDivider() {
-	fmt.Println("\n--------")
-}
-
-// checkSingleProvider checks a specific provider
-func checkSingleProvider(registry *factory.Registry, providerID, customCmd string) error {
-	provider, err := registry.Get(providerID)
-	if err != nil {
-		// Provider not found - show helpful error
-		fmt.Printf("❌ Provider '%s' is not a valid provider implementation\n\n", providerID)
-
-		ids := registry.ListIDs()
-		if len(ids) > 0 {
-			fmt.Println("The registered providers are:")
-			for _, id := range ids {
-				if p, _ := registry.Get(id); p != nil {
-					fmt.Printf("  • %s - %s\n", id, p.Name())
-				}
-			}
-			fmt.Println("\nExample: specstory check " + ids[0])
-		}
-		return err
-	}
-
-	// Set the agent provider for analytics
-	analytics.SetAgentProviders([]string{provider.Name()})
-
-	// Run the check
-	result := provider.Check(customCmd)
-
-	// Display results with the nice formatting
-	if result.Success {
-		fmt.Printf("\n✨ %s is installed and ready! ✨\n\n", provider.Name())
-		fmt.Printf("  📦 Version: %s\n", result.Version)
-		fmt.Printf("  📍 Location: %s\n", result.Location)
-		fmt.Printf("  ✅ Status: All systems go!\n\n")
-
-		fmt.Println("🚀 Ready to sync your sessions! 💪")
-		normalizedID := strings.ToLower(providerID)
-		fmt.Printf("   • specstory run %s\n", normalizedID)
-		fmt.Println("   • specstory sync - Save markdown files for existing sessions")
-		fmt.Println()
-
-		return nil
-	} else {
-		fmt.Printf("\n❌ %s check failed!\n", provider.Name())
-		if result.ErrorMessage != "" {
-			fmt.Printf("\n%s\n", result.ErrorMessage)
-		}
-		return errors.New("check failed")
-	}
-}
-
-// checkAllProviders checks all registered providers
-func checkAllProviders(registry *factory.Registry) error {
-	// Sort for consistent output
-	ids := registry.ListIDs()
-
-	// Collect all provider names for analytics
-	var providerNames []string
-	for _, id := range ids {
-		if provider, err := registry.Get(id); err == nil {
-			providerNames = append(providerNames, provider.Name())
-		}
-	}
-	analytics.SetAgentProviders(providerNames)
-
-	anySuccess := false
-	type providerInfo struct {
-		id   string
-		name string
-	}
-	var successfulProviders []providerInfo
-	first := true
-
-	for _, id := range ids {
-		provider, _ := registry.Get(id)
-		// Invoke Check() here to keep registry limited to registration/lookup
-		result := provider.Check("")
-
-		// Add divider between providers (but not before the first one)
-		if !first {
-			printDivider()
-		}
-		first = false
-
-		if result.Success {
-			anySuccess = true
-			successfulProviders = append(successfulProviders, providerInfo{id: id, name: provider.Name()})
-			fmt.Printf("\n✨ %s is installed and ready! ✨\n\n", provider.Name())
-			fmt.Printf("  📦 Version: %s\n", result.Version)
-			fmt.Printf("  📍 Location: %s\n", result.Location)
-			fmt.Printf("  ✅ Status: All systems go!\n")
-		} else {
-			fmt.Printf("\n❌ %s check failed!\n\n", provider.Name())
-			if result.ErrorMessage != "" {
-				// Show just first line of error for summary view
-				lines := strings.Split(result.ErrorMessage, "\n")
-				fmt.Printf("  Error: %s\n", strings.TrimSpace(lines[0]))
-			}
-		}
-	}
-
-	// Show ready message if at least one provider is working
-	if anySuccess {
-		printDivider()
-		fmt.Println("\n🚀 Ready to sync your sessions! 💪")
-		for _, info := range successfulProviders {
-			fmt.Printf("   • specstory run %s\n", info.id)
-		}
-		fmt.Println("   • specstory sync - Save markdown files for existing sessions")
-		fmt.Println()
-	} else {
-		printDivider()
-		fmt.Println("\n⚠️  No providers are currently available")
-		fmt.Println("   Install at least one provider to use SpecStory")
-		fmt.Println("\n💡 Tip: Use 'specstory check <provider>' for detailed installation help")
-
-		// Try to show an example with the first registered provider ID
-		ids := registry.ListIDs()
-		if len(ids) > 0 {
-			fmt.Printf("   Example: specstory check %s\n", ids[0])
-		} else {
-			fmt.Println("   Example: specstory check <provider>")
-		}
-	}
-
-	// Return error only if ALL providers failed
-	if !anySuccess {
-		return errors.New("check failed")
-	}
-
-	return nil
-}
-
-// Command to log in to SpecStory Cloud
-var loginCmd = &cobra.Command{
-	Use:   "login",
-	Short: "Log in to SpecStory Cloud",
-	Long:  `Log in to SpecStory Cloud to enable cloud sync functionality.`,
-	Example: `
-# Log in
-specstory login`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		slog.Info("Running login command")
-
-		// Check if user is already authenticated
-		if cloud.IsAuthenticated() {
-			// Get user details
-			username, loginTime := cloud.AuthenticatedAs()
-
-			// Already logged in - be friendly and show who they are!
-			fmt.Println()
-			fmt.Println("🔐 You're already logged in!")
-			fmt.Println()
-
-			// Show user details if available
-			if username != "" {
-				fmt.Printf("👤 Logged in as: %s\n", username)
-			}
-			if loginTime != "" {
-				// Parse and format the login time
-				if t, err := time.Parse(time.RFC3339, loginTime); err == nil {
-					fmt.Printf("🕐 Logged in at: %s (UTC)\n", t.Format("2006-01-02 15:04:05"))
-				} else {
-					// Fallback to raw time if parsing fails
-					fmt.Printf("🕐 Logged in at: %s\n", loginTime)
-				}
-			}
-
-			fmt.Println()
-			fmt.Println("🚀 Ready to sync with SpecStory Cloud! 💪")
-			fmt.Println()
-			return nil
-		}
-
-		// User is not authenticated - start login flow
-		slog.Info("Starting login flow")
-		analytics.TrackEvent(analytics.EventLoginAttempted, nil)
-		loginURL := cloud.GetAPIBaseURL() + "/cli-login"
-
-		fmt.Println()
-		fmt.Println("🌐 Opening your browser to log in to SpecStory Cloud...")
-		fmt.Println()
-
-		// Try to open the browser
-		if err := openBrowser(loginURL); err != nil {
-			slog.Warn("Failed to open browser automatically", "error", err)
-			// Don't fail, just inform the user
-		}
-
-		// Display the URL for manual access
-		fmt.Println("📋 If your browser didn't open, please visit:")
-		fmt.Printf("   %s\n", loginURL)
-		fmt.Println()
-
-		// Loop to allow retrying code entry
-		reader := bufio.NewReader(os.Stdin)
-
-		// Track number of invalid attempts
-		const maxAttempts = 5
-		var invalidAttempts int
-
-		for {
-			fmt.Println("🔑 Enter the 6-character code shown in your browser (or 'quit' to cancel):")
-			fmt.Print("   Code: ")
-
-			// Read the code from user input
-			code, err := reader.ReadString('\n')
-			if err != nil {
-				slog.Error("Failed to read authentication code", "error", err)
-				analytics.TrackEvent(analytics.EventLoginFailed, analytics.Properties{
-					"error": err.Error(),
-					"stage": "reading_code",
-				})
-				return fmt.Errorf("failed to read authentication code: %w", err)
-			}
-
-			// Trim whitespace
-			code = strings.TrimSpace(code)
-
-			// Check if user wants to quit (case-insensitive)
-			upperCode := strings.ToUpper(code)
-			if upperCode == QuitCommandFull || upperCode == QuitCommandShort || upperCode == ExitCommand {
-				slog.Info("Login cancelled by user")
-				analytics.TrackEvent(analytics.EventLoginCancelled, nil)
-				fmt.Println()
-				fmt.Println("👋 Login cancelled.")
-				fmt.Println()
-				return nil
-			}
-
-			// Normalize and validate the device code
-			normalizedCode, valid := normalizeDeviceCode(code)
-			if !valid {
-				invalidAttempts++
-				slog.Debug("Invalid code format entered", "original", code, "attempt", invalidAttempts)
-
-				if invalidAttempts >= maxAttempts {
-					analytics.TrackEvent(analytics.EventLoginFailed, analytics.Properties{
-						"error": "max_attempts_exceeded",
-						"stage": "code_validation",
-					})
-					return fmt.Errorf("maximum login attempts exceeded")
-				}
-
-				fmt.Println()
-				fmt.Println("❌ Invalid code format. The code should be 6 alphanumeric characters.")
-				fmt.Println("   Examples: Ab1c23 or Ab1-c23")
-				fmt.Println()
-				continue // Try again
-			}
-
-			// Valid code format - proceed with authentication
-			// Format the code for display (add dash back for readability)
-			displayCode := normalizedCode[:3] + "-" + normalizedCode[3:]
-			slog.Info("Valid authentication code received", "code", displayCode)
-
-			fmt.Println()
-			fmt.Printf("✅ Code received: %s\n", displayCode)
-			fmt.Println("🔄 Authenticating...")
-			fmt.Println()
-
-			// Exchange code for authentication tokens
-			if err := cloud.LoginWithDeviceCode(normalizedCode); err != nil {
-				invalidAttempts++
-				slog.Error("Failed to authenticate with device code", "error", err)
-				analytics.TrackEvent(analytics.EventLoginFailed, analytics.Properties{
-					"error": err.Error(),
-					"stage": "device_login",
-				})
-
-				// Check if it's an invalid code error
-				if strings.Contains(err.Error(), "invalid") || strings.Contains(err.Error(), "expired") {
-					if invalidAttempts >= maxAttempts {
-						analytics.TrackEvent(analytics.EventLoginFailed, analytics.Properties{
-							"error": "max_attempts_exceeded",
-							"stage": "device_login",
-						})
-						return fmt.Errorf("maximum login attempts exceeded")
-					}
-
-					fmt.Println("❌ Authentication failed: " + err.Error())
-					fmt.Println()
-					fmt.Println("Please try entering the code again.")
-					fmt.Println()
-					continue // Let user try again
-				}
-
-				// Other errors are fatal
-				return fmt.Errorf("authentication failed: %w", err)
-			}
-
-			// Get user details to show who they logged in as
-			username, _ := cloud.AuthenticatedAs()
-
-			fmt.Println("🎉 Success! You're now logged in to SpecStory Cloud!")
-			if username != "" {
-				fmt.Printf("👤 Logged in as: %s\n", username)
-			}
-			fmt.Println()
-			fmt.Println("🚀 Ready to sync your sessions to SpecStory Cloud! 💪")
-			fmt.Println("   • specstory run  - Launch terminal coding agents with auto-sync'ing")
-			fmt.Println("   • specstory sync - Sync markdown files for existing sessions")
-			fmt.Println()
-
-			analytics.TrackEvent(analytics.EventLoginSuccess, analytics.Properties{
-				"user":   username,
-				"method": "device_code",
-			})
-			slog.Info("Login flow completed successfully", "user", username)
-			return nil
-		}
-	},
-}
-
-// Command to log out from SpecStory Cloud
-var logoutCmd = &cobra.Command{
-	Use:   "logout",
-	Short: "Log out from SpecStory Cloud",
-	Long:  `Log out from SpecStory Cloud by removing authentication credentials.`,
-	Example: `
-# Log out
-specstory logout
-
-# Log out without a confirmation prompt
-specstory logout --force`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		slog.Info("Running logout command")
-
-		// Check if user is authenticated
-		if !cloud.IsAuthenticated() {
-			// Not logged in - but still clean up any auth file that might exist
-			_ = cloud.Logout() // Always attempt to remove the file
-
-			// Not logged in - be friendly and funky!
-			fmt.Println()
-			fmt.Println("🎉 Good news! You're not logged in!")
-			fmt.Println("✨ Nothing to log out from - All is well in the universe! 💫")
-			fmt.Println()
-			return nil
-		}
-
-		// Get the force flag value
-		force, _ := cmd.Flags().GetBool("force")
-
-		// If not forcing, ask for confirmation
-		if !force {
-			// User is logged in - ask for confirmation with style
-			fmt.Println()
-			fmt.Println("🔐 You're currently logged in to SpecStory Cloud.")
-			fmt.Println("🤔 Are you sure you want to log out?")
-			fmt.Println()
-			fmt.Print("Type 'yes' to confirm logout, or anything else to stay connected: ")
-
-			// Read user input
-			reader := bufio.NewReader(os.Stdin)
-			input, err := reader.ReadString('\n')
-			if err != nil {
-				slog.Error("Failed to read user input", "error", err)
-				return fmt.Errorf("failed to read confirmation: %w", err)
-			}
-
-			// Trim whitespace and convert to lowercase
-			input = strings.TrimSpace(strings.ToLower(input))
-
-			if input != "yes" {
-				// User chose not to logout - celebrate their decision!
-				fmt.Println()
-				fmt.Println("🎊 Awesome! You're staying connected!")
-				fmt.Println("🚀 Keep on building amazing things! 💪")
-				fmt.Println()
-				return nil
-			}
-		}
-
-		// Proceed with logout
-		if err := cloud.Logout(); err != nil {
-			slog.Error("Logout failed", "error", err)
-			// Track logout error
-			analytics.TrackEvent(analytics.EventLogout, analytics.Properties{
-				"success": false,
-				"forced":  force,
-				"error":   err.Error(),
-			})
-			fmt.Println()
-			fmt.Println("❌ Oops! Something went wrong during logout:")
-			fmt.Printf("   %v\n", err)
-			fmt.Println()
-			return err
-		}
-
-		// Track successful logout
-		analytics.TrackEvent(analytics.EventLogout, analytics.Properties{
-			"success": true,
-			"forced":  force,
-		})
-
-		// Success!
-		fmt.Println()
-		fmt.Println("👋 Successfully logged out from SpecStory Cloud.")
-		fmt.Println("💝 Thanks for using SpecStory! See you again soon! ✨")
-		fmt.Println()
-
-		return nil
-	},
-}
-
-// Custom help command, needed over built-in help command to display our logo
-var helpCmd = &cobra.Command{
-	Use:     "help [command]",
-	Aliases: []string{"h"},
-	Short:   "Help about any command",
-	Run: func(cmd *cobra.Command, args []string) {
-		// Track help command usage with context about why help was shown
-		helpTopic := "general"
-		helpReason := "requested"
-
-		// If a subcommand is specified, determine if it's valid
-		if len(args) > 0 {
-			targetCmd, _, err := rootCmd.Find(args)
-			if err != nil {
-				// Unknown command - track as error-triggered help
-				helpReason = "unknown_command"
-				fmt.Printf("Unknown command: %s\n", args[0])
-				displayLogoAndHelp(rootCmd)
-			} else {
-				// Valid command - track the specific topic
-				helpTopic = args[0]
-				displayLogoAndHelp(targetCmd)
-			}
-		} else {
-			// No command specified - general help requested
-			displayLogoAndHelp(rootCmd)
-		}
-
-		// Track analytics after determining the context
-		analytics.TrackEvent(analytics.EventHelpCommand, analytics.Properties{
-			"help_topic":  helpTopic,
-			"help_reason": helpReason,
-		})
-	},
+	fang.DefaultErrorHandler(w, styles, err)
 }
 
 // Main entry point for the CLI
 func main() {
 	// Parse critical flags early by manually checking os.Args
 	// This is necessary because cobra's ParseFlags doesn't work correctly before subcommands are added
-	for _, arg := range os.Args[1:] {
+	//
+	// --user-data-dir must be pre-parsed here: provider registry initialization
+	// (triggered by command construction below) probes IDE storage locations to
+	// decide which Copilot IDE variants to register, so the overrides have to be
+	// in effect before the first factory.GetRegistry() call. Waiting for cobra's
+	// RunE would be too late — a variant whose only install lives at an override
+	// path would never be registered.
+	var earlyUserDataDirs []string
+	args := os.Args[1:]
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
 		switch arg {
 		case "--no-usage-analytics":
 			noAnalytics = true
@@ -2104,18 +1420,131 @@ func main() {
 			silent = true
 		case "--no-version-check":
 			noVersionCheck = true
+		case "--no-telemetry-prompts":
+			noTelemetryPrompts = true
+		case "--output-dir":
+			// Handle --output-dir <value> format (space-separated)
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				outputDir = utils.ExpandTilde(args[i+1])
+				i++ // Skip the value in next iteration
+			}
+		case "--telemetry-endpoint":
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				telemetryEndpoint = args[i+1]
+				i++ // Skip the value in next iteration
+			}
+		case "--telemetry-service-name":
+			// Handle --telemetry-service-name <value> format (space-separated)
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				telemetryServiceName = args[i+1]
+				i++ // Skip the value in next iteration
+			}
+		case "--debug-dir":
+			// Handle --debug-dir <value> format (space-separated)
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				debugDir = utils.ExpandTilde(args[i+1])
+				i++ // Skip the value in next iteration
+			}
+		case "--config-dir":
+			// Handle --config-dir <value> format (space-separated). Pre-parsed so
+			// config.Load below can read the project config from the custom location.
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				configDir = utils.ExpandTilde(args[i+1])
+				i++ // Skip the value in next iteration
+			}
+		case "--user-data-dir":
+			// Handle --user-data-dir <value> format (space-separated, repeatable)
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				earlyUserDataDirs = append(earlyUserDataDirs, args[i+1])
+				i++ // Skip the value in next iteration
+			}
+		case "--local-time-zone":
+			localTimeZone = true
 		}
 		// Handle --output-dir=value format
 		if strings.HasPrefix(arg, "--output-dir=") {
-			outputDir = strings.TrimPrefix(arg, "--output-dir=")
+			outputDir = utils.ExpandTilde(strings.TrimPrefix(arg, "--output-dir="))
 		}
+		// Handle --debug-dir=value format
+		if strings.HasPrefix(arg, "--debug-dir=") {
+			debugDir = utils.ExpandTilde(strings.TrimPrefix(arg, "--debug-dir="))
+		}
+		// Handle --config-dir=value format
+		if strings.HasPrefix(arg, "--config-dir=") {
+			configDir = utils.ExpandTilde(strings.TrimPrefix(arg, "--config-dir="))
+		}
+		// Handle --telemetry-endpoint=value format
+		if strings.HasPrefix(arg, "--telemetry-endpoint=") {
+			telemetryEndpoint = strings.TrimPrefix(arg, "--telemetry-endpoint=")
+		}
+		// Handle --telemetry-service-name=value format
+		if strings.HasPrefix(arg, "--telemetry-service-name=") {
+			telemetryServiceName = strings.TrimPrefix(arg, "--telemetry-service-name=")
+		}
+		// Handle --user-data-dir=value format
+		if strings.HasPrefix(arg, "--user-data-dir=") {
+			earlyUserDataDirs = append(earlyUserDataDirs, strings.TrimPrefix(arg, "--user-data-dir="))
+		}
+	}
+
+	// Load configuration early (before logging setup) so TOML settings can affect logging
+	// Priority: CLI flags > local project config > user-level config
+	// Note: OTEL_* env vars take highest priority for telemetry
+	cfg, cfgErr := config.Load(&config.CLIOverrides{
+		OutputDir:            outputDir,
+		ConfigDir:            configDir,
+		LocalTimeZone:        localTimeZone,
+		NoVersionCheck:       noVersionCheck,
+		NoCloudSync:          noCloudSync,
+		OnlyCloudSync:        onlyCloudSync,
+		DebugDir:             debugDir,
+		Console:              console,
+		Log:                  logFile,
+		Debug:                debug,
+		Silent:               silent,
+		NoAnalytics:          noAnalytics,
+		TelemetryEndpoint:    telemetryEndpoint,
+		TelemetryServiceName: telemetryServiceName,
+		NoTelemetryPrompts:   noTelemetryPrompts,
+	})
+	if cfgErr != nil {
+		// Use fallback empty config if load fails - will log error after logging is set up
+		cfg = &config.Config{}
+	}
+	// Store config for use by command functions (e.g., provider commands in run)
+	loadedConfig = cfg
+
+	// Apply config values to flag variables so the rest of the code can use them unchanged.
+	// This merges TOML config with CLI flags (CLI flags take precedence via config.Load).
+	if cfg.GetOutputDir() != "" {
+		outputDir = utils.ExpandTilde(cfg.GetOutputDir())
+	}
+	if cfg.GetDebugDir() != "" {
+		debugDir = utils.ExpandTilde(cfg.GetDebugDir())
+	}
+	localTimeZone = cfg.IsLocalTimeZoneEnabled()
+	noVersionCheck = !cfg.IsVersionCheckEnabled()
+	noCloudSync = !cfg.IsCloudSyncEnabled()
+	onlyCloudSync = !cfg.IsLocalSyncEnabled()
+	noAnalytics = !cfg.IsAnalyticsEnabled()
+	console = cfg.IsConsoleEnabled()
+	logFile = cfg.IsLogEnabled()
+	debug = cfg.IsDebugEnabled()
+	silent = cfg.IsSilentEnabled()
+
+	noTelemetryPrompts = noTelemetryPrompts || cfg.IsTelemetryPromptsDisabled()
+	noRedactSecrets = noRedactSecrets || !cfg.IsRedactionEnabled()
+
+	// Set SPI debug dir override before any commands run
+	if debugDir != "" {
+		spi.SetDebugBaseDir(debugDir)
 	}
 
 	// Set up logging early before creating commands (which access the registry)
 	if console || logFile {
 		var logPath string
 		if logFile {
-			config, _ := utils.SetupOutputConfig(outputDir)
+			config, _ := utils.SetupOutputConfig(outputDir, debugDir)
 			logPath = config.GetLogPath()
 		}
 		_ = log.SetupLogger(console, logFile, debug, logPath)
@@ -2124,12 +1553,35 @@ func main() {
 		_ = log.SetupLogger(false, false, false, "")
 	}
 
+	// Apply --user-data-dir overrides before the commands are created: command
+	// construction initializes the provider registry, whose Copilot IDE variant
+	// gating probes the (possibly overridden) storage locations. The RunE-level
+	// ApplyUserDataDirOverrides calls re-apply the same values harmlessly.
+	cmdpkg.ApplyUserDataDirOverrides(earlyUserDataDirs)
+
 	// NOW create the commands - after logging is configured
+	// Config-derived flag defaults shared by every session-saving command in
+	// pkg/cmd, resolved once so their flags can't drift from each other.
+	sessionFlagDefaults := cmdpkg.SessionFlagDefaults{
+		LocalTimeZone:      localTimeZone,
+		OutputDir:          outputDir,
+		DebugDir:           debugDir,
+		NoTelemetryPrompts: noTelemetryPrompts,
+		NoRedactSecrets:    noRedactSecrets,
+	}
 	rootCmd = createRootCommand()
 	runCmd = createRunCommand()
-	watchCmd = createWatchCommand()
+	watchCmd := cmdpkg.CreateWatchCommand(&cloudURL, sessionFlagDefaults)
+	resumeCmd := cmdpkg.CreateResumeCommand(&cloudURL, sessionFlagDefaults)
+	reindexCmd := cmdpkg.CreateReindexCommand()
+	searchCmd := cmdpkg.CreateSearchCommand(&cloudURL, sessionFlagDefaults)
+	skillsCmd := cmdpkg.CreateSkillsCommand(&cloudURL)
 	syncCmd = createSyncCommand()
-	checkCmd = createCheckCommand()
+	listCmd := cmdpkg.CreateListCommand()
+	checkCmd := cmdpkg.CreateCheckCommand()
+	versionCmd := cmdpkg.CreateVersionCommand(version)
+	loginCmd := cmdpkg.CreateLoginCommand(&cloudURL)
+	logoutCmd := cmdpkg.CreateLogoutCommand(&cloudURL)
 
 	// Set version for the automatic version flag
 	rootCmd.Version = version
@@ -2138,66 +1590,79 @@ func main() {
 	rootCmd.SetVersionTemplate("{{.Version}} (SpecStory)")
 
 	// Set our custom help command (for "specstory help")
+	helpCmd := cmdpkg.CreateHelpCommand(rootCmd)
 	rootCmd.SetHelpCommand(helpCmd)
 
 	// Add the subcommands
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(watchCmd)
+	rootCmd.AddCommand(resumeCmd)
+	rootCmd.AddCommand(reindexCmd)
+	rootCmd.AddCommand(searchCmd)
+	rootCmd.AddCommand(skillsCmd)
 	rootCmd.AddCommand(syncCmd)
+	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(checkCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(logoutCmd)
 
 	// Global flags available on all commands
-	rootCmd.PersistentFlags().BoolVar(&console, "console", false, "enable error/warn/info output to stdout")
-	rootCmd.PersistentFlags().BoolVar(&logFile, "log", false, "write error/warn/info output to ./.specstory/debug/debug.log")
-	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "enable debug-level output (requires --console or --log)")
-	rootCmd.PersistentFlags().BoolVar(&noAnalytics, "no-usage-analytics", false, "disable usage analytics")
-	rootCmd.PersistentFlags().BoolVar(&silent, "silent", false, "suppress all non-error output")
-	rootCmd.PersistentFlags().BoolVar(&noVersionCheck, "no-version-check", false, "skip checking for newer versions")
+	// Use current variable values as defaults so config file values are preserved
+	rootCmd.PersistentFlags().BoolVar(&console, "console", console, "enable error/warn/info output to stdout")
+	rootCmd.PersistentFlags().BoolVar(&logFile, "log", logFile, "write error/warn/info output to ./.specstory/debug/debug.log")
+	rootCmd.PersistentFlags().BoolVar(&debug, "debug", debug, "enable debug-level output (requires --console or --log)")
+	rootCmd.PersistentFlags().BoolVar(&noAnalytics, "no-usage-analytics", noAnalytics, "disable usage analytics")
+	rootCmd.PersistentFlags().BoolVar(&silent, "silent", silent, "suppress all non-error output")
+	rootCmd.PersistentFlags().BoolVar(&noVersionCheck, "no-version-check", noVersionCheck, "skip checking for newer versions")
 	rootCmd.PersistentFlags().StringVar(&cloudToken, "cloud-token", "", "use a SpecStory Cloud refresh token for this session (bypasses login)")
 	_ = rootCmd.PersistentFlags().MarkHidden("cloud-token") // Hidden flag
+	rootCmd.PersistentFlags().StringVar(&projectPathOverride, "project-path", "", "override the project path used for session discovery and identity")
+	_ = rootCmd.PersistentFlags().MarkHidden("project-path") // Hidden flag
+	rootCmd.PersistentFlags().StringVar(&gitOriginOverride, "git-origin", "", "override the git remote origin URL used for project identity")
+	_ = rootCmd.PersistentFlags().MarkHidden("git-origin") // Hidden flag
 
 	// Command-specific flags
 	syncCmd.Flags().StringSliceP("session", "s", []string{}, "optional session IDs to sync (can be specified multiple times, provider-specific format)")
-	syncCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
-	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
-	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
+	syncCmd.Flags().BoolVar(&printToStdout, "print", printToStdout, "output session markdown to stdout instead of saving (requires -s flag)")
+	syncCmd.Flags().StringVar(&outputDir, "output-dir", outputDir, "custom output directory for markdown files (default: ./.specstory/history)")
+	syncCmd.Flags().StringVar(&debugDir, "debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
+	syncCmd.Flags().StringVar(&configDir, "config-dir", configDir, "custom directory for the project-level config.toml (default: ./.specstory/cli)")
+	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
+	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
+	syncCmd.Flags().BoolVar(&onlyStats, "only-stats", onlyStats, "only update statistics, skip local markdown files and cloud sync")
+	syncCmd.Flags().BoolVar(&noStats, "no-stats", noStats, "skip statistics entirely, do not read or write statistics.json")
 	syncCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = syncCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	syncCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = syncCmd.Flags().MarkHidden("debug-raw") // Hidden flag
-	syncCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
+	syncCmd.Flags().BoolVar(&localTimeZone, "local-time-zone", localTimeZone, "use local timezone for file name and content timestamps (when not present: UTC)")
+	syncCmd.Flags().StringVar(&telemetryEndpoint, "telemetry-endpoint", "", "Open Telemetry Protocol (OTLP) gRPC collector endpoint (default is off, e.g., localhost:4317)")
+	syncCmd.Flags().StringVar(&telemetryServiceName, "telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
+	syncCmd.Flags().BoolVar(&noTelemetryPrompts, "no-telemetry-prompts", noTelemetryPrompts, "exclude prompt text from telemetry spans, if telemetry is enabled")
+	syncCmd.Flags().BoolVar(&noRedactSecrets, "no-redact-secrets", noRedactSecrets, "disable redaction of API keys and tokens from saved markdown history and cloud-synced session data")
+	cmdpkg.AddProvidersFlag(syncCmd)
+	cmdpkg.AddUserDataDirFlag(syncCmd)
 
+	runCmd.Flags().BoolVar(&provenanceEnabled, "provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
+	_ = runCmd.Flags().MarkHidden("provenance") // Hidden flag
 	runCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
 	runCmd.Flags().String("resume", "", "resume a specific session by ID")
-	runCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
-	runCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
-	runCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
+	runCmd.Flags().StringVar(&outputDir, "output-dir", outputDir, "custom output directory for markdown files (default: ./.specstory/history)")
+	runCmd.Flags().StringVar(&debugDir, "debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
+	runCmd.Flags().StringVar(&configDir, "config-dir", configDir, "custom directory for the project-level config.toml (default: ./.specstory/cli)")
+	runCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
+	runCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
+	runCmd.Flags().BoolVar(&noStats, "no-stats", noStats, "skip statistics entirely, do not read or write statistics.json")
 	runCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = runCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	runCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = runCmd.Flags().MarkHidden("debug-raw") // Hidden flag
-	runCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
-
-	watchCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
-	watchCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
-	watchCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
-	watchCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
-	_ = watchCmd.Flags().MarkHidden("cloud-url") // Hidden flag
-	watchCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
-	_ = watchCmd.Flags().MarkHidden("debug-raw") // Hidden flag
-	watchCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
-
-	checkCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
-
-	logoutCmd.Flags().Bool("force", false, "skip confirmation prompt and logout immediately")
-	logoutCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
-	_ = logoutCmd.Flags().MarkHidden("cloud-url") // Hidden flag
-
-	loginCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
-	_ = loginCmd.Flags().MarkHidden("cloud-url") // Hidden flag
+	runCmd.Flags().BoolVar(&localTimeZone, "local-time-zone", localTimeZone, "use local timezone for file name and content timestamps (when not present: UTC)")
+	runCmd.Flags().StringVar(&telemetryEndpoint, "telemetry-endpoint", "", "Open Telemetry Protocol (OTLP) gRPC collector endpoint (default is off, e.g., localhost:4317)")
+	runCmd.Flags().StringVar(&telemetryServiceName, "telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
+	runCmd.Flags().BoolVar(&noTelemetryPrompts, "no-telemetry-prompts", noTelemetryPrompts, "exclude prompt text from telemetry spans, if telemetry is enabled")
+	runCmd.Flags().BoolVar(&noRedactSecrets, "no-redact-secrets", noRedactSecrets, "disable redaction of API keys and tokens from saved markdown history and cloud-synced session data")
 
 	// Initialize analytics with the full CLI command (unless disabled)
 	slog.Debug("Analytics initialization check", "noAnalytics", noAnalytics, "flag_should_disable", noAnalytics)
@@ -2212,6 +1677,28 @@ func main() {
 	} else {
 		slog.Debug("Analytics disabled by --no-usage-analytics flag")
 	}
+
+	// Log config load error after logging is set up
+	if cfgErr != nil {
+		slog.Warn("Failed to load config file, using defaults", "error", cfgErr)
+	}
+
+	// Initialize telemetry (after logging is configured)
+	if err := telemetry.Init(context.Background(), telemetry.Options{
+		ServiceName: cfg.GetTelemetryServiceName(),
+		Endpoint:    cfg.GetTelemetryEndpoint(),
+		Enabled:     cfg.IsTelemetryEnabled(),
+	}); err != nil {
+		slog.Warn("Failed to initialize telemetry", "error", err)
+	}
+	// Shutdown flushes pending spans/metrics before closing providers.
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := telemetry.Shutdown(shutdownCtx); err != nil {
+			slog.Warn("Failed to shutdown telemetry", "error", err)
+		}
+	}()
 
 	// Check for updates (blocking)
 	utils.CheckForUpdates(version, noVersionCheck, silent)
@@ -2247,7 +1734,7 @@ func main() {
 
 			// Display cloud sync stats if not in silent mode
 			if !silent && totalCloudSessions > 0 {
-				fmt.Println() // Visual separation from provider sync output
+				fmt.Println("────────────") // Visual divider from provider sync output
 
 				// Determine if sync was complete or incomplete based on errors/timeouts
 				if cloudStats.SessionsErrored > 0 || cloudStats.SessionsTimedOut > 0 {
@@ -2282,7 +1769,8 @@ func main() {
 				// Display link to SpecStory Cloud (deep link to session if from run command)
 				cwd, cwdErr := os.Getwd()
 				if cwdErr == nil {
-					identityManager := utils.NewProjectIdentityManager(cwd)
+					dirConfig, _ := utils.NewOutputPathConfig(outputDir, "")
+					identityManager := utils.NewProjectIdentityManager(cwd, dirConfig.GetSpecstoryDir())
 					if projectID, err := identityManager.GetProjectID(); err == nil {
 						fmt.Printf("💡 Search and chat with your AI conversation history at:\n")
 						if lastRunSessionID != "" {
@@ -2305,7 +1793,20 @@ func main() {
 		log.CloseLogger()
 	}()
 
-	if err := fang.Execute(context.Background(), rootCmd, fang.WithVersion(version)); err != nil {
+	if err := fang.Execute(context.Background(), rootCmd, fang.WithVersion(version), fang.WithErrorHandler(quietAgentExitErrorHandler)); err != nil {
+		// The agent launched by run/resume exited non-zero on its own. The
+		// provider has already stopped its watcher and joined the in-flight
+		// session saves, so pass the agent's status through as ours, the way the
+		// providers that os.Exit from their exec helper do, but after the save.
+		var agentExit *spi.AgentExitError
+		if errors.As(err, &agentExit) {
+			if console || logFile {
+				slog.Info("=== SpecStory Exiting ===", "code", agentExit.Code, "status", "agent exit status", "agent", agentExit.Agent)
+			}
+			_ = cloud.Shutdown(cloud.CloudSyncTimeout)
+			os.Exit(agentExit.Code)
+		}
+
 		// Check if we're running the check command by looking at the executed command
 		executedCmd, _, _ := rootCmd.Find(os.Args[1:])
 		if executedCmd == checkCmd {

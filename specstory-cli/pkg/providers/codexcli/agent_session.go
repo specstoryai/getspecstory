@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"strings"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
@@ -18,6 +18,7 @@ type (
 	Message      = schema.Message
 	ContentPart  = schema.ContentPart
 	ToolInfo     = schema.ToolInfo
+	Usage        = schema.Usage
 )
 
 // Codex-specific record structures for type safety
@@ -42,6 +43,105 @@ type CodexEventMsg struct {
 		Message string `json:"message"` // For user_message and agent_message
 		Text    string `json:"text"`    // For agent_reasoning
 	} `json:"payload"`
+}
+
+// itemCompletedEvent is the event_msg payload type Codex 0.147's TUI writes for
+// each completed thread item, replacing the user_message / agent_message /
+// agent_reasoning events it used through 0.146. The two forms are alternatives,
+// never both for the same turn, so a session recorded either way is read by
+// translating this one into the older shape — see codexItemAsLegacyEvent.
+//
+// Which form a session uses is Codex's choice, not a version cut: 0.147 writes
+// thread items for a session started in its TUI, and the older events for
+// `codex exec` and for any session it resumes that was created before 0.147.
+const itemCompletedEvent = "item_completed"
+
+// codexItemAsLegacyEvent reshapes a completed thread item into the payload type
+// and fields the parser already understands, returning an empty type for items
+// that carry no conversation text.
+//
+// Only the three conversation items are translated. The tool items
+// (CommandExecution, FileChange, McpToolCall and the rest) are deliberately
+// dropped: tool calls still arrive as response_item records, which 0.147 writes
+// alongside these, and reading both would render every tool call twice.
+func codexItemAsLegacyEvent(payload map[string]interface{}) (string, map[string]interface{}) {
+	item, ok := payload["item"].(map[string]interface{})
+	if !ok {
+		return "", nil
+	}
+
+	itemType, _ := item["type"].(string)
+	switch itemType {
+	case "UserMessage":
+		return "user_message", map[string]interface{}{"message": codexItemText(item)}
+
+	case "AgentMessage":
+		// Phase is either "commentary" (the preamble the agent prints before
+		// acting) or "final_answer". Both were emitted as agent_message by the
+		// older stream and both were shown to the user, so neither is filtered.
+		return "agent_message", map[string]interface{}{"message": codexItemText(item)}
+
+	case "Reasoning":
+		return "agent_reasoning", map[string]interface{}{"text": codexItemReasoningText(item)}
+	}
+
+	return "", nil
+}
+
+// codexItemText joins the text of a thread item's content parts. The part type
+// is spelled "text" on user items and "Text" on agent items, so the text field
+// is read without regard to it.
+func codexItemText(item map[string]interface{}) string {
+	parts, ok := item["content"].([]interface{})
+	if !ok {
+		return ""
+	}
+
+	var text strings.Builder
+	for _, entry := range parts {
+		part, ok := entry.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if partText, _ := part["text"].(string); partText != "" {
+			text.WriteString(partText)
+		}
+	}
+	return text.String()
+}
+
+// codexItemReasoningText pulls the visible reasoning out of a Reasoning item,
+// preferring the summary Codex displays over the raw content, which is what the
+// older agent_reasoning event carried.
+//
+// Both fields were empty in every 0.147 session available when this was written
+// — the substance sits in the paired response_item's encrypted_content, which is
+// opaque — so the element shape is unconfirmed and both a bare string and an
+// object with a text field are accepted.
+func codexItemReasoningText(item map[string]interface{}) string {
+	for _, field := range []string{"summary_text", "raw_content"} {
+		entries, ok := item[field].([]interface{})
+		if !ok {
+			continue
+		}
+
+		var text strings.Builder
+		for _, entry := range entries {
+			switch value := entry.(type) {
+			case string:
+				text.WriteString(value)
+			case map[string]interface{}:
+				if entryText, _ := value["text"].(string); entryText != "" {
+					text.WriteString(entryText)
+				}
+			}
+		}
+		if text.Len() > 0 {
+			return text.String()
+		}
+	}
+
+	return ""
 }
 
 // CodexResponseItem represents function calls and custom tool calls
@@ -213,6 +313,14 @@ func buildExchangesFromRecords(records []map[string]interface{}, workspaceRoot s
 
 			payloadType, _ := payload["type"].(string)
 
+			// Codex 0.147's TUI writes the conversation as thread items rather
+			// than the user_message/agent_message/agent_reasoning events. Reshape
+			// those into the older form so one set of message handling serves
+			// both, and a session recorded either way renders the same.
+			if payloadType == itemCompletedEvent {
+				payloadType, payload = codexItemAsLegacyEvent(payload)
+			}
+
 			switch payloadType {
 			case "user_message":
 				// Start a new exchange
@@ -296,6 +404,31 @@ func buildExchangesFromRecords(records []map[string]interface{}, workspaceRoot s
 				}
 				currentExchange.Messages = append(currentExchange.Messages, reasoningMsg)
 				currentExchange.EndTime = timestamp
+
+			case "token_count":
+				// Token usage event - attach to the most recent agent message
+				if currentExchange == nil || len(currentExchange.Messages) == 0 {
+					continue
+				}
+
+				usage := extractUsageFromTokenCount(payload)
+				if usage == nil {
+					continue
+				}
+
+				// Find the most recent agent message to attach usage to
+				for j := len(currentExchange.Messages) - 1; j >= 0; j-- {
+					if currentExchange.Messages[j].Role == "agent" {
+						currentExchange.Messages[j].Usage = usage
+						slog.Debug("Attached token usage to agent message",
+							"messageID", currentExchange.Messages[j].ID,
+							"inputTokens", usage.InputTokens,
+							"outputTokens", usage.OutputTokens,
+							"cachedInputTokens", usage.CachedInputTokens,
+							"reasoningOutputTokens", usage.ReasoningOutputTokens)
+						break
+					}
+				}
 			}
 
 		case "response_item":
@@ -365,21 +498,15 @@ func buildExchangesFromRecords(records []map[string]interface{}, workspaceRoot s
 			case "function_call_output":
 				// Function call output - merge into the pending tool call
 				callID, _ := payload["call_id"].(string)
-				outputJSON, _ := payload["output"].(string)
+				output := parseToolOutput(payload["output"])
 
-				if callID == "" || outputJSON == "" {
+				if callID == "" || output == nil {
 					continue
 				}
 
 				// Find the pending tool call
 				if pending, exists := pendingTools[callID]; exists {
-					// Parse the output JSON
-					var outputData map[string]interface{}
-					if err := json.Unmarshal([]byte(outputJSON), &outputData); err == nil {
-						pending.toolInfo.Output = outputData
-					} else {
-						pending.toolInfo.Output = map[string]interface{}{"raw": outputJSON}
-					}
+					pending.toolInfo.Output = output
 					delete(pendingTools, callID)
 				}
 
@@ -436,21 +563,15 @@ func buildExchangesFromRecords(records []map[string]interface{}, workspaceRoot s
 			case "custom_tool_call_output":
 				// Custom tool call output - merge into the pending tool call
 				callID, _ := payload["call_id"].(string)
-				outputJSON, _ := payload["output"].(string)
+				output := parseToolOutput(payload["output"])
 
-				if callID == "" || outputJSON == "" {
+				if callID == "" || output == nil {
 					continue
 				}
 
 				// Find the pending tool call
 				if pending, exists := pendingTools[callID]; exists {
-					// Parse the output JSON
-					var outputData map[string]interface{}
-					if err := json.Unmarshal([]byte(outputJSON), &outputData); err == nil {
-						pending.toolInfo.Output = outputData
-					} else {
-						pending.toolInfo.Output = map[string]interface{}{"raw": outputJSON}
-					}
+					pending.toolInfo.Output = output
 					delete(pendingTools, callID)
 				}
 			}
@@ -463,6 +584,48 @@ func buildExchangesFromRecords(records []map[string]interface{}, workspaceRoot s
 	}
 
 	return exchanges, nil
+}
+
+// parseToolOutput normalizes a function or custom tool call's output payload into the map
+// stored on ToolInfo.Output. Returns nil when there's nothing to record.
+//
+// Codex writes output in two shapes: a string (a JSON object or plain text), and an array
+// of content items (e.g. code-mode `exec`, whose results are input_text and input_image
+// parts). Arrays are flattened into the same {"raw": text} shape as plain text, so
+// markdown rendering and cloud session data handle both without a second code path.
+func parseToolOutput(output interface{}) map[string]interface{} {
+	switch v := output.(type) {
+	case string:
+		if v == "" {
+			return nil
+		}
+		var outputData map[string]interface{}
+		if err := json.Unmarshal([]byte(v), &outputData); err == nil {
+			return outputData
+		}
+		return map[string]interface{}{"raw": v}
+	case []interface{}:
+		var parts []string
+		for _, item := range v {
+			part, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if text, ok := part["text"].(string); ok && text != "" {
+				parts = append(parts, text)
+			} else if part["type"] == "input_image" {
+				// Images arrive as base64 data URLs; a marker keeps the transcript
+				// honest about their presence without embedding megabytes of base64.
+				parts = append(parts, "[image]")
+			}
+		}
+		if len(parts) == 0 {
+			return nil
+		}
+		return map[string]interface{}{"raw": strings.Join(parts, "\n")}
+	default:
+		return nil
+	}
 }
 
 // formatToolWithSummary generates custom summary and formatted markdown for a Codex tool
@@ -478,9 +641,15 @@ func formatToolWithSummary(tool *ToolInfo, workspaceRoot string) (string, string
 		if inputStr, ok := tool.Input["input"].(string); ok {
 			// Custom tool with text input (e.g., apply_patch)
 			formattedMd.WriteString(formatCustomToolCall(tool.Name, inputStr))
-		} else if tool.Name == "shell_command" {
-			// Shell command: check if single-line or multi-line
-			inputJSON, _ := json.Marshal(tool.Input)
+		} else if tool.Name == "shell_command" || tool.Name == "exec_command" {
+			// Shell command: normalize "cmd" → "command" for exec_command
+			toolInput := tool.Input
+			if _, ok := toolInput["cmd"]; ok {
+				if _, hasCommand := toolInput["command"]; !hasCommand {
+					toolInput["command"] = toolInput["cmd"]
+				}
+			}
+			inputJSON, _ := json.Marshal(toolInput)
 			shellSummary, shellBody := formatShellWithSummary(string(inputJSON))
 			if shellSummary != "" {
 				// Single-line command goes in summary
@@ -506,10 +675,9 @@ func formatToolWithSummary(tool *ToolInfo, workspaceRoot string) (string, string
 				if formattedMd.Len() > 0 {
 					formattedMd.WriteString("\n")
 				}
-				if len(cleaned) > 5000 {
-					cleaned = cleaned[:5000] + "\n... (truncated)"
-				}
-				formattedMd.WriteString("```\n" + cleaned + "\n```")
+				// Cap by runes so the cut never splits a multi-byte character, which
+				// would leave the saved markdown as invalid UTF-8.
+				formattedMd.WriteString(spi.CodeFence("", spi.CapRunes(cleaned, 5000)))
 			}
 		}
 	}
@@ -520,7 +688,7 @@ func formatToolWithSummary(tool *ToolInfo, workspaceRoot string) (string, string
 // classifyToolType maps Codex tool names to standard tool types
 func classifyToolType(toolName string) string {
 	switch toolName {
-	case "shell", "shell_command": // `shell` is legacy
+	case "shell", "shell_command", "exec_command": // `shell` is legacy
 		return "shell"
 	case "update_plan":
 		return "task"
@@ -554,9 +722,28 @@ func extractPathHints(toolName string, input map[string]interface{}, inputText s
 		pathFields := []string{"path", "file", "filename", "file_path"}
 		for _, field := range pathFields {
 			if value, ok := input[field].(string); ok && value != "" {
-				normalizedPath := normalizePath(value, workspaceRoot)
+				normalizedPath := spi.NormalizePath(value, workspaceRoot)
 				if !contains(paths, normalizedPath) {
 					paths = append(paths, normalizedPath)
+				}
+			}
+		}
+
+		// Extract paths from shell commands (redirect targets, file-creating commands)
+		// exec_command uses "cmd", shell_command uses "command"
+		command, _ := input["command"].(string)
+		if command == "" {
+			command, _ = input["cmd"].(string)
+		}
+		if command != "" {
+			cwd, _ := input["workdir"].(string)
+			if cwd == "" {
+				cwd = workspaceRoot
+			}
+			shellPaths := spi.ExtractShellPathHints(command, cwd, workspaceRoot)
+			for _, sp := range shellPaths {
+				if !contains(paths, sp) {
+					paths = append(paths, sp)
 				}
 			}
 		}
@@ -588,7 +775,7 @@ func extractPathsFromPatch(patchText string, workspaceRoot string) []string {
 			if strings.HasPrefix(line, marker) {
 				path := strings.TrimSpace(strings.TrimPrefix(line, marker))
 				if path != "" {
-					normalizedPath := normalizePath(path, workspaceRoot)
+					normalizedPath := spi.NormalizePath(path, workspaceRoot)
 					if !contains(paths, normalizedPath) {
 						paths = append(paths, normalizedPath)
 					}
@@ -601,7 +788,7 @@ func extractPathsFromPatch(patchText string, workspaceRoot string) []string {
 		if strings.HasPrefix(line, "*** New Name:") {
 			path := strings.TrimSpace(strings.TrimPrefix(line, "*** New Name:"))
 			if path != "" {
-				normalizedPath := normalizePath(path, workspaceRoot)
+				normalizedPath := spi.NormalizePath(path, workspaceRoot)
 				if !contains(paths, normalizedPath) {
 					paths = append(paths, normalizedPath)
 				}
@@ -612,23 +799,6 @@ func extractPathsFromPatch(patchText string, workspaceRoot string) []string {
 	return paths
 }
 
-// normalizePath converts absolute paths to workspace-relative paths when possible
-func normalizePath(path, workspaceRoot string) string {
-	if workspaceRoot == "" {
-		return path
-	}
-
-	// If path is absolute and starts with workspace root, make it relative
-	if filepath.IsAbs(path) && strings.HasPrefix(path, workspaceRoot) {
-		relPath, err := filepath.Rel(workspaceRoot, path)
-		if err == nil {
-			return relPath
-		}
-	}
-
-	return path
-}
-
 // contains checks if a string slice contains a value
 func contains(slice []string, value string) bool {
 	for _, item := range slice {
@@ -637,4 +807,42 @@ func contains(slice []string, value string) bool {
 		}
 	}
 	return false
+}
+
+// extractUsageFromTokenCount extracts token usage from a token_count event's info.last_token_usage
+// Codex CLI emits token_count events with the structure:
+//
+//	{
+//	  "type": "event_msg",
+//	  "payload": {
+//	    "type": "token_count",
+//	    "info": {
+//	      "last_token_usage": { "input_tokens": N, "cached_input_tokens": N, "output_tokens": N, "reasoning_output_tokens": N, ... },
+//	      "total_token_usage": { ... }
+//	    }
+//	  }
+//	}
+//
+// We use last_token_usage for per-turn usage (total_token_usage is cumulative).
+// Codex CLI uses its own token field names, stored in the Codex-specific fields of Usage.
+func extractUsageFromTokenCount(payload map[string]interface{}) *Usage {
+	info, ok := payload["info"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	// Use last_token_usage for per-turn metrics (not cumulative)
+	lastUsage, ok := info["last_token_usage"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	return &Usage{
+		// Common fields
+		InputTokens:  schema.GetIntFromMap(lastUsage, "input_tokens"),
+		OutputTokens: schema.GetIntFromMap(lastUsage, "output_tokens"),
+		// Codex CLI specific fields
+		CachedInputTokens:     schema.GetIntFromMap(lastUsage, "cached_input_tokens"),
+		ReasoningOutputTokens: schema.GetIntFromMap(lastUsage, "reasoning_output_tokens"),
+	}
 }

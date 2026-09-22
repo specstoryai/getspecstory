@@ -1,11 +1,13 @@
 package claudecode
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -50,8 +52,10 @@ func filterWarmupMessages(records []JSONLRecord) []JSONLRecord {
 func processSession(session Session, workspaceRoot string, debugRaw bool) *spi.AgentChatSession {
 	// Write debug files first (even for warmup-only sessions)
 	if debugRaw {
-		// Write debug files and get the record-to-file mapping
-		_ = writeDebugRawFiles(session) // Unused but needed for side effect
+		if err := writeDebugRawFiles(session); err != nil {
+			slog.Warn("Failed to write debug raw files", "sessionId", session.SessionUuid,
+				"path", spi.GetDebugDir(session.SessionUuid), "error", err)
+		}
 	}
 
 	// Filter warmup messages
@@ -113,13 +117,13 @@ func buildCheckErrorMessage(errorType string, claudeCmd string, isCustom bool, s
 
 	switch errorType {
 	case "not_found":
-		errorMsg.WriteString(fmt.Sprintf("  🔍 Could not find Claude Code at: %s\n", claudeCmd))
+		fmt.Fprintf(&errorMsg, "  🔍 Could not find Claude Code at: %s\n", claudeCmd)
 		errorMsg.WriteString("\n")
 		errorMsg.WriteString("  💡 Here's how to fix this:\n")
 		errorMsg.WriteString("\n")
 		if isCustom {
 			errorMsg.WriteString("     The specified path doesn't exist. Please check:\n")
-			errorMsg.WriteString(fmt.Sprintf("     • Is Claude Code installed at %s?\n", claudeCmd))
+			fmt.Fprintf(&errorMsg, "     • Is Claude Code installed at %s?\n", claudeCmd)
 			errorMsg.WriteString("     • Did you type the path correctly?")
 		} else {
 			errorMsg.WriteString("     1. Make sure Claude Code is installed:\n")
@@ -131,13 +135,13 @@ func buildCheckErrorMessage(errorType string, claudeCmd string, isCustom bool, s
 			errorMsg.WriteString("        • Example: specstory check claude -c \"~/.claude/local/claude\"")
 		}
 	case "permission_denied":
-		errorMsg.WriteString(fmt.Sprintf("  🔒 Permission denied when trying to run: %s\n", claudeCmd))
+		fmt.Fprintf(&errorMsg, "  🔒 Permission denied when trying to run: %s\n", claudeCmd)
 		errorMsg.WriteString("\n")
 		errorMsg.WriteString("  💡 Here's how to fix this:\n")
-		errorMsg.WriteString(fmt.Sprintf("     • Check file permissions: chmod +x %s\n", claudeCmd))
+		fmt.Fprintf(&errorMsg, "     • Check file permissions: chmod +x %s\n", claudeCmd)
 		errorMsg.WriteString("     • Try running with elevated permissions if needed")
 	case "unexpected_output":
-		errorMsg.WriteString(fmt.Sprintf("  ⚠️  Unexpected output from 'claude -v': %s\n", strings.TrimSpace(stderrOutput)))
+		fmt.Fprintf(&errorMsg, "  ⚠️  Unexpected output from 'claude -v': %s\n", strings.TrimSpace(stderrOutput))
 		errorMsg.WriteString("\n")
 		errorMsg.WriteString("  💡 This might not be Claude Code. Expected output containing '(Claude Code)'.\n")
 		errorMsg.WriteString("     • Make sure you have Claude Code installed, not a different 'claude' command\n")
@@ -145,7 +149,7 @@ func buildCheckErrorMessage(errorType string, claudeCmd string, isCustom bool, s
 	default:
 		errorMsg.WriteString("  ⚠️  Error running 'claude -v'\n")
 		if stderrOutput != "" {
-			errorMsg.WriteString(fmt.Sprintf("  📋 Error details: %s\n", stderrOutput))
+			fmt.Fprintf(&errorMsg, "  📋 Error details: %s\n", stderrOutput)
 		}
 		errorMsg.WriteString("\n")
 		errorMsg.WriteString("  💡 Troubleshooting tips:\n")
@@ -166,16 +170,20 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	isCustomCommand := customCommand != ""
 
 	// Resolve the actual path of the command
-	resolvedPath := claudeCmd
-	if !filepath.IsAbs(claudeCmd) {
-		// Try to find the command in PATH
-		if path, err := exec.LookPath(claudeCmd); err == nil {
-			resolvedPath = path
-		}
-	}
+	resolvedPath, lookupErr := spi.LookPathForCheck(claudeCmd)
 
 	// Run claude -v to check version (ignore custom args for version check)
-	cmd := exec.Command(claudeCmd, "-v")
+	attempt := analytics.CheckAttempt{Provider: "claude", CustomCommand: isCustomCommand, CommandPath: claudeCmd, ResolvedPath: resolvedPath, VersionFlag: "-v"}
+	if lookupErr != nil {
+		errorType := spi.ClassifyCheckError(lookupErr)
+		analytics.TrackCheckFailure(attempt, errorType, lookupErr.Error(), "")
+		return spi.CheckResult{
+			Success:      false,
+			ErrorType:    errorType,
+			ErrorMessage: buildCheckErrorMessage(errorType, claudeCmd, isCustomCommand, ""),
+		}
+	}
+	cmd := exec.Command(resolvedPath, "-v")
 	var out bytes.Buffer
 	var errOut bytes.Buffer
 	cmd.Stdout = &out
@@ -183,38 +191,16 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 
 	if err := cmd.Run(); err != nil {
 		// Track installation check failure
-		errorType := "unknown"
-
-		var execErr *exec.Error
-		var pathErr *os.PathError
-
-		// Check error types in order of specificity
-		switch {
-		case errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound:
-			errorType = "not_found"
-		case errors.As(err, &pathErr):
-			if errors.Is(pathErr.Err, os.ErrNotExist) {
-				errorType = "not_found"
-			} else if errors.Is(pathErr.Err, os.ErrPermission) {
-				errorType = "permission_denied"
-			}
-		case errors.Is(err, os.ErrPermission):
-			errorType = "permission_denied"
-		}
+		errorType := spi.ClassifyCheckExecutionError(err)
 
 		stderrOutput := strings.TrimSpace(errOut.String())
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "claude",
-			"custom_command": isCustomCommand,
-			"command_path":   claudeCmd,
-			"error_type":     errorType,
-			"error_message":  err.Error(),
-		})
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), strings.TrimSpace(errOut.String()))
 
 		errorMessage := buildCheckErrorMessage(errorType, claudeCmd, isCustomCommand, stderrOutput)
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
@@ -224,19 +210,15 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	// Check if output contains "Claude Code"
 	output := out.String()
 	if !strings.Contains(output, "(Claude Code)") {
+		errorType := spi.CheckErrorUnexpectedOutput
 		// Track unexpected output error
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "claude",
-			"custom_command": isCustomCommand,
-			"command_path":   claudeCmd,
-			"error_type":     "unexpected_output",
-			"output":         strings.TrimSpace(output),
-		})
+		analytics.TrackCheckFailure(attempt, spi.CheckErrorUnexpectedOutput, strings.TrimSpace(output), strings.TrimSpace(errOut.String()))
 
-		errorMessage := buildCheckErrorMessage("unexpected_output", claudeCmd, isCustomCommand, output)
+		errorMessage := buildCheckErrorMessage(spi.CheckErrorUnexpectedOutput, claudeCmd, isCustomCommand, output)
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
@@ -244,14 +226,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	}
 
 	// Success! Track it
-	pathType := getPathType(claudeCmd, resolvedPath)
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
-		"provider":       "claude",
-		"custom_command": isCustomCommand,
-		"command_path":   resolvedPath,
-		"path_type":      pathType,
-		"version":        strings.TrimSpace(output),
-	})
+	analytics.TrackCheckSuccess(attempt, strings.TrimSpace(output))
 
 	return spi.CheckResult{
 		Success:      true,
@@ -408,6 +383,9 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		slog.Error("Failed to start project directory watcher", "error", err)
 	}
 
+	projectDir, _ := resolveClaudeProjectDir(projectPath)
+	finalChanges := spi.SessionFileChanges(projectDir, "*.jsonl")
+
 	// Execute Claude Code - this blocks until Claude exits
 	slog.Info("Executing Claude Code", "command", customCommand)
 	err := ExecuteClaude(customCommand, resumeSessionID)
@@ -415,6 +393,13 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	// Stop the watcher goroutine before returning
 	slog.Info("Claude Code has exited, stopping watcher")
 	StopWatcher()
+	if projectDir != "" {
+		for _, path := range finalChanges() {
+			// Claude has exited: export even an interrupted shell call, without
+			// registering deferred work after the watcher has stopped.
+			scanJSONLFilesWithOptions(projectDir, path, true)
+		}
+	}
 
 	// Return any execution error
 	if err != nil {
@@ -460,6 +445,7 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 
 	slog.Info("WatchAgent: Project directory found", "directory", claudeProjectDir)
 
+	watcherCtx, watcherCancel = context.WithCancel(context.Background())
 	if err := startProjectWatcher(claudeProjectDir); err != nil {
 		slog.Error("WatchAgent: Failed to start project watcher", "error", err)
 		return fmt.Errorf("failed to start watcher: %w", err)
@@ -479,6 +465,84 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 	return ctx.Err()
 }
 
+// isSyntheticMessage checks if a message is synthetic/internal and should be skipped
+// when looking for the first real user message (e.g. for the session title/slug).
+// Filters warmup prompts, title-generation prompts, and slash-command noise (the
+// command invocation, its local stdout/stderr, and the local-command caveat) — these
+// are conversation scaffolding, not the user's actual prompt. Without this, a session
+// that opens with a slash command gets an empty title and falls back to its UUID.
+func isSyntheticMessage(content string) bool {
+	// warmup and the <TEXTBLOCK> title-generation wrapper can be embedded anywhere
+	// in the record, so match them with Contains.
+	if strings.Contains(strings.ToLower(content), "warmup") {
+		return true
+	}
+	if strings.Contains(content, "<TEXTBLOCK>") {
+		return true
+	}
+	// The slash-command scaffolding tags (shared with reconstruction via
+	// spi.SyntheticCommandTags) and the interrupt marker REPLACE the prompt, so they
+	// appear at the very START of the record. Match by prefix so a real prompt that
+	// merely mentions a tag mid-sentence is still treated as real. The interrupt
+	// marker's "…for tool use" variant is caught by the same prefix.
+	trimmed := strings.TrimSpace(content)
+	for _, marker := range spi.SyntheticCommandTags {
+		if strings.HasPrefix(trimmed, marker) {
+			return true
+		}
+	}
+	return strings.HasPrefix(trimmed, "[Request interrupted by user")
+}
+
+// cleanSyntheticPrefixes strips known boilerplate prefixes that Claude Code
+// prepends to user messages (e.g. plan mode). The real user content follows
+// the prefix, so we strip rather than skip the message entirely.
+func cleanSyntheticPrefixes(content string) string {
+	prefixes := []string{
+		"Implement the following plan:",
+	}
+	trimmed := strings.TrimSpace(content)
+	lower := strings.ToLower(trimmed)
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(lower, strings.ToLower(prefix)) {
+			return strings.TrimSpace(trimmed[len(prefix):])
+		}
+	}
+	// Return the trimmed form in the no-match case too, so callers always get
+	// consistently-trimmed output regardless of whether a prefix was stripped.
+	return trimmed
+}
+
+// extractContentText extracts plain text from a message content field.
+// The content field may be either a plain string or a JSON array of typed content
+// blocks (e.g. [{type:"text",text:"..."},{type:"tool_use",...}]).
+// When it's an array, all "text"-type blocks are joined with newlines.
+// This handles the Claude Code JSONL format where IDE context tags (e.g.
+// <ide_opened_file>) are injected as separate text blocks before the real question.
+func extractContentText(content interface{}) string {
+	switch v := content.(type) {
+	case string:
+		return v
+	case []interface{}:
+		var parts []string
+		for _, block := range v {
+			if m, ok := block.(map[string]interface{}); ok {
+				if t, _ := m["type"].(string); t == "text" {
+					if text, ok := m["text"].(string); ok && text != "" {
+						parts = append(parts, text)
+					}
+				}
+			}
+		}
+		slog.Debug("extractContentText: extracted text from content block array",
+			"blockCount", len(v),
+			"textParts", len(parts))
+		return strings.Join(parts, "\n")
+	default:
+		return ""
+	}
+}
+
 // findFirstUserMessage finds the first user message in a session for slug generation
 // Returns empty string if no suitable user message is found
 func findFirstUserMessage(session Session) string {
@@ -493,14 +557,15 @@ func findFirstUserMessage(session Session) string {
 			continue
 		}
 
-		// Extract content from message
+		// Extract content from message - content may be a string or a list of blocks
 		if message, ok := record.Data["message"].(map[string]interface{}); ok {
-			if content, ok := message["content"].(string); ok && content != "" {
-				// Skip messages containing "warmup" (case-insensitive)
-				if strings.Contains(strings.ToLower(content), "warmup") {
+			content := extractContentText(message["content"])
+			if content != "" {
+				// Skip synthetic messages (warmup, title generation prompts, etc.)
+				if isSyntheticMessage(content) {
 					continue
 				}
-				return content
+				return cleanSyntheticPrefixes(content)
 			}
 		}
 	}
@@ -522,4 +587,275 @@ func FileSlugFromRootRecord(session Session) string {
 		"slug", slug)
 
 	return slug
+}
+
+// ListAgentChatSessions retrieves lightweight session metadata without full parsing
+// This is much faster than GetAgentChatSessions as it only reads minimal data from each session
+func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+	// Get the Claude Code project directory
+	claudeProjectDir, err := GetClaudeCodeProjectDir(projectPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if project directory exists
+	if _, err := os.Stat(claudeProjectDir); os.IsNotExist(err) {
+		return []spi.SessionMetadata{}, nil // No sessions if no project
+	}
+
+	// Collect all JSONL files in the project directory
+	var sessionFiles []string
+	err = filepath.Walk(claudeProjectDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || !strings.HasSuffix(path, ".jsonl") {
+			return nil
+		}
+		sessionFiles = append(sessionFiles, path)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan project directory: %w", err)
+	}
+
+	// Extract metadata from each session file
+	sessions := make([]spi.SessionMetadata, 0, len(sessionFiles))
+	for _, filePath := range sessionFiles {
+		metadata, err := extractSessionMetadata(filePath)
+		if err != nil {
+			slog.Warn("Failed to extract session metadata",
+				"file", filePath,
+				"error", err)
+			continue
+		}
+
+		// Skip warmup-only sessions (no metadata means warmup-only)
+		if metadata == nil {
+			slog.Debug("Skipping warmup-only session", "file", filePath)
+			continue
+		}
+
+		sessions = append(sessions, *metadata)
+	}
+
+	return sessions, nil
+}
+
+// claudeSessionScan holds the minimal fields read from a session file in one pass:
+// identity + first-message metadata, plus the originating cwd (Claude Code stamps a
+// top-level "cwd" on every conversational record). foundRealMessage is false for
+// warmup-only sessions (no real messages).
+type claudeSessionScan struct {
+	sessionID        string
+	timestamp        string
+	firstUserMessage string
+	commandFallback  string // slash command title when there is no free-text prompt
+	cwd              string
+	foundRealMessage bool
+}
+
+// scanClaudeSession reads minimal data from a session file: session id, first-real
+// timestamp, first user message, and originating cwd. Shared by the project-scoped
+// metadata path and the global enumeration (ListAllAgentChatSessions).
+func scanClaudeSession(filePath string) (*claudeSessionScan, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open session file: %w", err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	reader := bufio.NewReader(file)
+	scan := &claudeSessionScan{}
+
+	// Read records until we find everything we need.
+	// Why: a record can arrive together with io.EOF on the last line (no trailing
+	// newline), so we always process the line first, then check for EOF once at
+	// the bottom.
+	lineNum := 0
+	for {
+		rawLine, oversized, readErr := spi.ReadRecordLine(reader, spi.MaxRecordLineSize)
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return nil, fmt.Errorf("failed to read line: %w", readErr)
+		}
+
+		lineNum++
+		// A pathological record cannot hold the small metadata this scan wants,
+		// and skipping it keeps the rest of the session indexable.
+		if oversized {
+			slog.Warn("Skipping oversized JSONL line",
+				"file", filepath.Base(filePath),
+				"line", lineNum,
+				"limit", spi.MaxRecordLineSize)
+			if errors.Is(readErr, io.EOF) {
+				break
+			}
+			continue
+		}
+		line := strings.TrimSpace(string(rawLine))
+
+		if line != "" {
+			// Parse JSON record
+			var record map[string]interface{}
+			if jsonErr := json.Unmarshal([]byte(line), &record); jsonErr != nil {
+				slog.Warn("Skipping malformed JSONL line",
+					"file", filepath.Base(filePath),
+					"line", lineNum,
+					"error", jsonErr)
+			} else {
+				// Extract session ID (from any record)
+				if scan.sessionID == "" {
+					if sid, ok := record["sessionId"].(string); ok {
+						scan.sessionID = sid
+					}
+				}
+
+				// Capture the originating cwd (first record that carries one). This is
+				// the input to project-identity resolution for the restore index.
+				if scan.cwd == "" {
+					if cwd, ok := record["cwd"].(string); ok && cwd != "" {
+						scan.cwd = cwd
+					}
+				}
+
+				// Only process non-sidechain, non-system records for message extraction
+				isSidechain, _ := record["isSidechain"].(bool)
+				recordType, hasType := record["type"].(string)
+				isSystemRecord := hasType && (recordType == "file-history-snapshot" || recordType == "file-change")
+
+				if !isSidechain && !isSystemRecord {
+					scan.foundRealMessage = true
+					// created_at = the first real record that actually carries a timestamp.
+					// (The leading {mode,sessionId,type} record has none, so we can't gate
+					// timestamp capture on "first real record" — it would stay empty.)
+					if scan.timestamp == "" {
+						if ts, ok := record["timestamp"].(string); ok && ts != "" {
+							scan.timestamp = ts
+						}
+					}
+
+					// Extract first user message for slug (if this is a user message)
+					// Content may be a string or a list of typed blocks (see extractContentText)
+					if scan.firstUserMessage == "" && hasType && recordType == "user" {
+						isMeta, _ := record["isMeta"].(bool)
+						if !isMeta {
+							if message, ok := record["message"].(map[string]interface{}); ok {
+								content := extractContentText(message["content"])
+								if content != "" {
+									if isSyntheticMessage(content) {
+										// A slash-command session may have no free-text prompt;
+										// remember the command name as a fallback title.
+										if scan.commandFallback == "" {
+											scan.commandFallback = extractCommandName(content)
+										}
+									} else {
+										scan.firstUserMessage = content
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// Single exit: found everything we need, or reached end of file
+		if (scan.sessionID != "" && scan.timestamp != "" && scan.firstUserMessage != "" && scan.cwd != "") || errors.Is(readErr, io.EOF) {
+			break
+		}
+	}
+
+	// Fall back to the slash command when there was no real user prompt (so a
+	// command-only session shows e.g. "/code-review" instead of its UUID).
+	if scan.firstUserMessage == "" {
+		scan.firstUserMessage = scan.commandFallback
+	}
+	return scan, nil
+}
+
+// extractCommandName pulls the slash command from a Claude Code command record, e.g.
+// "<command-name>/code-review</command-name>…" -> "/code-review". Falls back to the
+// bare command-message name (prefixed with "/"). Returns "" when none is present.
+func extractCommandName(content string) string {
+	if c := between(content, "<command-name>", "</command-name>"); c != "" {
+		return c
+	}
+	if c := between(content, "<command-message>", "</command-message>"); c != "" {
+		return "/" + c
+	}
+	return ""
+}
+
+// between returns the text between the first open/close markers, trimmed, or "".
+func between(s, openTag, closeTag string) string {
+	_, after, ok := strings.Cut(s, openTag)
+	if !ok {
+		return ""
+	}
+	inner, _, ok := strings.Cut(after, closeTag)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(inner)
+}
+
+// extractSessionMetadata reads minimal data from a session file to extract metadata
+// Returns nil if the session is warmup-only (no real messages)
+func extractSessionMetadata(filePath string) (*spi.SessionMetadata, error) {
+	scan, err := scanClaudeSession(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// If no real message was found, this is a warmup-only session
+	if !scan.foundRealMessage {
+		return nil, nil
+	}
+
+	return &spi.SessionMetadata{
+		SessionID: scan.sessionID,
+		CreatedAt: scan.timestamp,
+		Slug:      spi.GenerateFilenameFromUserMessage(scan.firstUserMessage),
+		Name:      spi.GenerateReadableName(scan.firstUserMessage),
+	}, nil
+}
+
+// ListAllAgentChatSessions enumerates every Claude Code session across all projects. It is the
+// no-progress form of ListAllAgentChatSessionsProgress.
+func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
+	return p.ListAllAgentChatSessionsProgress(nil)
+}
+
+// ListAllAgentChatSessionsProgress enumerates every Claude Code session across all projects by
+// walking ~/.claude/projects/*/ for *.jsonl (the originating cwd comes from inside each session;
+// the project directory name is a lossy, irreversible encoding of the path), reporting scan
+// progress into r (nil-safe). Headers are scanned in parallel across CPUs; output order is
+// irrelevant (reindex dedups and sorts later). Implements spi.ProgressEnumerator. See
+// docs/SESSIONS-DB.md.
+func (p *Provider) ListAllAgentChatSessionsProgress(r *spi.ScanReporter) ([]spi.GlobalSessionRef, error) {
+	projectsDir, err := GetClaudeCodeProjectsDir()
+	if err != nil {
+		// No projects directory yet → nothing to enumerate (not an error).
+		return []spi.GlobalSessionRef{}, nil
+	}
+
+	return spi.ScanSessionsInParallel(projectsDir, "claude", r, func(path string) (*spi.GlobalSessionRef, error) {
+		scan, scanErr := scanClaudeSession(path)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		if !scan.foundRealMessage {
+			return nil, nil // warmup-only or sidechain-only transcript (not a session)
+		}
+		return &spi.GlobalSessionRef{
+			SessionID:  scan.sessionID,
+			CreatedAt:  scan.timestamp,
+			Slug:       spi.GenerateFilenameFromUserMessage(scan.firstUserMessage),
+			Name:       spi.GenerateReadableName(scan.firstUserMessage),
+			NativePath: path,
+			OriginCwd:  scan.cwd,
+		}, nil
+	})
 }

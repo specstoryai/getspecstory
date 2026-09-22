@@ -2,53 +2,11 @@ package cursorcli
 
 import (
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
-
-// getLanguageFromExtension returns the language identifier for syntax highlighting based on file extension
-func getLanguageFromExtension(filePath string) string {
-	if filePath == "" {
-		return ""
-	}
-
-	ext := strings.TrimPrefix(filepath.Ext(filePath), ".")
-	if ext == "" {
-		return ""
-	}
-
-	// Map common extensions to language identifiers
-	switch ext {
-	case "js":
-		return "javascript"
-	case "ts":
-		return "typescript"
-	case "py":
-		return "python"
-	case "rb":
-		return "ruby"
-	case "yml":
-		return "yaml"
-	case "md":
-		return "markdown"
-	case "jsx":
-		return "javascript"
-	case "tsx":
-		return "typescript"
-	case "h", "c":
-		return "c"
-	case "hpp", "cpp", "cc":
-		return "cpp"
-	case "cs":
-		return "csharp"
-	case "rs":
-		return "rust"
-	default:
-		// Common extensions that don't need mapping: go, java, json, xml, sh, html, css, etc.
-		return ext
-	}
-}
 
 // formatWriteTool formats Write tool usage with file content in triple backticks
 // Expected args: "path" (filename) and "contents" (file content)
@@ -63,13 +21,10 @@ func formatWriteTool(args map[string]interface{}) string {
 	}
 
 	// Get language for syntax highlighting
-	lang := getLanguageFromExtension(filePath)
+	lang := spi.LanguageFromPath(filePath)
 
-	// Escape triple backticks in content to prevent breaking the code block
-	escapedContent := strings.ReplaceAll(contents, "```", "\\```")
-
-	// Add content in triple backticks with language hint
-	return fmt.Sprintf("```%s\n%s\n```", lang, escapedContent)
+	// Add content in a safely sized code fence with language hint
+	return spi.CodeFence(lang, contents)
 }
 
 // formatStrReplaceTool formats StrReplace tool usage with git diff style output
@@ -88,30 +43,24 @@ func formatStrReplaceTool(args map[string]interface{}) string {
 		oldLines := strings.Split(oldString, "\n")
 		newLines := strings.Split(newString, "\n")
 
-		// Format as a diff
-		result.WriteString("```diff\n")
-
-		// Add file path as a header if available
+		// Format as a diff, fenced safely so code lines containing backtick
+		// runs cannot terminate the block early.
+		var diff strings.Builder
 		if filePath != "" {
-			result.WriteString(fmt.Sprintf("--- %s\n", filePath))
-			result.WriteString(fmt.Sprintf("+++ %s\n", filePath))
+			fmt.Fprintf(&diff, "--- %s\n", filePath)
+			fmt.Fprintf(&diff, "+++ %s\n", filePath)
 		}
-
-		// Add old lines with - prefix
 		for _, line := range oldLines {
-			result.WriteString(fmt.Sprintf("-%s\n", line))
+			fmt.Fprintf(&diff, "-%s\n", line)
 		}
-
-		// Add new lines with + prefix
 		for _, line := range newLines {
-			result.WriteString(fmt.Sprintf("+%s\n", line))
+			fmt.Fprintf(&diff, "+%s\n", line)
 		}
-
-		result.WriteString("```")
+		result.WriteString(spi.CodeFence("diff", strings.TrimRight(diff.String(), "\n")))
 	} else {
 		// Fallback if arguments are missing
 		if filePath != "" {
-			result.WriteString(fmt.Sprintf("File: %s", filePath))
+			fmt.Fprintf(&result, "File: %s", filePath)
 		}
 	}
 
@@ -221,7 +170,7 @@ func formatMultiStrReplaceTool(args map[string]interface{}) string {
 	// Get the file path
 	filePath, hasPath := args["file_path"].(string)
 	if hasPath && filePath != "" {
-		result.WriteString(fmt.Sprintf("`%s`", filePath))
+		fmt.Fprintf(&result, "`%s`", filePath)
 	}
 
 	// Get the edits array
@@ -235,7 +184,7 @@ func formatMultiStrReplaceTool(args map[string]interface{}) string {
 				replaceAll, hasReplaceAll := edit["replace_all"].(bool)
 
 				if hasOld && hasNew {
-					result.WriteString(fmt.Sprintf("- Replace: `%s` → `%s`", oldStr, newStr))
+					fmt.Fprintf(&result, "- Replace: `%s` → `%s`", oldStr, newStr)
 					if hasReplaceAll && replaceAll {
 						result.WriteString(" (all occurrences)")
 					}
@@ -277,14 +226,7 @@ func formatToolResult(result string) string {
 		return ""
 	}
 
-	var output strings.Builder
-
-	// Escape triple backticks in result to prevent breaking the code block
-	escapedResult := strings.ReplaceAll(result, "```", "\\```")
-
-	output.WriteString(fmt.Sprintf("```\n%s\n```", escapedResult))
-
-	return output.String()
+	return spi.CodeFence("", result)
 }
 
 // Todo status constants
@@ -336,7 +278,7 @@ func formatTodoList(todos []interface{}) string {
 			}
 
 			// Format the todo line
-			result.WriteString(fmt.Sprintf("%s %s\n", checkbox, content))
+			fmt.Fprintf(&result, "%s %s\n", checkbox, content)
 		}
 	}
 

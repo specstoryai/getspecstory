@@ -23,6 +23,10 @@ var (
 
 var errNoVersionOutput = errors.New("codex CLI version command produced no output")
 
+// resumeSubcommand is how Codex continues a session: `codex resume <id>`, a
+// subcommand rather than a flag.
+const resumeSubcommand = "resume"
+
 // parseCodexCommand splits a custom command string into the binary path and its arguments.
 // An empty custom command falls back to the detected default binary.
 // Supports quoted strings with spaces: codex --arg "value with spaces"
@@ -164,29 +168,6 @@ func isExecutable(path string) bool {
 	return !info.IsDir() && info.Mode()&0o111 != 0
 }
 
-// classifyCodexPath returns a string describing how the codex binary was resolved for analytics.
-func classifyCodexPath(command string, resolvedPath string) string {
-	if resolvedPath == "" {
-		return "unknown"
-	}
-
-	// Check npm/nvm paths before homebrew to correctly identify node-based installations.
-	if strings.Contains(resolvedPath, ".nvm") || strings.Contains(resolvedPath, "node") {
-		return "npm_global"
-	}
-
-	if strings.Contains(resolvedPath, "/homebrew/") || strings.Contains(resolvedPath, "homebrew") {
-		return "homebrew"
-	}
-
-	if filepath.IsAbs(command) || filepath.IsAbs(resolvedPath) {
-		return "absolute"
-	}
-
-	// Binary was found in PATH but doesn't match other known patterns.
-	return "path"
-}
-
 // runCodexVersionCommand tries common version flags and returns the first successful output.
 func runCodexVersionCommand(command string) (string, string, string, error) {
 	flags := []string{"--version", "-V"}
@@ -208,7 +189,8 @@ func runCodexVersionCommand(command string) (string, string, string, error) {
 			lastStderr = stderrStr
 
 			// For fatal errors (binary missing/permission issues) or last attempt, stop immediately.
-			if classifyCheckError(err) != "unknown" || idx == len(flags)-1 {
+			// An unclassified failure is the only kind another flag might fix.
+			if classifyCheckError(err) != spi.CheckErrorUnknown || idx == len(flags)-1 {
 				return "", flag, lastStderr, err
 			}
 			continue
@@ -229,36 +211,15 @@ func runCodexVersionCommand(command string) (string, string, string, error) {
 	return "", "", lastStderr, errors.New("failed to execute codex version command")
 }
 
-// classifyCheckError buckets common error categories for user guidance and analytics.
+// classifyCheckError buckets common error categories for user guidance and
+// analytics. A silent `--version` is specific to how Codex reports an
+// unsupported flag, so that sentinel is resolved here before deferring to the
+// shared classification every provider uses.
 func classifyCheckError(err error) string {
-	if err == nil {
-		return ""
-	}
-
-	var execErr *exec.Error
-	if errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound {
-		return "not_found"
-	}
-
-	var pathErr *os.PathError
-	if errors.As(err, &pathErr) {
-		if errors.Is(pathErr.Err, os.ErrNotExist) {
-			return "not_found"
-		}
-		if errors.Is(pathErr.Err, os.ErrPermission) {
-			return "permission_denied"
-		}
-	}
-
-	if errors.Is(err, os.ErrPermission) {
-		return "permission_denied"
-	}
-
 	if errors.Is(err, errNoVersionOutput) {
-		return "no_output"
+		return spi.CheckErrorNoOutput
 	}
-
-	return "unknown"
+	return spi.ClassifyCheckError(err)
 }
 
 // ExecuteCodex executes the Codex CLI in interactive mode and blocks until it exits.
@@ -273,8 +234,10 @@ func ExecuteCodex(customCommand string, resumeSessionID string) error {
 		// Parse custom command to get binary and args
 		codexCmd, customArgs := parseCodexCommand(customCommand)
 
-		// Build args: custom args + resume subcommand + sessionID
-		args := append(customArgs, "resume", resumeSessionID)
+		// A configured command may already name the resume subcommand, with or
+		// without an id of its own; appending unconditionally would produce a
+		// second `resume` and leave the requested session unopened.
+		args := spi.EnsureResumeArgs(customArgs, resumeSubcommand, resumeSessionID)
 
 		slog.Info("ExecuteCodex: Resuming Codex session",
 			"command", codexCmd,
@@ -299,6 +262,10 @@ func ExecuteCodex(customCommand string, resumeSessionID string) error {
 	// Run the command and wait for it to complete
 	slog.Info("ExecuteCodex: Executing Codex CLI (blocking until exit)")
 	if err := cmd.Run(); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return &spi.AgentExitError{Agent: "Codex CLI", Code: exitErr.ExitCode()}
+		}
 		slog.Error("ExecuteCodex: Codex execution failed", "error", err)
 		return fmt.Errorf("codex execution failed: %w", err)
 	}

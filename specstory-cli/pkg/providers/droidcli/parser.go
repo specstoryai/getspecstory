@@ -93,10 +93,7 @@ func parseFactorySession(filePath string) (*fdSession, error) {
 	var firstUserText string
 	var firstTimestamp string
 
-	scanErr := scanLines(file, func(lineNumber int, line string) error {
-		rawBuilder.WriteString(line)
-		rawBuilder.WriteByte('\n')
-
+	scanErr := scanLines(file, filePath, func(lineNumber int, line string) error {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			return nil
@@ -111,6 +108,10 @@ func parseFactorySession(filePath string) (*fdSession, error) {
 				"error", err)
 			return nil
 		}
+
+		// Retain accepted envelopes for raw exports, including unknown kinds.
+		rawBuilder.WriteString(line)
+		rawBuilder.WriteByte('\n')
 
 		switch env.Type {
 		case "session_start":
@@ -195,7 +196,44 @@ func parseFactorySession(filePath string) (*fdSession, error) {
 	session.Slug = slugFromContent(firstUserText, session.Title, session.CreatedAt)
 	session.RawData = rawBuilder.String()
 
+	// Read token usage from the companion .settings.json file
+	session.TokenUsage = readSessionSettings(filePath)
+
 	return session, nil
+}
+
+// readSessionSettings reads the .settings.json companion file for a session
+// and extracts token usage data. Returns nil if the file doesn't exist or can't be parsed.
+func readSessionSettings(sessionPath string) *fdTokenUsage {
+	settingsPath := settingsPathFromSession(sessionPath)
+
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		// Settings file may not exist for older sessions
+		slog.Debug("droidcli: settings file not found", "path", settingsPath)
+		return nil
+	}
+
+	var settings fdSettings
+	if err := json.Unmarshal(data, &settings); err != nil {
+		slog.Warn("droidcli: failed to parse settings file", "path", settingsPath, "error", err)
+		return nil
+	}
+
+	if settings.TokenUsage == nil {
+		slog.Debug("droidcli: no token usage in settings file", "path", settingsPath)
+		return nil
+	}
+
+	slog.Debug("droidcli: loaded token usage from settings",
+		"path", settingsPath,
+		"inputTokens", settings.TokenUsage.InputTokens,
+		"outputTokens", settings.TokenUsage.OutputTokens,
+		"cacheCreationTokens", settings.TokenUsage.CacheCreationTokens,
+		"cacheReadTokens", settings.TokenUsage.CacheReadTokens,
+		"thinkingTokens", settings.TokenUsage.ThinkingTokens)
+
+	return settings.TokenUsage
 }
 
 func handleMessageEvent(session *fdSession, event *messageEvent, toolIndex map[string]*fdToolCall) {
@@ -366,47 +404,50 @@ func normalizeEventTimestamp(ts string) string {
 
 // Scanner utilities for reading JSONL files
 
-const (
-	kb                    = 1024
-	mb                    = 1024 * kb
-	maxReasonableLineSize = 250 * mb
-)
-
 var errStopScan = errors.New("stop scan")
 
-func scanLines(reader io.Reader, handle func(lineNumber int, line string) error) error {
+// scanLines feeds each record of a JSONL file to handle. source names the file
+// for logging. A record past spi.MaxRecordLineSize is skipped with a Warn
+// rather than failing the scan, so one corrupt record costs the user that
+// record instead of the whole session.
+func scanLines(reader io.Reader, source string, handle func(lineNumber int, line string) error) error {
 	buf := bufio.NewReader(reader)
 	lineNumber := 0
 
 	for {
-		line, err := buf.ReadString('\n')
+		line, oversized, err := spi.ReadRecordLine(buf, spi.MaxRecordLineSize)
 		if err != nil && !errors.Is(err, io.EOF) {
 			return err
 		}
 
-		if err == io.EOF && line == "" {
+		atEOF := errors.Is(err, io.EOF)
+		if atEOF && len(line) == 0 && !oversized {
 			break
 		}
 
 		lineNumber++
-		if len(line) > maxReasonableLineSize {
-			return fmt.Errorf("line %d exceeds reasonable size limit (%d MB)", lineNumber, maxReasonableLineSize/mb)
-		}
-
-		line = strings.TrimRight(line, "\n")
-		line = strings.TrimRight(line, "\r")
-		if line == "" {
-			if err == io.EOF {
+		if oversized {
+			slog.Warn("Skipping oversized JSONL line",
+				"file", filepath.Base(source), "line", lineNumber, "limit", spi.MaxRecordLineSize)
+			if atEOF {
 				break
 			}
 			continue
 		}
 
-		if handleErr := handle(lineNumber, line); handleErr != nil {
+		trimmed := strings.TrimRight(strings.TrimRight(string(line), "\n"), "\r")
+		if trimmed == "" {
+			if atEOF {
+				break
+			}
+			continue
+		}
+
+		if handleErr := handle(lineNumber, trimmed); handleErr != nil {
 			return handleErr
 		}
 
-		if err == io.EOF {
+		if atEOF {
 			break
 		}
 	}

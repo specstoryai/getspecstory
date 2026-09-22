@@ -1,0 +1,38 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [dev, main]
+    paths:
+      - 'lore/**'
+      - 'specstory-cli/**'
+      - '.github/workflows/codeql.yml'
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - 'lore/**'
+      - 'specstory-cli/**'
+      - '.github/workflows/codeql.yml'
+  schedule:
+    - cron: "30 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          languages: javascript, go
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1

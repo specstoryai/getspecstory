@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	_ "modernc.org/sqlite" // Pure Go SQLite driver
 )
 
@@ -22,11 +22,9 @@ type BlobRecord struct {
 	Data  json.RawMessage `json:"data"` // Keep as raw JSON to preserve structure
 }
 
-// extractSlugFromBlobs extracts a slug from the first suitable user message
-func extractSlugFromBlobs(blobRecords []BlobRecord) string {
-	// Regex to match non-alphanumeric characters
-	nonAlphaNum := regexp.MustCompile(`[^a-zA-Z0-9]+`)
-
+// extractFirstUserMessage extracts the full text of the first suitable user message
+// Returns empty string if no suitable message is found
+func extractFirstUserMessage(blobRecords []BlobRecord) string {
 	for _, record := range blobRecords {
 		// Try to parse the data to check role and content
 		var data struct {
@@ -61,29 +59,25 @@ func extractSlugFromBlobs(blobRecords []BlobRecord) string {
 			continue
 		}
 
-		// Extract first 4 words
-		words := strings.Fields(text)
-		if len(words) == 0 {
-			continue
+		// Return the full text
+		if strings.TrimSpace(text) != "" {
+			return text
 		}
-
-		// Take up to 4 words
-		if len(words) > 4 {
-			words = words[:4]
-		}
-
-		// Join words and convert to slug format
-		slug := strings.Join(words, " ")
-		slug = strings.ToLower(slug)
-		slug = nonAlphaNum.ReplaceAllString(slug, "-")
-		slug = strings.Trim(slug, "-") // Remove leading/trailing hyphens
-
-		slog.Debug("Extracted slug from user message", "slug", slug, "rowid", record.RowID)
-		return slug
 	}
 
-	slog.Debug("No suitable user message found for slug extraction")
 	return ""
+}
+
+// extractSlugFromBlobs extracts a slug from the first suitable user message
+func extractSlugFromBlobs(blobRecords []BlobRecord) string {
+	text := extractFirstUserMessage(blobRecords)
+	if text == "" {
+		slog.Debug("No suitable user message found for slug extraction")
+		return ""
+	}
+	slug := spi.GenerateFilenameFromUserMessage(text)
+	slog.Debug("Extracted slug from user message", "slug", slug)
+	return slug
 }
 
 // validateCursorDatabase validates that the SQLite database has the expected Cursor schema.
@@ -187,8 +181,9 @@ func ReadSessionData(sessionPath string) (string, string, []BlobRecord, []BlobRe
 
 	slog.Debug("Opening Cursor CLI SQLite database", "path", dbPath)
 
-	// Open the database in read-only mode
-	db, err := sql.Open("sqlite", dbPath+"?mode=ro")
+	// Open read-only with a busy timeout so a transient lock held by
+	// cursor-agent's writer doesn't fail the read
+	db, err := sql.Open("sqlite", "file:"+dbPath+"?mode=ro&"+spi.BusyTimeoutPragma)
 	if err != nil {
 		return "", "", nil, nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -198,16 +193,12 @@ func ReadSessionData(sessionPath string) (string, string, []BlobRecord, []BlobRe
 		}
 	}()
 
-	slog.Debug("Successfully opened database", "path", dbPath)
+	// Limit the connection pool: SQLite serialises access anyway, so one
+	// connection is sufficient
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 
-	// Enable WAL mode for non-blocking reads
-	// This prevents readers from blocking the cursor-agent writer
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		// Log warning but continue - not fatal if WAL fails
-		slog.Warn("Failed to enable WAL mode", "error", err)
-	} else {
-		slog.Debug("Enabled WAL mode for non-blocking reads")
-	}
+	slog.Debug("Successfully opened database", "path", dbPath)
 
 	// Validate that this is actually a Cursor database with the expected schema
 	if err := validateCursorDatabase(db); err != nil {
@@ -305,12 +296,15 @@ func ReadSessionData(sessionPath string) (string, string, []BlobRecord, []BlobRe
 	// Sort rowids for easier debugging
 	sort.Ints(allRowIDs)
 
-	// Log all rowids we got from the database - check if 1555-1560 are present
-	slog.Debug("All rowids from database query",
-		"count", len(allRowIDs),
-		"min", allRowIDs[0],
-		"max", allRowIDs[len(allRowIDs)-1],
-		"rowids", allRowIDs)
+	// Cursor can commit its schema before its first blob. Log bounds only
+	// when rows exist; the watcher will retry the empty session on later writes.
+	if len(allRowIDs) > 0 {
+		slog.Debug("All rowids from database query",
+			"count", len(allRowIDs),
+			"min", allRowIDs[0],
+			"max", allRowIDs[len(allRowIDs)-1],
+			"rowids", allRowIDs)
+	}
 
 	slog.Debug("Blob processing summary",
 		"totalBlobs", totalBlobs,
@@ -362,12 +356,4 @@ func ReadSessionData(sessionPath string) (string, string, []BlobRecord, []BlobRe
 	slug := extractSlugFromBlobs(blobRecords)
 
 	return createdAt, slug, blobRecords, orphanRecords, nil
-}
-
-// min returns the minimum of two integers
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

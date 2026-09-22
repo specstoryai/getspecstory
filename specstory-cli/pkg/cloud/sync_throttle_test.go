@@ -24,10 +24,7 @@ func TestHTTPSemaphoreThrottling(t *testing.T) {
 
 	// Launch 20 operations that would normally run concurrently
 	for i := 0; i < 20; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-
+		wg.Go(func() {
 			// Try to acquire semaphore (blocks until available)
 			release := syncMgr.acquireHTTPSemaphore("test-session", "TEST")
 			defer release()
@@ -48,7 +45,7 @@ func TestHTTPSemaphoreThrottling(t *testing.T) {
 
 			// Decrement counter
 			atomic.AddInt32(&currentConcurrent, -1)
-		}(i)
+		})
 	}
 
 	// Wait for all operations to complete

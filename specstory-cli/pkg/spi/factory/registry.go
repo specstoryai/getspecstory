@@ -10,12 +10,20 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/antigravitycli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/copilotide"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursoride"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/deepseektui"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/grokbuild"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/opencode"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/piagent"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/qwencode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -78,9 +86,59 @@ func (r *Registry) registerAll() {
 	r.providers["opencode"] = opencodeProvider
 	slog.Debug("Registered provider", "id", "opencode", "name", opencodeProvider.Name())
 
-  droidProvider := droidcli.NewProvider()
+	droidProvider := droidcli.NewProvider()
 	r.providers["droid"] = droidProvider
 	slog.Debug("Registered provider", "id", "droid", "name", droidProvider.Name())
+
+	cursorideProvider := cursoride.NewProvider()
+	r.providers[cursoride.ProviderID] = cursorideProvider
+	slog.Debug("Registered provider", "id", cursoride.ProviderID, "name", cursorideProvider.Name())
+
+	// The Copilot IDE provider is variant-driven: one instance per VS Code
+	// distribution, keyed by the variant's own ID so the registry key always
+	// matches the provider ID stamped into generated session data. Stock VS Code
+	// is always registered like every other provider; the alternative
+	// distributions register only when they hold at least one Copilot chat, so
+	// merely having Insiders or VSCodium installed doesn't add provider entries
+	// to watch banners, all-provider checks, and sync sweeps. The trade-off: a
+	// variant's very first Copilot chat must happen without SpecStory (nothing
+	// to watch exists until then).
+	copilotideProvider := copilotide.NewProvider(copilotide.VSCode)
+	r.providers[copilotide.VSCode.ID] = copilotideProvider
+	slog.Debug("Registered provider", "id", copilotide.VSCode.ID, "name", copilotideProvider.Name())
+
+	for _, variant := range []copilotide.Variant{copilotide.VSCodeInsiders, copilotide.VSCodium, copilotide.VSCodiumInsiders} {
+		if !copilotide.HasAnyChatSessions(variant) {
+			slog.Debug("Skipping Copilot IDE variant (no Copilot chats)", "id", variant.ID)
+			continue
+		}
+		variantProvider := copilotide.NewProvider(variant)
+		r.providers[variant.ID] = variantProvider
+		slog.Debug("Registered provider", "id", variant.ID, "name", variantProvider.Name())
+	}
+
+	deepseekProvider := deepseektui.NewProvider()
+	r.providers["deepseek"] = deepseekProvider
+	slog.Debug("Registered provider", "id", "deepseek", "name", deepseekProvider.Name())
+
+	antigravityProvider := antigravitycli.NewProvider()
+	r.providers["antigravity"] = antigravityProvider
+	slog.Debug("Registered provider", "id", "antigravity", "name", antigravityProvider.Name())
+
+	grokProvider := grokbuild.NewProvider()
+	r.providers["grok"] = grokProvider
+	slog.Debug("Registered provider", "id", "grok", "name", grokProvider.Name())
+
+	museProvider := musecode.NewProvider()
+	r.providers["muse"] = museProvider
+	slog.Debug("Registered provider", "id", "muse", "name", museProvider.Name())
+
+	piProvider := piagent.NewProvider()
+	r.providers["pi"] = piProvider
+	slog.Debug("Registered provider", "id", "pi", "name", piProvider.Name())
+	qwenProvider := qwencode.NewProvider()
+	r.providers["qwen"] = qwenProvider
+	slog.Debug("Registered provider", "id", "qwen", "name", qwenProvider.Name())
 
 	r.initialized = true
 	slog.Info("Provider registry initialized", "count", len(r.providers), "providers", r.ListIDsUnsafe())
@@ -160,11 +218,14 @@ func (r *Registry) ListIDs() []string {
 	return ids
 }
 
+// DefaultProviderID is the default agent for commands that launch one provider.
+const DefaultProviderID = "claude"
+
 // GetDefault returns the default provider (Claude)
 func (r *Registry) GetDefault() (spi.Provider, error) {
 	r.ensureInitialized()
 	slog.Debug("Getting default provider (claude)")
-	return r.Get("claude")
+	return r.Get(DefaultProviderID)
 }
 
 // GetProviderList returns a formatted string listing all providers.

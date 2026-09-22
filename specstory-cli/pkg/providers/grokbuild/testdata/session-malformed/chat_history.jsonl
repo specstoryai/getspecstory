@@ -1,0 +1,3 @@
+{"type":"user","content":[{"type":"text","text":"<user_query>\nhello\n</user_query>"}]}
+this line is not valid JSON {{{
+{"type":"assistant","content":"Hi there.","model_id":"grok-4.6"}

@@ -37,13 +37,11 @@ func watchSessions(ctx context.Context, projectPath string, debugRaw bool, sessi
 
 	state := &watchState{lastProcessed: make(map[string]int64)}
 
-	// Initial scan to process existing sessions
-	if err := scanAndProcessSessions(projectPath, debugRaw, sessionCallback, state); err != nil {
-		slog.Debug("droidcli: initial scan failed", "error", err)
-	}
+	// Record what is already on disk instead of emitting it
+	seedProcessedSessions(state)
 
 	// Setup directory watching (handles non-existent dirs)
-	if err := setupDirectoryWatches(watcher, sessionsDir); err != nil {
+	if err := setupDirectoryWatches(watcher, sessionsDir, projectPath); err != nil {
 		slog.Debug("droidcli: setup watches failed", "error", err)
 	}
 
@@ -66,10 +64,12 @@ func watchSessions(ctx context.Context, projectPath string, debugRaw bool, sessi
 	}
 }
 
-// setupDirectoryWatches adds watches to the sessions directory and all subdirectories.
-// If the sessions directory doesn't exist, it watches parent directories so it can
-// detect when the sessions directory is created.
-func setupDirectoryWatches(watcher *fsnotify.Watcher, sessionsDir string) error {
+// setupDirectoryWatches adds watches for the relevant session directories.
+// When projectPath is set, only the project's derived subdirectory is watched so
+// that unrelated projects' session directories are not monitored.
+// If the required directory doesn't exist yet, parent directories are watched so
+// creation can be detected.
+func setupDirectoryWatches(watcher *fsnotify.Watcher, sessionsDir string, projectPath string) error {
 	// Check if sessions directory exists
 	if _, err := os.Stat(sessionsDir); os.IsNotExist(err) {
 		// Watch parent (.factory) for sessions dir creation
@@ -84,7 +84,24 @@ func setupDirectoryWatches(watcher *fsnotify.Watcher, sessionsDir string) error 
 		return watcher.Add(parentDir)
 	}
 
-	// Watch sessions dir and all subdirectories
+	// When a project path is known, watch only that project's session subdirectory
+	// rather than every project's directory under sessionsDir.
+	if projectPath != "" {
+		projectSessionDir, err := resolveProjectSessionDir(projectPath)
+		if err != nil {
+			slog.Debug("droidcli: failed to resolve project session dir, falling back to all", "error", err)
+		} else if projectSessionDir != "" {
+			if _, err := os.Stat(projectSessionDir); os.IsNotExist(err) {
+				// Project dir not created yet; watch sessionsDir so we see it when it appears.
+				slog.Debug("droidcli: watching sessions dir for project directory creation", "path", sessionsDir)
+				return watcher.Add(sessionsDir)
+			}
+			slog.Debug("droidcli: watching project session directory", "path", projectSessionDir)
+			return watcher.Add(projectSessionDir)
+		}
+	}
+
+	// No project filter (or resolution failed): watch sessionsDir and all subdirectories.
 	return filepath.WalkDir(sessionsDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -103,19 +120,32 @@ func setupDirectoryWatches(watcher *fsnotify.Watcher, sessionsDir string) error 
 // handleWatchEvent processes fsnotify events, adding watches to new directories
 // and processing changed JSONL files.
 func handleWatchEvent(event fsnotify.Event, watcher *fsnotify.Watcher, sessionsDir string, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession), state *watchState) {
+	slog.Debug("droidcli: received fs event", "op", event.Op.String(), "path", event.Name)
+
 	// Handle directory creation - add new watch
 	if event.Has(fsnotify.Create) {
 		info, err := os.Stat(event.Name)
-		if err == nil && info.IsDir() {
-			if watchErr := watcher.Add(event.Name); watchErr == nil {
-				slog.Debug("droidcli: watching new directory", "path", event.Name)
-			}
-
-			// Check if this is the sessions directory being created
+		if err != nil {
+			slog.Debug("droidcli: stat failed on created path", "path", event.Name, "error", err)
+		} else if info.IsDir() {
+			// When sessionsDir itself is created, set up watches properly.
 			if event.Name == sessionsDir {
-				if err := setupDirectoryWatches(watcher, sessionsDir); err != nil {
+				if err := setupDirectoryWatches(watcher, sessionsDir, projectPath); err != nil {
 					slog.Debug("droidcli: failed to setup watches for new sessions dir", "error", err)
 				}
+				return
+			}
+			// For a new project subdirectory, only watch it if it belongs to the current project.
+			if isTargetProjectDir(event.Name, projectPath) {
+				if watchErr := watcher.Add(event.Name); watchErr == nil {
+					slog.Debug("droidcli: watching new directory", "path", event.Name)
+					// Scan immediately in case the JSONL file was already written before we added the watch.
+					if scanErr := scanAndProcessSessions(projectPath, debugRaw, sessionCallback, state); scanErr != nil {
+						slog.Debug("droidcli: scan after new directory watch failed", "error", scanErr)
+					}
+				}
+			} else {
+				slog.Debug("droidcli: ignoring directory not belonging to project", "path", event.Name, "project", projectPath)
 			}
 			return
 		}
@@ -165,7 +195,29 @@ func processSessionFile(filePath string, projectPath string, debugRaw bool, sess
 	}
 
 	state.lastProcessed[filePath] = modTime
-	dispatchSession(sessionCallback, chat)
+	spi.DeliverSession("droidcli", sessionCallback, chat)
+}
+
+// seedProcessedSessions marks every session already on disk as seen, without
+// parsing or emitting any of it. Those sessions predate the watcher and are
+// `sync`'s to save; re-emitting them on every start would rewrite their
+// markdown and re-sync them for content that has not changed. Recording only
+// the modification times means the next scan still emits any of them that Droid
+// actually touches.
+//
+// Failures are non-fatal: the worst case is the first scan re-emitting existing
+// sessions, which is the behavior this exists to avoid rather than a
+// correctness problem.
+func seedProcessedSessions(state *watchState) {
+	files, err := listSessionFiles()
+	if err != nil {
+		slog.Debug("droidcli: could not seed existing sessions", "error", err)
+		return
+	}
+	for _, file := range files {
+		state.lastProcessed[file.Path] = file.ModTime
+	}
+	slog.Debug("droidcli: seeded existing sessions as known", "count", len(files))
 }
 
 // scanAndProcessSessions scans all session files and processes any that have been modified.
@@ -192,21 +244,7 @@ func scanAndProcessSessions(projectPath string, debugRaw bool, sessionCallback f
 			continue
 		}
 		state.lastProcessed[file.Path] = file.ModTime
-		dispatchSession(sessionCallback, chat)
+		spi.DeliverSession("droidcli", sessionCallback, chat)
 	}
 	return nil
-}
-
-func dispatchSession(sessionCallback func(*spi.AgentChatSession), session *spi.AgentChatSession) {
-	if sessionCallback == nil || session == nil {
-		return
-	}
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("droidcli: session callback panicked", "panic", r)
-			}
-		}()
-		sessionCallback(session)
-	}()
 }
