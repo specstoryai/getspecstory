@@ -143,14 +143,17 @@ func GenerateReadableName(message string) string {
 	// Normalize whitespace: replace newlines and multiple spaces with single space
 	name := strings.Join(strings.Fields(message), " ")
 
-	// Truncate to reasonable length (100 chars) at word boundary
+	// Truncate to reasonable length (100 chars) at word boundary. Count runes, not bytes, so
+	// the cut never splits a multi-byte character (CJK prompts often have no spaces to back
+	// up to), which would render as U+FFFD in listings and cloud titles.
 	maxLength := 100
-	if len(name) <= maxLength {
+	runes := []rune(name)
+	if len(runes) <= maxLength {
 		return name
 	}
 
 	// Find last space before maxLength to avoid breaking words
-	truncated := name[:maxLength]
+	truncated := string(runes[:maxLength])
 	lastSpace := strings.LastIndex(truncated, " ")
 	if lastSpace > 0 {
 		truncated = truncated[:lastSpace]

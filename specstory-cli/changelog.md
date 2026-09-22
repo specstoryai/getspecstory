@@ -1,5 +1,14 @@
 # Specstory CLI Changelog
 
+## v2.14.1 2026-09-22
+
+### 🐛 Bug Fixes
+
+- Claude Code sessions are now found when `CLAUDE_CONFIG_DIR` is set. Claude Code uses this variable to run separate profiles (for example, a personal and a work account), each storing its sessions in `$CLAUDE_CONFIG_DIR/projects`, but SpecStory only read `~/.claude/projects`. As a result, `specstory sync` reported the sessions as not found, and `specstory run` and `specstory watch` silently saved nothing. SpecStory now reads from the same place Claude Code writes to, so `CLAUDE_CONFIG_DIR="$HOME/.claude-work" specstory run claude` saves that profile's sessions without symlinking its `projects` directory into `~/.claude`. Thanks to [simkimsia](https://github.com/simkimsia) for the detailed report in [issue 325](https://github.com/specstoryai/getspecstory/issues/325).
+- Codex CLI tool output from code mode `exec` calls is now included in saved markdown and SpecStory Cloud sessions. Previously this output was silently dropped because Codex writes it as a list of content parts rather than as text. Images in tool output are noted with an `[image]` marker rather than embedded.
+- Long Codex CLI tool output is now truncated after 5000 characters instead of 5000 bytes, so the cut no longer splits multi-byte characters (e.g. Chinese text or emoji) and leaves saved markdown as invalid UTF-8. Thanks to [daviddwlee84](https://github.com/daviddwlee84) for reporting the same problem with Codex custom-tool inputs in [issue 311](https://github.com/specstoryai/getspecstory/issues/311), which was resolved in v2.13.0.
+- Session names derived from a long first prompt are now shortened to 100 characters instead of 100 bytes. Prompts written without spaces, such as Chinese, no longer end in `��` replacement characters in `specstory list`, `specstory resume`, and SpecStory Cloud session titles.
+
 ## v2.14.0 2026-09-22
 
 ### 📢 Announcements

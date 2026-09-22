@@ -498,21 +498,15 @@ func buildExchangesFromRecords(records []map[string]interface{}, workspaceRoot s
 			case "function_call_output":
 				// Function call output - merge into the pending tool call
 				callID, _ := payload["call_id"].(string)
-				outputJSON, _ := payload["output"].(string)
+				output := parseToolOutput(payload["output"])
 
-				if callID == "" || outputJSON == "" {
+				if callID == "" || output == nil {
 					continue
 				}
 
 				// Find the pending tool call
 				if pending, exists := pendingTools[callID]; exists {
-					// Parse the output JSON
-					var outputData map[string]interface{}
-					if err := json.Unmarshal([]byte(outputJSON), &outputData); err == nil {
-						pending.toolInfo.Output = outputData
-					} else {
-						pending.toolInfo.Output = map[string]interface{}{"raw": outputJSON}
-					}
+					pending.toolInfo.Output = output
 					delete(pendingTools, callID)
 				}
 
@@ -569,21 +563,15 @@ func buildExchangesFromRecords(records []map[string]interface{}, workspaceRoot s
 			case "custom_tool_call_output":
 				// Custom tool call output - merge into the pending tool call
 				callID, _ := payload["call_id"].(string)
-				outputJSON, _ := payload["output"].(string)
+				output := parseToolOutput(payload["output"])
 
-				if callID == "" || outputJSON == "" {
+				if callID == "" || output == nil {
 					continue
 				}
 
 				// Find the pending tool call
 				if pending, exists := pendingTools[callID]; exists {
-					// Parse the output JSON
-					var outputData map[string]interface{}
-					if err := json.Unmarshal([]byte(outputJSON), &outputData); err == nil {
-						pending.toolInfo.Output = outputData
-					} else {
-						pending.toolInfo.Output = map[string]interface{}{"raw": outputJSON}
-					}
+					pending.toolInfo.Output = output
 					delete(pendingTools, callID)
 				}
 			}
@@ -596,6 +584,48 @@ func buildExchangesFromRecords(records []map[string]interface{}, workspaceRoot s
 	}
 
 	return exchanges, nil
+}
+
+// parseToolOutput normalizes a function or custom tool call's output payload into the map
+// stored on ToolInfo.Output. Returns nil when there's nothing to record.
+//
+// Codex writes output in two shapes: a string (a JSON object or plain text), and an array
+// of content items (e.g. code-mode `exec`, whose results are input_text and input_image
+// parts). Arrays are flattened into the same {"raw": text} shape as plain text, so
+// markdown rendering and cloud session data handle both without a second code path.
+func parseToolOutput(output interface{}) map[string]interface{} {
+	switch v := output.(type) {
+	case string:
+		if v == "" {
+			return nil
+		}
+		var outputData map[string]interface{}
+		if err := json.Unmarshal([]byte(v), &outputData); err == nil {
+			return outputData
+		}
+		return map[string]interface{}{"raw": v}
+	case []interface{}:
+		var parts []string
+		for _, item := range v {
+			part, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if text, ok := part["text"].(string); ok && text != "" {
+				parts = append(parts, text)
+			} else if part["type"] == "input_image" {
+				// Images arrive as base64 data URLs; a marker keeps the transcript
+				// honest about their presence without embedding megabytes of base64.
+				parts = append(parts, "[image]")
+			}
+		}
+		if len(parts) == 0 {
+			return nil
+		}
+		return map[string]interface{}{"raw": strings.Join(parts, "\n")}
+	default:
+		return nil
+	}
 }
 
 // formatToolWithSummary generates custom summary and formatted markdown for a Codex tool
@@ -645,10 +675,9 @@ func formatToolWithSummary(tool *ToolInfo, workspaceRoot string) (string, string
 				if formattedMd.Len() > 0 {
 					formattedMd.WriteString("\n")
 				}
-				if len(cleaned) > 5000 {
-					cleaned = cleaned[:5000] + "\n... (truncated)"
-				}
-				formattedMd.WriteString(spi.CodeFence("", cleaned))
+				// Cap by runes so the cut never splits a multi-byte character, which
+				// would leave the saved markdown as invalid UTF-8.
+				formattedMd.WriteString(spi.CodeFence("", spi.CapRunes(cleaned, 5000)))
 			}
 		}
 	}
