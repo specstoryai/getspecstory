@@ -289,8 +289,8 @@ func TestFormatToolAsMarkdown_WebAndSearchSummaries(t *testing.T) {
 
 func TestFormatToolAsMarkdown_UnknownToolShowsJSON(t *testing.T) {
 	tool := &ToolInfo{
-		Name:   "scheduler_create",
-		Type:   "generic",
+		Name:   "future_tool",
+		Type:   "unknown",
 		Input:  map[string]any{"cron": "0 9 * * *", "task": "daily report"},
 		Output: map[string]any{"output": "created", "status": "success"},
 	}
@@ -383,7 +383,7 @@ func TestNative134ToolInputsAndOrder(t *testing.T) {
 					}
 				}
 			case "grep":
-				for _, want := range []string{"Glob: `*.txt`", "-i: `true`", "-C: `1`", "Result limit: `20`", "<workspace_result"} {
+				for _, want := range []string{"Glob: `*.txt`", "-i: `true`", "-C: `1`", "Result limit: `20`"} {
 					if !strings.Contains(md, want) {
 						t.Errorf("grep omitted %q: %s", want, md)
 					}
@@ -502,10 +502,13 @@ func TestAdditionalNative134Tools(t *testing.T) {
 					md := *m.Tool.FormattedMarkdown
 					switch m.Tool.Name {
 					case "search_tool":
-						for _, text := range []string{"Discovered tools:", "Server:", "input_schema", "total_hidden_tools"} {
+						for _, text := range []string{"Discovered tools:", "Server:", "Parameters:", "Hidden tools:"} {
 							if !strings.Contains(md, text) {
 								t.Errorf("discovery dropped %q", text)
 							}
+						}
+						if strings.Contains(md, "```json") || strings.Contains(md, "input_schema") {
+							t.Errorf("discovery fell back to JSON: %s", md)
 						}
 					case "ask_user_question":
 						for _, text := range []string{"Question 1: Is this a headless QA session?", "- Yes:", "- No:", "No user is available"} {
@@ -556,5 +559,201 @@ func TestToolResultsPreserveWhitespace(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// TestNative140ToolRendering checks each renderer against payloads recorded by
+// Grok Build 1.0.40, trimmed to the parts the renderer reads. None of these
+// tools may fall back to a JSON block for its known arguments.
+func TestNative140ToolRendering(t *testing.T) {
+	const imagePath = "/Users/qa/.grok/sessions/%2Fqa/01a0c98a/images/1.jpg"
+	const reminder = "\n\n<system-reminder>\nBackground subagent \"01a0\" completed successfully.\n</system-reminder>"
+	tests := []struct {
+		name        string
+		tool        *ToolInfo
+		wantSummary string
+		want        []string
+		notWant     []string
+	}{
+		{
+			name: "search_tool lists parameters instead of schemas",
+			tool: &ToolInfo{Name: "search_tool", Input: map[string]any{"limit": float64(3), "query": "tasks list"}, Output: map[string]any{"status": "success", "output": `{
+  "results": [{"server": "tasks", "tools": [{
+    "tool_name": "tasks__list_trigger_resources",
+    "description": "List selectable resources.\n\nUse this when authoring an automation.",
+    "score": 5.75,
+    "input_schema": {"type": "object", "additionalProperties": false, "required": ["provider", "resource_type"], "properties": {
+      "provider": {"type": "string", "description": "Trigger provider wire tag."},
+      "resource_type": {"type": "string", "enum": ["repository", "branch"], "description": "Resource kind to list."},
+      "repo_ids": {"type": "array", "items": {"type": "string"}, "description": "Repository ids."},
+      "page_token": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": null},
+      "dimensions": {"type": "object", "properties": {"from": {"type": ["string", "array"]}}}
+    }}
+  }]}],
+  "note": null, "status": "ready", "total_hidden_tools": 209
+}`}},
+			wantSummary: "Tool use: **search_tool** `tasks list`",
+			want: []string{
+				"Limit: `3`\nQuery: `tasks list`",
+				"**tasks__list_trigger_resources**\n\nList selectable resources.\n\nUse this when authoring an automation.",
+				"- `provider` (string, required): Trigger provider wire tag.\n- `resource_type` (string, required): Resource kind to list. One of: `repository`, `branch`.",
+				"- `repo_ids` (array of string): Repository ids.",
+				"- `page_token` (string | null); default: `null`",
+				"- `dimensions` (object)\n  - `from` (string | array)",
+				"additionalProperties: `false`",
+				"Status: `ready`\nHidden tools: `209`",
+			},
+			notWant: []string{"```json", "input_schema", "score", "5.75", "Note:"},
+		},
+		{
+			name:        "image_gen shows the prompt and the saved path",
+			tool:        &ToolInfo{Name: "image_gen", Input: map[string]any{"aspect_ratio": "1:1", "prompt": "A small round blue ceramic teapot"}, Output: map[string]any{"status": "success", "output": `{"path":"` + imagePath + `","filename":"1.jpg","session_folder":"images","message":"Image generated and saved to ` + imagePath + `. Do not read or re-display it."}` + reminder}},
+			wantSummary: "Tool use: **image_gen** — A small round blue ceramic teapot",
+			want:        []string{"Prompt:\n```text\nA small round blue ceramic teapot\n```", "Aspect ratio: `1:1`", "Saved image: `" + imagePath + "`"},
+			notWant:     []string{"```json", "system-reminder", "Do not read", "session_folder"},
+		},
+		{
+			name:    "image_edit lists its source images as paths",
+			tool:    &ToolInfo{Name: "image_edit", Input: map[string]any{"image": []any{imagePath}, "prompt": "Now deep green"}, Output: map[string]any{"status": "success", "output": `{"path":"/qa/2.jpg","filename":"2.jpg","session_folder":"images","message":"Image edited."}`}},
+			want:    []string{"Image: `" + imagePath + "`", "Saved image: `/qa/2.jpg`"},
+			notWant: []string{"```json", `["`},
+		},
+		{
+			name:        "video failure keeps its arguments readable",
+			tool:        &ToolInfo{Name: "reference_to_video", Input: map[string]any{"aspect_ratio": "1:1", "duration": float64(6), "first_frame": imagePath, "prompt": strings.Repeat("steam rises ", 10), "resolution_name": "480p"}, Output: map[string]any{"status": "error", "output": "Tool `reference_to_video` failed: unavailable under ZDR"}},
+			wantSummary: "Tool use: **reference_to_video** — " + strings.Repeat("steam rises ", 6) + "steam ri…",
+			want:        []string{"Duration: `6`", "First frame: `" + imagePath + "`", "Resolution: `480p`", "Error: Tool `reference_to_video` failed"},
+			notWant:     []string{"```json"},
+		},
+		{
+			name:        "inline workflow script",
+			tool:        &ToolInfo{Name: "workflow", Input: map[string]any{"source": map[string]any{"type": "script", "script": "let meta = #{\n    name: \"tool-demo\",\n};\ncomplete(#{ ok: false });\n"}, "validate_only": true}, Output: map[string]any{"status": "success", "output": "Smoke check passed for workflow 'tool-demo'."}},
+			wantSummary: "Tool use: **workflow** `tool-demo`",
+			want:        []string{"Source: `script`\n\nScript:\n```rhai\nlet meta = #{\n    name: \"tool-demo\",\n};\ncomplete(#{ ok: false });\n```", "Validate only: `true`", "Result: Smoke check passed"},
+			notWant:     []string{"```json"},
+		},
+		{
+			name:        "saved workflow by name",
+			tool:        &ToolInfo{Name: "workflow", Input: map[string]any{"source": map[string]any{"type": "name", "name": "SPECSTORY_QA_NONEXISTENT"}}},
+			wantSummary: "Tool use: **workflow** `SPECSTORY_QA_NONEXISTENT`",
+			want:        []string{"Source: `name`\nName: `SPECSTORY_QA_NONEXISTENT`"},
+			notWant:     []string{"```json", "Script:"},
+		},
+		{
+			name:        "scheduler_create",
+			tool:        &ToolInfo{Name: "scheduler_create", Input: map[string]any{"fire_immediately": false, "interval": "1d", "prompt": "Reply with one word: demo."}, Output: map[string]any{"status": "success", "output": "Scheduled task created (ID: 01a0, every 1 day)."}},
+			wantSummary: "Tool use: **scheduler_create** every `1d`",
+			want:        []string{"Prompt:\n```text\nReply with one word: demo.\n```", "Fire immediately: `false`\nInterval: `1d`", "Result: Scheduled task created"},
+			notWant:     []string{"```json"},
+		},
+		{
+			name:        "scheduler_delete",
+			tool:        &ToolInfo{Name: "scheduler_delete", Input: map[string]any{"id": "01a0ca8b"}, Output: map[string]any{"status": "success", "output": "Scheduled task 01a0ca8b cancelled."}},
+			wantSummary: "Tool use: **scheduler_delete** `01a0ca8b`",
+			want:        []string{"ID: `01a0ca8b`"},
+			notWant:     []string{"```json"},
+		},
+		{
+			name:        "send_feedback",
+			tool:        &ToolInfo{Name: "send_feedback", Input: map[string]any{"details": "What happened:\nA demo.", "title": "Demo draft", "type": "idea"}, Output: map[string]any{"status": "success", "output": "Local feedback draft saved."}},
+			wantSummary: "Tool use: **send_feedback** — Demo draft",
+			want:        []string{"Title: `Demo draft`\nType: `idea`\n\nDetails:\n```text\nWhat happened:\nA demo.\n```"},
+			notWant:     []string{"```json"},
+		},
+		{
+			name:        "background command envelope and a stray reminder",
+			tool:        &ToolInfo{Name: "run_terminal_command", Input: map[string]any{"background": true, "command": "sleep 45", "description": "Start a sleep"}, Output: map[string]any{"status": "success", "output": "<task-id>01a0</task-id>\n<task-type>bash</task-type>\n<output-file>/qa/call-16.log</output-file>\n<status>running</status>\nUse get_command_or_subagent_output when you need the output." + reminder}},
+			wantSummary: "Tool use: **run_terminal_command** `sleep 45`",
+			want:        []string{"Result:\nTask ID: `01a0`\nTask type: `bash`\nOutput file: `/qa/call-16.log`\nStatus: `running`\n\nUse get_command_or_subagent_output"},
+			notWant:     []string{"<task-id>", "system-reminder", "Background subagent"},
+		},
+		{
+			name:        "multi-line command summary uses the first line",
+			tool:        &ToolInfo{Name: "monitor", Input: map[string]any{"command": "echo one\necho two"}},
+			wantSummary: "Tool use: **monitor** `echo one`",
+		},
+		{
+			name:        "waiting on several tasks",
+			tool:        &ToolInfo{Name: "get_command_or_subagent_output", Input: map[string]any{"task_ids": []any{"01a0-a", "01a0-b"}, "timeout_ms": float64(0)}},
+			wantSummary: "Tool use: **get_command_or_subagent_output** 2 tasks",
+			want:        []string{"Task IDs: `01a0-a`, `01a0-b`"},
+		},
+		{
+			name:        "waiting on one task",
+			tool:        &ToolInfo{Name: "get_command_or_subagent_output", Input: map[string]any{"task_ids": []any{"01a0-a"}}},
+			wantSummary: "Tool use: **get_command_or_subagent_output** `01a0-a`",
+		},
+		{
+			name:    "grep drops the workspace wrapper",
+			tool:    &ToolInfo{Name: "grep", Input: map[string]any{"pattern": "^write$"}, Output: map[string]any{"status": "success", "output": "<workspace_result workspace_path=\"/qa\">\nFound 1 matching lines\n/qa/tools.txt\n26:write\n</workspace_result>"}},
+			want:    []string{"```text\nFound 1 matching lines\n/qa/tools.txt\n26:write\n```"},
+			notWant: []string{"workspace_result"},
+		},
+		{
+			name: "use_tool fences a JSON result as JSON",
+			tool: &ToolInfo{Name: "use_tool", Input: map[string]any{"tool_input": map[string]any{}, "tool_name": "tasks__list"}, Output: map[string]any{"status": "success", "output": "{\n  \"automations\": []\n}"}},
+			want: []string{"Result:\n```json\n{\n  \"automations\": []\n}\n```"},
+		},
+		{
+			name: "web_fetch labels its URL",
+			tool: &ToolInfo{Name: "web_fetch", Input: map[string]any{"url": "https://example.com"}},
+			want: []string{"URL: `https://example.com`"},
+		},
+		{
+			name: "spawn_subagent labels its description",
+			tool: &ToolInfo{Name: "spawn_subagent", Input: map[string]any{"background": true, "description": "Reply with one word", "prompt": "Reply pong."}},
+			want: []string{"Description: `Reply with one word`"},
+		},
+		{
+			name: "file content keeps a trailing reminder tag",
+			tool: &ToolInfo{Name: "read_file", Input: map[string]any{"target_file": "notes.md"}, Output: map[string]any{"status": "success", "output": "notes" + reminder}},
+			want: []string{"<system-reminder>"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			md := formatToolAsMarkdown(tt.tool)
+			if tt.wantSummary != "" && (tt.tool.Summary == nil || *tt.tool.Summary != tt.wantSummary) {
+				got := "<nil>"
+				if tt.tool.Summary != nil {
+					got = *tt.tool.Summary
+				}
+				t.Errorf("summary = %q, want %q", got, tt.wantSummary)
+			}
+			for _, want := range tt.want {
+				if !strings.Contains(md, want) {
+					t.Errorf("missing %q in:\n%s", want, md)
+				}
+			}
+			for _, notWant := range tt.notWant {
+				if strings.Contains(md, notWant) {
+					t.Errorf("unexpected %q in:\n%s", notWant, md)
+				}
+			}
+		})
+	}
+}
+
+func TestStripTrailingReminders(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "no reminder", input: "  output\n\n", want: "  output\n\n"},
+		{name: "one trailing reminder", input: "exit: 0\n\n<system-reminder>\nnotice\n</system-reminder>\n", want: "exit: 0"},
+		{name: "two trailing reminders", input: "ok\n<system-reminder>a</system-reminder>\n<system-reminder>b</system-reminder>", want: "ok"},
+		// Output that follows a reminder is real, so neither is removed.
+		{name: "reminder mid-output", input: "a\n<system-reminder>x</system-reminder>\nb", want: "a\n<system-reminder>x</system-reminder>\nb"},
+		// Real output between two reminders survives; only the last one goes.
+		{name: "output between reminders", input: "<system-reminder>x</system-reminder>\nreal\n<system-reminder>y</system-reminder>", want: "<system-reminder>x</system-reminder>\nreal"},
+		{name: "only a reminder", input: "<system-reminder>x</system-reminder>", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := stripTrailingReminders(tt.input); got != tt.want {
+				t.Errorf("stripTrailingReminders(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
 	}
 }

@@ -258,6 +258,7 @@ func TestClassifyGrokTool(t *testing.T) {
 		{name: "todo is task", tool: "todo_write", want: "task"},
 		{name: "subagent is agent state", tool: "spawn_subagent", want: "generic"},
 		{name: "mcp envelope is generic", tool: "use_tool", want: "generic"},
+		{name: "feedback draft is agent state", tool: "send_feedback", want: "generic"},
 		{name: "web search is search", tool: "web_search", want: "search"},
 		{name: "unobserved x tool is unknown", tool: "x_thread_fetch", want: "unknown"},
 		// Unenumerated tools remain unknown even when Grok supplies a kind.

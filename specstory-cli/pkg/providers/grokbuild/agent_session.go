@@ -453,7 +453,7 @@ func classifyGrokTool(name, _ string) string {
 	case "todo_write":
 		return "task"
 	case "spawn_subagent", "workflow", "use_tool", "image_gen", "image_edit", "image_to_video", "reference_to_video",
-		"scheduler_create", "scheduler_list", "scheduler_delete",
+		"scheduler_create", "scheduler_list", "scheduler_delete", "send_feedback",
 		"enter_plan_mode", "exit_plan_mode", "ask_user_question":
 		return "generic"
 	}

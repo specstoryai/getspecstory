@@ -7,6 +7,14 @@
 - The SpecStory CLI now supports [OpenCode](https://opencode.ai/) (i.e. `opencode`), the open source terminal coding agent, for sessions created from OpenCode version `2.0.14` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI), [VS Code Copilot](https://code.visualstudio.com/docs/setup/copilot), [Muse Code](https://developer.meta.com/ai/products/muse-code/), [Pi](https://pi.dev), [Qwen Code](https://github.com/QwenLM/qwen-code) and [Grok Build](https://x.ai/cli).
 - OpenCode is a cross-provider `specstory resume` target: you can resume any agent's session into OpenCode, and resume an OpenCode session into another agent. OpenCode's free Zen models decline to continue a conversation that was not produced through Zen, so a resumed session needs another configured model to continue. Thanks to [marton78](https://github.com/marton78) for the original OpenCode provider contribution in [PR 156](https://github.com/specstoryai/getspecstory/pull/156).
 
+### ✏️ Markdown Enhancements
+
+- Grok Build's image, video, workflow, scheduler, and feedback tools now render as readable fields in saved markdown, with prompts and workflow scripts in code blocks, instead of as raw JSON.
+- Grok Build's `search_tool` now lists each discovered tool's parameters (type, whether required, and description) instead of its full JSON schema. A single tool search can return hundreds of tools, so saved sessions that search connected integrations are now much shorter.
+- Grok Build shell commands, monitors, background-task lookups, images, workflows, scheduled tasks, and feedback drafts now show their command, prompt, name, or ID in the collapsed tool header, so a session can be scanned without expanding each tool.
+- Grok Build tool results no longer include Grok's notices about unrelated background tasks, or the wrapper tags around `grep` results. A background shell command's task ID, status, and output file now show as labeled fields.
+- Grok Build `use_tool` results that are JSON are now shown in a JSON code block, and several tool fields now have consistently capitalized labels (e.g. `URL`, `Query`, `Description`).
+
 ## v2.14.1 2026-09-22
 
 ### 🐛 Bug Fixes
