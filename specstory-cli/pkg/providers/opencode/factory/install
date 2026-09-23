@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Install OpenCode 2.x at an exact version, for the factory's audits.
+#
+# Channel: the vendor's 2.x installer (https://opencode.ai/v2/install), which
+# accepts a pinned version and installs the platform binary to
+# $HOME/.opencode/bin; it is linked into $HOME/.local/bin/opencode, where the
+# other factory scripts look for it. --no-modify-path keeps the installer out of
+# shell startup files. Everything lands under $HOME, so the caller isolates the
+# install by pointing $HOME at a throwaway directory.
+#
+# Self-update: OpenCode 2.0.14 has no config switch for it; the binary honors
+# OPENCODE_DISABLE_AUTOUPDATE, which list-tools exports for every run.
+#
+# Factory SPI contract: `install <version>` installs the agent under $HOME,
+# prints the version as read back from the installed binary, and exits 0.
+# Non-zero exit means the install failed or the binary reports a different
+# version — never "close enough".
+set -euo pipefail
+version=${1:?usage: install <version>}
+curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 https://opencode.ai/v2/install \
+  | bash -s -- --version "$version" --no-modify-path >&2
+mkdir -p "$HOME/.local/bin"
+ln -sf "$HOME/.opencode/bin/opencode" "$HOME/.local/bin/opencode"
+# `opencode --version` prints "opencode v<version>".
+installed=$("$HOME/.local/bin/opencode" --version | awk '{print $NF}')
+installed=${installed#v}
+if [ "$installed" != "$version" ]; then
+  echo "install: wanted $version, binary reports $installed" >&2
+  exit 1
+fi
+echo "$installed"

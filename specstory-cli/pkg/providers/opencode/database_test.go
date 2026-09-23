@@ -30,6 +30,7 @@ const (
 	tuiSessionID      = "ses_f34a1dc63ffe0cCnMWOTpjumbx"
 	optionalSessionID = "ses_f34859f9affeumHNfv8TfefDkV"
 	modelErrSessionID = "ses_f34addb6fffeca2UK7PpveGIW3"
+	questionSessionID = "ses_f34687c4effe4c1OUSq8A7KEeN"
 )
 
 // useFixtureStore points OpenCode's data directory at a fresh temp directory

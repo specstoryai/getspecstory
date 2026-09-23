@@ -212,6 +212,20 @@ func TestRenderCapturedToolCalls(t *testing.T) {
 	}
 }
 
+func TestRenderQuestion(t *testing.T) {
+	tools := renderedTools(t, "question.jsonl", questionSessionID)
+	question := findTool(t, tools, "question", nil)
+	for _, want := range []string{"**Which color do you prefer?**", "- Red — A warm, bold color.", "- Blue — A calm, cool color.", "Answer: Green"} {
+		if !strings.Contains(question.markdown, want) {
+			t.Errorf("markdown missing %q:\n%s", want, question.markdown)
+		}
+	}
+	// The model-facing restatement of the answer is not repeated.
+	if strings.Contains(question.markdown, "User has answered your questions") {
+		t.Errorf("model-facing answer text rendered:\n%s", question.markdown)
+	}
+}
+
 // TestToolInventorySweep checks every tool OpenCode 2.0.14 declares (see
 // examples/tools.txt) has a deliberate classification, so a tool dropped from
 // the switch surfaces as a failure rather than as "unknown".
@@ -219,6 +233,7 @@ func TestToolInventorySweep(t *testing.T) {
 	want := map[string]string{
 		"edit":      schema.ToolTypeWrite,
 		"execute":   schema.ToolTypeGeneric,
+		"question":  schema.ToolTypeGeneric,
 		"glob":      schema.ToolTypeSearch,
 		"grep":      schema.ToolTypeSearch,
 		"read":      schema.ToolTypeRead,
@@ -263,7 +278,7 @@ func TestToolInventorySweep(t *testing.T) {
 			t.Errorf("toolType(%q) = %q, want %q", name, got, expected)
 		}
 	}
-	if got := toolType("question"); got != schema.ToolTypeUnknown {
+	if got := toolType("todowrite"); got != schema.ToolTypeUnknown {
 		t.Errorf("an undeclared tool must stay unknown, got %q", got)
 	}
 }
@@ -277,7 +292,7 @@ func TestRenderEdgeCases(t *testing.T) {
 	}{
 		{
 			name: "unknown tool falls back to generic JSON and its text result",
-			tool: schema.ToolInfo{Name: "question", Input: map[string]any{"questions": []any{"Pick one"}},
+			tool: schema.ToolInfo{Name: "todowrite", Input: map[string]any{"questions": []any{"Pick one"}},
 				Output: map[string]any{"status": "completed", "texts": []string{"answered"}}},
 			want: []string{"```json\n{\n  \"questions\": [", "Result:\n\n```text\nanswered\n```"},
 		},

@@ -5,6 +5,7 @@ edit
 execute
 glob
 grep
+question
 read
 shell
 skill

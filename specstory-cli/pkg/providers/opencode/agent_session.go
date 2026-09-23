@@ -644,14 +644,15 @@ func formatMillis(ms int64) string {
 // every message row in sequence order.
 func buildRawData(snapshot *sessionSnapshot) string {
 	var b strings.Builder
+	encoder := json.NewEncoder(&b)
+	// Keep <, > and & as written (shell commands, markup) instead of the
+	// &-style escapes json.Marshal applies for HTML embedding.
+	encoder.SetEscapeHTML(false)
 	for _, record := range rawRecords(snapshot) {
-		line, err := json.Marshal(record)
-		if err != nil {
+		// Encode writes the record followed by a newline, giving JSON lines.
+		if err := encoder.Encode(record); err != nil {
 			slog.Warn("buildRawData: Failed to encode OpenCode record", "sessionId", snapshot.Session.ID, "table", record.Table, "error", err)
-			continue
 		}
-		b.Write(line)
-		b.WriteByte('\n')
 	}
 	return b.String()
 }

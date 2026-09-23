@@ -92,6 +92,7 @@ Tool names are stored bare (`read`, not `functions.read`). The inventory and the
 | `websearch` | `query` | Only failures were observed (`Web search cancelled`, status `error`). |
 | `skill` | `id` | `<skill_content name="...">` wrapping the skill document; `metadata.name`, `metadata.directory`. |
 | `subagent` | `agent`, `description`, `prompt` | `<subagent sessionID="..." state="completed">` wrapping the subagent's final answer; `metadata.sessionID`. The subagent's own conversation is a child session (`parent_id` set). |
+| `question` | `questions[]`: `{question, header, options[]: {label, description}}` | Text restating the answers for the model; `metadata.answers` holds the chosen labels per question. Only asked in the interactive TUI, which shows a form. |
 | `execute` | `code` (JavaScript run in OpenCode's "Code Mode" sandbox, calling `search()` and `tools.<path>(...)`) | The returned value as text, or the thrown error as text; `metadata.toolCalls[]` lists each inner call's `tool`, `status` and `input`. |
 
 ## Write lifecycle

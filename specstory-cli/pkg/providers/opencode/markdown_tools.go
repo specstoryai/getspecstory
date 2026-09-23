@@ -33,6 +33,7 @@ const (
 	toolSkill     = "skill"
 	toolSubagent  = "subagent"
 	toolExecute   = "execute"
+	toolQuestion  = "question"
 )
 
 // Statuses of a tool call that has not finished yet.
@@ -57,7 +58,7 @@ func toolType(name string) string {
 		return schema.ToolTypeSearch
 	case toolShell:
 		return schema.ToolTypeShell
-	case toolSkill, toolSubagent, toolExecute:
+	case toolSkill, toolSubagent, toolExecute, toolQuestion:
 		return schema.ToolTypeGeneric
 	default:
 		return schema.ToolTypeUnknown
@@ -163,9 +164,50 @@ func formatToolBody(name string, input, output map[string]any) string {
 			return spi.CodeFence("javascript", code)
 		}
 		return ""
+	case toolQuestion:
+		if body := formatQuestionBody(input); body != "" {
+			return body
+		}
+		return spi.RenderGenericJSON(input)
 	default:
 		return spi.RenderGenericJSON(input)
 	}
+}
+
+// formatQuestionBody lists each question the agent asked the user with its
+// offered options. A malformed question or option is skipped.
+func formatQuestionBody(input map[string]any) string {
+	questions, _ := input["questions"].([]any)
+	var sections []string
+	for _, entry := range questions {
+		question, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		text := strings.TrimSpace(spi.StringValue(question, "question"))
+		if text == "" {
+			continue
+		}
+		lines := []string{"**" + text + "**"}
+		options, _ := question["options"].([]any)
+		for _, rawOption := range options {
+			option, ok := rawOption.(map[string]any)
+			if !ok {
+				continue
+			}
+			label := strings.TrimSpace(spi.StringValue(option, "label"))
+			if label == "" {
+				continue
+			}
+			line := "- " + label
+			if description := strings.TrimSpace(spi.StringValue(option, "description")); description != "" {
+				line += " — " + description
+			}
+			lines = append(lines, line)
+		}
+		sections = append(sections, strings.Join(lines, "\n"))
+	}
+	return strings.Join(sections, "\n\n")
 }
 
 // labeledLines renders the named input keys, in the order given, as
@@ -294,6 +336,8 @@ func formatToolResult(name string, input, output map[string]any) string {
 		sections = append(sections, resultBlock("markdown", unwrapTag(strings.Join(texts, "\n"), "skill_content")))
 	case toolSubagent:
 		sections = append(sections, formatSubagentResult(texts))
+	case toolQuestion:
+		sections = append(sections, formatQuestionAnswers(output, texts))
 	case toolExecute:
 		// Code Mode returns whatever the script returned; a returned object
 		// arrives as JSON text.
@@ -423,6 +467,38 @@ func unwrapTag(text, tag string) string {
 		return text
 	}
 	return strings.TrimSuffix(inner, "</"+tag+">")
+}
+
+// formatQuestionAnswers renders the user's answers from metadata.answers (one
+// list of chosen labels per question). The text result restates them for the
+// model, so it is shown only when no answers were recorded.
+func formatQuestionAnswers(output map[string]any, texts []string) string {
+	metadata, _ := output["metadata"].(map[string]any)
+	answers, _ := metadata["answers"].([]any)
+	var chosen []string
+	for _, entry := range answers {
+		labels, _ := entry.([]any)
+		var picked []string
+		for _, label := range labels {
+			if text, ok := label.(string); ok && strings.TrimSpace(text) != "" {
+				picked = append(picked, text)
+			}
+		}
+		if len(picked) > 0 {
+			chosen = append(chosen, strings.Join(picked, ", "))
+		}
+	}
+	if len(chosen) == 0 {
+		return resultBlock("text", strings.Join(texts, "\n"))
+	}
+	if len(chosen) == 1 {
+		return "Answer: " + chosen[0]
+	}
+	lines := []string{"Answers:"}
+	for _, answer := range chosen {
+		lines = append(lines, "- "+answer)
+	}
+	return strings.Join(lines, "\n")
 }
 
 // formatInnerToolCalls lists the catalog calls an execute run made, from
