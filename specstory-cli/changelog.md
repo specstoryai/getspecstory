@@ -1,5 +1,12 @@
 # Specstory CLI Changelog
 
+## Unreleased
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports [OpenCode](https://opencode.ai/) (i.e. `opencode`), the open source terminal coding agent, for sessions created from OpenCode version `2.0.14` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI), [VS Code Copilot](https://code.visualstudio.com/docs/setup/copilot), [Muse Code](https://developer.meta.com/ai/products/muse-code/), [Pi](https://pi.dev), [Qwen Code](https://github.com/QwenLM/qwen-code) and [Grok Build](https://x.ai/cli).
+- OpenCode is a cross-provider `specstory resume` target: you can resume any agent's session into OpenCode, and resume an OpenCode session into another agent. OpenCode's free Zen models decline to continue a conversation that was not produced through Zen, so a resumed session needs another configured model to continue. Thanks to [marton78](https://github.com/marton78) for the original OpenCode provider contribution in [PR 156](https://github.com/specstoryai/getspecstory/pull/156).
+
 ## v2.14.1 2026-09-22
 
 ### 🐛 Bug Fixes

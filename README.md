@@ -45,6 +45,7 @@ DeepSeek TUI       │
 Antigravity CLI    │
 Grok Build         │
 Muse Code          │
+OpenCode           │
 Pi                 │
 Qwen Code          ┘
 ```
@@ -80,6 +81,7 @@ SpecStory integrates seamlessly with your favorite AI coding tools, automaticall
 | [Qwen Code](https://github.com/QwenLM/qwen-code)                              | CLI        | 0.23.4+      | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/qwencode)       | `brew tap specstoryai/tap`<br/>`brew install specstory`       |
 | [Pi](https://pi.dev) | CLI | 0.85.1+ | **[SpecStory CLI](https://specstory.com/specstory-cli)** | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/piagent) | `brew tap specstoryai/tap`<br/>`brew install specstory` |
 | [Grok Build](https://x.ai/cli) | CLI | 1.0.34+ | **[SpecStory CLI](https://specstory.com/specstory-cli)** | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/grokbuild) | `brew tap specstoryai/tap`<br/>`brew install specstory` |
+| [OpenCode](https://opencode.ai/) | CLI | | **[SpecStory CLI](https://specstory.com/specstory-cli)** | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/opencode) | `brew tap specstoryai/tap`<br/>`brew install specstory` |
 | Any [Agent Skills](https://agentskills.io)                                    | Skill      | Node 22.5+   | **[Lore](./lore)** 📜                                             | [Open](./lore)                                                                                          | `npx skills add specstoryai/getspecstory --skill lore`        |
 
 > [!TIP]
@@ -90,7 +92,7 @@ SpecStory integrates seamlessly with your favorite AI coding tools, automaticall
 
 ### Terminal Coding Agents
 
-**One installation works with all terminal coding agents** - Claude Code, Cursor CLI, Codex, Droid, DeepSeek, Antigravity CLI, Qwen Code, and Pi:
+**One installation works with all terminal coding agents** - Claude Code, Cursor CLI, Codex, Droid, DeepSeek, Antigravity CLI, OpenCode, Qwen Code, and Pi:
 
 ```bash
 # Check which agents are installed
@@ -105,6 +107,7 @@ specstory run deepseek     # Launch DeepSeek TUI
 specstory run antigravity  # Launch Antigravity CLI
 specstory run grok         # Launch Grok Build
 specstory run muse         # Launch Muse Code
+specstory run opencode     # Launch OpenCode
 specstory run qwen         # Launch Qwen Code
 specstory run pi           # Launch Pi
 specstory run              # Launch the default agent (Claude Code)

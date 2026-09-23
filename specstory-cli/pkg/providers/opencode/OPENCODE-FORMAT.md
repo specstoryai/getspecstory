@@ -82,7 +82,7 @@ Tool names are stored bare (`read`, not `functions.read`). The inventory and the
 
 | Tool | Input | Result |
 |---|---|---|
-| `read` | `path` (relative or absolute), optional `offset`, `limit` | Text: `Read file <path>, lines a-b` then `N: <line>` rows. Missing file: status `error`, `File not found: <path>`. |
+| `read` | `path` (relative or absolute, file or directory), optional `offset`, `limit` | Text: `Read file <path>, lines a-b` then `N: <line>` rows, or `Read directory <path>, entries a-b` then one entry per line. Missing file: status `error`, `File not found: <path>`. |
 | `write` | `path`, `content` | Text acknowledgement (`Created file successfully: <path>`). |
 | `edit` | `path`, `oldString`, `newString` | Text acknowledgement; `metadata.files[]` carries a unified diff per file (`patch`, `additions`, `deletions`). |
 | `glob` | `pattern`, optional `path` | Newline-separated absolute paths; `metadata.count`. |

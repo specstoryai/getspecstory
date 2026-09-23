@@ -378,21 +378,28 @@ func resultBlock(lang, text string) string {
 	return "Result:\n\n" + spi.CodeFence(lang, spi.CapRunes(text, maxResultRunes))
 }
 
-// formatReadResult shows the file OpenCode returned in a fence tagged by the
-// file's extension, with OpenCode's "Read file ..." header as a caption.
+// formatReadResult shows what OpenCode returned with its header ("Read file
+// <path>, lines a-b" or "Read directory <path>, entries a-b") as a caption: a
+// file in a fence tagged by its extension, a directory listing as text.
 func formatReadResult(path string, texts []string) string {
 	text := strings.Trim(strings.Join(texts, "\n"), "\n")
 	if strings.TrimSpace(text) == "" {
 		return ""
 	}
 	header, rest, found := strings.Cut(text, "\n")
-	if !strings.HasPrefix(header, "Read file ") {
+	var lang string
+	switch {
+	case strings.HasPrefix(header, "Read file "):
+		lang = spi.LanguageFromPath(path)
+	case strings.HasPrefix(header, "Read directory "):
+		lang = "text"
+	default:
 		return resultBlock(spi.LanguageFromPath(path), text)
 	}
 	if !found || strings.TrimSpace(rest) == "" {
 		return header
 	}
-	return header + "\n\n" + spi.CodeFence(spi.LanguageFromPath(path), spi.CapRunes(rest, maxResultRunes))
+	return header + "\n\n" + spi.CodeFence(lang, spi.CapRunes(rest, maxResultRunes))
 }
 
 // formatAcknowledgement renders a one-line confirmation inline and anything

@@ -86,6 +86,12 @@ func TestRenderCapturedToolCalls(t *testing.T) {
 			want:    []string{"Read file hello.py, lines 1-5", "```python\n1: def greet(name):"},
 		},
 		{
+			name:   "read of a directory captions the listing",
+			tool:   findTool(t, optional, "read", inputEquals("path", ".")),
+			want:   []string{"Read directory ., entries 1-15\n\n```text\n.git/"},
+			reject: []string{"Result:"},
+		},
+		{
 			name: "read with a line window",
 			tool: findTool(t, optional, "read", hasInput("offset")),
 			want: []string{"Offset: `2`", "Limit: `2`"},
