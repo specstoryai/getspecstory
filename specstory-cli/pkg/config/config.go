@@ -149,6 +149,9 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # Muse Code command
 # muse_cmd = "muse"
 
+# OpenCode command
+# opencode_cmd = "opencode"
+
 # Pi command
 # pi_cmd = "pi"
 
@@ -275,6 +278,7 @@ type ProvidersConfig struct {
 	GeminiCmd                     string `toml:"gemini_cmd"`
 	GrokCmd                       string `toml:"grok_cmd"`
 	MuseCmd                       string `toml:"muse_cmd"`
+	OpenCodeCmd                   string `toml:"opencode_cmd"`
 	PiCmd                         string `toml:"pi_cmd"`
 	QwenCmd                       string `toml:"qwen_cmd"`
 }
@@ -1030,6 +1034,8 @@ func (c *Config) GetProviderCmd(providerID string) string {
 		return c.Providers.GrokCmd
 	case "muse":
 		return c.Providers.MuseCmd
+	case "opencode":
+		return c.Providers.OpenCodeCmd
 	case "pi":
 		return c.Providers.PiCmd
 	case "qwen":

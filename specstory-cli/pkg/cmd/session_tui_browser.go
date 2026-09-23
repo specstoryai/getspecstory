@@ -272,6 +272,10 @@ func colorForAgent(id string) color.Color {
 		return lipgloss.Color("#D6336C") // magenta
 	case "muse":
 		return lipgloss.Color("#0866FF") // Meta blue
+	case "opencode":
+		// OpenCode's theme orange (orange-400); its lighter peach accent is
+		// unreadable on light terminal backgrounds.
+		return lipgloss.Color("#b67c56")
 	case "pi":
 		return lipgloss.Color("#8B5CF6") // violet
 	case "qwen":

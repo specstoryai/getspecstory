@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Latest released version of OpenCode 2.x.
+#
+# Channel: npm (@opencode/cli, dist-tag "latest"), the package OpenCode's own
+# 2.x installer (https://opencode.ai/v2/install) resolves its default version
+# from and downloads. Rejected: GitHub releases/latest for anomalyco/opencode
+# and the npm "opencode-ai" package, both of which still track the 1.x line
+# (they reported 1.18.32 when 2.0.14 was current), and the Homebrew tap, which
+# is a per-version formula rather than a channel.
+#
+# Factory SPI contract: print the current released version to stdout and exit 0.
+# Non-zero exit means "sensor failure", never "no change". Output is opaque to
+# the factory — byte-compared against the stored reading, never parsed.
+set -euo pipefail
+version=$(npm view @opencode/cli version)
+if [ -z "$version" ]; then
+  echo "latest-version: npm returned no version for @opencode/cli" >&2
+  exit 1
+fi
+printf '%s\n' "$version"
