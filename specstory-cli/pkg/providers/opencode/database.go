@@ -168,8 +168,10 @@ func openDatabase(dbPath string) (*sql.DB, error) {
 }
 
 // withDatabase opens the database, verifies it has the 2.x session schema,
-// runs fn, and closes it.
-func withDatabase(fn func(db *sql.DB) error) error {
+// runs fn with the open handle and the path it was opened from, and closes
+// it. The path is passed so a caller that reports it (reindex's NativePath)
+// does not resolve it a second time.
+func withDatabase(fn func(db *sql.DB, dbPath string) error) error {
 	dbPath, err := getDatabasePath()
 	if err != nil {
 		return err
@@ -186,7 +188,7 @@ func withDatabase(fn func(db *sql.DB) error) error {
 	if err := verifySchema(db); err != nil {
 		return fmt.Errorf("%s: %w", dbPath, err)
 	}
-	return fn(db)
+	return fn(db, dbPath)
 }
 
 // verifySchema confirms the session tables exist. sql.Open is lazy, so this is

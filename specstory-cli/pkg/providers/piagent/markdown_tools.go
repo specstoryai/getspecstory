@@ -4,9 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"unicode"
 
-	"github.com/charmbracelet/x/ansi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
@@ -119,7 +117,7 @@ func renderToolOutput(tool *schema.ToolInfo, success bool) string {
 			lang = spi.LanguageFromPath(spi.StringValue(tool.Input, "path"))
 		}
 		if name == "bash" || name == "powershell" {
-			content = sanitizeShellOutput(content)
+			content = spi.SanitizeShellOutput(content)
 		}
 		if content != "" {
 			blocks = append(blocks, spi.CodeFence(lang, spi.CapRunes(content, 5000)))
@@ -167,14 +165,4 @@ func cappedToolJSON(values map[string]any, drop ...string) string {
 		return ""
 	}
 	return spi.CodeFence("json", spi.CapRunes(string(data), 5000))
-}
-
-func sanitizeShellOutput(content string) string {
-	content = strings.ReplaceAll(content, "\r\n", "\n")
-	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) && r != '\n' && r != '\t' {
-			return -1
-		}
-		return r
-	}, ansi.Strip(content))
 }

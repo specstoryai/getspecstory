@@ -125,14 +125,13 @@ func TestWatcherEmitsActivityDuringStartup(t *testing.T) {
 	writeSession(t, db, "ses_existing", project, hourAgo())
 
 	// Activity lands after the watch exists but before the first read.
-	beforeFirstCheck = func() {
+	duringStartup := func() {
 		appendReply(t, db, "ses_existing", 3, "during-startup")
 		writeSession(t, db, "ses_new", project, time.Now().UnixMilli())
 	}
-	t.Cleanup(func() { beforeFirstCheck = nil })
 
 	var got deliveries
-	w, err := startWatcher(project, false, got.callback)
+	w, err := startWatcherWithHook(project, false, got.callback, duringStartup)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,14 +175,13 @@ func TestWatcherAdoptsStoreRestoredDuringStartup(t *testing.T) {
 	project := newProjectDir(t, "project")
 	dbPath := useFixtureStore(t)
 
-	beforeFirstCheck = func() {
+	restoreStore := func() {
 		db := createFixtureDB(t, dbPath)
 		writeSession(t, db, "ses_restored", project, hourAgo())
 	}
-	t.Cleanup(func() { beforeFirstCheck = nil })
 
 	var got deliveries
-	w, err := startWatcher(project, false, got.callback)
+	w, err := startWatcherWithHook(project, false, got.callback, restoreStore)
 	if err != nil {
 		t.Fatal(err)
 	}

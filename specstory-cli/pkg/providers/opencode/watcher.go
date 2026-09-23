@@ -72,6 +72,14 @@ type sessionWatcher struct {
 // startWatcher records the startup boundary, establishes the watch and starts
 // the worker. It returns an error only when no watch can be established at all.
 func startWatcher(projectPath string, debugRaw bool, callback func(*spi.AgentChatSession)) (*sessionWatcher, error) {
+	return startWatcherWithHook(projectPath, debugRaw, callback, nil)
+}
+
+// startWatcherWithHook is startWatcher with a hook that runs once the boundary
+// and the watch are established and before the first read: the window where
+// real activity (a write, or a store created or restored) can race startup.
+// Tests use it to land writes in that window; production passes nil.
+func startWatcherWithHook(projectPath string, debugRaw bool, callback func(*spi.AgentChatSession), beforeFirstCheck func()) (*sessionWatcher, error) {
 	if callback == nil {
 		return nil, errors.New("session callback must not be nil")
 	}
@@ -142,11 +150,6 @@ func startWatcher(projectPath string, debugRaw bool, callback func(*spi.AgentCha
 	w.wg.Go(w.run)
 	return w, nil
 }
-
-// beforeFirstCheck, when set by a test, runs after the boundary and the watch
-// are established and before the first read, where real activity (a write, or
-// a store created or restored) can race the startup.
-var beforeFirstCheck func()
 
 // Stop ends the watch after delivering any change that has not been delivered
 // yet. Safe to call more than once.
@@ -305,7 +308,7 @@ func nearestExistingDir(path string) string {
 // a slow callback (a markdown write, a cloud sync) never holds the connection.
 func (w *sessionWatcher) check(trigger string) {
 	var updates []*spi.AgentChatSession
-	err := withDatabase(func(db *sql.DB) error {
+	err := withDatabase(func(db *sql.DB, _ string) error {
 		summaries, err := listSessionSummaries(db, w.projectPath)
 		if err != nil {
 			return err

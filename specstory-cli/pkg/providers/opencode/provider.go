@@ -185,12 +185,12 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 
 // GetAgentChatSessions returns every session started in the project directory.
 func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
+	root, err := canonicalProjectPath(projectPath)
+	if err != nil {
+		return nil, err
+	}
 	var result []spi.AgentChatSession
-	err := withDatabase(func(db *sql.DB) error {
-		root, err := canonicalProjectPath(projectPath)
-		if err != nil {
-			return err
-		}
+	err = withDatabase(func(db *sql.DB, _ string) error {
 		summaries, err := listSessionSummaries(db, root)
 		if err != nil {
 			return err
@@ -221,15 +221,18 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 // exist or was not started in this project. The database is global, so the
 // directory check keeps a lookup from one project returning another's session.
 func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
+	root, err := canonicalProjectPath(projectPath)
+	if err != nil {
+		return nil, err
+	}
 	var result *spi.AgentChatSession
-	err := withDatabase(func(db *sql.DB) error {
-		root, err := canonicalProjectPath(projectPath)
+	err = withDatabase(func(db *sql.DB, _ string) error {
+		snapshot, err := readSessionSnapshot(db, sessionID)
 		if err != nil {
 			return err
 		}
-		snapshot, err := readSessionSnapshot(db, sessionID)
-		if err != nil || snapshot == nil {
-			return err
+		if snapshot == nil {
+			return nil
 		}
 		if snapshot.Session.ParentID != "" || snapshot.Session.Directory != root {
 			slog.Debug("GetAgentChatSession: Session is not a top-level session of this project",
@@ -274,13 +277,8 @@ func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 // ListAllAgentChatSessionsProgress enumerates every top-level session while
 // reporting scan progress into r (nil-safe). Used by `specstory reindex`.
 func (p *Provider) ListAllAgentChatSessionsProgress(r *spi.ScanReporter) ([]spi.GlobalSessionRef, error) {
-	dbPath, err := getDatabasePath()
-	if err != nil {
-		return nil, err
-	}
-
 	refs := []spi.GlobalSessionRef{}
-	err = withDatabase(func(db *sql.DB) error {
+	err := withDatabase(func(db *sql.DB, dbPath string) error {
 		summaries, err := listSessionSummaries(db, "")
 		if err != nil {
 			return err
@@ -389,12 +387,12 @@ func canonicalProjectPath(projectPath string) (string, error) {
 
 // projectSessionSummaries lists the top-level sessions started in the project.
 func projectSessionSummaries(projectPath string) ([]sessionSummary, error) {
+	root, err := canonicalProjectPath(projectPath)
+	if err != nil {
+		return nil, err
+	}
 	var summaries []sessionSummary
-	err := withDatabase(func(db *sql.DB) error {
-		root, err := canonicalProjectPath(projectPath)
-		if err != nil {
-			return err
-		}
+	err = withDatabase(func(db *sql.DB, _ string) error {
 		summaries, err = listSessionSummaries(db, root)
 		return err
 	})

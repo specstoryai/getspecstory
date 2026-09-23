@@ -90,7 +90,9 @@ func stagedImportFilename(sessionID string) string {
 // interactive launch and do not apply to the import subcommand.
 func importStagedSession(customCommand, projectPath, sessionID string) error {
 	// Only a plain id can name a staged file; anything with a path element in
-	// it was not minted by ReconstructSession.
+	// it was not minted by ReconstructSession. The separator check is explicit
+	// as well because filepath.Base treats only the host's separator as one, so
+	// on Unix a backslash would pass the Base comparison.
 	if sessionID == "" || sessionID != filepath.Base(sessionID) || strings.ContainsAny(sessionID, `/\`) {
 		return nil
 	}

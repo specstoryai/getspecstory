@@ -6,9 +6,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"unicode"
-
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
@@ -115,21 +112,7 @@ func toolSummary(name string, tool *schema.ToolInfo) string {
 	if argument == "" {
 		return ""
 	}
-	return fmt.Sprintf("Tool use: **%s** %s", tool.Name, inlineCode(argument))
-}
-
-// inlineCode wraps text in a backtick span long enough to contain any
-// backticks inside it, keeping it on one line.
-func inlineCode(text string) string {
-	text = strings.Join(strings.Fields(text), " ")
-	fence := "`"
-	for strings.Contains(text, fence) {
-		fence += "`"
-	}
-	if strings.HasPrefix(text, "`") || strings.HasSuffix(text, "`") {
-		return fence + " " + text + " " + fence
-	}
-	return fence + text + fence
+	return fmt.Sprintf("Tool use: **%s** %s", tool.Name, spi.InlineCode(argument))
 }
 
 // formatToolBody renders a call's arguments as labeled lines.
@@ -216,7 +199,7 @@ func labeledLines(input map[string]any, pairs ...string) string {
 	var lines []string
 	for i := 0; i+1 < len(pairs); i += 2 {
 		if value := strings.TrimSpace(spi.StringValue(input, pairs[i])); value != "" {
-			lines = append(lines, fmt.Sprintf("%s: %s", pairs[i+1], inlineCode(value)))
+			lines = append(lines, fmt.Sprintf("%s: %s", pairs[i+1], spi.InlineCode(value)))
 		}
 	}
 	return strings.Join(lines, "\n")
@@ -355,7 +338,7 @@ func formatToolResult(name string, input, output map[string]any) string {
 		lines := make([]string, 0, len(files)+1)
 		lines = append(lines, "Files:")
 		for _, file := range files {
-			lines = append(lines, "- "+inlineCode(file))
+			lines = append(lines, "- "+spi.InlineCode(file))
 		}
 		sections = append(sections, strings.Join(lines, "\n"))
 	}
@@ -430,7 +413,7 @@ func formatShellResult(output map[string]any, texts []string) string {
 	}
 
 	var sections []string
-	if block := resultBlock("text", sanitizeShellOutput(strings.Join(kept, "\n"))); block != "" {
+	if block := resultBlock("text", spi.SanitizeShellOutput(strings.Join(kept, "\n"))); block != "" {
 		sections = append(sections, block)
 	}
 	if truncated, ok := metadata["truncated"].(bool); ok && truncated {
@@ -455,7 +438,7 @@ func formatSubagentResult(texts []string) string {
 	if match == nil {
 		return resultBlock("markdown", text)
 	}
-	lines := []string{fmt.Sprintf("Subagent session: %s (%s)", inlineCode(match[1]), match[2])}
+	lines := []string{fmt.Sprintf("Subagent session: %s (%s)", spi.InlineCode(match[1]), match[2])}
 	if block := resultBlock("markdown", match[3]); block != "" {
 		lines = append(lines, block)
 	}
@@ -523,7 +506,7 @@ func formatInnerToolCalls(output map[string]any) string {
 		if name == "" {
 			continue
 		}
-		line := "- " + inlineCode(name)
+		line := "- " + spi.InlineCode(name)
 		if status := spi.StringValue(call, "status"); status != "" {
 			line += " — " + status
 		}
@@ -545,18 +528,6 @@ func joinNonEmpty(sections []string) string {
 	return strings.Join(kept, "\n\n")
 }
 
-// sanitizeShellOutput strips ANSI escape sequences and the remaining control
-// bytes so terminal output cannot corrupt the markdown fence.
-func sanitizeShellOutput(content string) string {
-	content = strings.ReplaceAll(content, "\r\n", "\n")
-	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) && r != '\n' && r != '\t' {
-			return -1
-		}
-		return r
-	}, ansi.Strip(content))
-}
-
 // toolPathHints records the workspace paths a call touched, normalized
 // against the workspace root.
 func toolPathHints(name string, input map[string]any, workspaceRoot string) []string {
@@ -571,9 +542,7 @@ func toolPathHints(name string, input map[string]any, workspaceRoot string) []st
 	}
 
 	switch spi.NormalizeToolName(name) {
-	case toolRead, toolWrite, toolEdit:
-		add(spi.StringValue(input, "path"))
-	case toolGlob, toolGrep:
+	case toolRead, toolWrite, toolEdit, toolGlob, toolGrep:
 		add(spi.StringValue(input, "path"))
 	case toolShell:
 		cwd := spi.StringValue(input, "workdir")

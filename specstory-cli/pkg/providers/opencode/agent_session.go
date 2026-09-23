@@ -404,7 +404,7 @@ func formatAttachments(files []fileAttachment, agents []agentAttachment) string 
 		if name == "" {
 			name = "(unnamed)"
 		}
-		line := "- Attached file: " + inlineCode(name)
+		line := "- Attached file: " + spi.InlineCode(name)
 		if file.Mime != "" {
 			line += fmt.Sprintf(" (%s)", file.Mime)
 		}
@@ -412,7 +412,7 @@ func formatAttachments(files []fileAttachment, agents []agentAttachment) string 
 	}
 	for _, agent := range agents {
 		if strings.TrimSpace(agent.Name) != "" {
-			lines = append(lines, "- Mentioned agent: "+inlineCode("@"+agent.Name))
+			lines = append(lines, "- Mentioned agent: "+spi.InlineCode("@"+agent.Name))
 		}
 	}
 	return strings.Join(lines, "\n")
@@ -446,7 +446,7 @@ func (b *exchangeBuilder) addShell(id, timestamp string, msg *nativeMessage) {
 func formatUserShellResult(msg *nativeMessage) string {
 	var sections []string
 	if msg.Output != nil {
-		if output := strings.TrimRight(sanitizeShellOutput(msg.Output.Output), "\n"); output != "" {
+		if output := strings.TrimRight(spi.SanitizeShellOutput(msg.Output.Output), "\n"); output != "" {
 			sections = append(sections, "Output:\n\n"+spi.CodeFence("text", spi.CapRunes(output, maxResultRunes)))
 		}
 		if msg.Output.Truncated {
@@ -489,7 +489,9 @@ func (b *exchangeBuilder) addAssistant(id, timestamp string, msg *nativeMessage)
 
 	var produced []schema.Message
 	// Text parts carry no time of their own; they take the latest time seen
-	// earlier in the step so timestamps never run backwards within it.
+	// earlier in the step so timestamps never run backwards within it. The
+	// timestamps are compared as strings, which orders them correctly only
+	// because formatMillis emits a fixed-width UTC layout.
 	partTimestamp := timestamp
 	for i := range msg.Content {
 		part := &msg.Content[i]

@@ -291,10 +291,11 @@ func TestToolInventorySweep(t *testing.T) {
 
 func TestRenderEdgeCases(t *testing.T) {
 	tests := []struct {
-		name   string
-		tool   schema.ToolInfo
-		want   []string
-		reject []string
+		name    string
+		tool    schema.ToolInfo
+		summary string
+		want    []string
+		reject  []string
 	}{
 		{
 			name: "unknown tool falls back to generic JSON and its text result",
@@ -316,9 +317,100 @@ func TestRenderEdgeCases(t *testing.T) {
 			reject: []string{"Exit code"},
 		},
 		{
-			name: "backticks in a summary argument stay inside the code span",
-			tool: schema.ToolInfo{Name: "grep", Input: map[string]any{"pattern": "a`b"}},
-			want: []string{},
+			name:    "backticks in a summary argument stay inside the code span",
+			tool:    schema.ToolInfo{Name: "grep", Input: map[string]any{"pattern": "a`b"}},
+			summary: "Tool use: **grep** `` a`b ``",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tool := tt.tool
+			markdown := formatToolAsMarkdown(&tool)
+			if tt.summary != "" && (tool.Summary == nil || *tool.Summary != tt.summary) {
+				t.Errorf("summary = %v, want %q", tool.Summary, tt.summary)
+			}
+			for _, want := range tt.want {
+				if !strings.Contains(markdown, want) {
+					t.Errorf("markdown missing %q:\n%s", want, markdown)
+				}
+			}
+			for _, reject := range tt.reject {
+				if strings.Contains(markdown, reject) {
+					t.Errorf("markdown contains %q:\n%s", reject, markdown)
+				}
+			}
+		})
+	}
+}
+
+// TestRenderMalformedMetadata covers the metadata walks that silently skip
+// what they cannot read: a question whose answers are missing or misshapen
+// falls back to the model-facing text, and an execute run lists only the
+// inner calls that name a tool.
+func TestRenderMalformedMetadata(t *testing.T) {
+	tests := []struct {
+		name   string
+		tool   schema.ToolInfo
+		want   []string
+		reject []string
+	}{
+		{
+			name: "question without metadata shows the text result",
+			tool: schema.ToolInfo{Name: "question",
+				Output: map[string]any{"status": "completed", "texts": []string{"User picked Green"}}},
+			want:   []string{"Result:\n\n```text\nUser picked Green\n```"},
+			reject: []string{"Answer"},
+		},
+		{
+			name: "question whose answers are not a list shows the text result",
+			tool: schema.ToolInfo{Name: "question",
+				Output: map[string]any{"status": "completed", "texts": []string{"User picked Green"},
+					"metadata": map[string]any{"answers": "Green"}}},
+			want:   []string{"User picked Green"},
+			reject: []string{"Answer"},
+		},
+		{
+			name: "question whose answers hold no labels shows the text result",
+			tool: schema.ToolInfo{Name: "question",
+				Output: map[string]any{"status": "completed", "texts": []string{"User picked Green"},
+					"metadata": map[string]any{"answers": []any{[]any{"", "  "}, "not-a-list", 7}}}},
+			want:   []string{"User picked Green"},
+			reject: []string{"Answer"},
+		},
+		{
+			name: "question keeps the readable answers and drops the malformed ones",
+			tool: schema.ToolInfo{Name: "question",
+				Output: map[string]any{"status": "completed", "texts": []string{"User picked Green and Large"},
+					"metadata": map[string]any{"answers": []any{[]any{"Green"}, "not-a-list", []any{"Large", 3}}}}},
+			want:   []string{"Answers:\n- Green\n- Large"},
+			reject: []string{"User picked"},
+		},
+		{
+			name: "execute without inner calls lists none",
+			tool: schema.ToolInfo{Name: "execute", Input: map[string]any{"code": "1"},
+				Output: map[string]any{"status": "completed", "texts": []string{"1"}}},
+			want:   []string{"```javascript\n1\n```", "Result:\n\n```json\n1\n```"},
+			reject: []string{"Tool calls:"},
+		},
+		{
+			name: "execute whose inner calls are not a list lists none",
+			tool: schema.ToolInfo{Name: "execute", Input: map[string]any{"code": "1"},
+				Output: map[string]any{"status": "completed", "texts": []string{"1"},
+					"metadata": map[string]any{"toolCalls": map[string]any{"tool": "opencode.models"}}}},
+			reject: []string{"Tool calls:"},
+		},
+		{
+			name: "execute lists only inner calls that name a tool",
+			tool: schema.ToolInfo{Name: "execute", Input: map[string]any{"code": "1"},
+				Output: map[string]any{"status": "completed", "texts": []string{"1"},
+					"metadata": map[string]any{"toolCalls": []any{
+						map[string]any{"tool": "opencode.models", "status": "completed"},
+						map[string]any{"status": "error"},
+						"not-a-call",
+						map[string]any{"tool": "browser.tabs.list"},
+					}}}},
+			want:   []string{"Tool calls:\n\n- `opencode.models` — completed\n- `browser.tabs.list`"},
+			reject: []string{"- ` `", "— error"},
 		},
 	}
 	for _, tt := range tests {
@@ -336,11 +428,5 @@ func TestRenderEdgeCases(t *testing.T) {
 				}
 			}
 		})
-	}
-
-	grep := schema.ToolInfo{Name: "grep", Input: map[string]any{"pattern": "a`b"}}
-	formatToolAsMarkdown(&grep)
-	if grep.Summary == nil || *grep.Summary != "Tool use: **grep** ``a`b``" {
-		t.Errorf("summary with a backtick = %v", grep.Summary)
 	}
 }

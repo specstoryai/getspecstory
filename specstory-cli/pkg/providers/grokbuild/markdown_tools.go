@@ -449,7 +449,7 @@ func writeSchemaProperties(b *strings.Builder, schema map[string]any, depth int)
 	for _, name := range names {
 		property, ok := properties[name].(map[string]any)
 		if !ok {
-			fmt.Fprintf(b, "%s- %s: %s\n", indent, codeSpan(name), codeSpan(stringArg(properties, name)))
+			fmt.Fprintf(b, "%s- %s: %s\n", indent, spi.InlineCode(name), spi.InlineCode(stringArg(properties, name)))
 			continue
 		}
 		var qualifiers []string
@@ -459,7 +459,7 @@ func writeSchemaProperties(b *strings.Builder, schema map[string]any, depth int)
 		if slices.Contains(required, name) {
 			qualifiers = append(qualifiers, "required")
 		}
-		line := indent + "- " + codeSpan(name)
+		line := indent + "- " + spi.InlineCode(name)
 		if len(qualifiers) > 0 {
 			line += " (" + strings.Join(qualifiers, ", ") + ")"
 		}
@@ -470,7 +470,7 @@ func writeSchemaProperties(b *strings.Builder, schema map[string]any, depth int)
 		if values, ok := property["enum"].([]any); ok && len(values) > 0 {
 			spans := make([]string, 0, len(values))
 			for _, value := range values {
-				spans = append(spans, codeSpan(jsonText(value)))
+				spans = append(spans, spi.InlineCode(jsonText(value)))
 			}
 			line += " One of: " + strings.Join(spans, ", ") + "."
 		}
@@ -480,7 +480,7 @@ func writeSchemaProperties(b *strings.Builder, schema map[string]any, depth int)
 			consumed = append(consumed, "items")
 		}
 		for _, key := range sortedKeys(withoutKeys(property, consumed...)) {
-			line += fmt.Sprintf("; %s: %s", key, codeSpan(jsonText(property[key])))
+			line += fmt.Sprintf("; %s: %s", key, spi.InlineCode(jsonText(property[key])))
 		}
 		b.WriteString(line + "\n")
 
@@ -544,7 +544,7 @@ func formatTaskEnvelope(text string) string {
 			rest = append(rest, line)
 			continue
 		}
-		fields = append(fields, fmt.Sprintf("%s: %s", tagLabel(match[1]), codeSpan(match[2])))
+		fields = append(fields, fmt.Sprintf("%s: %s", tagLabel(match[1]), spi.InlineCode(match[2])))
 	}
 	result := strings.Join(fields, "\n")
 	if remaining := strings.TrimSpace(strings.Join(rest, "\n")); remaining != "" {
@@ -581,7 +581,7 @@ func formatImageResult(text string) string {
 	if path == "" {
 		return ""
 	}
-	result := fmt.Sprintf("Saved image: %s", codeSpan(path))
+	result := fmt.Sprintf("Saved image: %s", spi.InlineCode(path))
 	if extra := formatParameters(withoutKeys(envelope, "path", "filename", "session_folder", "message")); extra != "" {
 		result += "\n" + extra
 	}
@@ -928,28 +928,6 @@ func jsonText(value any) string {
 	return string(encoded)
 }
 
-// codeSpan wraps text in an inline code span whose backtick run is longer than
-// any inside the text, so tool descriptions and schema values that contain
-// backticks cannot break out of the span.
-func codeSpan(text string) string {
-	if !strings.Contains(text, "`") {
-		return "`" + text + "`"
-	}
-	longest, run := 0, 0
-	for _, r := range text {
-		if r == '`' {
-			run++
-			longest = max(longest, run)
-		} else {
-			run = 0
-		}
-	}
-	fence := strings.Repeat("`", longest+1)
-	// CommonMark strips one space from each side, which lets the span start or
-	// end with a backtick.
-	return fence + " " + text + " " + fence
-}
-
 // headerText fits text to one line of a collapsed summary, marking a cut.
 func headerText(text string, maxRunes int) string {
 	line := strings.Join(strings.Fields(text), " ")
@@ -1002,7 +980,7 @@ func formatWorkflowBody(input map[string]any) string {
 	}
 	var parts []string
 	if _, ok := source["type"]; ok {
-		parts = append(parts, fmt.Sprintf("Source: %s", codeSpan(stringArg(source, "type"))))
+		parts = append(parts, fmt.Sprintf("Source: %s", spi.InlineCode(stringArg(source, "type"))))
 	}
 	if extra := formatParameters(withoutKeys(source, "type", "script")); extra != "" {
 		parts = append(parts, extra)
@@ -1020,7 +998,7 @@ func formatFeedbackBody(input map[string]any) string {
 	var parts []string
 	for _, field := range []struct{ key, label string }{{"title", "Title"}, {"type", "Type"}} {
 		if value := stringArg(input, field.key); value != "" {
-			parts = append(parts, fmt.Sprintf("%s: %s", field.label, codeSpan(value)))
+			parts = append(parts, fmt.Sprintf("%s: %s", field.label, spi.InlineCode(value)))
 		}
 	}
 	if details := formatTextBlock("Details", stringArg(input, "details")); details != "" {

@@ -51,7 +51,10 @@ type exportLocation struct {
 }
 
 // exportMessage is one record of the export format. User records carry Text;
-// assistant records carry Agent, Model, Content and Finish.
+// assistant records carry Agent, Model, Content and Finish. Agent is a pointer
+// because an assistant record must carry the key even when its value is the
+// empty string, while a user record must not carry it at all; omitempty on a
+// plain string would drop both.
 type exportMessage struct {
 	ID      string           `json:"id"`
 	Type    string           `json:"type"`
