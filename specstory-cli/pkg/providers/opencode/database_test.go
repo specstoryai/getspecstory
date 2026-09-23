@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // Recorded directories in the captured fixtures (paths were rewritten to
@@ -55,7 +56,10 @@ func createFixtureDB(t *testing.T, dbPath string) *sql.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := sql.Open("sqlite", "file:"+dbPath)
+	// A running watcher may read the database while a test writes to it; the
+	// busy timeout makes the writer wait for that reader instead of failing,
+	// which Windows' mandatory file locking otherwise does immediately.
+	db, err := sql.Open("sqlite", "file:"+dbPath+"?"+spi.BusyTimeoutPragma)
 	if err != nil {
 		t.Fatal(err)
 	}
