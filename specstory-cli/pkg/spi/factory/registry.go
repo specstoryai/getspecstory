@@ -82,10 +82,6 @@ func (r *Registry) registerAll() {
 	r.providers["gemini"] = geminiProvider
 	slog.Debug("Registered provider", "id", "gemini", "name", geminiProvider.Name())
 
-	opencodeProvider := opencode.NewProvider()
-	r.providers["opencode"] = opencodeProvider
-	slog.Debug("Registered provider", "id", "opencode", "name", opencodeProvider.Name())
-
 	droidProvider := droidcli.NewProvider()
 	r.providers["droid"] = droidProvider
 	slog.Debug("Registered provider", "id", "droid", "name", droidProvider.Name())
@@ -132,6 +128,10 @@ func (r *Registry) registerAll() {
 	museProvider := musecode.NewProvider()
 	r.providers["muse"] = museProvider
 	slog.Debug("Registered provider", "id", "muse", "name", museProvider.Name())
+
+	opencodeProvider := opencode.NewProvider()
+	r.providers["opencode"] = opencodeProvider
+	slog.Debug("Registered provider", "id", "opencode", "name", opencodeProvider.Name())
 
 	piProvider := piagent.NewProvider()
 	r.providers["pi"] = piProvider

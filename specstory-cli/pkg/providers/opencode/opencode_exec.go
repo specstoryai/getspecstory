@@ -40,15 +40,23 @@ func parseOpenCodeCommand(customCommand string) (string, []string) {
 	return defaultOpenCodeCommand, nil
 }
 
-// stagedImportDir returns the staging directory, creating it private to the
-// user. The staged file holds a whole conversation, and a fixed name in a
-// shared temp directory could be read, or pre-created, by another local user.
-func stagedImportDir() (string, error) {
+// stagedImportDirPath returns the staging directory without creating it.
+func stagedImportDirPath() (string, error) {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve the user cache directory: %w", err)
 	}
-	dir := filepath.Join(append([]string{cacheDir}, importStagingDir...)...)
+	return filepath.Join(append([]string{cacheDir}, importStagingDir...)...), nil
+}
+
+// stagedImportDir returns the staging directory, creating it private to the
+// user. The staged file holds a whole conversation, and a fixed name in a
+// shared temp directory could be read, or pre-created, by another local user.
+func stagedImportDir() (string, error) {
+	dir, err := stagedImportDirPath()
+	if err != nil {
+		return "", err
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", fmt.Errorf("failed to create %s: %w", dir, err)
 	}
@@ -86,10 +94,13 @@ func importStagedSession(customCommand, projectPath, sessionID string) error {
 	if sessionID == "" || sessionID != filepath.Base(sessionID) || strings.ContainsAny(sessionID, `/\`) {
 		return nil
 	}
-	stagedPath, err := stagedImportPath(stagedImportFilename(sessionID))
+	// Looking for a staged file must not create the staging directory as a
+	// side effect of every resume.
+	dir, err := stagedImportDirPath()
 	if err != nil {
 		return err
 	}
+	stagedPath := filepath.Join(dir, stagedImportFilename(sessionID))
 	if _, err := os.Stat(stagedPath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil

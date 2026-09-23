@@ -44,6 +44,19 @@ const (
 	partTool      = "tool"
 )
 
+// Tool result content item types.
+const (
+	toolContentText = "text"
+	toolContentFile = "file"
+)
+
+// Statuses of a user shell command other than "exited".
+const (
+	shellTimeout = "timeout"
+	shellKilled  = "killed"
+	shellRunning = "running"
+)
+
 // Compaction statuses.
 const (
 	compactionCompleted = "completed"
@@ -435,11 +448,11 @@ func formatUserShellResult(msg *nativeMessage) string {
 		sections = append(sections, "Exit code: "+exit)
 	}
 	switch msg.Status {
-	case "timeout":
+	case shellTimeout:
 		sections = append(sections, "Timed out.")
-	case "killed":
+	case shellKilled:
 		sections = append(sections, "Killed.")
-	case "running":
+	case shellRunning:
 		sections = append(sections, "Still running.")
 	}
 	return strings.Join(sections, "\n\n")
@@ -463,10 +476,7 @@ func exitCodeText(raw json.RawMessage) string {
 }
 
 func (b *exchangeBuilder) addAssistant(id, timestamp string, msg *nativeMessage) {
-	model := ""
-	if msg.Model != nil {
-		model = msg.Model.ID
-	}
+	model := modelID(msg)
 
 	var produced []schema.Message
 	// Text parts carry no time of their own; they take the latest time seen
@@ -508,8 +518,9 @@ func (b *exchangeBuilder) addAssistant(id, timestamp string, msg *nativeMessage)
 	}
 
 	if msg.Error != nil && strings.TrimSpace(msg.Error.Message) != "" {
+		// The failure ends the step, so it follows any part already shown.
 		produced = append(produced, schema.Message{
-			ID: id + ":error", Timestamp: timestamp, Role: schema.RoleAgent, Model: model,
+			ID: id + ":error", Timestamp: partTimestamp, Role: schema.RoleAgent, Model: model,
 			Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "[error] " + msg.Error.Message}},
 		})
 	}
@@ -573,9 +584,9 @@ func toolInputOutput(state *toolState) (map[string]any, map[string]any) {
 	var files []string
 	for _, item := range state.Content {
 		switch item.Type {
-		case "text":
+		case toolContentText:
 			texts = append(texts, item.Text)
-		case "file":
+		case toolContentFile:
 			files = append(files, describeFileContent(item))
 		}
 	}
@@ -624,10 +635,7 @@ func (b *exchangeBuilder) addCompaction(id, timestamp string, msg *nativeMessage
 		// A running compaction is rewritten in place once it finishes.
 		return
 	}
-	model := ""
-	if msg.Model != nil {
-		model = msg.Model.ID
-	}
+	model := modelID(msg)
 	b.appendMessage(id, schema.Message{
 		ID:        id,
 		Timestamp: timestamp,
@@ -636,6 +644,15 @@ func (b *exchangeBuilder) addCompaction(id, timestamp string, msg *nativeMessage
 		Content:   []schema.ContentPart{{Type: schema.ContentTypeText, Text: text}},
 		Usage:     mapUsage(msg.Tokens),
 	})
+}
+
+// modelID returns the id of the model that produced a record, or "" when the
+// record names none.
+func modelID(msg *nativeMessage) string {
+	if msg.Model == nil {
+		return ""
+	}
+	return msg.Model.ID
 }
 
 // mapUsage keeps OpenCode's distinct token kinds: input excludes cache reads,
@@ -671,7 +688,7 @@ func buildRawData(snapshot *sessionSnapshot) string {
 	var b strings.Builder
 	encoder := json.NewEncoder(&b)
 	// Keep <, > and & as written (shell commands, markup) instead of the
-	// &-style escapes json.Marshal applies for HTML embedding.
+	// \u0026-style escapes json.Marshal applies for HTML embedding.
 	encoder.SetEscapeHTML(false)
 	for _, record := range rawRecords(snapshot) {
 		// Encode writes the record followed by a newline, giving JSON lines.

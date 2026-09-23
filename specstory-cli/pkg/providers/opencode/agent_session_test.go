@@ -303,3 +303,29 @@ func TestDebugRawExport(t *testing.T) {
 		}
 	})
 }
+
+// TestConvertStepErrorFollowsItsParts covers a step that streams a part and
+// then fails: the error must not be stamped earlier than the part before it.
+func TestConvertStepErrorFollowsItsParts(t *testing.T) {
+	db := createFixtureDB(t, useFixtureStore(t))
+	project := newProjectDir(t, "project")
+	insertSession(t, db, "ses_fail", project, 1000, 9000)
+	insertMessage(t, db, "ses_fail", "msg_1", recordUser, 1, 1000, userData(1000, "do the thing"))
+	insertMessage(t, db, "ses_fail", "msg_2", recordAssistant, 2, 2000,
+		`{"time":{"created":2000},"agent":"build","model":{"id":"m","providerID":"p"},
+		  "content":[{"type":"reasoning","text":"thinking first","time":{"created":5000}}],
+		  "finish":"error","error":{"type":"provider.overloaded","message":"Overloaded"}}`)
+
+	session, err := NewProvider().GetAgentChatSession(project, "ses_fail", false)
+	if err != nil || session == nil {
+		t.Fatalf("GetAgentChatSession() = %v, %v", session, err)
+	}
+	messages := allMessages(session.SessionData)
+	last := messages[len(messages)-1]
+	if messageText(last) != "[error] Overloaded" {
+		t.Fatalf("last message = %q, want the step error", messageText(last))
+	}
+	if last.Timestamp < messages[len(messages)-2].Timestamp {
+		t.Errorf("error at %s precedes the part before it at %s", last.Timestamp, messages[len(messages)-2].Timestamp)
+	}
+}

@@ -157,8 +157,8 @@ func (p *Provider) SupportsReconstruction() bool {
 	return true
 }
 
-// idCounter disambiguates ids minted within the same millisecond, the way
-// OpenCode's own generator does.
+// idMutex guards idLastMillis and idLastCounter, which disambiguate ids minted
+// within the same millisecond the way OpenCode's own generator does.
 var (
 	idMutex       sync.Mutex
 	idLastMillis  int64

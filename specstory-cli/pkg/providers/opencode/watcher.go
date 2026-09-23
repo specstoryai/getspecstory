@@ -289,8 +289,11 @@ func nearestExistingDir(path string) string {
 // first time joins the baseline instead when its last write predates startup,
 // whichever check first reads it, so a failed or late first read cannot
 // republish history.
+//
+// Updates are collected first and delivered after the database is closed, so
+// a slow callback (a markdown write, a cloud sync) never holds the connection.
 func (w *sessionWatcher) check(trigger string) {
-	delivered := 0
+	var updates []*spi.AgentChatSession
 	err := withDatabase(func(db *sql.DB) error {
 		summaries, err := listSessionSummaries(db, w.projectPath)
 		if err != nil {
@@ -318,16 +321,17 @@ func (w *sessionWatcher) check(trigger string) {
 				continue
 			}
 			w.known[summary.ID] = sig
-			slog.Info("OpenCode watcher: Delivering session update",
-				"sessionId", session.SessionID, "trigger", trigger)
-			spi.DeliverSession(watcherLabel, w.callback, session)
-			delivered++
+			updates = append(updates, session)
 		}
 		return nil
 	})
 	if err != nil && !errors.Is(err, errNoDatabase) {
 		slog.Warn("OpenCode watcher: Check failed", "trigger", trigger, "error", err)
-		return
 	}
-	slog.Debug("OpenCode watcher: Check complete", "trigger", trigger, "delivered", delivered)
+	for _, session := range updates {
+		slog.Info("OpenCode watcher: Delivering session update",
+			"sessionId", session.SessionID, "trigger", trigger)
+		spi.DeliverSession(watcherLabel, w.callback, session)
+	}
+	slog.Debug("OpenCode watcher: Check complete", "trigger", trigger, "delivered", len(updates))
 }
