@@ -42,11 +42,14 @@ fi
 tools=$(jq -r 'select(.type=="text") | .part.text' stream.jsonl 2>/dev/null \
   | sed -e 's/^[[:space:]*`-]*//' -e 's/[[:space:]`]*$//' \
   | grep -E '^[a-z][a-z0-9_]*$' | sort -u || true)
-# The inventory always includes read and shell; missing either means the model
-# answered something other than its tool list.
-if ! grep -qx read <<<"$tools" || ! grep -qx shell <<<"$tools"; then
-  echo "list-tools: no usable tool list in the answer" >&2
-  jq -r 'select(.type=="error") | .error.message' stream.jsonl >&2 2>/dev/null || head -c 600 stream.jsonl >&2
-  exit 1
-fi
+# A self-report cannot prove it is complete, so the answer must at least name
+# the core tools every 2.x build declares; one that omits any of them is
+# treated as a failed reading, not a smaller inventory. Beyond that floor, a
+# changed list surfaces as a changed reading for the factory to audit.
+for core in read write edit glob grep shell; do
+  if ! grep -qx "$core" <<<"$tools"; then
+    echo "list-tools: answer omits core tool '$core'; not a complete inventory" >&2
+    exit 1
+  fi
+done
 printf '%s\n' "$tools"

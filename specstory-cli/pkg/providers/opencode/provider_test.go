@@ -246,3 +246,31 @@ func TestAttachmentOnlyPromptNamesTheSession(t *testing.T) {
 		t.Errorf("ListAllAgentChatSessions() = %d, %v; want 1", len(refs), err)
 	}
 }
+
+// TestShellOnlySessionIsNamedByItsCommand covers a session whose only user
+// activity is a `!` shell command: it is synced, detected and listed, named
+// by the command in both listing and conversion.
+func TestShellOnlySessionIsNamedByItsCommand(t *testing.T) {
+	db := createFixtureDB(t, useFixtureStore(t))
+	project := newProjectDir(t, "project")
+	insertSession(t, db, "ses_shell", project, 1000, 2000)
+	// Shape as captured in testdata/tui-session.jsonl.
+	insertMessage(t, db, "ses_shell", "msg_1", recordShell, 1, 1000,
+		`{"time":{"created":1000,"completed":1100},"shellID":"sh_1","command":"make build-release","status":"exited","exit":0,"output":{"output":"ok\n","cursor":3,"size":3,"truncated":false}}`)
+	p := NewProvider()
+
+	sessions, err := p.GetAgentChatSessions(project, false, nil)
+	if err != nil || len(sessions) != 1 {
+		t.Fatalf("GetAgentChatSessions() = %d sessions, %v; want 1", len(sessions), err)
+	}
+	listed, err := p.ListAgentChatSessions(project)
+	if err != nil || len(listed) != 1 || listed[0].Slug != sessions[0].Slug {
+		t.Errorf("listing = %+v, %v; want slug %q", listed, err, sessions[0].Slug)
+	}
+	if !strings.Contains(sessions[0].Slug, "make") {
+		t.Errorf("slug %q is not named by the command", sessions[0].Slug)
+	}
+	if !p.DetectAgent(project, false) {
+		t.Error("DetectAgent() = false for a shell-only session")
+	}
+}

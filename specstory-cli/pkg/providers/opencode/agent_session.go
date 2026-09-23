@@ -180,8 +180,9 @@ type rawRecord struct {
 }
 
 // convertSnapshot turns a session snapshot into the provider-agnostic session.
-// It returns nil when the session has no user prompt yet (OpenCode creates the
-// session row before the first message arrives).
+// It returns nil when the session has neither a user prompt nor a user shell
+// command yet (OpenCode creates the session row before the first message
+// arrives).
 func convertSnapshot(snapshot *sessionSnapshot, projectPath string, debugRaw bool) *spi.AgentChatSession {
 	if snapshot == nil {
 		return nil
@@ -226,6 +227,10 @@ func buildSessionData(snapshot *sessionSnapshot, projectPath string) (*schema.Se
 		builder.addRecord(&snapshot.Messages[i])
 	}
 	builder.flush()
+	if builder.firstPrompt == "" {
+		// A session of user shell commands only is named by its first one.
+		builder.firstPrompt = builder.firstShell
+	}
 
 	slug := defaultSlug
 	if builder.firstPrompt != "" {
@@ -275,6 +280,7 @@ type exchangeBuilder struct {
 	exchanges     []schema.Exchange
 	current       *schema.Exchange
 	firstPrompt   string
+	firstShell    string
 }
 
 func (b *exchangeBuilder) addRecord(record *messageRecord) {
@@ -417,6 +423,9 @@ func formatAttachments(files []fileAttachment, agents []agentAttachment) string 
 func (b *exchangeBuilder) addShell(id, timestamp string, msg *nativeMessage) {
 	if strings.TrimSpace(msg.Command) == "" {
 		return
+	}
+	if b.firstShell == "" {
+		b.firstShell = strings.TrimSpace(msg.Command)
 	}
 	parts := []schema.ContentPart{{
 		Type: schema.ContentTypeText,

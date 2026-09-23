@@ -171,7 +171,7 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	}
 
 	for _, summary := range summaries {
-		if firstPromptText(summary.FirstUserData) != "" {
+		if summaryPrompt(summary) != "" {
 			return true
 		}
 	}
@@ -405,7 +405,7 @@ func projectSessionSummaries(projectPath string) ([]sessionSummary, error) {
 // session has no prompt yet. The slug is derived exactly as conversion derives
 // it so listings name sessions the way their markdown files are named.
 func summaryMetadata(summary sessionSummary) *spi.SessionMetadata {
-	prompt := firstPromptText(summary.FirstUserData)
+	prompt := summaryPrompt(summary)
 	if prompt == "" {
 		return nil
 	}
@@ -423,6 +423,25 @@ func summaryMetadata(summary sessionSummary) *spi.SessionMetadata {
 		Slug:      slug,
 		Name:      name,
 	}
+}
+
+// summaryPrompt names a session the way conversion does: its first user
+// prompt, else, for a session of shell commands only, its first command.
+func summaryPrompt(summary sessionSummary) string {
+	if prompt := firstPromptText(summary.FirstUserData); prompt != "" {
+		return prompt
+	}
+	if summary.FirstShellData == "" {
+		return ""
+	}
+	var shell struct {
+		Command string `json:"command"`
+	}
+	if err := json.Unmarshal([]byte(summary.FirstShellData), &shell); err != nil {
+		slog.Debug("summaryPrompt: Unreadable OpenCode shell record", "error", err)
+		return ""
+	}
+	return strings.TrimSpace(shell.Command)
 }
 
 // firstPromptText names a session from its first user record payload, the

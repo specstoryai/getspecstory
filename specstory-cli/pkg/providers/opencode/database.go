@@ -89,6 +89,9 @@ type sessionSummary struct {
 	// FirstUserData is the payload of the earliest user record, empty when
 	// the session has none yet.
 	FirstUserData string
+	// FirstShellData is the payload of the earliest user shell command, which
+	// names a session that has no typed prompt.
+	FirstShellData string
 }
 
 // signature is the change-detection key for a session: any write OpenCode
@@ -209,7 +212,8 @@ func verifySchema(db *sql.DB) error {
 //
 // The first-prompt subquery picks the first user record with text or an
 // attachment, the same record conversion names the session from; a record
-// with neither renders nothing. json_valid guards json_extract, which would
+// with neither renders nothing. The first user shell command is read too, for
+// a session that has only those. json_valid guards json_extract, which would
 // otherwise abort the whole listing on one corrupt record.
 const summaryQuery = `
 SELECT s.id, s.directory, IFNULL(s.title, ''), s.time_created, s.time_updated,
@@ -220,6 +224,10 @@ SELECT s.id, s.directory, IFNULL(s.title, ''), s.time_created, s.time_updated,
                  AND (trim(IFNULL(json_extract(m.data, '$.text'), ''), ' ' || char(9, 10, 13)) != ''
                       OR IFNULL(json_array_length(m.data, '$.files'), 0) > 0
                       OR IFNULL(json_array_length(m.data, '$.agents'), 0) > 0)
+               ORDER BY m.seq LIMIT 1), ''),
+       IFNULL((SELECT m.data FROM session_message m
+               WHERE m.session_id = s.id AND m.type = 'shell' AND json_valid(m.data)
+                 AND trim(IFNULL(json_extract(m.data, '$.command'), ''), ' ' || char(9, 10, 13)) != ''
                ORDER BY m.seq LIMIT 1), '')
 FROM session_v2 s
 WHERE s.parent_id IS NULL`
@@ -245,7 +253,7 @@ func listSessionSummaries(db *sql.DB, directory string) ([]sessionSummary, error
 	for rows.Next() {
 		var s sessionSummary
 		if err := rows.Scan(&s.ID, &s.Directory, &s.Title, &s.TimeCreated, &s.TimeUpdated,
-			&s.MessageCount, &s.LastMessageUpdate, &s.FirstUserData); err != nil {
+			&s.MessageCount, &s.LastMessageUpdate, &s.FirstUserData, &s.FirstShellData); err != nil {
 			return nil, fmt.Errorf("failed to read OpenCode session row: %w", err)
 		}
 		summaries = append(summaries, s)
