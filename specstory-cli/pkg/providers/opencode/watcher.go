@@ -109,14 +109,20 @@ func startWatcher(projectPath string, debugRaw bool, callback func(*spi.AgentCha
 		return nil, err
 	}
 
-	if _, err := os.Stat(dbPath); err == nil {
+	_, statErr := os.Stat(dbPath)
+	switch {
+	case statErr == nil:
 		// OpenCode's database is normally in WAL mode already; this makes sure
 		// every write reaches the -wal file the watch relies on.
 		if err := spi.EnsureWALMode(dbPath); err != nil {
 			slog.Warn("WatchAgent: Failed to ensure WAL mode on OpenCode database", "path", dbPath, "error", err)
 		}
-	} else {
+	case errors.Is(statErr, os.ErrNotExist):
 		w.adoptExisting = true
+	default:
+		// The store may well exist; adopting it would republish its history
+		// once it becomes readable, so the startup boundary still applies.
+		slog.Warn("WatchAgent: Cannot inspect OpenCode database", "path", dbPath, "error", statErr)
 	}
 
 	if beforeFirstCheck != nil {
