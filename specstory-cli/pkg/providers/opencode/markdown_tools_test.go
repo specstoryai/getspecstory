@@ -233,7 +233,7 @@ func TestRenderQuestion(t *testing.T) {
 }
 
 // TestToolInventorySweep checks every tool OpenCode 2.0.14 declares (see
-// examples/tools.txt) has a deliberate classification, so a tool dropped from
+// testdata/tools.txt) has a deliberate classification, so a tool dropped from
 // the switch surfaces as a failure rather than as "unknown".
 func TestToolInventorySweep(t *testing.T) {
 	want := map[string]string{
@@ -251,7 +251,7 @@ func TestToolInventorySweep(t *testing.T) {
 		"write":     schema.ToolTypeWrite,
 	}
 
-	file, err := os.Open(filepath.Join("examples", "tools.txt"))
+	file, err := os.Open(filepath.Join("testdata", "tools.txt"))
 	if err != nil {
 		t.Fatal(err)
 	}

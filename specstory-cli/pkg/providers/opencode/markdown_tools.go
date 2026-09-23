@@ -19,7 +19,7 @@ import (
 // stays in RawData.
 const maxResultRunes = 20000
 
-// Tool names as OpenCode 2.0.14 records them (see tools.txt in examples/).
+// Tool names as OpenCode 2.0.14 records them (see testdata/tools.txt).
 // They are compared after spi.NormalizeToolName.
 const (
 	toolRead      = "read"

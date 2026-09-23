@@ -43,7 +43,7 @@ The native records are the captured fixtures in `../testdata/`; the rendered his
 
 ## Inventory coverage
 
-`tools.txt` lists the direct tools declared to the model; two `factory/list-tools` readings under an isolated home agreed on the same twelve.
+`../testdata/tools.txt` (read by `TestToolInventorySweep`) lists the direct tools declared to the model; two `factory/list-tools` readings under an isolated home agreed on the same twelve.
 
 | Tool | Declared | Enabled | Exercised | Notes |
 |---|---|---|---|---|
