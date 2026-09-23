@@ -1,6 +1,6 @@
 # Specstory CLI Changelog
 
-## Unreleased
+## v2.15.0 2026-09-23
 
 ### 📢 Announcements
 
