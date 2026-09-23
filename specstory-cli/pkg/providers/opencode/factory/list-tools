@@ -32,13 +32,20 @@ timeout 300 "$opencode" run --standalone --format json -m "$OPENCODE_FACTORY_MOD
   "List the exact name of every tool you can call directly, as declared in your tool definitions. Do not include Code Mode catalog entries reachable only through execute. Output one bare name per line and nothing else." \
   < /dev/null > stream.jsonl || status=$?
 
+# A run that timed out or failed may have printed only part of the answer.
+if [ "$status" -ne 0 ]; then
+  echo "list-tools: opencode exited $status" >&2
+  jq -r 'select(.type=="error") | .error.message' stream.jsonl >&2 2>/dev/null || head -c 600 stream.jsonl >&2
+  exit 1
+fi
+
 tools=$(jq -r 'select(.type=="text") | .part.text' stream.jsonl 2>/dev/null \
   | sed -e 's/^[[:space:]*`-]*//' -e 's/[[:space:]`]*$//' \
   | grep -E '^[a-z][a-z0-9_]*$' | sort -u || true)
 # The inventory always includes read and shell; missing either means the model
 # answered something other than its tool list.
 if ! grep -qx read <<<"$tools" || ! grep -qx shell <<<"$tools"; then
-  echo "list-tools: no usable tool list (opencode exit $status)" >&2
+  echo "list-tools: no usable tool list in the answer" >&2
   jq -r 'select(.type=="error") | .error.message' stream.jsonl >&2 2>/dev/null || head -c 600 stream.jsonl >&2
   exit 1
 fi
