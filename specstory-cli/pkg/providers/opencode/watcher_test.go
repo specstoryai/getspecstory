@@ -68,12 +68,35 @@ func waitFor(t *testing.T, condition func() bool) bool {
 // quietPeriod is long enough for several reconciliation passes.
 func quietPeriod() { time.Sleep(4 * reconcileInterval) }
 
-// writeSession writes a session with one prompt and one reply, stamped at ms.
+// writeSession writes a session with one prompt and one reply, stamped at ms,
+// in one transaction. Separate commits let a running watcher read the session
+// between them and deliver each intermediate state, which tests expecting a
+// single delivery would count as a duplicate (seen on Windows CI).
 func writeSession(t *testing.T, db *sql.DB, id, project string, ms int64) {
 	t.Helper()
-	insertSession(t, db, id, project, ms, ms)
-	insertMessage(t, db, id, id+"_u", recordUser, 1, ms, userData(ms, "prompt for "+id))
-	insertMessage(t, db, id, id+"_a", recordAssistant, 2, ms, assistantData(ms, "reply for "+id))
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(`INSERT INTO session_v2 (id, project_id, slug, directory, version, time_created, time_updated)
+		VALUES (?, 'test-project', 'test-slug', ?, '2.0.14', ?, ?)`, id, project, ms, ms); err != nil {
+		t.Fatal(err)
+	}
+	for _, message := range []struct {
+		id, recordType, data string
+		seq                  int64
+	}{
+		{id + "_u", recordUser, userData(ms, "prompt for "+id), 1},
+		{id + "_a", recordAssistant, assistantData(ms, "reply for "+id), 2},
+	} {
+		if _, err := tx.Exec(`INSERT INTO session_message (id, session_id, type, seq, time_created, time_updated, data)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`, message.id, id, message.recordType, message.seq, ms, ms, message.data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // appendReply adds a reply to an existing session, stamped now, in one
