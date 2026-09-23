@@ -89,11 +89,11 @@ Tool names are stored bare (`read`, not `functions.read`). The inventory and the
 | `grep` | `pattern`, optional `path`, `include` | `Found N matches` then per-file `Line N:` rows; `metadata.matches`. |
 | `shell` | `command`, optional `workdir`, `timeout` (milliseconds) | Output text, then a separate `Command exited with code N.` text item for the model; `metadata.exit`. |
 | `webfetch` | `url`, optional `format` (`html` observed) | The page converted to markdown, or raw HTML with `format: "html"`. |
-| `websearch` | `query` | Only failures were observed (`Web search cancelled`, status `error`). |
-| `skill` | `id` | `<skill_content name="...">` wrapping the skill document; `metadata.name`, `metadata.directory`. |
+| `websearch` | `query` | One markdown document: a `## [Title](url)` heading per hit followed by the page excerpt the provider attached (`metadata.provider`, `firecrawl` observed). An excerpt can carry the page's own anchor headings (`## [](url#section)  Section`), which have text after the link. Without a provider the call fails (`Web search cancelled`, status `error`). |
+| `skill` | `id` | `<skill_content name="...">` wrapping the skill document, followed by a model-facing footer (`Base directory for this skill: ...`, a note on relative paths, `Note: file list is sampled.`, and a `<skill_files>` listing) that is not part of the skill; `metadata.name`, `metadata.directory`. |
 | `subagent` | `agent`, `description`, `prompt` | `<subagent sessionID="..." state="completed">` wrapping the subagent's final answer; `metadata.sessionID`. The subagent's own conversation is a child session (`parent_id` set). |
 | `question` | `questions[]`: `{question, header, options[]: {label, description}}` | Text restating the answers for the model; `metadata.answers` holds the chosen labels per question. Only asked in the interactive TUI, which shows a form. |
-| `execute` | `code` (JavaScript run in OpenCode's "Code Mode" sandbox, calling `search()` and `tools.<path>(...)`) | The returned value as text, or the thrown error as text; `metadata.toolCalls[]` lists each inner call's `tool`, `status` and `input`. |
+| `execute` | `code` (JavaScript run in OpenCode's "Code Mode" sandbox, calling `search()` and `tools.<path>(...)`) | The returned value as text, or the thrown error as text with `metadata.error: true` (the call's own status stays `completed`); `metadata.toolCalls[]` lists each inner call's `tool`, `status` and `input`. |
 
 ## Write lifecycle
 

@@ -172,8 +172,8 @@ func TestRenderCapturedToolCalls(t *testing.T) {
 			name:    "skill content without the model-facing wrapper",
 			tool:    findTool(t, exercise, "skill", nil),
 			summary: "Tool use: **skill** `opencode`",
-			want:    []string{"```markdown\n# Skill: OpenCode"},
-			reject:  []string{"<skill_content"},
+			want:    []string{"Directory: `/builtin`", "```markdown\n# Skill: OpenCode"},
+			reject:  []string{"<skill_content", "<skill_files", "Base directory for this skill", "file list is sampled"},
 		},
 		{
 			name:    "subagent prompt and answer",
@@ -188,7 +188,7 @@ func TestRenderCapturedToolCalls(t *testing.T) {
 				code, _ := input["code"].(string)
 				return !strings.Contains(code, "try")
 			}),
-			want: []string{"```javascript\nconst s = search(", "[browser.disconnected]", "Tool calls:", "- `opencode.models` — completed", "- `browser.tabs.list` — error"},
+			want: []string{"```javascript\nconst s = search(", "**Error:**", "[browser.disconnected]", "Tool calls:", "- `opencode.models` — completed", "- `browser.tabs.list` — error"},
 		},
 		{
 			name: "execute returning an object",
@@ -221,6 +221,9 @@ func TestRenderCapturedToolCalls(t *testing.T) {
 func TestRenderQuestion(t *testing.T) {
 	tools := renderedTools(t, "question.jsonl", questionSessionID)
 	question := findTool(t, tools, "question", nil)
+	if question.summary != "Tool use: **question** `Favorite color`" {
+		t.Errorf("summary = %q, want the question's header", question.summary)
+	}
 	for _, want := range []string{"**Which color do you prefer?**", "- Red — A warm, bold color.", "- Blue — A calm, cool color.", "Answer: Green"} {
 		if !strings.Contains(question.markdown, want) {
 			t.Errorf("markdown missing %q:\n%s", want, question.markdown)
@@ -317,6 +320,12 @@ func TestRenderEdgeCases(t *testing.T) {
 			reject: []string{"Exit code"},
 		},
 		{
+			name:   "a file's final newline does not become a blank line in the fence",
+			tool:   schema.ToolInfo{Name: "write", Input: map[string]any{"path": "a.txt", "content": "one\ntwo\n"}},
+			want:   []string{"```txt\none\ntwo\n```"},
+			reject: []string{"two\n\n```"},
+		},
+		{
 			name:    "backticks in a summary argument stay inside the code span",
 			tool:    schema.ToolInfo{Name: "grep", Input: map[string]any{"pattern": "a`b"}},
 			summary: "Tool use: **grep** `` a`b ``",
@@ -338,6 +347,88 @@ func TestRenderEdgeCases(t *testing.T) {
 				if strings.Contains(markdown, reject) {
 					t.Errorf("markdown contains %q:\n%s", reject, markdown)
 				}
+			}
+		})
+	}
+}
+
+// TestRenderWebSearchResults covers the search document OpenCode 2.0.14's
+// search provider returns: one "## [Title](url)" heading per hit followed by a
+// page excerpt, where the excerpt can carry the page's own anchor headings.
+func TestRenderWebSearchResults(t *testing.T) {
+	const twoHits = "## [OpenCode](https://opencode.ai/)\n\n# The open source AI coding agent\n```\ncurl -fsSL https://opencode.ai/v2/install | bash\n```\n\n### What is OpenCode?\nOpenCode is an open source agent.\n\n" +
+		"## [OpenCode - Overview - Z.AI](https://docs.z.ai/devpack/tool/opencode)\n\n## [\u200b](https://docs.z.ai/devpack/tool/opencode#step-1-installing-opencode)  Step 1: Installing OpenCode\nInstall it.\n"
+	tests := []struct {
+		name   string
+		output map[string]any
+		want   []string
+		reject []string
+	}{
+		{
+			name:   "hits become a linked list with their excerpts",
+			output: map[string]any{"status": "completed", "texts": []string{twoHits}, "metadata": map[string]any{"provider": "firecrawl"}},
+			want: []string{
+				"Provider: `firecrawl`",
+				"2 results:\n\n- [OpenCode](https://opencode.ai/)\n\n  ````markdown\n  # The open source AI coding agent\n  ```\n  curl -fsSL",
+				"- [OpenCode - Overview - Z.AI](https://docs.z.ai/devpack/tool/opencode)\n\n  ```markdown\n  ## [\u200b](https://docs.z.ai/devpack/tool/opencode#step-1-installing-opencode)  Step 1: Installing OpenCode\n  Install it.\n  ```",
+			},
+			reject: []string{"3 results", "Result:\n"},
+		},
+		{
+			name:   "a placeholder link text is named by its URL",
+			output: map[string]any{"status": "completed", "texts": []string{"## [\u200b](https://example.com/a)\n\nexcerpt"}},
+			want:   []string{"1 results:\n\n- [https://example.com/a](https://example.com/a)\n\n  ```markdown\n  excerpt\n  ```"},
+		},
+		{
+			name:   "a hit without an excerpt is just its link",
+			output: map[string]any{"status": "completed", "texts": []string{"## [A](https://a.example)\n\n## [B](https://b.example)\n\nonly B has text"}},
+			want:   []string{"- [A](https://a.example)\n\n- [B](https://b.example)\n\n  ```markdown\n  only B has text\n  ```"},
+		},
+		{
+			name:   "text without hit headings falls back to a fence",
+			output: map[string]any{"status": "completed", "texts": []string{"No results found for the query."}},
+			want:   []string{"Result:\n\n```text\nNo results found for the query.\n```"},
+			reject: []string{"results:"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tool := schema.ToolInfo{Name: "websearch", Input: map[string]any{"query": "OpenCode"}, Output: tt.output}
+			markdown := formatToolAsMarkdown(&tool)
+			for _, want := range tt.want {
+				if !strings.Contains(markdown, want) {
+					t.Errorf("markdown missing %q:\n%s", want, markdown)
+				}
+			}
+			for _, reject := range tt.reject {
+				if strings.Contains(markdown, reject) {
+					t.Errorf("markdown contains %q:\n%s", reject, markdown)
+				}
+			}
+		})
+	}
+}
+
+// TestStripSkillFooter covers the footer OpenCode appends to a skill document,
+// which is removed only when both its opening line and closing tag are there.
+func TestStripSkillFooter(t *testing.T) {
+	const footer = "\n\nBase directory for this skill: /builtin\nRelative paths in this skill are relative to this base directory.\nNote: file list is sampled.\n\n<skill_files>\n</skill_files>"
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "footer removed", in: "# Skill\n\nBody." + footer, want: "# Skill\n\nBody."},
+		{name: "footer with trailing newline removed", in: "# Skill" + footer + "\n", want: "# Skill"},
+		{name: "no footer", in: "# Skill\n\nBody.\n", want: "# Skill\n\nBody.\n"},
+		// A skill that talks about its base directory keeps that text.
+		{name: "opening line without the closing tag is content", in: "# Skill\nBase directory for this skill: /x\nMore.", want: "# Skill\nBase directory for this skill: /x\nMore."},
+		{name: "closing tag without the opening line is content", in: "# Skill\n<skill_files>\n</skill_files>", want: "# Skill\n<skill_files>\n</skill_files>"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := stripSkillFooter(tt.in); got != tt.want {
+				t.Errorf("stripSkillFooter(%q) = %q, want %q", tt.in, got, tt.want)
 			}
 		})
 	}
@@ -384,6 +475,22 @@ func TestRenderMalformedMetadata(t *testing.T) {
 					"metadata": map[string]any{"answers": []any{[]any{"Green"}, "not-a-list", []any{"Large", 3}}}}},
 			want:   []string{"Answers:\n- Green\n- Large"},
 			reject: []string{"User picked"},
+		},
+		{
+			name: "execute that threw a one-line error is labeled inline",
+			tool: schema.ToolInfo{Name: "execute", Input: map[string]any{"code": "x"},
+				Output: map[string]any{"status": "completed", "texts": []string{"ReferenceError: Unknown identifier 'x'. (line 1, col 1)"},
+					"metadata": map[string]any{"error": true}}},
+			want:   []string{"**Error:** ReferenceError: Unknown identifier 'x'. (line 1, col 1)"},
+			reject: []string{"Result:", "```text"},
+		},
+		{
+			name: "execute that threw a multi-line error is labeled above a fence",
+			tool: schema.ToolInfo{Name: "execute", Input: map[string]any{"code": "x"},
+				Output: map[string]any{"status": "completed", "texts": []string{"TypeError: boom\n  at line 2"},
+					"metadata": map[string]any{"error": true, "toolCalls": []any{map[string]any{"tool": "browser.tabs.open", "status": "error"}}}}},
+			want:   []string{"**Error:**\n\n```text\nTypeError: boom\n  at line 2\n```", "Tool calls:\n\n- `browser.tabs.open` — error"},
+			reject: []string{"Result:"},
 		},
 		{
 			name: "execute without inner calls lists none",

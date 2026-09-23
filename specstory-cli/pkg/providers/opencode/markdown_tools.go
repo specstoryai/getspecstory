@@ -107,6 +107,8 @@ func toolSummary(name string, tool *schema.ToolInfo) string {
 		argument = spi.StringValue(tool.Input, "id")
 	case toolSubagent:
 		argument = spi.StringValue(tool.Input, "description")
+	case toolQuestion:
+		argument = firstQuestionHeader(tool.Input)
 	}
 	argument = strings.TrimSpace(argument)
 	if argument == "" {
@@ -155,6 +157,17 @@ func formatToolBody(name string, input, output map[string]any) string {
 	default:
 		return spi.RenderGenericJSON(input)
 	}
+}
+
+// firstQuestionHeader returns the short label OpenCode's form shows above the
+// first question, which names the call better than the bare tool name.
+func firstQuestionHeader(input map[string]any) string {
+	questions, _ := input["questions"].([]any)
+	if len(questions) == 0 {
+		return ""
+	}
+	question, _ := questions[0].(map[string]any)
+	return spi.StringValue(question, "header")
 }
 
 // formatQuestionBody lists each question the agent asked the user with its
@@ -211,7 +224,9 @@ func formatWriteBody(input map[string]any) string {
 	if !hasContent {
 		return ""
 	}
-	return spi.CodeFence(spi.LanguageFromPath(path), content)
+	// The final newline is the file's line terminator; kept, it renders as a
+	// blank line before the closing fence.
+	return spi.CodeFence(spi.LanguageFromPath(path), strings.TrimSuffix(content, "\n"))
 }
 
 // formatEditBody prefers the unified diff OpenCode computed for each file,
@@ -315,21 +330,16 @@ func formatToolResult(name string, input, output map[string]any) string {
 			lang = "html"
 		}
 		sections = append(sections, resultBlock(lang, strings.Join(texts, "\n")))
+	case toolWebSearch:
+		sections = append(sections, formatWebSearchResult(output, texts))
 	case toolSkill:
-		sections = append(sections, resultBlock("markdown", unwrapTag(strings.Join(texts, "\n"), "skill_content")))
+		sections = append(sections, formatSkillResult(output, texts))
 	case toolSubagent:
 		sections = append(sections, formatSubagentResult(texts))
 	case toolQuestion:
 		sections = append(sections, formatQuestionAnswers(output, texts))
 	case toolExecute:
-		// Code Mode returns whatever the script returned; a returned object
-		// arrives as JSON text.
-		text := strings.Join(texts, "\n")
-		lang := "text"
-		if json.Valid([]byte(strings.TrimSpace(text))) {
-			lang = "json"
-		}
-		sections = append(sections, resultBlock(lang, text), formatInnerToolCalls(output))
+		sections = append(sections, formatExecuteResult(output, texts))
 	default:
 		sections = append(sections, resultBlock("text", strings.Join(texts, "\n")))
 	}
@@ -443,6 +453,146 @@ func formatSubagentResult(texts []string) string {
 		lines = append(lines, block)
 	}
 	return strings.Join(lines, "\n\n")
+}
+
+// webSearchHitPattern matches the heading OpenCode's search provider puts
+// above each hit: "## [Title](url)" and nothing else on the line. A page's own
+// anchor headings ("## [](url#section)  Section") carry text after the link
+// and so stay inside the excerpt they belong to.
+var webSearchHitPattern = regexp.MustCompile(`^## \[(.*)\]\((\S+)\)$`)
+
+// formatWebSearchResult renders the hits a search returned as a list of links,
+// each followed by the page excerpt the provider attached to it. The payload is
+// one markdown document, a "## [Title](url)" heading per hit, so a result that
+// does not have that shape falls back to a plain fence.
+func formatWebSearchResult(output map[string]any, texts []string) string {
+	metadata, _ := output["metadata"].(map[string]any)
+	var sections []string
+	if provider := labeledLines(metadata, "provider", "Provider"); provider != "" {
+		sections = append(sections, provider)
+	}
+
+	text := spi.CapRunes(strings.Trim(strings.Join(texts, "\n"), "\n"), maxResultRunes)
+	hits := splitWebSearchHits(text)
+	if len(hits) == 0 {
+		sections = append(sections, resultBlock("text", text))
+		return joinNonEmpty(sections)
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d results:\n", len(hits))
+	for _, hit := range hits {
+		fmt.Fprintf(&b, "\n- [%s](%s)\n", hit.title, hit.url)
+		if hit.excerpt != "" {
+			// Indented so the excerpt stays inside its list item.
+			b.WriteString("\n" + indentLines(spi.CodeFence("markdown", hit.excerpt), "  ") + "\n")
+		}
+	}
+	sections = append(sections, strings.TrimRight(b.String(), "\n"))
+	return joinNonEmpty(sections)
+}
+
+// webSearchHit is one search result: its link and the excerpt beneath it.
+type webSearchHit struct {
+	title, url, excerpt string
+}
+
+// splitWebSearchHits cuts the search document at each hit heading. Text before
+// the first heading is not a hit and is dropped only when the document has
+// hits at all; a document without any returns nil so the caller can fence it.
+func splitWebSearchHits(text string) []webSearchHit {
+	var hits []webSearchHit
+	var excerpt []string
+	flush := func() {
+		if len(hits) > 0 {
+			hits[len(hits)-1].excerpt = strings.Trim(strings.Join(excerpt, "\n"), "\n")
+		}
+		excerpt = nil
+	}
+	for _, line := range strings.Split(text, "\n") {
+		match := webSearchHitPattern.FindStringSubmatch(line)
+		if match == nil {
+			excerpt = append(excerpt, line)
+			continue
+		}
+		flush()
+		// Link text can be a placeholder (a zero-width space was observed);
+		// the URL then names the hit.
+		title := strings.Join(strings.Fields(strings.ReplaceAll(match[1], "\u200b", " ")), " ")
+		if title == "" {
+			title = match[2]
+		}
+		hits = append(hits, webSearchHit{title: title, url: match[2]})
+	}
+	flush()
+	return hits
+}
+
+// indentLines prefixes every line of text with indent.
+func indentLines(text, indent string) string {
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		if line != "" {
+			lines[i] = indent + line
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// skillFooterMarker opens the footer OpenCode appends to a skill document for
+// the model: the base directory, a note on path resolution, and a sampled
+// <skill_files> listing. None of it is part of the skill.
+const skillFooterMarker = "\nBase directory for this skill:"
+
+// formatSkillResult renders the skill document without the model-facing
+// wrapper and footer OpenCode adds, and names the directory it was loaded from.
+func formatSkillResult(output map[string]any, texts []string) string {
+	metadata, _ := output["metadata"].(map[string]any)
+	document := stripSkillFooter(unwrapTag(strings.Join(texts, "\n"), "skill_content"))
+	return joinNonEmpty([]string{
+		labeledLines(metadata, "directory", "Directory"),
+		resultBlock("markdown", document),
+	})
+}
+
+// stripSkillFooter removes OpenCode's footer from a skill document. Both the
+// footer's opening line and its closing </skill_files> tag must be present, so
+// a skill that merely mentions a base directory keeps its text.
+func stripSkillFooter(document string) string {
+	trimmed := strings.TrimRight(document, "\n")
+	if !strings.HasSuffix(trimmed, "</skill_files>") {
+		return document
+	}
+	start := strings.LastIndex(trimmed, skillFooterMarker)
+	if start < 0 {
+		return document
+	}
+	return strings.TrimRight(trimmed[:start], "\n")
+}
+
+// formatExecuteResult renders what a Code Mode script returned, then the
+// catalog calls it made. A script that threw still finishes with status
+// "completed"; OpenCode flags it in metadata and the thrown message is the
+// result text, so that flag is what marks the run as failed.
+func formatExecuteResult(output map[string]any, texts []string) string {
+	metadata, _ := output["metadata"].(map[string]any)
+	text := strings.Trim(strings.Join(texts, "\n"), "\n")
+
+	var sections []string
+	switch failed, _ := metadata["error"].(bool); {
+	case failed && strings.Contains(text, "\n"):
+		sections = append(sections, "**Error:**", spi.CodeFence("text", spi.CapRunes(text, maxResultRunes)))
+	case failed:
+		sections = append(sections, "**Error:** "+text)
+	default:
+		// A returned object arrives as JSON text.
+		lang := "text"
+		if json.Valid([]byte(text)) {
+			lang = "json"
+		}
+		sections = append(sections, resultBlock(lang, text))
+	}
+	return joinNonEmpty(append(sections, formatInnerToolCalls(output)))
 }
 
 // unwrapTag strips an XML-style wrapper OpenCode adds for the model, such as
