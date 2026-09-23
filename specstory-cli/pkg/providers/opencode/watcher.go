@@ -98,6 +98,18 @@ func startWatcher(projectPath string, debugRaw bool, callback func(*spi.AgentCha
 		cancel:      cancel,
 	}
 
+	// Whether the store exists is decided before the boundary is taken: a
+	// store that appears at any point after this check arrived after startup
+	// and is adopted whole, even when its rows carry older timestamps.
+	switch _, statErr := os.Stat(dbPath); {
+	case errors.Is(statErr, os.ErrNotExist):
+		w.adoptExisting = true
+	case statErr != nil:
+		// The store may well exist; adopting it would republish its history
+		// once it becomes readable, so the startup boundary still applies.
+		slog.Warn("WatchAgent: Cannot inspect OpenCode database", "path", dbPath, "error", statErr)
+	}
+
 	// The boundary is taken before the watch exists, so a write that lands
 	// while the watch is being set up or before the first read is newer than
 	// the boundary and is emitted rather than absorbed into the baseline.
@@ -109,24 +121,16 @@ func startWatcher(projectPath string, debugRaw bool, callback func(*spi.AgentCha
 		return nil, err
 	}
 
-	_, statErr := os.Stat(dbPath)
-	switch {
-	case statErr == nil:
+	if beforeFirstCheck != nil {
+		beforeFirstCheck()
+	}
+
+	if _, err := os.Stat(dbPath); err == nil {
 		// OpenCode's database is normally in WAL mode already; this makes sure
 		// every write reaches the -wal file the watch relies on.
 		if err := spi.EnsureWALMode(dbPath); err != nil {
 			slog.Warn("WatchAgent: Failed to ensure WAL mode on OpenCode database", "path", dbPath, "error", err)
 		}
-	case errors.Is(statErr, os.ErrNotExist):
-		w.adoptExisting = true
-	default:
-		// The store may well exist; adopting it would republish its history
-		// once it becomes readable, so the startup boundary still applies.
-		slog.Warn("WatchAgent: Cannot inspect OpenCode database", "path", dbPath, "error", statErr)
-	}
-
-	if beforeFirstCheck != nil {
-		beforeFirstCheck()
 	}
 
 	slog.Info("OpenCode watcher started",
@@ -139,8 +143,9 @@ func startWatcher(projectPath string, debugRaw bool, callback func(*spi.AgentCha
 	return w, nil
 }
 
-// beforeFirstCheck, when set by a test, runs after the watch is established
-// and before the first read, where real activity can race the startup.
+// beforeFirstCheck, when set by a test, runs after the boundary and the watch
+// are established and before the first read, where real activity (a write, or
+// a store created or restored) can race the startup.
 var beforeFirstCheck func()
 
 // Stop ends the watch after delivering any change that has not been delivered

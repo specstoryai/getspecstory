@@ -168,6 +168,32 @@ func TestWatcherAdoptsStoreCreatedAfterStartup(t *testing.T) {
 	}
 }
 
+// TestWatcherAdoptsStoreRestoredDuringStartup covers a store that appears
+// after startup began but before the watcher's first read: it arrived after
+// startup, so its sessions are adopted even though their timestamps are old.
+func TestWatcherAdoptsStoreRestoredDuringStartup(t *testing.T) {
+	fastWatcherTiming(t)
+	project := newProjectDir(t, "project")
+	dbPath := useFixtureStore(t)
+
+	beforeFirstCheck = func() {
+		db := createFixtureDB(t, dbPath)
+		writeSession(t, db, "ses_restored", project, hourAgo())
+	}
+	t.Cleanup(func() { beforeFirstCheck = nil })
+
+	var got deliveries
+	w, err := startWatcher(project, false, got.callback)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Stop()
+
+	if !waitFor(t, func() bool { return got.count() == 1 }) {
+		t.Fatalf("delivered %v, want the session in the store restored during startup", got.ids())
+	}
+}
+
 // TestWatcherBaselinesSessionsDiscoveredLate covers a pre-existing store the
 // first read cannot see: sessions that predate startup are still baseline
 // when a later read discovers them.
