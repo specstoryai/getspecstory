@@ -6,7 +6,7 @@
 
 ## SpecStory CLI
 
-SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI, Muse Code, Qwen Code, Pi) as well as the Cursor IDE and VS Code Copilot (including VS Code Insiders, VSCodium, and VSCodium Insiders).
+SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI, Muse Code, OpenCode, Qwen Code, Pi) as well as the Cursor IDE and VS Code Copilot (including VS Code Insiders, VSCodium, and VSCodium Insiders).
 
 It saves your AI coding conversations as local markdown files of each session. It can optionally sync your markdown files to the [SpecStory Cloud](https://cloud.specstory.com), turning your AI chat history into a centralized knowledge system that you can chat with and search.
 
@@ -36,6 +36,7 @@ The following coding agents are supported in the SpecStory CLI:
 | [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)         | [deepseektui](pkg/providers/deepseektui/)       | JSON        | `~/.deepseek/sessions/`         |
 | [Antigravity CLI](https://antigravity.google/)                 | [antigravitycli](pkg/providers/antigravitycli/) | JSONL       | `~/.gemini/antigravity-cli/`    |
 | [Muse Code](https://developer.meta.com/ai/products/muse-code/) | [musecode](pkg/providers/musecode/)             | JSONL       | `~/.local/share/muse/sessions/` |
+| [OpenCode](https://opencode.ai/)                               | [opencode](pkg/providers/opencode/)             | SQLite      | `~/.local/share/opencode/`      |
 | [Pi](https://pi.dev)                                           | [piagent](pkg/providers/piagent/)               | JSONL       | `~/.pi/agent/sessions/`         |
 | [Qwen Code](https://github.com/QwenLM/qwen-code)               | [qwencode](pkg/providers/qwencode/)             | JSONL       | `~/.qwen/projects/`             |
 | [Grok Build](https://x.ai/cli)                                 | [grokbuild](pkg/providers/grokbuild/)           | JSONL       | `~/.grok/sessions/`             |
@@ -346,6 +347,9 @@ specstory sync --config-dir ~/specstory-configs/myproject
 # Muse Code command
 # muse_cmd = "muse"
 
+# OpenCode command
+# opencode_cmd = "opencode"
+
 # Pi command
 # pi_cmd = "pi"
 
@@ -385,6 +389,7 @@ specstory sync --config-dir ~/specstory-configs/myproject
 | `[providers]`     | `gemini_cmd`                       | `"gemini"`           | Gemini CLI command                                                  |
 | `[providers]`     | `antigravity_cmd`                  | `"agy"`              | Antigravity CLI command                                             |
 | `[providers]`     | `muse_cmd`                         | `"muse"`             | Muse Code command                                                   |
+| `[providers]`     | `opencode_cmd`                     | `"opencode"`         | OpenCode command                                                    |
 | `[providers]`     | `pi_cmd`                           | `"pi"`               | Pi command                                                          |
 | `[providers]`     | `qwen_cmd`                         | `"qwen"`             | Qwen Code command                                                   |
 | `[providers]`     | `grok_cmd`                         | `"grok"`             | Grok Build command                                                  |
@@ -646,7 +651,7 @@ Sync specific session with debug output:
     └── session-data.json # JSON version of the SessionData returned from the provider for this session
 ```
 
-Claude Code, Codex CLI, Qwen Code, Factory Droid, Pi, Muse Code, and Grok Build use sequentially numbered JSON files in source order. Codex and Grok preserve native number precision and key order. Grok also exports the sidecars used for conversion and refreshes debug files even when its accepted records contain no rendered conversation. Gemini uses numbered per-message diagnostic objects. Pi includes its session header and inactive branches. Muse preserves native envelopes, metadata, diagnostics, and task-stream records even when they are omitted from Markdown. Antigravity numbers records in native `step_index` order, retains the accepted transcript in source order, and copies async task logs into `tasks/` with their original names and bytes. DeepSeek TUI pretty-prints the original session JSON, including unknown fields, to `raw-session.json`.
+Claude Code, Codex CLI, Qwen Code, Factory Droid, Pi, Muse Code, OpenCode, and Grok Build use sequentially numbered JSON files in source order. Codex and Grok preserve native number precision and key order. Grok also exports the sidecars used for conversion and refreshes debug files even when its accepted records contain no rendered conversation. Gemini uses numbered per-message diagnostic objects. Pi includes its session header and inactive branches. Muse preserves native envelopes, metadata, diagnostics, and task-stream records even when they are omitted from Markdown. OpenCode exports its SQLite rows: the session row first, then every message row in sequence order, each with all of its stored columns. Antigravity numbers records in native `step_index` order, retains the accepted transcript in source order, and copies async task logs into `tasks/` with their original names and bytes. DeepSeek TUI pretty-prints the original session JSON, including unknown fields, to `raw-session.json`.
 
 All numbered exporters refresh their provider-owned debug files on each export, removing obsolete records while preserving `session-data.json` and unrelated files. Native exports use the same input snapshot as conversion. Cursor CLI filenames include both DAG position and SQLite rowid, with separate orphan files. Cursor IDE and VS Code Copilot use a single `raw-composer.json` or `raw-session.json` instead of numbered records.
 

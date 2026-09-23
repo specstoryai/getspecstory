@@ -77,6 +77,22 @@ type GlobalSessionRef struct {
 	Name       string // human-readable description (may be empty)
 	NativePath string // absolute path the provider opens to read this session
 	OriginCwd  string // working directory the session was launched from (-> project_id)
+
+	// Fingerprint is the provider's own freshness token for the session, for a
+	// store where NativePath is shared by every session (one SQLite database):
+	// that file's size and mtime move whenever any session changes, so a
+	// fingerprint taken from it would re-read every session on each reindex.
+	// Nil means reindex fingerprints NativePath itself.
+	Fingerprint *SessionFingerprint
+}
+
+// SessionFingerprint is a pair of values that change whenever a session's
+// content does. Reindex compares them to the pair it stored when it last
+// indexed the session; their meaning is the provider's (a row count and the
+// newest write time, say), not a file's size and mtime.
+type SessionFingerprint struct {
+	Size  int64
+	Mtime int64
 }
 
 // ScanReporter accumulates a provider's enumeration progress (sessions found) so the CLI can

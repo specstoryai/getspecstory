@@ -157,6 +157,33 @@ func TestDedupRefs(t *testing.T) {
 	}
 }
 
+// TestDedupRefsUsesProviderFingerprint covers a store shared by every session: a ref
+// carrying its own fingerprint is keyed by it, not by the shared file's size and mtime,
+// and a fresher provider fingerprint wins the dedup the way a fresher file does.
+func TestDedupRefsUsesProviderFingerprint(t *testing.T) {
+	shared := filepath.Join(t.TempDir(), "store.db")
+	if err := os.WriteFile(shared, []byte("shared database"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	perProvider := [][]spi.GlobalSessionRef{{
+		{SessionID: "own", NativePath: shared, Fingerprint: &spi.SessionFingerprint{Size: 7, Mtime: 1_000}},
+		{SessionID: "own", NativePath: shared, Fingerprint: &spi.SessionFingerprint{Size: 9, Mtime: 2_000}},
+		{SessionID: "file", NativePath: shared},
+	}}
+
+	best, _, _ := dedupRefs([]string{"opencode"}, []spi.Provider{&fakeProvider{}}, perProvider)
+
+	own := best[sessionindex.FingerprintKey("opencode", "own")]
+	if own.size != 9 || own.mtime != 2_000 {
+		t.Errorf("own fingerprint = %d/%d, want the fresher provider fingerprint 9/2000", own.size, own.mtime)
+	}
+	fileSize, fileMtime := statNative(shared)
+	file := best[sessionindex.FingerprintKey("opencode", "file")]
+	if file.size != fileSize || file.mtime != fileMtime {
+		t.Errorf("file fingerprint = %d/%d, want the stat of %s (%d/%d)", file.size, file.mtime, shared, fileSize, fileMtime)
+	}
+}
+
 // TestSelectWork covers the incremental skip: a session is reindexed only when its native
 // file's size or mtime changed, or the logic version was bumped; a session with no prior
 // fingerprint is flagged isNew (so the writer can skip the FTS delete) unless --force, where
@@ -373,5 +400,47 @@ func TestRecoverCursorCwds_SeedsFromIndex(t *testing.T) {
 
 	if got := perProvider[1][0].OriginCwd; got != cwd {
 		t.Errorf("cursor OriginCwd = %q, want %q (recovered from the index-seeded cwd)", got, cwd)
+	}
+}
+
+// TestStatNativeFoldsInWAL covers a SQLite store in WAL mode: a write that
+// lands only in <path>-wal must change the fingerprint, or incremental reindex
+// skips the changed session until the next checkpoint.
+func TestStatNativeFoldsInWAL(t *testing.T) {
+	dir := t.TempDir()
+	db := filepath.Join(dir, "store.db")
+	base := time.Now().Add(-time.Hour).Truncate(time.Second)
+	if err := os.WriteFile(db, []byte("main"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(db, base, base); err != nil {
+		t.Fatal(err)
+	}
+
+	// Without a -wal sibling the fingerprint is the file's own.
+	size, mtime := statNative(db)
+	if size != 4 || mtime != base.UnixMilli() {
+		t.Fatalf("statNative() = %d, %d; want the file's own size and mtime", size, mtime)
+	}
+
+	wal := db + "-wal"
+	if err := os.WriteFile(wal, []byte("first commit"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(wal, base.Add(time.Minute), base.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	withWAL, withWALMtime := statNative(db)
+	if withWAL == size && withWALMtime == mtime {
+		t.Fatal("a commit in the -wal file did not change the fingerprint")
+	}
+
+	// A later commit that leaves the WAL's size unchanged still changes it.
+	if err := os.Chtimes(wal, base.Add(2*time.Minute), base.Add(2*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	laterSize, laterMtime := statNative(db)
+	if laterSize == withWAL && laterMtime == withWALMtime {
+		t.Error("a later -wal commit did not change the fingerprint")
 	}
 }
