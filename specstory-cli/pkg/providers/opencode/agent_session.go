@@ -340,7 +340,7 @@ func (b *exchangeBuilder) addUser(id, timestamp string, msg *nativeMessage) {
 		return
 	}
 	if b.firstPrompt == "" {
-		b.firstPrompt = strings.TrimSpace(msg.Text)
+		b.firstPrompt = userPromptLabel(msg)
 	}
 	b.startExchange(id, timestamp)
 	b.appendMessage(id, schema.Message{
@@ -349,6 +349,31 @@ func (b *exchangeBuilder) addUser(id, timestamp string, msg *nativeMessage) {
 		Role:      schema.RoleUser,
 		Content:   parts,
 	})
+}
+
+// userPromptLabel names a user record for slugs and listings: its text, or,
+// for a prompt that carries only attachments, the attachments themselves.
+// Listing and conversion both use it so a session is named the same way by
+// each.
+func userPromptLabel(msg *nativeMessage) string {
+	if text := strings.TrimSpace(msg.Text); text != "" {
+		return text
+	}
+	var names []string
+	for _, file := range msg.Files {
+		if name := strings.TrimSpace(file.Name); name != "" {
+			names = append(names, name)
+		}
+	}
+	for _, agent := range msg.Agents {
+		if name := strings.TrimSpace(agent.Name); name != "" {
+			names = append(names, "@"+name)
+		}
+	}
+	if len(names) == 0 && len(msg.Files) > 0 {
+		names = append(names, "attachment")
+	}
+	return strings.Join(names, " ")
 }
 
 // formatAttachments lists the files and agents attached to a prompt. File

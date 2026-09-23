@@ -375,3 +375,45 @@ func TestRecoverCursorCwds_SeedsFromIndex(t *testing.T) {
 		t.Errorf("cursor OriginCwd = %q, want %q (recovered from the index-seeded cwd)", got, cwd)
 	}
 }
+
+// TestStatNativeFoldsInWAL covers a SQLite store in WAL mode: a write that
+// lands only in <path>-wal must change the fingerprint, or incremental reindex
+// skips the changed session until the next checkpoint.
+func TestStatNativeFoldsInWAL(t *testing.T) {
+	dir := t.TempDir()
+	db := filepath.Join(dir, "store.db")
+	base := time.Now().Add(-time.Hour).Truncate(time.Second)
+	if err := os.WriteFile(db, []byte("main"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(db, base, base); err != nil {
+		t.Fatal(err)
+	}
+
+	// Without a -wal sibling the fingerprint is the file's own.
+	size, mtime := statNative(db)
+	if size != 4 || mtime != base.UnixMilli() {
+		t.Fatalf("statNative() = %d, %d; want the file's own size and mtime", size, mtime)
+	}
+
+	wal := db + "-wal"
+	if err := os.WriteFile(wal, []byte("first commit"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(wal, base.Add(time.Minute), base.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	withWAL, withWALMtime := statNative(db)
+	if withWAL == size && withWALMtime == mtime {
+		t.Fatal("a commit in the -wal file did not change the fingerprint")
+	}
+
+	// A later commit that leaves the WAL's size unchanged still changes it.
+	if err := os.Chtimes(wal, base.Add(2*time.Minute), base.Add(2*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	laterSize, laterMtime := statNative(db)
+	if laterSize == withWAL && laterMtime == withWALMtime {
+		t.Error("a later -wal commit did not change the fingerprint")
+	}
+}

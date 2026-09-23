@@ -722,12 +722,23 @@ func lastTimestamp(data *schema.SessionData) string {
 }
 
 // statNative returns the native file's size (bytes) and mtime (epoch ms), or zeros.
+//
+// A SQLite store in WAL mode (OpenCode's opencode.db, Cursor IDE's state.vscdb)
+// commits to <path>-wal and folds that into <path> only at a checkpoint, so the
+// main file alone can keep its size and mtime while a session changes. A -wal
+// sibling's size and mtime are folded in so such a change still reads as one;
+// paths without a -wal sibling keep the fingerprint they always had.
 func statNative(path string) (size, mtimeMs int64) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return 0, 0
 	}
-	return info.Size(), info.ModTime().UnixMilli()
+	size, mtimeMs = info.Size(), info.ModTime().UnixMilli()
+	if wal, err := os.Stat(path + "-wal"); err == nil {
+		size += wal.Size()
+		mtimeMs = max(mtimeMs, wal.ModTime().UnixMilli())
+	}
+	return size, mtimeMs
 }
 
 // ---- project identity cache (cwd -> project id/name) ----

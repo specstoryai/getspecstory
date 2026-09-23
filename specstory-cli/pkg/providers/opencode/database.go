@@ -207,9 +207,9 @@ func verifySchema(db *sql.DB) error {
 // needs. Subagent sessions (parent_id set) belong to their parent's
 // conversation, so they are never listed on their own.
 //
-// The first-prompt subquery skips user records with blank text (a prompt
-// carrying only an attachment) so listings name a session from the same
-// prompt conversion does. json_valid guards json_extract, which would
+// The first-prompt subquery picks the first user record with text or an
+// attachment, the same record conversion names the session from; a record
+// with neither renders nothing. json_valid guards json_extract, which would
 // otherwise abort the whole listing on one corrupt record.
 const summaryQuery = `
 SELECT s.id, s.directory, IFNULL(s.title, ''), s.time_created, s.time_updated,
@@ -217,7 +217,9 @@ SELECT s.id, s.directory, IFNULL(s.title, ''), s.time_created, s.time_updated,
        (SELECT IFNULL(max(m.time_updated), 0) FROM session_message m WHERE m.session_id = s.id),
        IFNULL((SELECT m.data FROM session_message m
                WHERE m.session_id = s.id AND m.type = 'user' AND json_valid(m.data)
-                 AND trim(IFNULL(json_extract(m.data, '$.text'), ''), ' ' || char(9, 10, 13)) != ''
+                 AND (trim(IFNULL(json_extract(m.data, '$.text'), ''), ' ' || char(9, 10, 13)) != ''
+                      OR IFNULL(json_array_length(m.data, '$.files'), 0) > 0
+                      OR IFNULL(json_array_length(m.data, '$.agents'), 0) > 0)
                ORDER BY m.seq LIMIT 1), '')
 FROM session_v2 s
 WHERE s.parent_id IS NULL`

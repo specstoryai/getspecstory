@@ -213,3 +213,36 @@ func TestCheck(t *testing.T) {
 		t.Errorf("missing custom binary = %+v", missing)
 	}
 }
+
+// TestAttachmentOnlyPromptNamesTheSession covers a prompt with no text, only
+// an attached file (possible from the TUI, e.g. a pasted image): the session
+// must still be synced, detected, and listed under the slug it syncs with.
+func TestAttachmentOnlyPromptNamesTheSession(t *testing.T) {
+	db := createFixtureDB(t, useFixtureStore(t))
+	project := newProjectDir(t, "project")
+	insertSession(t, db, "ses_attach", project, 1000, 3000)
+	// Shape per OpenCode 2.0.14's Prompt.FileAttachment schema.
+	insertMessage(t, db, "ses_attach", "msg_1", recordUser, 1, 1000,
+		`{"time":{"created":1000},"text":"","files":[{"name":"screenshot.png","mime":"image/png","source":{"type":"file","path":"screenshot.png"},"data":"iVBORw0KGgo="}],"agents":[]}`)
+	insertMessage(t, db, "ses_attach", "msg_2", recordAssistant, 2, 2000, assistantData(2000, "That is a screenshot."))
+	p := NewProvider()
+
+	sessions, err := p.GetAgentChatSessions(project, false, nil)
+	if err != nil || len(sessions) != 1 {
+		t.Fatalf("GetAgentChatSessions() = %d sessions, %v; want 1", len(sessions), err)
+	}
+	if !strings.Contains(messageText(allMessages(sessions[0].SessionData)[0]), "Attached file: `screenshot.png` (image/png)") {
+		t.Errorf("attachment not rendered: %+v", allMessages(sessions[0].SessionData)[0])
+	}
+	listed, err := p.ListAgentChatSessions(project)
+	if err != nil || len(listed) != 1 || listed[0].Slug != sessions[0].Slug {
+		t.Errorf("listing = %+v, %v; want slug %q", listed, err, sessions[0].Slug)
+	}
+	if !p.DetectAgent(project, false) {
+		t.Error("DetectAgent() = false for an attachment-only session")
+	}
+	// Enumeration without a progress reporter is safe: ScanReporter is nil-safe.
+	if refs, err := p.ListAllAgentChatSessions(); err != nil || len(refs) != 1 {
+		t.Errorf("ListAllAgentChatSessions() = %d, %v; want 1", len(refs), err)
+	}
+}

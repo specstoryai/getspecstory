@@ -425,17 +425,16 @@ func summaryMetadata(summary sessionSummary) *spi.SessionMetadata {
 	}
 }
 
-// firstPromptText extracts the trimmed prompt text from a user record payload.
+// firstPromptText names a session from its first user record payload, the
+// same way conversion does.
 func firstPromptText(data string) string {
 	if data == "" {
 		return ""
 	}
-	var user struct {
-		Text string `json:"text"`
-	}
+	var user nativeMessage
 	if err := json.Unmarshal([]byte(data), &user); err != nil {
 		slog.Debug("firstPromptText: Unreadable OpenCode user record", "error", err)
 		return ""
 	}
-	return strings.TrimSpace(user.Text)
+	return userPromptLabel(&user)
 }
