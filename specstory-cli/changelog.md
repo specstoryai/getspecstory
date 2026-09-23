@@ -1,5 +1,15 @@
 # Specstory CLI Changelog
 
+## Unreleased
+
+### ✏️ Markdown Enhancements
+
+- Grok Build's image, video, workflow, scheduler, and feedback tools now render as readable fields in saved markdown, with prompts and workflow scripts in code blocks, instead of as raw JSON.
+- Grok Build's `search_tool` now lists each discovered tool's parameters (type, whether required, and description) instead of its full JSON schema. A single tool search can return hundreds of tools, so saved sessions that search connected integrations are now much shorter.
+- Grok Build shell commands, monitors, background-task lookups, images, workflows, scheduled tasks, and feedback drafts now show their command, prompt, name, or ID in the collapsed tool header, so a session can be scanned without expanding each tool.
+- Grok Build tool results no longer include Grok's notices about unrelated background tasks, or the wrapper tags around `grep` results. A background shell command's task ID, status, and output file now show as labeled fields.
+- Grok Build `use_tool` results that are JSON are now shown in a JSON code block, and several tool fields now have consistently capitalized labels (e.g. `URL`, `Query`, `Description`).
+
 ## v2.14.1 2026-09-22
 
 ### 🐛 Bug Fixes
