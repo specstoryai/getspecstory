@@ -215,21 +215,27 @@ func verifySchema(db *sql.DB) error {
 // The first-prompt subquery picks the first user record with text or an
 // attachment, the same record conversion names the session from; a record
 // with neither renders nothing. The first user shell command is read too, for
-// a session that has only those. json_valid guards json_extract, which would
-// otherwise abort the whole listing on one corrupt record.
+// a session that has only those. json_extract and json_array_length raise an
+// error on a payload that is not JSON, which would abort the whole listing on
+// one corrupt record, so each is reached only through a CASE on json_valid:
+// CASE is the form SQLite guarantees to evaluate lazily.
 const summaryQuery = `
 SELECT s.id, s.directory, IFNULL(s.title, ''), s.time_created, s.time_updated,
        (SELECT count(*) FROM session_message m WHERE m.session_id = s.id),
        (SELECT IFNULL(max(m.time_updated), 0) FROM session_message m WHERE m.session_id = s.id),
        IFNULL((SELECT m.data FROM session_message m
-               WHERE m.session_id = s.id AND m.type = 'user' AND json_valid(m.data)
-                 AND (trim(IFNULL(json_extract(m.data, '$.text'), ''), ' ' || char(9, 10, 13)) != ''
-                      OR IFNULL(json_array_length(m.data, '$.files'), 0) > 0
-                      OR IFNULL(json_array_length(m.data, '$.agents'), 0) > 0)
+               WHERE m.session_id = s.id AND m.type = 'user'
+                 AND CASE WHEN json_valid(m.data) THEN
+                       trim(IFNULL(json_extract(m.data, '$.text'), ''), ' ' || char(9, 10, 13)) != ''
+                       OR IFNULL(json_array_length(m.data, '$.files'), 0) > 0
+                       OR IFNULL(json_array_length(m.data, '$.agents'), 0) > 0
+                     END
                ORDER BY m.seq LIMIT 1), ''),
        IFNULL((SELECT m.data FROM session_message m
-               WHERE m.session_id = s.id AND m.type = 'shell' AND json_valid(m.data)
-                 AND trim(IFNULL(json_extract(m.data, '$.command'), ''), ' ' || char(9, 10, 13)) != ''
+               WHERE m.session_id = s.id AND m.type = 'shell'
+                 AND CASE WHEN json_valid(m.data) THEN
+                       trim(IFNULL(json_extract(m.data, '$.command'), ''), ' ' || char(9, 10, 13)) != ''
+                     END
                ORDER BY m.seq LIMIT 1), '')
 FROM session_v2 s
 WHERE s.parent_id IS NULL`

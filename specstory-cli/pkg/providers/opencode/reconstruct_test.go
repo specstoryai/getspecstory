@@ -257,16 +257,17 @@ func TestImportStagedSession(t *testing.T) {
 		if err := os.WriteFile(staged, []byte("{}"), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		// Arguments of a custom command configure the interactive launch and
-		// are not passed to the import.
-		if err := importStagedSession(command+" --auto", project, sessionID); err != nil {
+		// Of a custom command's arguments, the import keeps those that choose
+		// which OpenCode it talks to and drops the ones that configure the
+		// interactive launch.
+		if err := importStagedSession(command+" --server http://127.0.0.1:4096 --auto -s ses_pinned --log-level=debug", project, sessionID); err != nil {
 			t.Fatal(err)
 		}
 		args, err := os.ReadFile(argsFile)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := strings.Join([]string{"session", "import", "--directory", project, staged}, "\n") + "\n"
+		want := strings.Join([]string{"session", "import", "--server", "http://127.0.0.1:4096", "--log-level=debug", "--directory", project, staged}, "\n") + "\n"
 		if string(args) != want {
 			t.Errorf("import args =\n%s\nwant\n%s", args, want)
 		}
@@ -288,6 +289,29 @@ func TestImportStagedSession(t *testing.T) {
 			t.Errorf("staged session removed after a failed import: %v", err)
 		}
 	})
+}
+
+func TestImportArgs(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{name: "nothing configured", args: nil, want: nil},
+		{name: "launch-only flags are dropped", args: []string{"--auto", "-s", "ses_x", "--prompt", "hi", "--continue"}, want: nil},
+		{name: "server with a separate value", args: []string{"--auto", "--server", "http://h:1"}, want: []string{"--server", "http://h:1"}},
+		{name: "server with an inline value", args: []string{"--server=http://h:1"}, want: []string{"--server=http://h:1"}},
+		{name: "standalone takes no value", args: []string{"--standalone", "--auto"}, want: []string{"--standalone"}},
+		// A dropped flag's value is not mistaken for a kept flag's value.
+		{name: "dropped flag value is dropped with it", args: []string{"--session", "ses_x", "--server", "http://h:1"}, want: []string{"--server", "http://h:1"}},
+		{name: "trailing value flag without a value", args: []string{"--server"}, want: []string{"--server"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := importArgs(tt.args); strings.Join(got, " ") != strings.Join(tt.want, " ") {
+				t.Errorf("importArgs(%v) = %v, want %v", tt.args, got, tt.want)
+			}
+		})
+	}
 }
 
 func TestExecuteOpenCodeResumeArguments(t *testing.T) {

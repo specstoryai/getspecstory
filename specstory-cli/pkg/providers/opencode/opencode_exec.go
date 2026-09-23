@@ -82,12 +82,46 @@ func stagedImportFilename(sessionID string) string {
 	return sessionID + ".json"
 }
 
+// importFlags are the flags of a configured command that `opencode session
+// import` accepts as well (OpenCode 2.0.14). --server and --standalone choose
+// which OpenCode the import talks to, and the import must reach the same one
+// the launch will, or the launched session will not find what was imported.
+// The value says whether the flag takes an argument. Every other argument
+// configures the interactive launch (--auto, --session, --prompt, ...) and is
+// left out: the import subcommand would reject it.
+var importFlags = map[string]bool{
+	"--server":     true,
+	"--standalone": false,
+	"--log-level":  true,
+	"--print-logs": false,
+}
+
+// importArgs keeps the arguments of a configured command that also apply to
+// the import subcommand, in their original order and spelling (--flag value
+// or --flag=value).
+func importArgs(args []string) []string {
+	var kept []string
+	for i := 0; i < len(args); i++ {
+		flag, _, inline := strings.Cut(args[i], "=")
+		takesValue, ok := importFlags[flag]
+		if !ok {
+			continue
+		}
+		kept = append(kept, args[i])
+		if takesValue && !inline && i+1 < len(args) {
+			i++
+			kept = append(kept, args[i])
+		}
+	}
+	return kept
+}
+
 // importStagedSession loads a reconstructed session into OpenCode when one is
 // staged for sessionID, then removes the staged file. Sessions that were not
 // reconstructed have nothing staged and are left alone.
 //
-// Only the executable of a custom command is used: its arguments configure an
-// interactive launch and do not apply to the import subcommand.
+// A custom command's executable runs the import; of its arguments only those
+// the import subcommand shares with the launch are passed (see importFlags).
 func importStagedSession(customCommand, projectPath, sessionID string) error {
 	// Only a plain id can name a staged file; anything with a path element in
 	// it was not minted by ReconstructSession. The separator check is explicit
@@ -110,8 +144,9 @@ func importStagedSession(customCommand, projectPath, sessionID string) error {
 		return fmt.Errorf("failed to read staged OpenCode session %s: %w", stagedPath, err)
 	}
 
-	command, _ := parseOpenCodeCommand(customCommand)
-	args := []string{"session", "import", "--directory", projectPath, stagedPath}
+	command, customArgs := parseOpenCodeCommand(customCommand)
+	args := append([]string{"session", "import"}, importArgs(customArgs)...)
+	args = append(args, "--directory", projectPath, stagedPath)
 	slog.Info("importStagedSession: Importing reconstructed session into OpenCode",
 		"command", command, "args", args, "sessionId", sessionID)
 

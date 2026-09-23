@@ -304,7 +304,12 @@ func formatToolResult(name string, input, output map[string]any) string {
 
 	if errText := strings.TrimSpace(spi.StringValue(output, "error")); errText != "" {
 		sections = append(sections, "**Error:** "+errText)
-		if joined := strings.TrimSpace(strings.Join(texts, "\n")); joined != "" {
+		joined := strings.TrimSpace(strings.Join(texts, "\n"))
+		if name == toolShell {
+			// A failed command's partial output is still terminal output.
+			joined = spi.SanitizeShellOutput(joined)
+		}
+		if joined != "" {
 			sections = append(sections, resultBlock("text", joined))
 		}
 		return strings.Join(sections, "\n\n")

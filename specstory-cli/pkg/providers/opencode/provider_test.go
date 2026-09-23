@@ -135,6 +135,46 @@ func TestListAllAgentChatSessions(t *testing.T) {
 	}
 }
 
+// TestListAllFingerprintsFollowTheirOwnSession covers the shared database: a write to
+// one session changes that session's fingerprint and no other's, even though the one
+// file every ref names has changed.
+func TestListAllFingerprintsFollowTheirOwnSession(t *testing.T) {
+	db := createFixtureDB(t, useFixtureStore(t))
+	project := newProjectDir(t, "project")
+	for _, id := range []string{"ses_a", "ses_b"} {
+		insertSession(t, db, id, project, 1000, 1000)
+		insertMessage(t, db, id, id+"_u", recordUser, 1, 1000, userData(1000, "prompt"))
+	}
+	p := NewProvider()
+
+	fingerprints := func() map[string]spi.SessionFingerprint {
+		t.Helper()
+		refs, err := p.ListAllAgentChatSessions()
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := map[string]spi.SessionFingerprint{}
+		for _, ref := range refs {
+			if ref.Fingerprint == nil {
+				t.Fatalf("ref %s has no fingerprint; the shared database cannot stand in for one", ref.SessionID)
+			}
+			got[ref.SessionID] = *ref.Fingerprint
+		}
+		return got
+	}
+	before := fingerprints()
+
+	insertMessage(t, db, "ses_a", "ses_a_r", recordAssistant, 2, 5000, assistantData(5000, "reply"))
+	after := fingerprints()
+
+	if after["ses_a"] == before["ses_a"] {
+		t.Errorf("ses_a fingerprint %+v did not change after a new message", after["ses_a"])
+	}
+	if after["ses_b"] != before["ses_b"] {
+		t.Errorf("ses_b fingerprint changed from %+v to %+v without a write to it", before["ses_b"], after["ses_b"])
+	}
+}
+
 // TestProjectReachedThroughOtherSpellings resolves the project through a
 // symlink, a path with a space and an underscore, and a differently-cased
 // spelling; OpenCode records the directory's real path.

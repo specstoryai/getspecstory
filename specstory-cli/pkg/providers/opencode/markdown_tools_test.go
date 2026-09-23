@@ -320,6 +320,13 @@ func TestRenderEdgeCases(t *testing.T) {
 			reject: []string{"Exit code"},
 		},
 		{
+			name: "a failed shell command's partial output is sanitized",
+			tool: schema.ToolInfo{Name: "shell", Input: map[string]any{"command": "make"},
+				Output: map[string]any{"status": "error", "error": "Command timed out", "texts": []string{"\x1b[31mFAIL\x1b[0m\r\nline\x07"}}},
+			want:   []string{"**Error:** Command timed out", "```text\nFAIL\nline\n```"},
+			reject: []string{"\x1b", "\r", "\x07"},
+		},
+		{
 			name:   "a file's final newline does not become a blank line in the fence",
 			tool:   schema.ToolInfo{Name: "write", Input: map[string]any{"path": "a.txt", "content": "one\ntwo\n"}},
 			want:   []string{"```txt\none\ntwo\n```"},

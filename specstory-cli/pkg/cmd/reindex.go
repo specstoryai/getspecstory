@@ -293,7 +293,7 @@ func dedupRefs(ids []string, provs []spi.Provider, perProvider [][]spi.GlobalSes
 				slog.Debug("reindex: skipping session with no id", "agent", id, "path", ref.NativePath)
 				continue
 			}
-			size, mtime := statNative(ref.NativePath)
+			size, mtime := refFingerprint(ref)
 			item := reindexItem{agent: id, prov: provs[i], ref: ref, size: size, mtime: mtime}
 			key := sessionindex.FingerprintKey(id, ref.SessionID)
 			if cur, ok := best[key]; ok {
@@ -645,8 +645,9 @@ func buildSession(item reindexItem, cache *projectIDCache, indexedAt string) ses
 // avoids the provider's by-id discovery search — for Codex that search walks the entire
 // ~/.codex/sessions tree, so this is the difference between an O(N) and an O(N²) reindex.
 // Providers without the capability (or refs lacking a NativePath) fall back to the by-id
-// lookup. Parsing the known NativePath is also more consistent: the row's freshness
-// fingerprint is stat'd from NativePath, so the body now comes from that same file.
+// lookup. Parsing the known NativePath is also more consistent: a row's freshness
+// fingerprint is stat'd from NativePath (unless the provider supplied its own), so the
+// body now comes from that same file.
 func parseFullSession(prov spi.Provider, ref spi.GlobalSessionRef) (*spi.AgentChatSession, error) {
 	if pr, ok := prov.(spi.PathSessionReader); ok && ref.NativePath != "" {
 		return pr.GetAgentChatSessionByPath(ref.NativePath, ref.OriginCwd, false)
@@ -719,6 +720,16 @@ func lastTimestamp(data *schema.SessionData) string {
 		}
 	}
 	return last
+}
+
+// refFingerprint returns the freshness pair for a ref: the provider's own when it
+// supplied one (a store shared by every session cannot be fingerprinted by file),
+// otherwise the native file's size and mtime.
+func refFingerprint(ref spi.GlobalSessionRef) (size, mtimeMs int64) {
+	if ref.Fingerprint != nil {
+		return ref.Fingerprint.Size, ref.Fingerprint.Mtime
+	}
+	return statNative(ref.NativePath)
 }
 
 // statNative returns the native file's size (bytes) and mtime (epoch ms), or zeros.

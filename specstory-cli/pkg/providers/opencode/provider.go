@@ -297,6 +297,13 @@ func (p *Provider) ListAllAgentChatSessionsProgress(r *spi.ScanReporter) ([]spi.
 				// The directory OpenCode recorded is the session's origin;
 				// an empty one stays empty so the CLI files it as unknown.
 				OriginCwd: summary.Directory,
+				// Every session shares the one database file, so its size
+				// and mtime say nothing about which session changed; the
+				// watcher's change signature does.
+				Fingerprint: &spi.SessionFingerprint{
+					Size:  summary.MessageCount,
+					Mtime: max(summary.TimeUpdated, summary.LastMessageUpdate),
+				},
 			})
 			r.Add(1)
 		}

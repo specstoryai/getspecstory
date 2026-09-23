@@ -263,6 +263,34 @@ func TestUnsupportedSchemaIsReported(t *testing.T) {
 	}
 }
 
+// TestListingSurvivesCorruptPayloads covers a user or shell record whose data
+// column is not JSON: the listing query must skip it the way conversion does,
+// rather than fail for the whole store, and name the session from the first
+// readable record after it.
+func TestListingSurvivesCorruptPayloads(t *testing.T) {
+	db := createFixtureDB(t, useFixtureStore(t))
+	project := newProjectDir(t, "project")
+	insertSession(t, db, "ses_corrupt", project, 1000, 4000)
+	insertMessage(t, db, "ses_corrupt", "msg_1", recordUser, 1, 1000, `{"text": "truncated`)
+	insertMessage(t, db, "ses_corrupt", "msg_2", recordShell, 2, 2000, `not json at all`)
+	insertMessage(t, db, "ses_corrupt", "msg_3", recordUser, 3, 3000, userData(3000, "readable prompt"))
+	p := NewProvider()
+
+	listed, err := p.ListAgentChatSessions(project)
+	if err != nil {
+		t.Fatalf("ListAgentChatSessions() error = %v", err)
+	}
+	if len(listed) != 1 || listed[0].Slug != "readable-prompt" {
+		t.Errorf("listing = %+v, want the session named from the readable prompt", listed)
+	}
+	if !p.DetectAgent(project, false) {
+		t.Error("DetectAgent() = false with a readable prompt after corrupt records")
+	}
+	if refs, err := p.ListAllAgentChatSessions(); err != nil || len(refs) != 1 {
+		t.Errorf("ListAllAgentChatSessions() = %d, %v; want 1", len(refs), err)
+	}
+}
+
 // insertSession writes a minimal top-level session_v2 row.
 func insertSession(t *testing.T, db *sql.DB, id, directory string, created, updated int64) {
 	t.Helper()
