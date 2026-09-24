@@ -106,7 +106,7 @@ func NewFSWatcher(engine *Engine, rootDir string) (*FSWatcher, error) {
 		rootDir = canonical
 	}
 
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return nil, err
 	}

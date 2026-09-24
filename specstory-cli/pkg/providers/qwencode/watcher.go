@@ -78,7 +78,7 @@ func WatchQwenProject(projectPath string, callback func(*spi.AgentChatSession)) 
 		return err
 	}
 	dir := filepath.Join(projectsDir, SanitizeQwenCwd(projectPath), "chats")
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return fmt.Errorf("create Qwen watcher: %w", err)
 	}

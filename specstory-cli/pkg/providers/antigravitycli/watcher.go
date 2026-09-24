@@ -42,7 +42,7 @@ func watchSessions(ctx context.Context, projectPath string, debugRaw bool, sessi
 		return err
 	}
 
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return fmt.Errorf("antigravity: failed to create watcher: %w", err)
 	}

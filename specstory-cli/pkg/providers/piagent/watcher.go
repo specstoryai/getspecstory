@@ -130,7 +130,7 @@ func startProjectWatcher(projectPath string) (*piWatcher, error) {
 	if err != nil {
 		return nil, err
 	}
-	fs, err := fsnotify.NewWatcher()
+	fs, err := spi.NewFSWatcher()
 	if err != nil {
 		return nil, fmt.Errorf("pi: creating file watcher: %w", err)
 	}

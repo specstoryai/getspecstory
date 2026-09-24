@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
@@ -182,7 +181,7 @@ func TestCursorWatcherFinalSaveAndPanicRecovery(t *testing.T) {
 // scheduler timing or sleeps, determines what the watcher can observe.
 func newSynchronousCursorWatcher(t *testing.T, root string, callback func(*spi.AgentChatSession)) *CursorWatcher {
 	t.Helper()
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		t.Fatal(err)
 	}

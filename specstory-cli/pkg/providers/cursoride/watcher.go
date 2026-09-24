@@ -91,7 +91,7 @@ func NewCursorIDEWatcher(
 	}
 
 	// Create fsnotify watcher
-	fsWatcher, err := fsnotify.NewWatcher()
+	fsWatcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create file watcher: %w", err)
 	}
