@@ -1,5 +1,12 @@
 # Specstory CLI Changelog
 
+## v2.15.1 2026-09-24
+
+### 🐛 Bug Fixes
+
+- Your answers to Codex CLI's `request_user_input` questions are now included in saved markdown. Previously the question and options were saved, but the selected option and any note were dropped, leaving an empty result. Each question is now shown with its options and your answer underneath, and questions you cancelled are marked as unanswered. Thanks to [daviddwlee84](https://github.com/daviddwlee84) for the detailed report and reproduction in [issue 333](https://github.com/specstoryai/getspecstory/issues/333).
+- For Codex tools that SpecStory doesn't have a dedicated format for, the tool's arguments are now also shown as JSON. Previously they were lost whenever the tool also returned output.
+
 ## v2.15.0 2026-09-23
 
 ### 📢 Announcements

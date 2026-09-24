@@ -722,3 +722,146 @@ func TestGenerateAgentSession_ArrayToolOutput(t *testing.T) {
 		t.Errorf("exec output missing from formatted markdown: %v", tool.FormattedMarkdown)
 	}
 }
+
+// TestGenerateAgentSession_StructuredToolOutputInMarkdown covers tool outputs that arrive
+// as a JSON-object string (e.g. request_user_input answers). They parse into a map with no
+// "raw" key, and used to render as an empty Result, silently losing the user's answers.
+func TestGenerateAgentSession_StructuredToolOutputInMarkdown(t *testing.T) {
+	colorQuestion := `{"id":"color","header":"Color","question":"Which color?","options":[{"label":"Blue","description":"Use blue"},{"label":"Green","description":"Use green"}]}`
+	sizeQuestion := `{"id":"size","header":"Size","question":"Which size?","options":[{"label":"Small","description":"Compact"},{"label":"Large","description":"Roomy"}]}`
+
+	tests := []struct {
+		name        string
+		toolName    string
+		arguments   string
+		output      string // empty means the call never received an output
+		wantContain []string
+		wantAbsent  []string
+	}{
+		{
+			name:      "Selected option and user note are rendered",
+			toolName:  "request_user_input",
+			arguments: `{"questions":[` + colorQuestion + `]}`,
+			output:    `{"answers":{"color":{"answers":["Blue","user_note: SYNTHETIC_ANSWER_ONLY_MARKER"]}}}`,
+			wantContain: []string{
+				"Which color?", "Blue", "Use blue", "Green", "Use green",
+				"SYNTHETIC_ANSWER_ONLY_MARKER",
+			},
+			// The Go map representation is what the generic fallback used to print
+			wantAbsent: []string{"map["},
+		},
+		{
+			name:      "Each question gets its own answer",
+			toolName:  "request_user_input",
+			arguments: `{"questions":[` + colorQuestion + `,` + sizeQuestion + `]}`,
+			output:    `{"answers":{"color":{"answers":["Green"]},"size":{"answers":["Large"]}}}`,
+			wantContain: []string{
+				"Which color?", "Which size?",
+				"**Answer:** Green", "**Answer:** Large",
+			},
+		},
+		{
+			name:        "Cancelled question is marked as unanswered",
+			toolName:    "request_user_input",
+			arguments:   `{"questions":[` + colorQuestion + `]}`,
+			output:      `{"answers":{}}`,
+			wantContain: []string{"Which color?", "_No answer_"},
+		},
+		{
+			name:        "Pending question still renders its question",
+			toolName:    "request_user_input",
+			arguments:   `{"questions":[` + colorQuestion + `]}`,
+			wantContain: []string{"Which color?", "Blue", "Green"},
+			wantAbsent:  []string{"_No answer_"},
+		},
+		{
+			name:        "Answer to an unknown question id is not dropped",
+			toolName:    "request_user_input",
+			arguments:   `{"questions":[` + colorQuestion + `]}`,
+			output:      `{"answers":{"color":{"answers":["Blue"]},"extra":{"answers":["ORPHAN_ANSWER"]}}}`,
+			wantContain: []string{"**Answer:** Blue", "ORPHAN_ANSWER"},
+		},
+		{
+			name:        "Unrecognized JSON object output is preserved",
+			toolName:    "some_future_tool",
+			arguments:   `{"target":"INPUT_MARKER"}`,
+			output:      `{"status":"ok","details":{"value":"STRUCTURED_OUTPUT_MARKER"}}`,
+			wantContain: []string{"INPUT_MARKER", "STRUCTURED_OUTPUT_MARKER"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			records := []map[string]interface{}{
+				{
+					"type":      "session_meta",
+					"timestamp": "2026-09-25T00:00:00Z",
+					"payload": map[string]interface{}{
+						"id":        "00000000-0000-4000-8000-000000000001",
+						"timestamp": "2026-09-25T00:00:00Z",
+						"cwd":       "/test/workspace",
+					},
+				},
+				{
+					"type":      "event_msg",
+					"timestamp": "2026-09-25T00:00:01Z",
+					"payload":   map[string]interface{}{"type": "user_message", "message": "Ask me something."},
+				},
+				{
+					"type":      "response_item",
+					"timestamp": "2026-09-25T00:00:02Z",
+					"payload": map[string]interface{}{
+						"type":      "function_call",
+						"name":      tt.toolName,
+						"call_id":   "call-1",
+						"arguments": tt.arguments,
+					},
+				},
+			}
+			if tt.output != "" {
+				records = append(records, map[string]interface{}{
+					"type":      "response_item",
+					"timestamp": "2026-09-25T00:00:03Z",
+					"payload": map[string]interface{}{
+						"type":    "function_call_output",
+						"call_id": "call-1",
+						"output":  tt.output,
+					},
+				})
+			}
+
+			sessionData, err := GenerateAgentSession(records, "/test/workspace")
+			if err != nil {
+				t.Fatalf("GenerateAgentSession failed: %v", err)
+			}
+			// The session renderer writes FormattedMarkdown verbatim, and skips its generic
+			// input/output rendering when it's set, so this is exactly what lands in the file.
+			var tool *ToolInfo
+			for _, exchange := range sessionData.Exchanges {
+				for _, msg := range exchange.Messages {
+					if msg.Tool != nil {
+						tool = msg.Tool
+					}
+				}
+			}
+			if tool == nil {
+				t.Fatal("tool call not found in session")
+			}
+			if tool.FormattedMarkdown == nil {
+				t.Fatal("tool has no formatted markdown")
+			}
+			markdown := *tool.FormattedMarkdown
+
+			for _, want := range tt.wantContain {
+				if !strings.Contains(markdown, want) {
+					t.Errorf("markdown missing %q:\n%s", want, markdown)
+				}
+			}
+			for _, absent := range tt.wantAbsent {
+				if strings.Contains(markdown, absent) {
+					t.Errorf("markdown unexpectedly contains %q:\n%s", absent, markdown)
+				}
+			}
+		})
+	}
+}
