@@ -130,7 +130,7 @@ func startProjectWatcher(claudeProjectDir string) error {
 	slog.Info("startProjectWatcher: Creating file watcher", "directory", claudeProjectDir)
 
 	// Create a new watcher
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return fmt.Errorf("failed to create file watcher: %v", err)
 	}
@@ -517,7 +517,7 @@ func WatchForClaudeSetup() error {
 		"watchingFor", watchingFor)
 
 	// Create watcher
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		log.UserWarn("Failed to create file watcher: %v", err)
 		slog.Error("WatchForClaudeSetup: Failed to create file watcher", "error", err)

@@ -150,7 +150,7 @@ func waitForProjectDir(ctx context.Context, tmpDir, projectPath, hashDir string)
 	}
 
 	// Nothing exists yet — watch tmpDir for new directory creation
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return "", fmt.Errorf("failed to create fsnotify watcher for project dir: %w", err)
 	}
@@ -196,7 +196,7 @@ func waitForProjectDir(ctx context.Context, tmpDir, projectPath, hashDir string)
 }
 
 func startChatsWatcher(chatsDir string) error {
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return err
 	}
@@ -347,7 +347,7 @@ func waitForDirectoryFsnotify(ctx context.Context, dir string, label string) err
 		return fmt.Errorf("parent directory %q does not exist for %s: %w", parentDir, label, err)
 	}
 
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return fmt.Errorf("failed to create fsnotify watcher for %s: %w", label, err)
 	}
@@ -389,7 +389,7 @@ func waitForDirectoryFsnotify(ctx context.Context, dir string, label string) err
 
 func startArtifactWatcher(filePath string, label string) error {
 	dir := filepath.Dir(filePath)
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return err
 	}

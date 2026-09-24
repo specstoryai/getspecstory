@@ -13,7 +13,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -628,7 +627,7 @@ func TestWatch_ReconcilesWithoutFileEvent(t *testing.T) {
 // virtual clock. The clock test above exercises the periodic trigger and scan.
 func TestWatch_RestoresRemovedDirectoryWatch(t *testing.T) {
 	dir := t.TempDir()
-	fs, err := fsnotify.NewWatcher()
+	fs, err := spi.NewFSWatcher()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -727,7 +726,7 @@ func TestWatch_CallbackPanicDoesNotStopUpdates(t *testing.T) {
 
 func TestWatch_WriteDuringBaselineStillEmits(t *testing.T) {
 	project, dir := t.TempDir(), t.TempDir()
-	fs, err := fsnotify.NewWatcher()
+	fs, err := spi.NewFSWatcher()
 	if err != nil {
 		t.Fatal(err)
 	}

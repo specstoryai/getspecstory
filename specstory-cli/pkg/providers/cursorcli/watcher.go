@@ -68,7 +68,7 @@ func (w *CursorWatcher) Start() error {
 	if w.cancel != nil {
 		return fmt.Errorf("cursor watcher already started")
 	}
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return err
 	}

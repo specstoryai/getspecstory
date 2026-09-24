@@ -88,7 +88,7 @@ func startWatcherWithHook(projectPath string, debugRaw bool, callback func(*spi.
 		return nil, err
 	}
 
-	fsWatcher, err := fsnotify.NewWatcher()
+	fsWatcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create file watcher: %w", err)
 	}

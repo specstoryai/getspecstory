@@ -428,7 +428,7 @@ func TestWatcherReconcilesStartupAndDormantSession(t *testing.T) {
 	home := withFakeGrokHome(t)
 	project := t.TempDir()
 	dir := seedSession(t, home, project, "session-basic", "11111111-2222-7333-8444-555555555555")
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -519,7 +519,7 @@ func TestWatcherErrorExitDrainsFinalWrites(t *testing.T) {
 			home := withFakeGrokHome(t)
 			project := t.TempDir()
 			dir := seedSession(t, home, project, "session-basic", "11111111-2222-7333-8444-555555555555")
-			watcher, err := fsnotify.NewWatcher()
+			watcher, err := spi.NewFSWatcher()
 			if err != nil {
 				t.Fatal(err)
 			}

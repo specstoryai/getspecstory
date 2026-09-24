@@ -102,7 +102,7 @@ func WatchGrokProject(projectPath string, callback func(*spi.AgentChatSession)) 
 	if err != nil {
 		return err
 	}
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return fmt.Errorf("create Grok watcher: %w", err)
 	}

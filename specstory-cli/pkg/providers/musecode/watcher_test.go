@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -204,7 +203,7 @@ func TestAdoptExisting_PublishesASessionThatLandedBeforeTheWatch(t *testing.T) {
 		SetWatcherWorkspaceRoot("")
 	})
 
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		t.Fatalf("failed to create watcher: %v", err)
 	}
@@ -244,7 +243,7 @@ func TestAdoptExisting_StopsAtTheSessionDirectory(t *testing.T) {
 		SetWatcherWorkspaceRoot("")
 	})
 
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		t.Fatalf("failed to create watcher: %v", err)
 	}
@@ -282,7 +281,7 @@ func newRefreshHarness(t *testing.T, sessionsRoot, project string) (*watchSet, *
 		SetWatcherWorkspaceRoot("")
 	})
 
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		t.Fatalf("failed to create watcher: %v", err)
 	}

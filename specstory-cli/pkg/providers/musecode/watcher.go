@@ -126,7 +126,7 @@ func WatchMuseProject(projectPath string, callback func(*spi.AgentChatSession)) 
 		return fmt.Errorf("failed to get muse sessions dir: %w", err)
 	}
 
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return fmt.Errorf("failed to create file watcher: %w", err)
 	}

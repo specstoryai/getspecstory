@@ -29,7 +29,7 @@ func (p *Provider) WatchChatSessions(
 		"chatSessionsPath", chatSessionsPath)
 
 	// Create fsnotify watcher
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return fmt.Errorf("failed to create watcher: %w", err)
 	}
