@@ -6,13 +6,13 @@
 
 ## SpecStory CLI
 
-SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI) as well as the Cursor IDE and VS Code Copilot (including VS Code Insiders, VSCodium, and VSCodium Insiders).
+SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI, Muse Code, OpenCode, Qwen Code, Pi) as well as the Cursor IDE and VS Code Copilot (including VS Code Insiders, VSCodium, and VSCodium Insiders).
 
 It saves your AI coding conversations as local markdown files of each session. It can optionally sync your markdown files to the [SpecStory Cloud](https://cloud.specstory.com), turning your AI chat history into a centralized knowledge system that you can chat with and search.
 
 ## Features
 
-- Cross-platform support (Linux, macOS)
+- Cross-platform support (macOS, Linux including WSL, and native Windows)
 - Seamless integration with terminal coding agents
 - Command-line wrapper for terminal coding agents with markdown auto-save
 - Sync all your prior conversations to local markdown files
@@ -24,25 +24,32 @@ It saves your AI coding conversations as local markdown files of each session. I
 
 The following coding agents are supported in the SpecStory CLI:
 
-|                           Agent                           |                    Provider                     | Data Format |       Source Location        |
-| --------------------------------------------------------- | ----------------------------------------------- | ----------- | ---------------------------- |
-| [Claude Code](https://www.claude.com/product/claude-code) | [claudecode](pkg/providers/claudecode/)         | JSONL       | `~/.claude/projects/`        |
-| [Codex CLI](https://www.openai.com/codex/cli/)            | [codexcli](pkg/providers/codexcli/)             | JSONL       | `~/.codex/sessions/`         |
-| [Cursor CLI](https://cursor.com/cli)                      | [cursorcli](pkg/providers/cursorcli/)           | SQLite      | `~/.cursor/chats/`           |
-| [Cursor IDE](https://cursor.com/)                         | [cursoride](pkg/providers/cursoride/)           | SQLite      | `Cursor/User/globalStorage/` |
-| [VS Code Copilot](https://code.visualstudio.com/)         | [copilotide](pkg/providers/copilotide/)         | JSON/JSONL  | `Code/User/workspaceStorage/` |
-| [Droid CLI](https://factory.ai/product/cli)               | [droidcli](pkg/providers/droidcli/)             | JSONL       | `~/.factory/sessions/`       |
-| [Gemini CLI](https://ai.google.dev/gemini-cli)            | [geminicli](pkg/providers/geminicli/)           | JSON        | `~/.gemini/tmp/`             |
-| [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)    | [deepseektui](pkg/providers/deepseektui/)       | JSON        | `~/.deepseek/sessions/`      |
-| [Antigravity CLI](https://antigravity.google/)            | [antigravitycli](pkg/providers/antigravitycli/) | JSONL       | `~/.gemini/antigravity-cli/` |
+| Agent                                                          | Provider                                        | Data Format | Source Location                 |
+| -------------------------------------------------------------- | ----------------------------------------------- | ----------- | ------------------------------- |
+| [Claude Code](https://www.claude.com/product/claude-code)      | [claudecode](pkg/providers/claudecode/)         | JSONL       | `~/.claude/projects/`           |
+| [Codex CLI](https://www.openai.com/codex/cli/)                 | [codexcli](pkg/providers/codexcli/)             | JSONL       | `~/.codex/sessions/`            |
+| [Cursor CLI](https://cursor.com/cli)                           | [cursorcli](pkg/providers/cursorcli/)           | SQLite      | `~/.cursor/chats/`              |
+| [Cursor IDE](https://cursor.com/)                              | [cursoride](pkg/providers/cursoride/)           | SQLite      | `Cursor/User/globalStorage/`    |
+| [VS Code Copilot](https://code.visualstudio.com/)              | [copilotide](pkg/providers/copilotide/)         | JSON/JSONL  | `Code/User/workspaceStorage/`   |
+| [Droid CLI](https://factory.ai/product/cli)                    | [droidcli](pkg/providers/droidcli/)             | JSONL       | `~/.factory/sessions/`          |
+| [Gemini CLI](https://ai.google.dev/gemini-cli)                 | [geminicli](pkg/providers/geminicli/)           | JSON        | `~/.gemini/tmp/`                |
+| [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)         | [deepseektui](pkg/providers/deepseektui/)       | JSON        | `~/.deepseek/sessions/`         |
+| [Antigravity CLI](https://antigravity.google/)                 | [antigravitycli](pkg/providers/antigravitycli/) | JSONL       | `~/.gemini/antigravity-cli/`    |
+| [Muse Code](https://developer.meta.com/ai/products/muse-code/) | [musecode](pkg/providers/musecode/)             | JSONL       | `~/.local/share/muse/sessions/` |
+| [OpenCode](https://opencode.ai/)                               | [opencode](pkg/providers/opencode/)             | SQLite      | `~/.local/share/opencode/`      |
+| [Pi](https://pi.dev)                                           | [piagent](pkg/providers/piagent/)               | JSONL       | `~/.pi/agent/sessions/`         |
+| [Qwen Code](https://github.com/QwenLM/qwen-code)               | [qwencode](pkg/providers/qwencode/)             | JSONL       | `~/.qwen/projects/`             |
+| [Grok Build](https://x.ai/cli)                                 | [grokbuild](pkg/providers/grokbuild/)           | JSONL       | `~/.grok/sessions/`             |
+
+### Notes on IDEs
 
 Cursor IDE stores all of its conversations in a single global SQLite database (`state.vscdb`), located at `~/Library/Application Support/Cursor/User/globalStorage/` on macOS and `~/.config/Cursor/User/globalStorage/` on Linux. The `cursoride` provider reads that database directly (Cursor 3 is supported) and filters conversations to the current project via Cursor's workspace storage. Because an IDE has no exiting process to wrap, `specstory run cursoride` opens the project in Cursor and keeps auto-saving conversations until interrupted with `ctrl-c`.
 
 VS Code Copilot stores its chats per workspace as JSON/JSONL session files under `Code/User/workspaceStorage/<workspace-id>/chatSessions/`, located under `~/Library/Application Support/` on macOS and `~/.config/` on Linux. The `copilotide` provider matches the current project to its workspace storage entry — including projects opened via SSH remotes, tunnels, and dev containers — and reads the session files directly. Each VS Code distribution is registered as its own provider: `copilotide` (stock VS Code), `copilotide-insiders`, `copilotide-vscodium`, and `copilotide-vscodium-insiders`. As with Cursor IDE, `specstory run copilotide` opens the project in VS Code and keeps auto-saving conversations until interrupted with `ctrl-c`.
 
-### Agent Provider SPI (Service Provider Interface)
+### Adding a New Agent Provider
 
-There is also an [Agent SPI (Service Provider Interface)](/pkg/spi/) that allows you to extend the SpecStory CLI with support for new agent providers. Creating a provider to support a new agent, using the Provider SPI is documented [here](./docs/PROVIDER-SPI.md). Pull requests are welcome!
+Every supported agent is a provider behind the [Agent SPI (Service Provider Interface)](/pkg/spi/), so support for a new coding agent is a pull request that adds one package under `pkg/providers/`. Start with [NEW-PROVIDER-GUIDE.md](./NEW-PROVIDER-GUIDE.md): it lists what a complete provider contains, the standards a submission is held to, the commands we exercise against the real agent before release, and a self-review checklist, so your pull request lands with as few changes as possible. Maintainers review every provider submission with [docs/NEW-PROVIDER-REVIEW.md](./docs/NEW-PROVIDER-REVIEW.md). Pull requests are welcome!
 
 ## Installation & Usage
 
@@ -65,6 +72,14 @@ specstory help <command>
 # e.g.
 specstory help run
 ```
+
+Check agent availability:
+
+```zsh
+specstory check
+```
+
+Missing optional agents (or IDE session storage) are shown as informational and skipped. Permission problems and failed version or storage checks are shown as errors. Use `specstory check <provider>` for details, or add `-c "/path/to/agent"` to check a custom command. A missing custom command is treated as an error. Exit codes are unchanged: a single-provider check fails if that provider is unavailable; a multi-provider check fails if none are available. Invalid configuration also fails the check.
 
 Interactive auto-save mode:
 
@@ -325,51 +340,71 @@ specstory sync --config-dir ~/specstory-configs/myproject
 
 # Antigravity CLI command
 # antigravity_cmd = "agy"
+
+# Grok Build command
+# grok_cmd = "grok"
+
+# Muse Code command
+# muse_cmd = "muse"
+
+# OpenCode command
+# opencode_cmd = "opencode"
+
+# Pi command
+# pi_cmd = "pi"
+
+# Qwen Code command
+# qwen_cmd = "qwen"
 ```
 
 ### Configuration Options
 
-| Section           | Option            | Default              | Description                                |
-|-------------------|-------------------|----------------------|--------------------------------------------|
-| `[local_sync]`    | `enabled`         | `true`               | Write local markdown files                 |
-| `[local_sync]`    | `output_dir`      | `.specstory/history` | Custom output directory for markdown files |
-| `[local_sync]`    | `local_time_zone` | `false`              | Use local timezone for timestamps          |
-| `[cloud_sync]`    | `enabled`         | `true`               | Sync sessions to SpecStory Cloud           |
-| `[logging]`       | `debug_dir`       | `.specstory/debug`   | Custom output directory for debug data     |
-| `[logging]`       | `console`         | `false`              | Output logs to stdout                      |
-| `[logging]`       | `log`             | `false`              | Write logs to debug file                   |
-| `[logging]`       | `debug`           | `false`              | Enable debug-level output                  |
-| `[logging]`       | `silent`          | `false`              | Suppress non-error output                  |
-| `[version_check]` | `enabled`         | `true`               | Check for newer CLI versions on startup    |
-| `[analytics]`     | `enabled`         | `true`               | Send anonymous usage analytics             |
-| `[telemetry]`     | `endpoint`        | disabled*            | OTLP gRPC collector endpoint               |
-| `[telemetry]`     | `service_name`    | `"specstory-cli"`    | Service name for telemetry                 |
-| `[telemetry]`     | `prompts`         | `true`               | Include prompt text in telemetry spans     |
-| `[redaction]`     | `enabled`         | `true`               | Redact secrets from markdown and cloud data |
-| `[providers]`     | `claude_cmd`      | `"claude"`           | Claude Code command                        |
-| `[providers]`     | `codex_cmd`       | `"codex"`            | Codex CLI command                          |
-| `[providers]`     | `copilotide_cmd`  | `"code"`             | VS Code launcher command                   |
-| `[providers]`     | `copilotide_insiders_cmd` | `"code-insiders"` | VS Code Insiders launcher command     |
-| `[providers]`     | `copilotide_vscodium_cmd` | `"codium"`   | VSCodium launcher command                  |
-| `[providers]`     | `copilotide_vscodium_insiders_cmd` | `"codium-insiders"` | VSCodium Insiders launcher command |
-| `[providers]`     | `cursor_cmd`      | `"cursor-agent"`     | Cursor CLI command                         |
-| `[providers]`     | `cursoride_cmd`   | `"cursor"`           | Cursor IDE launcher command                |
-| `[providers]`     | `deepseek_cmd`    | `"deepseek"`         | DeepSeek TUI command                       |
-| `[providers]`     | `droid_cmd`       | `"droid"`            | Droid CLI command                          |
-| `[providers]`     | `gemini_cmd`      | `"gemini"`           | Gemini CLI command                         |
-| `[providers]`     | `antigravity_cmd` | `"agy"`              | Antigravity CLI command                    |
+| Section           | Option                             | Default              | Description                                                         |
+| ----------------- | ---------------------------------- | -------------------- | ------------------------------------------------------------------- |
+| `[local_sync]`    | `enabled`                          | `true`               | Write local markdown files                                          |
+| `[local_sync]`    | `output_dir`                       | `.specstory/history` | Custom output directory for markdown files                          |
+| `[local_sync]`    | `local_time_zone`                  | `false`              | Use local timezone for timestamps                                   |
+| `[cloud_sync]`    | `enabled`                          | `true`               | Sync sessions to SpecStory Cloud                                    |
+| `[logging]`       | `debug_dir`                        | `.specstory/debug`   | Custom output directory for debug data                              |
+| `[logging]`       | `console`                          | `false`              | Output logs to stdout                                               |
+| `[logging]`       | `log`                              | `false`              | Write logs to debug file                                            |
+| `[logging]`       | `debug`                            | `false`              | Enable debug-level output                                           |
+| `[logging]`       | `silent`                           | `false`              | Suppress non-error output                                           |
+| `[version_check]` | `enabled`                          | `true`               | Check for newer CLI versions on startup                             |
+| `[analytics]`     | `enabled`                          | `true`               | Send anonymous usage analytics                                      |
+| `[telemetry]`     | `endpoint`                         | disabled*            | OTLP gRPC collector endpoint                                        |
+| `[telemetry]`     | `service_name`                     | `"specstory-cli"`    | Service name for telemetry                                          |
+| `[telemetry]`     | `prompts`                          | `true`               | Include prompt text in telemetry spans                              |
+| `[redaction]`     | `enabled`                          | `true`               | Redact secrets from markdown and cloud data                         |
+| `[providers]`     | `claude_cmd`                       | `"claude"`           | Claude Code command                                                 |
+| `[providers]`     | `codex_cmd`                        | `"codex"`            | Codex CLI command                                                   |
+| `[providers]`     | `copilotide_cmd`                   | `"code"`             | VS Code launcher command                                            |
+| `[providers]`     | `copilotide_insiders_cmd`          | `"code-insiders"`    | VS Code Insiders launcher command                                   |
+| `[providers]`     | `copilotide_vscodium_cmd`          | `"codium"`           | VSCodium launcher command                                           |
+| `[providers]`     | `copilotide_vscodium_insiders_cmd` | `"codium-insiders"`  | VSCodium Insiders launcher command                                  |
+| `[providers]`     | `cursor_cmd`                       | `"cursor-agent"`     | Cursor CLI command                                                  |
+| `[providers]`     | `cursoride_cmd`                    | `"cursor"`           | Cursor IDE launcher command                                         |
+| `[providers]`     | `deepseek_cmd`                     | `"deepseek"`         | DeepSeek TUI command                                                |
+| `[providers]`     | `droid_cmd`                        | `"droid"`            | Droid CLI command                                                   |
+| `[providers]`     | `gemini_cmd`                       | `"gemini"`           | Gemini CLI command                                                  |
+| `[providers]`     | `antigravity_cmd`                  | `"agy"`              | Antigravity CLI command                                             |
+| `[providers]`     | `muse_cmd`                         | `"muse"`             | Muse Code command                                                   |
+| `[providers]`     | `opencode_cmd`                     | `"opencode"`         | OpenCode command                                                    |
+| `[providers]`     | `pi_cmd`                           | `"pi"`               | Pi command                                                          |
+| `[providers]`     | `qwen_cmd`                         | `"qwen"`             | Qwen Code command                                                   |
+| `[providers]`     | `grok_cmd`                         | `"grok"`             | Grok Build command                                                  |
+| `[resume]`†       | `view_mode`                        | `"dense"`            | Picker layout: `dense` (more sessions) or `sparse` (more detail)    |
+| `[resume]`†       | `last_agent`                       | none                 | Provider id of the agent you last resumed into — the default target |
+| `[skills]`†       | `view_mode`                        | `"dense"`            | Skills browser layout: `dense` or `sparse`                          |
+| `[skills]`†       | `default_location`                 | `"global"`           | Last-used install location: `global` or `project`                   |
 
 \* Telemetry is enabled when an endpoint is configured unless the standard `OTEL_SDK_DISABLED` ENV var is set to `true` or `1`.
 
+† The `[resume]` and `[skills]` keys are written automatically as you use those commands, so they remember your last choice. They are editable by hand, but unlike the other sections they don't need to be set up front — and they're omitted from the generated config template for that reason.
+
 ## Analytics
 
-SpecStory CLI collects anonymous usage analytics to PostHog to help improve the product. The following events are tracked:
-
-- Extension activation (in interacive mode) - ext_activated
-- Successful markdown sync operations - ext_sync_markdown_success
-- Failed markdown sync operations - ext_sync_markdown_error
-- First-time autosave of new sessions - ext_autosave_success
-- Failed first-time autosave of new sessions - ext_autosave_error
+SpecStory CLI collects anonymous usage analytics to PostHog to help improve the product. The full list of events, the properties sent with every event, and how the anonymous analytics ID is derived are documented in [docs/POSTHOG.md](docs/POSTHOG.md).
 
 All analytics are processed through PostHog with GeoIP enabled for general location data.
 
@@ -528,12 +563,12 @@ Each exchange is recorded as a child span with these attributes:
 
 ### Development Prerequisites
 
-- macOS development environment
-- Go 1.26.5 or later
+- macOS, Linux (including WSL), or Windows
+- Go 1.27.1 or later
 - golangci-lint, latest version
 - Access to one or more terminal coding agents (e.g. Claude Code, Codex CLI, etc.)
 
-You'll want [Homebrew](https://brew.sh/) installed on your macOS system. Then:
+On macOS, you'll want [Homebrew](https://brew.sh/) installed. Then:
 
 ```zsh
 brew install go golangci-lint
@@ -549,10 +584,10 @@ go install gotest.tools/gotestsum@latest
 
 ```zsh
 # Clone the repository
-git clone https://github.com/specstoryai/specstory-cli.git
+git clone https://github.com/specstoryai/getspecstory.git
 
-# Navigate to the project directory
-cd specstory-cli
+# Navigate to the CLI directory
+cd getspecstory/specstory-cli
 
 # Build the project
 go build -o specstory
@@ -568,11 +603,12 @@ go list -m -u all
 
 ### Debug Raw Mode
 
-The `--debug-raw` flag enables a debug mode that is useful for developers working on the SpecStory CLI. It outputs the raw data from AI coding agents in a pretty-printed format. This hidden flag works with all operation modes and supports all providers (Claude Code, Cursor CLI, Cursor IDE, VS Code Copilot, Codex CLI, Gemini CLI, Droid CLI).
+The `--debug-raw` flag enables a debug mode that is useful for developers working on the SpecStory CLI. It outputs the raw data from AI coding agents in a pretty-printed format. This hidden flag works with all operation modes and supports all providers.
 
-When enabled, it creates a debug directory structure under `.specstory/debug/` with individual pretty-printed JSON files for each record in the session as well as a JSON version of the SessionData returned from the provider for that session.
+When enabled, it creates a debug directory structure under `.specstory/debug/` (or the `--debug-dir` override) with provider-specific native files alongside `session-data.json`, the normalized SessionData written by the CLI.
 
 This mode is useful for:
+
 - Understanding the raw data structure from different AI coding agents
 - Analyzing conversation flow and metadata
 - Debugging parsing issues
@@ -601,16 +637,23 @@ Sync specific session with debug output:
 ```
 .specstory/debug/
 └── <session-uuid>/
-    ├── 1.json      # Claude Code: sequential numbering
-    ├── 2.json      # Cursor CLI: based on rowid
+    ├── 1.json      # JSONL providers: sequential numbering
+    ├── 2.json
     ├── 3.json
     ├── ...
     ├── raw-composer.json # Cursor IDE: the full raw composer record for the session
-    ├── raw-session.json  # VS Code Copilot: the full raw session record
+    ├── 1-42.json         # Cursor CLI: DAG position and SQLite rowid
+    ├── orphan-57.json    # Cursor CLI: an unconnected blob
+    ├── raw-session.json  # DeepSeek TUI / VS Code Copilot: session JSON
+    ├── raw-transcript.jsonl # Antigravity: accepted transcript records
+    ├── tasks/task-6.log  # Antigravity: native async task output
+    ├── native-sidecars.json # Grok Build: summary, updates, events, and subagent metadata
     └── session-data.json # JSON version of the SessionData returned from the provider for this session
 ```
 
-Each JSON file is pretty-printed with 2-space indentation. For Claude Code, files are numbered sequentially based on their position in the JSONL file. For Cursor CLI, files are numbered based on the SQLite rowid. For Cursor IDE and VS Code Copilot, a single file (`raw-composer.json` / `raw-session.json`) holds the complete session record instead of numbered per-record files.
+Claude Code, Codex CLI, Qwen Code, Factory Droid, Pi, Muse Code, OpenCode, and Grok Build use sequentially numbered JSON files in source order. Codex and Grok preserve native number precision and key order. Grok also exports the sidecars used for conversion and refreshes debug files even when its accepted records contain no rendered conversation. Gemini uses numbered per-message diagnostic objects. Pi includes its session header and inactive branches. Muse preserves native envelopes, metadata, diagnostics, and task-stream records even when they are omitted from Markdown. OpenCode exports its SQLite rows: the session row first, then every message row in sequence order, each with all of its stored columns. Antigravity numbers records in native `step_index` order, retains the accepted transcript in source order, and copies async task logs into `tasks/` with their original names and bytes. DeepSeek TUI pretty-prints the original session JSON, including unknown fields, to `raw-session.json`.
+
+All numbered exporters refresh their provider-owned debug files on each export, removing obsolete records while preserving `session-data.json` and unrelated files. Native exports use the same input snapshot as conversion. Cursor CLI filenames include both DAG position and SQLite rowid, with separate orphan files. Cursor IDE and VS Code Copilot use a single `raw-composer.json` or `raw-session.json` instead of numbered records.
 
 **Example:**
 

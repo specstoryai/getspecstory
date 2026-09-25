@@ -1,0 +1,24 @@
+{
+  "info": {
+    "id": "01a0b166-cb07-7443-b1e6-f56859274404",
+    "cwd": "/qa/bounded-project"
+  },
+  "agent_id": "ag1.46cf4af69ed44fa6ae534153662c99ad",
+  "attempt_id": "at1.8b652f02c64d46a1acbf0ec6a9729591",
+  "session_summary": "This is explicitly authorized bounded native-tool QA. Do only these",
+  "created_at": "2026-09-17T22:04:59.031300Z",
+  "updated_at": "2026-09-17T22:05:05.624829Z",
+  "num_messages": 9,
+  "num_chat_messages": 8,
+  "current_model_id": "grok-4.6",
+  "next_trace_turn": 1,
+  "chat_format_version": 1,
+  "session_kind": "headless",
+  "request_id": "1c5d7009-d230-4f94-8bb8-107f2584ccf9",
+  "grok_home": "/qa/bounded-home/.grok",
+  "last_active_at": "2026-09-17T22:05:05.624829Z",
+  "generated_title": "This is explicitly authorized bounded native-tool QA. Do only these",
+  "agent_name": "grok-build-plan",
+  "sandbox_profile": "off",
+  "reasoning_effort": "high"
+}

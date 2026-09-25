@@ -45,11 +45,12 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		VersionFlag:   versionFlag,
 	}
 
-	resolved, err := exec.LookPath(cmdName)
+	resolved, err := spi.LookPathForCheck(cmdName)
 	if err != nil {
-		msg := buildCheckErrorMessage(spi.CheckErrorNotFound, cmdName, isCustom, "")
-		analytics.TrackCheckFailure(attempt, spi.CheckErrorNotFound, err.Error(), "")
-		return spi.CheckResult{Success: false, Location: "", ErrorMessage: msg}
+		errorType := spi.ClassifyCheckError(err)
+		msg := buildCheckErrorMessage(errorType, cmdName, isCustom, "")
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
+		return spi.CheckResult{Success: false, ErrorType: errorType, Location: "", ErrorMessage: msg}
 	}
 	attempt.ResolvedPath = resolved
 
@@ -58,11 +59,11 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		errorType := spi.ClassifyCheckError(err)
+		errorType := spi.ClassifyCheckExecutionError(err)
 		stderrOutput := strings.TrimSpace(stderr.String())
 		msg := buildCheckErrorMessage(errorType, resolved, isCustom, stderrOutput)
 		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
-		return spi.CheckResult{Success: false, Location: resolved, ErrorMessage: msg}
+		return spi.CheckResult{Success: false, ErrorType: errorType, Location: resolved, ErrorMessage: msg}
 	}
 
 	versionOutput := sanitizeDroidVersion(stdout.String())
@@ -176,6 +177,10 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		return ExecuteDroid(customCommand, resumeSessionID)
 	}
 
+	// Capture before launching either goroutine so a fast child cannot become
+	// part of the watcher's silent startup baseline.
+	finalState := &watchState{lastProcessed: make(map[string]int64)}
+	seedProcessedSessions(finalState)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -189,6 +194,10 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 
 	if werr := <-watchErr; werr != nil && !errors.Is(werr, context.Canceled) {
 		slog.Warn("droidcli: watcher stopped with error", "error", werr)
+	}
+
+	if scanErr := scanAndProcessSessions(projectPath, debugRaw, sessionCallback, finalState); scanErr != nil {
+		slog.Warn("Final session scan failed", "error", scanErr)
 	}
 
 	if err != nil {
@@ -228,7 +237,7 @@ func convertToAgentSession(session *fdSession, workspaceRoot string, debugRaw bo
 	}
 	if debugRaw {
 		if err := writeFactoryDebugRaw(session); err != nil {
-			slog.Debug("droidcli: debug raw failed", "sessionId", session.ID, "error", err)
+			slog.Warn("droidcli: debug raw failed", "sessionId", session.ID, "path", spi.GetDebugDir(session.ID), "error", err)
 		}
 	}
 	return chat
@@ -324,7 +333,7 @@ func extractSessionWorkspaceRoot(filePath string) string {
 	}()
 
 	var workspaceRoot string
-	scanErr := scanLines(file, func(_ int, line string) error {
+	scanErr := scanLines(file, filePath, func(_ int, line string) error {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			return nil
@@ -364,7 +373,7 @@ func sessionMentionsProjectText(filePath string, projectPath string) bool {
 	escapedNeedle := strings.ReplaceAll(needle, `\`, `\\`)
 	short := filepath.Base(projectPath)
 	foundLines := 0
-	err = scanLines(file, func(_ int, line string) error {
+	err = scanLines(file, filePath, func(_ int, line string) error {
 		if needle != "" && (strings.Contains(line, needle) || strings.Contains(line, escapedNeedle)) {
 			return errStopScan
 		}
@@ -385,70 +394,13 @@ func sessionMentionsProjectText(filePath string, projectPath string) bool {
 	return errors.Is(err, errStopScan)
 }
 
-// writeFactoryDebugRaw writes pretty-printed JSON files for each line in the session's JSONL.
-// Each JSONL line becomes a numbered file (1.json, 2.json, etc.) matching the Claude Code provider format.
+// writeFactoryDebugRaw exports the accepted JSONL snapshot without losing
+// native fields, numeric precision, or key order.
 func writeFactoryDebugRaw(session *fdSession) error {
 	if session == nil {
 		return nil
 	}
-
-	dir := spi.GetDebugDir(session.ID)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("droidcli: unable to create debug dir: %w", err)
-	}
-
-	// Clean existing files from the debug directory
-	entries, err := os.ReadDir(dir)
-	if err == nil {
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				_ = os.Remove(filepath.Join(dir, entry.Name()))
-			}
-		}
-	}
-
-	// Split JSONL into individual lines and write each as a pretty-printed JSON file
-	lines := strings.Split(session.RawData, "\n")
-	lineNumber := 0
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-
-		// Parse the JSON line
-		var data map[string]interface{}
-		if err := json.Unmarshal([]byte(trimmed), &data); err != nil {
-			slog.Debug("droidcli: skipping malformed JSONL line in debug-raw",
-				"lineNumber", lineNumber+1,
-				"error", err)
-			continue
-		}
-
-		lineNumber++
-
-		// Pretty-print and write to numbered file
-		prettyJSON, err := json.MarshalIndent(data, "", "  ")
-		if err != nil {
-			slog.Debug("droidcli: failed to marshal JSON for debug-raw",
-				"lineNumber", lineNumber,
-				"error", err)
-			continue
-		}
-
-		filePath := filepath.Join(dir, fmt.Sprintf("%d.json", lineNumber))
-		if err := os.WriteFile(filePath, prettyJSON, 0o644); err != nil {
-			slog.Debug("droidcli: failed to write debug-raw file",
-				"path", filePath,
-				"error", err)
-		}
-	}
-
-	slog.Debug("droidcli: wrote debug-raw files",
-		"sessionId", session.ID,
-		"fileCount", lineNumber)
-
-	return nil
+	return spi.WriteDebugJSONL(spi.GetDebugDir(session.ID), session.RawData)
 }
 
 // ListAgentChatSessions retrieves lightweight session metadata without full parsing

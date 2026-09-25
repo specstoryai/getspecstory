@@ -78,7 +78,7 @@ func getGlobalDatabasePath() (string, error) {
 			slog.Warn("Cursor global database missing at both override and OS-default paths; provider will be idle until restart",
 				"override", userDataDirOverride, "osDefault", dbPath)
 		}
-		return "", fmt.Errorf("global database not found at %s (has Cursor IDE been used? if it uses a custom user-data-dir, pass --user-data-dir cursoride:<path>)", dbPath)
+		return "", fmt.Errorf("cannot access global database at %s (if Cursor uses a custom user-data-dir, pass --user-data-dir cursoride:<path>): %w", dbPath, err)
 	}
 
 	slog.Debug("Found Cursor IDE global database", "path", dbPath)

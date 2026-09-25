@@ -1417,7 +1417,7 @@ Show docs/changelog diff vs dev
 
 `git diff dev...HEAD -- README.md changelog.md docs/SECRET-REDACTION-PERFORMANCE.md`
 
-```text
+````text
 diff --git a/specstory-cli/README.md b/specstory-cli/README.md
 index a5e726b..07e8e5e 100644
 --- a/specstory-cli/README.md
@@ -1584,7 +1584,7 @@ index 0000000..b89e5c7
 +```
 +
 +Per-rule attribution: iterate `config.Default()`'s rules, skip rules whose keywords are absent from the content, and time each rule's `FindAllStringIndex` over the content individually.
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-07-20 15:14:09Z)**_
@@ -6168,7 +6168,7 @@ _**Agent (claude-fable-5 2026-07-20 20:54:06Z)**_
 <summary>Tool use: **Read**</summary>
  `./CLAUDE.md`
 
-```text
+````text
 76	./specstory sync --debug-raw          # Debug mode to output pretty-printed raw data files
 77	```
 78	
@@ -6185,7 +6185,7 @@ _**Agent (claude-fable-5 2026-07-20 20:54:06Z)**_
 89	- `pkg/config` - Optional TOML config file handling
 90	- `pkg/log/` - Logging utilities
 91	- `pkg/provenance/` - Optional AI provenance tracking
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-07-20 20:54:11Z)**_

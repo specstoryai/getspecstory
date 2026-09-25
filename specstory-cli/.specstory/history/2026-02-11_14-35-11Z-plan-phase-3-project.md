@@ -4966,7 +4966,7 @@ _**Agent (claude-opus-4-6 2026-02-11 17:16:22Z)**_
 <summary>Tool use: **Task**</summary>
 Find tool call vs result message creation
 
-```text
+````text
 Perfect! Now I have all the information I need. Let me create a comprehensive summary report.
 
 ## Summary Report: Message Creation with Tool Info and PathHints
@@ -5104,7 +5104,7 @@ agentId: a0fe968 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 45053
 tool_uses: 15
 duration_ms: 36482</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-11 17:15:46Z)**_
@@ -5485,7 +5485,7 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-11 17:15:52Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/claudecode/agent_session.go`
 
-```text
+````text
      1→package claudecode
      2→
      3→import (
@@ -6041,7 +6041,7 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-11 17:15:52Z)**_
    553→	return markdown.String()
    554→}
    555→
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-11 17:15:54Z)**_
@@ -8942,7 +8942,7 @@ _**Agent (claude-opus-4-6 2026-02-11 20:46:33Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/Source/SpecStory/compositions/prov-1/.specstory/debug/803ab570-f188-4c1f-9beb-eb1afe006431/session-data.json`
 
-```text
+````text
      1→{
      2→  "schemaVersion": "1.0",
      3→  "provider": {
@@ -9085,7 +9085,7 @@ _**Agent (claude-opus-4-6 2026-02-11 20:46:33Z)**_
    140→    }
    141→  ]
    142→}
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-11 20:46:43Z)**_
@@ -9389,7 +9389,7 @@ _**Agent (claude-opus-4-6 2026-02-11 20:54:13Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/claudecode/agent_session_test.go`
 
-```text
+````text
      1→package claudecode
      2→
      3→import (
@@ -9649,7 +9649,7 @@ _**Agent (claude-opus-4-6 2026-02-11 20:54:13Z)**_
    257→	}
    258→}
    259→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-11 20:54:17Z)**_

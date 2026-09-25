@@ -186,13 +186,11 @@ func enumerateAll(registry *factory.Registry, visible bool) (ids []string, provs
 		}
 		provs[i] = prov
 		reporter := scan.reporterFor(id)
-		ewg.Add(1)
-		go func(i int, id string, prov spi.Provider, reporter *spi.ScanReporter) {
-			defer ewg.Done()
+		ewg.Go(func() {
 			refs := enumerateOne(id, prov, reporter)
 			perProvider[i] = refs
 			scan.markDone(id, len(refs))
-		}(i, id, prov, reporter)
+		})
 	}
 	ewg.Wait()
 	return ids, provs, perProvider
@@ -295,7 +293,7 @@ func dedupRefs(ids []string, provs []spi.Provider, perProvider [][]spi.GlobalSes
 				slog.Debug("reindex: skipping session with no id", "agent", id, "path", ref.NativePath)
 				continue
 			}
-			size, mtime := statNative(ref.NativePath)
+			size, mtime := refFingerprint(ref)
 			item := reindexItem{agent: id, prov: provs[i], ref: ref, size: size, mtime: mtime}
 			key := sessionindex.FingerprintKey(id, ref.SessionID)
 			if cur, ok := best[key]; ok {
@@ -395,9 +393,7 @@ func processWork(ctx context.Context, store *sessionindex.Store, work []reindexI
 	workCh := make(chan reindexItem)
 	var wwg sync.WaitGroup
 	for w := 0; w < workers; w++ {
-		wwg.Add(1)
-		go func() {
-			defer wwg.Done()
+		wwg.Go(func() {
 			for item := range workCh {
 				sess := buildSession(item, cache, indexedAt)
 				rep.observe(sess.ProjectID)
@@ -410,7 +406,7 @@ func processWork(ctx context.Context, store *sessionindex.Store, work []reindexI
 					return
 				}
 			}
-		}()
+		})
 	}
 
 	for _, item := range work {
@@ -649,8 +645,9 @@ func buildSession(item reindexItem, cache *projectIDCache, indexedAt string) ses
 // avoids the provider's by-id discovery search — for Codex that search walks the entire
 // ~/.codex/sessions tree, so this is the difference between an O(N) and an O(N²) reindex.
 // Providers without the capability (or refs lacking a NativePath) fall back to the by-id
-// lookup. Parsing the known NativePath is also more consistent: the row's freshness
-// fingerprint is stat'd from NativePath, so the body now comes from that same file.
+// lookup. Parsing the known NativePath is also more consistent: a row's freshness
+// fingerprint is stat'd from NativePath (unless the provider supplied its own), so the
+// body now comes from that same file.
 func parseFullSession(prov spi.Provider, ref spi.GlobalSessionRef) (*spi.AgentChatSession, error) {
 	if pr, ok := prov.(spi.PathSessionReader); ok && ref.NativePath != "" {
 		return pr.GetAgentChatSessionByPath(ref.NativePath, ref.OriginCwd, false)
@@ -725,13 +722,34 @@ func lastTimestamp(data *schema.SessionData) string {
 	return last
 }
 
+// refFingerprint returns the freshness pair for a ref: the provider's own when it
+// supplied one (a store shared by every session cannot be fingerprinted by file),
+// otherwise the native file's size and mtime.
+func refFingerprint(ref spi.GlobalSessionRef) (size, mtimeMs int64) {
+	if ref.Fingerprint != nil {
+		return ref.Fingerprint.Size, ref.Fingerprint.Mtime
+	}
+	return statNative(ref.NativePath)
+}
+
 // statNative returns the native file's size (bytes) and mtime (epoch ms), or zeros.
+//
+// A SQLite store in WAL mode (OpenCode's opencode.db, Cursor IDE's state.vscdb)
+// commits to <path>-wal and folds that into <path> only at a checkpoint, so the
+// main file alone can keep its size and mtime while a session changes. A -wal
+// sibling's size and mtime are folded in so such a change still reads as one;
+// paths without a -wal sibling keep the fingerprint they always had.
 func statNative(path string) (size, mtimeMs int64) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return 0, 0
 	}
-	return info.Size(), info.ModTime().UnixMilli()
+	size, mtimeMs = info.Size(), info.ModTime().UnixMilli()
+	if wal, err := os.Stat(path + "-wal"); err == nil {
+		size += wal.Size()
+		mtimeMs = max(mtimeMs, wal.ModTime().UnixMilli())
+	}
+	return size, mtimeMs
 }
 
 // ---- project identity cache (cwd -> project id/name) ----

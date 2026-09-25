@@ -149,7 +149,10 @@ func convertToAgentSession(session *dsSession, workspaceRoot string, debugRaw bo
 	}
 
 	if debugRaw {
-		writeDebugRaw(session)
+		if err := writeDebugRaw(session); err != nil {
+			slog.Warn("deepseek: failed to write debug raw file", "sessionId", session.Metadata.ID,
+				"path", spi.GetDebugDir(session.Metadata.ID), "error", err)
+		}
 	}
 
 	return &spi.AgentChatSession{
@@ -535,23 +538,24 @@ func deriveSlug(session *dsSession) string {
 	return "deepseek-session"
 }
 
-// writeDebugRaw writes the raw session JSON to the debug directory.
-func writeDebugRaw(session *dsSession) {
+// writeDebugRaw pretty-prints the parsing snapshot without losing native fields.
+func writeDebugRaw(session *dsSession) error {
 	if session == nil {
-		return
+		return nil
 	}
 
 	dir := spi.GetDebugDir(session.Metadata.ID)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		slog.Debug("deepseek: unable to create debug dir", "error", err)
-		return
+		return fmt.Errorf("create debug directory %s: %w", dir, err)
 	}
 
 	rawPath := filepath.Join(dir, "raw-session.json")
-	if err := os.WriteFile(rawPath, []byte(session.RawData), 0o644); err != nil {
-		slog.Debug("deepseek: failed to write debug raw file", "path", rawPath, "error", err)
-		return
+	data, err := json.MarshalIndent(json.RawMessage(session.RawData), "", "  ")
+	if err != nil {
+		return fmt.Errorf("format debug file %s: %w", rawPath, err)
 	}
-
-	slog.Debug("deepseek: wrote debug raw file", "sessionId", session.Metadata.ID, "path", rawPath)
+	if err := os.WriteFile(rawPath, data, 0o644); err != nil {
+		return fmt.Errorf("write debug file %s: %w", rawPath, err)
+	}
+	return nil
 }

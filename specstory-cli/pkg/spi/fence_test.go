@@ -78,3 +78,56 @@ func TestCapRunes(t *testing.T) {
 		t.Errorf("capped multibyte output invalid: %q", capped)
 	}
 }
+
+func TestInlineCode(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "plain text gets one backtick", in: "hello.py", want: "`hello.py`"},
+		{
+			// The motivating case: a backtick inside the span must not close it.
+			name: "one embedded backtick forces a double run with padding",
+			in:   "a`b",
+			want: "`` a`b ``",
+		},
+		{name: "a run is sized past, not just counted", in: "x```y", want: "```` x```y ````"},
+		{
+			// CommonMark strips the padding, so the rendered span still begins
+			// with the backtick.
+			name: "leading backtick survives through padding",
+			in:   "`quoted`",
+			want: "`` `quoted` ``",
+		},
+		{name: "line breaks and runs of spaces collapse to one space", in: "  a \n\t b  ", want: "`a b`"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := InlineCode(tt.in); got != tt.want {
+				t.Errorf("InlineCode(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSanitizeShellOutput(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "color codes are removed", in: "\x1b[31mred\x1b[0m text", want: "red text"},
+		{name: "cursor movement is removed", in: "line\x1b[2K\x1b[1Gnext", want: "linenext"},
+		{name: "CRLF becomes LF and newlines and tabs survive", in: "a\r\nb\tc", want: "a\nb\tc"},
+		{name: "bare control bytes are dropped", in: "a\x07b\x00c\x7fd", want: "abcd"},
+		{name: "multi-byte text is untouched", in: "héllo → wörld", want: "héllo → wörld"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SanitizeShellOutput(tt.in); got != tt.want {
+				t.Errorf("SanitizeShellOutput(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}

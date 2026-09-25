@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -43,7 +42,7 @@ func watchSessions(ctx context.Context, projectPath string, debugRaw bool, sessi
 		return err
 	}
 
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return fmt.Errorf("antigravity: failed to create watcher: %w", err)
 	}
@@ -51,10 +50,8 @@ func watchSessions(ctx context.Context, projectPath string, debugRaw bool, sessi
 
 	state := newWatchState()
 
-	// Initial scan so existing sessions are emitted immediately.
-	if err := scanAndProcessConversations(projectPath, debugRaw, sessionCallback, state); err != nil {
-		slog.Debug("antigravity: initial scan failed", "error", err)
-	}
+	// Record what is already on disk instead of emitting it.
+	seedProcessedConversations(state)
 
 	if err := setupWatches(watcher, brainDir, state); err != nil {
 		slog.Debug("antigravity: setup watches failed", "error", err)
@@ -220,11 +217,7 @@ func isTranscriptPath(path string) bool {
 // because a finished async command writes its output here without touching the
 // transcript, so the session must be re-emitted off this file's event.
 func isTaskLogPath(path string) bool {
-	base := filepath.Base(path)
-	if !strings.HasPrefix(base, "task-") || !strings.HasSuffix(base, ".log") {
-		return false
-	}
-	return filepath.Base(filepath.Dir(path)) == tasksDirName
+	return filepath.Base(filepath.Dir(path)) == tasksDirName && isTaskLogName(filepath.Base(path))
 }
 
 // conversationIDFromTranscriptPath recovers the conversation id (the brain
@@ -285,6 +278,28 @@ func processTranscriptFile(eventPath string, projectPath string, debugRaw bool, 
 	}, projectPath, debugRaw, history, projectWorkspaces, sessionCallback, state)
 }
 
+// seedProcessedConversations marks every conversation already on disk as seen,
+// without parsing or emitting any of it. Those conversations predate the
+// watcher and are `sync`'s to save; re-emitting them on every start would
+// rewrite their markdown and re-sync them for content that has not changed.
+// Recording only the modification times means the next scan still emits any of
+// them that Antigravity actually touches.
+//
+// Failures are non-fatal: the worst case is the first scan re-emitting existing
+// conversations, which is the behavior this exists to avoid rather than a
+// correctness problem.
+func seedProcessedConversations(state *watchState) {
+	files, err := listConversationFiles()
+	if err != nil {
+		slog.Debug("antigravity: could not seed existing conversations", "error", err)
+		return
+	}
+	for _, file := range files {
+		state.lastProcessed[file.Path] = file.ModTime
+	}
+	slog.Debug("antigravity: seeded existing conversations as known", "count", len(files))
+}
+
 // scanAndProcessConversations processes every conversation that has changed
 // since last seen.
 func scanAndProcessConversations(projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession), state *watchState) error {
@@ -316,5 +331,5 @@ func emitConversation(file conversationFile, projectPath string, debugRaw bool,
 		return
 	}
 	state.lastProcessed[file.Path] = file.ModTime
-	spi.DispatchSession("antigravity", sessionCallback, chat)
+	spi.DeliverSession("antigravity", sessionCallback, chat)
 }

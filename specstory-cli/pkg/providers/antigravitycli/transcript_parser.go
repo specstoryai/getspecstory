@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -56,13 +58,8 @@ const (
 // than rewriting the step, so these are the steps loadTaskOutputs backfills.
 const statusRunning = "RUNNING"
 
-// maxScanLineSize bounds the line scanners over the sidecar indexes —
-// history.jsonl and the CLI logs — well above bufio's 64KB default while still
-// placing a hard cap on malformed lines. Transcripts are deliberately NOT read
-// through a capped scanner: parseTranscript reads the whole file and splits it,
-// so an oversized line degrades to one unparseable step instead of aborting the
-// scan and losing everything after it.
-const maxScanLineSize = 16 * 1024 * 1024
+// Sidecar indexes and transcripts share the same native-record size limit.
+const maxScanLineSize = spi.MaxRecordLineSize
 
 // historyEntry is one line of ~/.gemini/antigravity-cli/history.jsonl. It maps a
 // prompt to the workspace it was issued in. NOTE: only interactive TUI sessions
@@ -94,6 +91,7 @@ type transcriptStep struct {
 	Content   string               `json:"content"`
 	Thinking  string               `json:"thinking"`
 	ToolCalls []transcriptToolCall `json:"tool_calls"`
+	RawRecord json.RawMessage      `json:"-"` // captured before fallback argument normalization
 }
 
 // agSession is the parsed aggregate of one conversation — the analog of
@@ -105,8 +103,9 @@ type agSession struct {
 	UpdatedAt      string // last step's created_at
 	Model          string // derived from the USER_SETTINGS_CHANGE block, if present
 	Steps          []transcriptStep
-	TaskOutputs    map[int]string // async task output keyed by RUN_COMMAND step_index
-	RawData        string         // full transcript bytes, retained only when wantRawData
+	TaskOutputs    map[int]string    // async task output keyed by RUN_COMMAND step_index
+	TaskLogs       map[string][]byte // original task filenames and bytes from the same read
+	RawData        string            // accepted native records, retained only when wantRawData
 }
 
 // isToolResultStep reports whether a step carries a tool result. Results are
@@ -201,14 +200,15 @@ func loadSummaries() map[string]conversationSummary {
 }
 
 // parseTranscript reads a conversation's transcript JSONL file and returns an
-// agSession. When wantRawData is true the full file bytes are retained on
+// agSession. When wantRawData is true the accepted native bytes are retained on
 // RawData for cloud sync / debug-raw output; callers that only need the parsed
 // structure pass false to avoid keeping a copy of the whole file in memory.
 func parseTranscript(conversationID, transcriptPath string, history map[string]historyEntry, projectWorkspaces map[string]string, wantRawData bool) (*agSession, error) {
-	data, err := os.ReadFile(transcriptPath)
+	file, err := os.Open(transcriptPath)
 	if err != nil {
 		return nil, fmt.Errorf("antigravity: cannot read transcript %s: %w", transcriptPath, err)
 	}
+	defer func() { _ = file.Close() }()
 
 	// transcript.jsonl double-encodes every tool-arg value; transcript_full.jsonl
 	// stores them natively. We only need to unescape when we fell back to the
@@ -216,16 +216,33 @@ func parseTranscript(conversationID, transcriptPath string, history map[string]h
 	fromFallback := strings.HasSuffix(transcriptPath, fallbackTranscriptFileName)
 
 	var steps []transcriptStep
-	for _, rawLine := range bytes.Split(data, []byte{'\n'}) {
+	var rawData strings.Builder
+	reader := bufio.NewReader(file)
+	for lineNumber := 1; ; lineNumber++ {
+		rawLine, oversized, err := spi.ReadRecordLine(reader, spi.MaxRecordLineSize)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return nil, fmt.Errorf("antigravity: read transcript %s line %d: %w", transcriptPath, lineNumber, err)
+		}
+		if oversized {
+			slog.Warn("antigravity: skipping oversized JSONL line", "file", transcriptPath, "line", lineNumber)
+			continue
+		}
+		if len(rawLine) == 0 && errors.Is(err, io.EOF) {
+			break
+		}
 		line := bytes.TrimSpace(rawLine)
 		if len(line) == 0 {
 			continue
 		}
 		var step transcriptStep
 		if err := json.Unmarshal(line, &step); err != nil {
-			slog.Debug("antigravity: skipping malformed transcript line",
-				"conversationId", conversationID, "error", err)
+			slog.Warn("antigravity: skipping corrupted JSONL line",
+				"conversationId", conversationID, "file", transcriptPath, "line", lineNumber, "error", err)
 			continue
+		}
+		if wantRawData {
+			step.RawRecord = json.RawMessage(line)
+			rawData.Write(rawLine)
 		}
 		if fromFallback {
 			for i := range step.ToolCalls {
@@ -248,8 +265,11 @@ func parseTranscript(conversationID, transcriptPath string, history map[string]h
 		ConversationID: conversationID,
 		Steps:          steps,
 	}
-	if taskOutputs, err := loadTaskOutputs(transcriptPath); err == nil {
-		session.TaskOutputs = taskOutputs
+	if sidecars, err := loadTaskOutputs(transcriptPath); err == nil {
+		session.TaskOutputs = sidecars.outputs
+		if wantRawData {
+			session.TaskLogs = sidecars.logs
+		}
 	} else {
 		slog.Debug("antigravity: failed to load async task outputs",
 			"conversationId", conversationID, "error", err)
@@ -261,48 +281,68 @@ func parseTranscript(conversationID, transcriptPath string, history map[string]h
 	session.Workspace = resolveSessionWorkspace(conversationID, history, projectWorkspaces)
 	session.Model = deriveModel(steps)
 	if wantRawData {
-		session.RawData = string(data)
+		session.RawData = rawData.String()
 	}
 
 	return session, nil
 }
 
+// taskSidecars keeps rendered outputs and their original bytes from one read.
+type taskSidecars struct {
+	outputs map[int]string
+	logs    map[string][]byte
+}
+
+// taskLogStep is shared by discovery, watching, and cleanup so the set of
+// exported native log names cannot drift from the files owned by the export.
+func taskLogStep(name string) (int, bool) {
+	if !strings.HasPrefix(name, "task-") || !strings.HasSuffix(name, ".log") {
+		return 0, false
+	}
+	step, err := strconv.Atoi(strings.TrimSuffix(strings.TrimPrefix(name, "task-"), ".log"))
+	return step, err == nil
+}
+
+func isTaskLogName(name string) bool {
+	_, ok := taskLogStep(name)
+	return ok
+}
+
 // loadTaskOutputs reads optional async command logs from
 // .system_generated/tasks/task-<step_index>.log. Antigravity names the task log
 // after the RUN_COMMAND result step that remains RUNNING in the transcript.
-func loadTaskOutputs(transcriptPath string) (map[int]string, error) {
+func loadTaskOutputs(transcriptPath string) (taskSidecars, error) {
 	systemDir := filepath.Dir(filepath.Dir(transcriptPath))
 	tasksDir := filepath.Join(systemDir, tasksDirName)
 	entries, err := os.ReadDir(tasksDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return taskSidecars{}, nil
 		}
-		return nil, err
+		return taskSidecars{}, err
 	}
 
-	outputs := make(map[int]string)
+	sidecars := taskSidecars{outputs: make(map[int]string), logs: make(map[string][]byte)}
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
 		}
 		name := entry.Name()
-		if !strings.HasPrefix(name, "task-") || !strings.HasSuffix(name, ".log") {
-			continue
-		}
-		stepIndex, err := strconv.Atoi(strings.TrimSuffix(strings.TrimPrefix(name, "task-"), ".log"))
-		if err != nil {
+		stepIndex, ok := taskLogStep(name)
+		if !ok {
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(tasksDir, name))
 		if err != nil {
+			slog.Warn("antigravity: failed to read async task log", "path", filepath.Join(tasksDir, name), "error", err)
 			continue
 		}
+		sidecars.logs[name] = data
 		if text := strings.TrimSpace(string(data)); text != "" {
-			outputs[stepIndex] = text
+			sidecars.outputs[stepIndex] = text
 		}
 	}
-	return outputs, nil
+	return sidecars, nil
 }
 
 // normalizeFallbackArgs unescapes the double-encoded arg values found in

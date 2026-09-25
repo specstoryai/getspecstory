@@ -45,6 +45,105 @@ type CodexEventMsg struct {
 	} `json:"payload"`
 }
 
+// itemCompletedEvent is the event_msg payload type Codex 0.147's TUI writes for
+// each completed thread item, replacing the user_message / agent_message /
+// agent_reasoning events it used through 0.146. The two forms are alternatives,
+// never both for the same turn, so a session recorded either way is read by
+// translating this one into the older shape — see codexItemAsLegacyEvent.
+//
+// Which form a session uses is Codex's choice, not a version cut: 0.147 writes
+// thread items for a session started in its TUI, and the older events for
+// `codex exec` and for any session it resumes that was created before 0.147.
+const itemCompletedEvent = "item_completed"
+
+// codexItemAsLegacyEvent reshapes a completed thread item into the payload type
+// and fields the parser already understands, returning an empty type for items
+// that carry no conversation text.
+//
+// Only the three conversation items are translated. The tool items
+// (CommandExecution, FileChange, McpToolCall and the rest) are deliberately
+// dropped: tool calls still arrive as response_item records, which 0.147 writes
+// alongside these, and reading both would render every tool call twice.
+func codexItemAsLegacyEvent(payload map[string]interface{}) (string, map[string]interface{}) {
+	item, ok := payload["item"].(map[string]interface{})
+	if !ok {
+		return "", nil
+	}
+
+	itemType, _ := item["type"].(string)
+	switch itemType {
+	case "UserMessage":
+		return "user_message", map[string]interface{}{"message": codexItemText(item)}
+
+	case "AgentMessage":
+		// Phase is either "commentary" (the preamble the agent prints before
+		// acting) or "final_answer". Both were emitted as agent_message by the
+		// older stream and both were shown to the user, so neither is filtered.
+		return "agent_message", map[string]interface{}{"message": codexItemText(item)}
+
+	case "Reasoning":
+		return "agent_reasoning", map[string]interface{}{"text": codexItemReasoningText(item)}
+	}
+
+	return "", nil
+}
+
+// codexItemText joins the text of a thread item's content parts. The part type
+// is spelled "text" on user items and "Text" on agent items, so the text field
+// is read without regard to it.
+func codexItemText(item map[string]interface{}) string {
+	parts, ok := item["content"].([]interface{})
+	if !ok {
+		return ""
+	}
+
+	var text strings.Builder
+	for _, entry := range parts {
+		part, ok := entry.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if partText, _ := part["text"].(string); partText != "" {
+			text.WriteString(partText)
+		}
+	}
+	return text.String()
+}
+
+// codexItemReasoningText pulls the visible reasoning out of a Reasoning item,
+// preferring the summary Codex displays over the raw content, which is what the
+// older agent_reasoning event carried.
+//
+// Both fields were empty in every 0.147 session available when this was written
+// — the substance sits in the paired response_item's encrypted_content, which is
+// opaque — so the element shape is unconfirmed and both a bare string and an
+// object with a text field are accepted.
+func codexItemReasoningText(item map[string]interface{}) string {
+	for _, field := range []string{"summary_text", "raw_content"} {
+		entries, ok := item[field].([]interface{})
+		if !ok {
+			continue
+		}
+
+		var text strings.Builder
+		for _, entry := range entries {
+			switch value := entry.(type) {
+			case string:
+				text.WriteString(value)
+			case map[string]interface{}:
+				if entryText, _ := value["text"].(string); entryText != "" {
+					text.WriteString(entryText)
+				}
+			}
+		}
+		if text.Len() > 0 {
+			return text.String()
+		}
+	}
+
+	return ""
+}
+
 // CodexResponseItem represents function calls and custom tool calls
 type CodexResponseItem struct {
 	Type      string `json:"type"` // "response_item"
@@ -213,6 +312,14 @@ func buildExchangesFromRecords(records []map[string]interface{}, workspaceRoot s
 			}
 
 			payloadType, _ := payload["type"].(string)
+
+			// Codex 0.147's TUI writes the conversation as thread items rather
+			// than the user_message/agent_message/agent_reasoning events. Reshape
+			// those into the older form so one set of message handling serves
+			// both, and a session recorded either way renders the same.
+			if payloadType == itemCompletedEvent {
+				payloadType, payload = codexItemAsLegacyEvent(payload)
+			}
 
 			switch payloadType {
 			case "user_message":
@@ -391,21 +498,15 @@ func buildExchangesFromRecords(records []map[string]interface{}, workspaceRoot s
 			case "function_call_output":
 				// Function call output - merge into the pending tool call
 				callID, _ := payload["call_id"].(string)
-				outputJSON, _ := payload["output"].(string)
+				output := parseToolOutput(payload["output"])
 
-				if callID == "" || outputJSON == "" {
+				if callID == "" || output == nil {
 					continue
 				}
 
 				// Find the pending tool call
 				if pending, exists := pendingTools[callID]; exists {
-					// Parse the output JSON
-					var outputData map[string]interface{}
-					if err := json.Unmarshal([]byte(outputJSON), &outputData); err == nil {
-						pending.toolInfo.Output = outputData
-					} else {
-						pending.toolInfo.Output = map[string]interface{}{"raw": outputJSON}
-					}
+					pending.toolInfo.Output = output
 					delete(pendingTools, callID)
 				}
 
@@ -462,21 +563,15 @@ func buildExchangesFromRecords(records []map[string]interface{}, workspaceRoot s
 			case "custom_tool_call_output":
 				// Custom tool call output - merge into the pending tool call
 				callID, _ := payload["call_id"].(string)
-				outputJSON, _ := payload["output"].(string)
+				output := parseToolOutput(payload["output"])
 
-				if callID == "" || outputJSON == "" {
+				if callID == "" || output == nil {
 					continue
 				}
 
 				// Find the pending tool call
 				if pending, exists := pendingTools[callID]; exists {
-					// Parse the output JSON
-					var outputData map[string]interface{}
-					if err := json.Unmarshal([]byte(outputJSON), &outputData); err == nil {
-						pending.toolInfo.Output = outputData
-					} else {
-						pending.toolInfo.Output = map[string]interface{}{"raw": outputJSON}
-					}
+					pending.toolInfo.Output = output
 					delete(pendingTools, callID)
 				}
 			}
@@ -491,12 +586,56 @@ func buildExchangesFromRecords(records []map[string]interface{}, workspaceRoot s
 	return exchanges, nil
 }
 
+// parseToolOutput normalizes a function or custom tool call's output payload into the map
+// stored on ToolInfo.Output. Returns nil when there's nothing to record.
+//
+// Codex writes output in two shapes: a string (a JSON object or plain text), and an array
+// of content items (e.g. code-mode `exec`, whose results are input_text and input_image
+// parts). Arrays are flattened into the same {"raw": text} shape as plain text, so
+// markdown rendering and cloud session data handle both without a second code path.
+func parseToolOutput(output interface{}) map[string]interface{} {
+	switch v := output.(type) {
+	case string:
+		if v == "" {
+			return nil
+		}
+		var outputData map[string]interface{}
+		if err := json.Unmarshal([]byte(v), &outputData); err == nil {
+			return outputData
+		}
+		return map[string]interface{}{"raw": v}
+	case []interface{}:
+		var parts []string
+		for _, item := range v {
+			part, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if text, ok := part["text"].(string); ok && text != "" {
+				parts = append(parts, text)
+			} else if part["type"] == "input_image" {
+				// Images arrive as base64 data URLs; a marker keeps the transcript
+				// honest about their presence without embedding megabytes of base64.
+				parts = append(parts, "[image]")
+			}
+		}
+		if len(parts) == 0 {
+			return nil
+		}
+		return map[string]interface{}{"raw": strings.Join(parts, "\n")}
+	default:
+		return nil
+	}
+}
+
 // formatToolWithSummary generates custom summary and formatted markdown for a Codex tool
 // Returns (summary, formattedMarkdown) where summary is the custom content for <summary> tag
 // and formattedMarkdown is additional content to display in the tool-use block
 func formatToolWithSummary(tool *ToolInfo, workspaceRoot string) (string, string) {
 	var summary string
 	var formattedMd strings.Builder
+	// Set when the input formatter already rendered the output alongside the input
+	var outputRendered bool
 
 	// Format tool input based on whether it's a function call or custom tool
 	if tool.Input != nil {
@@ -523,26 +662,45 @@ func formatToolWithSummary(tool *ToolInfo, workspaceRoot string) (string, string
 			}
 		} else {
 			// Other function calls with JSON arguments
-			inputJSON, _ := json.Marshal(tool.Input)
-			formattedMd.WriteString(formatToolCall(tool.Name, string(inputJSON)))
+			var formatted string
+			if tool.Name == "request_user_input" {
+				// The answers are rendered under their questions, so the output needs no
+				// block of its own.
+				formatted = formatRequestUserInput(tool.Input, tool.Output)
+				outputRendered = formatted != ""
+			} else {
+				inputJSON, _ := json.Marshal(tool.Input)
+				formatted = formatToolCall(tool.Name, string(inputJSON))
+			}
+			if formatted == "" {
+				// Once this tool has any formatted markdown, the session renderer skips its
+				// generic input rendering, so the arguments must be written here or be lost.
+				formatted = spi.RenderGenericJSON(tool.Input)
+			}
+			formattedMd.WriteString(formatted)
 		}
 	}
 
 	// Format tool output if present
-	if tool.Output != nil {
+	if tool.Output != nil && !outputRendered {
+		var outputMd string
 		if outputStr, ok := tool.Output["raw"].(string); ok {
-			// Clean and truncate output if needed
-			cleaned := strings.TrimSpace(outputStr)
 			// Only show output if there's actual content
-			if cleaned != "" {
-				if formattedMd.Len() > 0 {
-					formattedMd.WriteString("\n")
-				}
-				if len(cleaned) > 5000 {
-					cleaned = cleaned[:5000] + "\n... (truncated)"
-				}
-				formattedMd.WriteString(spi.CodeFence("", cleaned))
+			if cleaned := strings.TrimSpace(outputStr); cleaned != "" {
+				// Cap by runes so the cut never splits a multi-byte character, which
+				// would leave the saved markdown as invalid UTF-8.
+				outputMd = spi.CodeFence("", spi.CapRunes(cleaned, 5000))
 			}
+		} else {
+			// Output that was a JSON object has no single text field to show, and its
+			// fields vary by tool; show it whole rather than silently dropping it.
+			outputMd = spi.RenderGenericJSON(tool.Output)
+		}
+		if outputMd != "" {
+			if formattedMd.Len() > 0 {
+				formattedMd.WriteString("\n")
+			}
+			formattedMd.WriteString(outputMd)
 		}
 	}
 

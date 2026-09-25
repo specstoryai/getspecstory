@@ -3,6 +3,7 @@ package codexcli
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -110,6 +111,121 @@ func formatViewImage(toolName string, argumentsJSON string) string {
 
 	// Just return the path - CLI will generate default summary
 	return fmt.Sprintf("%s\n", path)
+}
+
+// formatRequestUserInput formats the request_user_input tool as each question with its
+// options, followed by the user's answer once the output has been recorded. The answers
+// are the whole point of this tool, so any answer that can't be matched to a question is
+// still rendered rather than dropped.
+// Expected input: {"questions": [{"id": "...", "header": "...", "question": "...", "options": [{"label": "...", "description": "..."}]}]}
+// Expected output: {"answers": {"<question id>": {"answers": ["<option label>", "user_note: <free text>"]}}}
+// Returns "" when the input has no questions, so the caller falls back to generic rendering.
+func formatRequestUserInput(input map[string]interface{}, output map[string]interface{}) string {
+	questions, _ := input["questions"].([]interface{})
+	if len(questions) == 0 {
+		return ""
+	}
+
+	answersByID := requestUserInputAnswers(output)
+	var result strings.Builder
+	answeredIDs := make(map[string]bool)
+
+	for _, item := range questions {
+		question, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		id, _ := question["id"].(string)
+		header, _ := question["header"].(string)
+		text, _ := question["question"].(string)
+
+		if result.Len() > 0 {
+			result.WriteString("\n")
+		}
+		if header != "" {
+			fmt.Fprintf(&result, "**%s:** %s\n", header, text)
+		} else {
+			fmt.Fprintf(&result, "**%s**\n", text)
+		}
+
+		options, _ := question["options"].([]interface{})
+		if len(options) > 0 {
+			result.WriteString("\n")
+		}
+		for _, optionItem := range options {
+			option, ok := optionItem.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			label, _ := option["label"].(string)
+			description, _ := option["description"].(string)
+			if description != "" {
+				fmt.Fprintf(&result, "- %s: %s\n", label, description)
+			} else {
+				fmt.Fprintf(&result, "- %s\n", label)
+			}
+		}
+
+		// A nil output means the call is still waiting on the user; there's no answer to
+		// report yet, as opposed to a recorded output with nothing selected (cancelled).
+		if output != nil {
+			result.WriteString("\n")
+			writeRequestUserInputAnswer(&result, "Answer", answersByID[id])
+			answeredIDs[id] = true
+		}
+	}
+
+	// Answers keyed by an id that none of the questions carry. Sorted for stable output.
+	var orphanIDs []string
+	for id := range answersByID {
+		if !answeredIDs[id] {
+			orphanIDs = append(orphanIDs, id)
+		}
+	}
+	sort.Strings(orphanIDs)
+	for _, id := range orphanIDs {
+		result.WriteString("\n")
+		writeRequestUserInputAnswer(&result, fmt.Sprintf("Answer (%s)", id), answersByID[id])
+	}
+
+	return result.String()
+}
+
+// requestUserInputAnswers extracts the answers from a request_user_input output, keyed by
+// question id. Returns nil when the output holds no answers.
+func requestUserInputAnswers(output map[string]interface{}) map[string][]string {
+	answersMap, _ := output["answers"].(map[string]interface{})
+	if len(answersMap) == 0 {
+		return nil
+	}
+
+	answersByID := make(map[string][]string, len(answersMap))
+	for id, entry := range answersMap {
+		entryMap, _ := entry.(map[string]interface{})
+		values, _ := entryMap["answers"].([]interface{})
+		for _, value := range values {
+			if s, ok := value.(string); ok && s != "" {
+				answersByID[id] = append(answersByID[id], s)
+			}
+		}
+	}
+	return answersByID
+}
+
+// writeRequestUserInputAnswer writes one question's answers: inline when there's a single
+// answer, as a list when the user picked an option and also left a note.
+func writeRequestUserInputAnswer(result *strings.Builder, label string, answers []string) {
+	switch len(answers) {
+	case 0:
+		fmt.Fprintf(result, "**%s:** _No answer_\n", label)
+	case 1:
+		fmt.Fprintf(result, "**%s:** %s\n", label, answers[0])
+	default:
+		fmt.Fprintf(result, "**%s:**\n", label)
+		for _, answer := range answers {
+			fmt.Fprintf(result, "- %s\n", answer)
+		}
+	}
 }
 
 // capitalizeFirst converts the first character of a string to uppercase.
@@ -234,14 +350,9 @@ func formatCustomToolCall(toolName string, input string) string {
 	case "apply_patch":
 		return formatApplyPatch(toolName, input)
 	default:
-		// For unknown custom tools, show truncated input if too long
+		// Preserve arbitrary custom input, including embedded Markdown fences.
 		if input != "" {
-			// Show first 200 characters if input is long
-			if len(input) > 200 {
-				return fmt.Sprintf("\n\nInput (truncated): ```\n%s\n...\n```\n", input[:200])
-			} else {
-				return fmt.Sprintf("\n\nInput: ```\n%s\n```\n", input)
-			}
+			return "\n\nInput:\n" + spi.CodeFence("", input) + "\n"
 		}
 		return ""
 	}

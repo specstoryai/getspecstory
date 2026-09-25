@@ -142,6 +142,21 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 
 # Antigravity CLI command
 # antigravity_cmd = "agy"
+
+# Grok Build command
+# grok_cmd = "grok"
+
+# Muse Code command
+# muse_cmd = "muse"
+
+# OpenCode command
+# opencode_cmd = "opencode"
+
+# Pi command
+# pi_cmd = "pi"
+
+# Qwen Code command
+# qwen_cmd = "qwen"
 `
 
 // Config represents the complete CLI configuration
@@ -261,6 +276,11 @@ type ProvidersConfig struct {
 	DeepSeekCmd                   string `toml:"deepseek_cmd"`
 	DroidCmd                      string `toml:"droid_cmd"`
 	GeminiCmd                     string `toml:"gemini_cmd"`
+	GrokCmd                       string `toml:"grok_cmd"`
+	MuseCmd                       string `toml:"muse_cmd"`
+	OpenCodeCmd                   string `toml:"opencode_cmd"`
+	PiCmd                         string `toml:"pi_cmd"`
+	QwenCmd                       string `toml:"qwen_cmd"`
 }
 
 // CLIOverrides holds CLI flag values that override config file settings.
@@ -977,9 +997,13 @@ func (c *Config) IsRedactionEnabled() bool {
 }
 
 // GetProviderCmd returns the custom execution command for a provider, or empty
-// string if none is configured. The providerID should match a registered
-// provider ID (e.g., "claude", "codex", "cursor", "deepseek", "droid",
-// "gemini", "antigravity").
+// string if none is configured. The providerID must match the id the provider is
+// registered under in pkg/spi/factory/registry.go.
+//
+// Every provider that can be launched needs a case here AND a field on
+// ProvidersConfig AND a commented line in the config template above: a provider
+// missing any one of the three silently ignores its config key, since the
+// unknown-id default returns "" and TOML tolerates keys with no struct field.
 func (c *Config) GetProviderCmd(providerID string) string {
 	switch strings.ToLower(providerID) {
 	case "claude":
@@ -1006,6 +1030,16 @@ func (c *Config) GetProviderCmd(providerID string) string {
 		return c.Providers.GeminiCmd
 	case "antigravity":
 		return c.Providers.AntigravityCmd
+	case "grok":
+		return c.Providers.GrokCmd
+	case "muse":
+		return c.Providers.MuseCmd
+	case "opencode":
+		return c.Providers.OpenCodeCmd
+	case "pi":
+		return c.Providers.PiCmd
+	case "qwen":
+		return c.Providers.QwenCmd
 	default:
 		return ""
 	}

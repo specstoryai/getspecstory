@@ -31,54 +31,42 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	cmdName, _ := parseGeminiCommand(customCommand)
 	isCustom := customCommand != ""
 
-	resolvedPath, err := exec.LookPath(cmdName)
+	attempt := analytics.CheckAttempt{Provider: "gemini", CustomCommand: isCustom, CommandPath: cmdName, VersionFlag: "--version"}
+	resolvedPath, err := spi.LookPathForCheck(cmdName)
+	attempt.ResolvedPath = resolvedPath
 	if err != nil {
-		errorMessage := buildGeminiCheckErrorMessage("not_found", cmdName, isCustom, "")
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "gemini",
-			"custom_command": isCustom,
-			"command_path":   cmdName,
-			"error_type":     "not_found",
-			"error_message":  err.Error(),
-		})
+		errorType := spi.ClassifyCheckError(err)
+		errorMessage := buildGeminiCheckErrorMessage(errorType, cmdName, isCustom, "")
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Location:     "",
 			ErrorMessage: errorMessage,
 		}
 	}
 
-	cmd := exec.Command(cmdName, "--version")
+	cmd := exec.Command(resolvedPath, "--version")
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		errorType := spi.ClassifyCheckError(err)
+		errorType := spi.ClassifyCheckExecutionError(err)
 		errorMessage := buildGeminiCheckErrorMessage(errorType, resolvedPath, isCustom, strings.TrimSpace(stderr.String()))
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "gemini",
-			"custom_command": isCustom,
-			"command_path":   resolvedPath,
-			"error_type":     errorType,
-			"error_message":  err.Error(),
-		})
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), strings.TrimSpace(stderr.String()))
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
 		}
 	}
 
 	version := strings.TrimSpace(stdout.String())
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
-		"provider":       "gemini",
-		"custom_command": isCustom,
-		"command_path":   resolvedPath,
-		"version":        version,
-	})
+	analytics.TrackCheckSuccess(attempt, version)
 
 	return spi.CheckResult{
 		Success:  true,
@@ -165,7 +153,23 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	if err := WatchGeminiProject(projectPath, sessionCallback); err != nil {
 		slog.Error("Failed to start watcher", "error", err)
 	}
-	defer StopWatcher()
+	// Include both hashed and named project stores, since a first run may
+	// choose its directory after the watcher starts. The final sweep selects
+	// only files in the resolved project directory.
+	hashDir, _ := GetGeminiProjectDir(projectPath)
+	finalChanges := spi.SessionFileChanges(filepath.Dir(hashDir), "*/chats/*.json")
+	defer func() {
+		StopWatcher()
+		resolved, err := ResolveGeminiProjectDir(projectPath)
+		if err != nil {
+			return
+		}
+		for _, path := range finalChanges() {
+			if filepath.Dir(path) == filepath.Join(resolved, "chats") {
+				processSessionChange(path)
+			}
+		}
+	}()
 
 	if resumeSessionID != "" {
 		slog.Info("Attempting to resume Gemini CLI session", "sessionId", resumeSessionID)
@@ -284,9 +288,9 @@ func convertToAgentChatSession(session *GeminiSession, workspaceRoot string, deb
 	// Write provider-specific debug files if requested
 	if debugRaw {
 		if err := writeDebugRawFiles(session); err != nil {
-			slog.Debug("convertToAgentChatSession: failed to write debug files",
+			slog.Warn("convertToAgentChatSession: failed to write debug files",
 				"sessionId", session.ID,
-				"error", err)
+				"path", spi.GetDebugDir(session.ID), "error", err)
 		}
 	}
 
@@ -302,14 +306,10 @@ func convertToAgentChatSession(session *GeminiSession, workspaceRoot string, deb
 // writeDebugRawFiles writes debug JSON files for a Gemini CLI session.
 // Each message is written as a numbered JSON file in .specstory/debug/<session-id>/
 func writeDebugRawFiles(session *GeminiSession) error {
-	debugDir := spi.GetDebugDir(session.ID)
-	if err := os.MkdirAll(debugDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create debug dir: %w", err)
-	}
-
+	records := make([]map[string]interface{}, len(session.Messages))
 	for idx, msg := range session.Messages {
 		number := idx + 1
-		entry := map[string]interface{}{
+		records[idx] = map[string]interface{}{
 			"index":      number,
 			"type":       msg.Type,
 			"timestamp":  msg.Timestamp,
@@ -321,21 +321,8 @@ func writeDebugRawFiles(session *GeminiSession) error {
 			"tokens":     msg.Tokens,
 			"logs":       session.LogsForMessage(msgContent(msg)),
 		}
-
-		data, err := json.MarshalIndent(entry, "", "  ")
-		if err != nil {
-			slog.Debug("writeDebugRawFiles: failed to marshal", "index", number, "error", err)
-			continue
-		}
-
-		filename := filepath.Join(debugDir, fmt.Sprintf("%d.json", number))
-		if err := os.WriteFile(filename, data, 0o644); err != nil {
-			slog.Debug("writeDebugRawFiles: failed to write", "index", number, "error", err)
-			continue
-		}
-		slog.Debug("writeDebugRawFiles: wrote file", "path", filename, "index", number)
 	}
-	return nil
+	return spi.WriteDebugRecords(spi.GetDebugDir(session.ID), records)
 }
 
 // ListAgentChatSessions retrieves lightweight session metadata without full parsing

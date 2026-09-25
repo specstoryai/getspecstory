@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Install Codex CLI at an exact version, for the factory's audits (TOOL-AUDIT,
+# SESSION-AUDIT).
+#
+# Channel: the native installer (https://chatgpt.com/codex/install.sh) — OpenAI's
+# recommended install; `--release <version>` pins. Installs the binary under
+# $HOME/.local/bin (CODEX_INSTALL_DIR), so the caller isolates the install by
+# pointing $HOME at a throwaway directory. Releases are the GitHub `rust-v<v>`
+# tags, which track the npm dist-tag `latest-version` reads.
+#
+# Factory SPI contract: `install <version>` installs the agent under $HOME,
+# prints the version as read back from the installed binary, and exits 0.
+# Non-zero exit means the install failed or the binary reports a different
+# version — never "close enough".
+set -euo pipefail
+version=${1:?usage: install <version>}
+curl -fsSL https://chatgpt.com/codex/install.sh | sh -s -- --release "$version" >&2
+installed=$("$HOME/.local/bin/codex" --version | awk '{print $2}')   # "codex-cli X.Y.Z"
+if [ "$installed" != "$version" ]; then
+  echo "install: wanted $version, binary reports $installed" >&2
+  exit 1
+fi
+echo "$installed"

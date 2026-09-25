@@ -266,6 +266,20 @@ func colorForAgent(id string) color.Color {
 		return lipgloss.Color("#4C59FA") // blue-violet
 	case "antigravity":
 		return lipgloss.Color("#3781DE") // blue
+	case "grok":
+		// xAI's black and white brand is invisible on one terminal theme or the
+		// other, so use a distinct readable accent instead.
+		return lipgloss.Color("#D6336C") // magenta
+	case "muse":
+		return lipgloss.Color("#0866FF") // Meta blue
+	case "opencode":
+		// OpenCode's theme orange (orange-400); its lighter peach accent is
+		// unreadable on light terminal backgrounds.
+		return lipgloss.Color("#b67c56")
+	case "pi":
+		return lipgloss.Color("#8B5CF6") // violet
+	case "qwen":
+		return lipgloss.Color("#0A2DFF") // Qwen blue
 	default:
 		return lipgloss.Color("250")
 	}

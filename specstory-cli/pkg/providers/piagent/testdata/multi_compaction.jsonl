@@ -1,0 +1,8 @@
+{"type":"session","version":3,"id":"multi-compaction-uuid","timestamp":"2026-07-09T10:00:00.000Z","cwd":"/test"}
+{"type":"message","id":"u1","parentId":null,"timestamp":"2026-07-09T10:00:01.000Z","message":{"role":"user","content":"prompt one","timestamp":1783600001000}}
+{"type":"message","id":"a1","parentId":"u1","timestamp":"2026-07-09T10:00:02.000Z","message":{"role":"assistant","content":[{"type":"text","text":"answer one"}],"provider":"x","model":"m","usage":{"input":1,"output":1,"cacheRead":0,"cacheWrite":0,"totalTokens":2,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}}}}
+{"type":"compaction","id":"c1","parentId":"a1","timestamp":"2026-07-09T10:00:03.000Z","summary":"first compaction","firstKeptEntryId":"a1","tokensBefore":1000}
+{"type":"message","id":"u2","parentId":"c1","timestamp":"2026-07-09T10:00:04.000Z","message":{"role":"user","content":"prompt two","timestamp":1783600004000}}
+{"type":"message","id":"a2","parentId":"u2","timestamp":"2026-07-09T10:00:05.000Z","message":{"role":"assistant","content":[{"type":"text","text":"answer two"}],"provider":"x","model":"m","usage":{"input":1,"output":1,"cacheRead":0,"cacheWrite":0,"totalTokens":2,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}}}}
+{"type":"compaction","id":"c2","parentId":"a2","timestamp":"2026-07-09T10:00:06.000Z","summary":"second compaction","firstKeptEntryId":"u2","tokensBefore":2000}
+{"type":"message","id":"u3","parentId":"c2","timestamp":"2026-07-09T10:00:07.000Z","message":{"role":"user","content":"prompt three","timestamp":1783600007000}}

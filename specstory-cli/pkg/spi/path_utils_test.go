@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestGetCanonicalPath(t *testing.T) {
@@ -376,6 +377,31 @@ func TestGenerateReadableName(t *testing.T) {
 			expected: strings.Repeat("a", 100),
 		},
 		{
+			name:     "Exactly 100 Chinese characters not truncated despite 300 bytes",
+			message:  strings.Repeat("中", 100),
+			expected: strings.Repeat("中", 100),
+		},
+		{
+			name:     "Chinese without spaces truncated at 100 characters",
+			message:  strings.Repeat("中", 150),
+			expected: strings.Repeat("中", 100) + "...",
+		},
+		{
+			name:     "Emoji truncated at 100 characters",
+			message:  strings.Repeat("🎉", 101),
+			expected: strings.Repeat("🎉", 100) + "...",
+		},
+		{
+			name:     "Multi-byte character straddling byte 100 kept whole",
+			message:  strings.Repeat("a", 99) + "中文",
+			expected: strings.Repeat("a", 99) + "中...",
+		},
+		{
+			name:     "Chinese truncated at word boundary",
+			message:  strings.Repeat("中", 90) + " " + strings.Repeat("文", 20),
+			expected: strings.Repeat("中", 90) + "...",
+		},
+		{
 			name:     "Message with tabs and mixed whitespace",
 			message:  "Hello\tworld\n\nHow\t\tare   you?",
 			expected: "Hello world How are you?",
@@ -402,6 +428,9 @@ func TestGenerateReadableName(t *testing.T) {
 			result := GenerateReadableName(tt.message)
 			if result != tt.expected {
 				t.Errorf("GenerateReadableName() = %q, want %q", result, tt.expected)
+			}
+			if !utf8.ValidString(result) {
+				t.Errorf("GenerateReadableName() returned invalid UTF-8: %q", result)
 			}
 		})
 	}
@@ -672,5 +701,28 @@ func TestWindowsFileURIPath(t *testing.T) {
 				t.Errorf("windowsFileURIPath(%q) = %q, want %q", tt.path, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestResolveUserDataDirOverridePreservesAccessFailures(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("requires Unix permissions enforced for a non-root user")
+	}
+	override := t.TempDir()
+	blocked := filepath.Join(override, "User")
+	if err := os.Mkdir(blocked, 0000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(blocked, 0700); err != nil {
+			t.Error(err)
+		}
+	})
+	path, ok := ResolveUserDataDirOverride(override, "copilotide", "User", "workspaceStorage")
+	if !ok || path != filepath.Join(blocked, "workspaceStorage") {
+		t.Fatalf("inaccessible override silently fell back: path=%q, ok=%v", path, ok)
+	}
+	if _, err := os.Stat(path); ClassifyCheckError(err) != CheckErrorPermissionDenied {
+		t.Fatalf("selected override did not preserve permission failure: %v", err)
 	}
 }

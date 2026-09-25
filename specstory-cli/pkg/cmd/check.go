@@ -11,6 +11,7 @@ import (
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/config"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
@@ -162,12 +163,35 @@ func checkSingleProvider(registry *factory.Registry, providerID, customCmd strin
 
 		return nil
 	} else {
-		fmt.Printf("\n❌ %s check failed!\n", provider.Name())
-		if result.ErrorMessage != "" {
-			fmt.Printf("\n%s\n", result.ErrorMessage)
-		}
+		fmt.Print(formatCheckFailure(provider.Name(), result, customCmd, false))
 		return errors.New("check failed")
 	}
+}
+
+// formatCheckFailure softens missing optional agents without hiding broken
+// installs or an explicitly requested custom command that cannot be found.
+// Older providers with no classification retain the failure presentation.
+func formatCheckFailure(name string, result spi.CheckResult, customCmd string, summary bool) string {
+	if result.ErrorType == spi.CheckErrorNotFound && strings.TrimSpace(customCmd) == "" {
+		message := fmt.Sprintf("\nℹ️  %s not found.\n", name)
+		if summary {
+			return message + "   Optional — skipping.\n"
+		}
+		if result.ErrorMessage != "" {
+			message += "\n" + result.ErrorMessage + "\n"
+		}
+		return message
+	}
+	message := fmt.Sprintf("\n❌ %s check failed!\n", name)
+	if result.ErrorMessage != "" {
+		if summary {
+			firstLine := strings.SplitN(result.ErrorMessage, "\n", 2)[0]
+			message += "\n  Error: " + strings.TrimSpace(firstLine) + "\n"
+		} else {
+			message += "\n" + result.ErrorMessage + "\n"
+		}
+	}
+	return message
 }
 
 // checkAllProviders checks all (or a filtered subset of) registered providers.
@@ -218,12 +242,7 @@ func checkAllProviders(registry *factory.Registry, filterIDs []string) error {
 			fmt.Printf("  📍 Location: %s\n", result.Location)
 			fmt.Printf("  ✅ Status: All systems go!\n")
 		} else {
-			fmt.Printf("\n❌ %s check failed!\n\n", provider.Name())
-			if result.ErrorMessage != "" {
-				// Show just first line of error for summary view
-				lines := strings.Split(result.ErrorMessage, "\n")
-				fmt.Printf("  Error: %s\n", strings.TrimSpace(lines[0]))
-			}
+			fmt.Print(formatCheckFailure(provider.Name(), result, "", true))
 		}
 	}
 

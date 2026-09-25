@@ -15,6 +15,9 @@ func TestGetClaudeCodeProjectsDir(t *testing.T) {
 		t.Fatalf("Failed to get original home directory: %v", err)
 	}
 
+	// Isolate from a CLAUDE_CONFIG_DIR set in the developer's shell.
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+
 	t.Run("projects directory exists", func(t *testing.T) {
 		// Create a temporary home directory
 		tempHome := t.TempDir()
@@ -46,6 +49,24 @@ func TestGetClaudeCodeProjectsDir(t *testing.T) {
 		_, err := GetClaudeCodeProjectsDir()
 		if err == nil {
 			t.Error("GetClaudeCodeProjectsDir() expected error for missing directory, got nil")
+		}
+	})
+
+	t.Run("CLAUDE_CONFIG_DIR overrides home", func(t *testing.T) {
+		testutil.SetHome(t, t.TempDir())
+		configDir := t.TempDir()
+		t.Setenv("CLAUDE_CONFIG_DIR", configDir)
+		projectsDir := filepath.Join(configDir, "projects")
+		if err := os.MkdirAll(projectsDir, 0755); err != nil {
+			t.Fatalf("Failed to create test projects directory: %v", err)
+		}
+
+		result, err := GetClaudeCodeProjectsDir()
+		if err != nil {
+			t.Errorf("GetClaudeCodeProjectsDir() returned error: %v", err)
+		}
+		if result != projectsDir {
+			t.Errorf("GetClaudeCodeProjectsDir() = %v, want %v", result, projectsDir)
 		}
 	})
 

@@ -1,0 +1,4 @@
+opencode --version: opencode v2.0.14
+specstory version: specstory-cli/v2.10.0-245-gbd059dc-dirty (built from the opencode-provider branch)
+OS: macOS 26.6.2 (Darwin 25.6.0 arm64)
+Go: go1.27.1

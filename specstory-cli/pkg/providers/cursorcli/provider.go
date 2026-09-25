@@ -9,8 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
@@ -93,16 +93,20 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	isCustomCommand := customCommand != ""
 
 	// Resolve the actual path of the command
-	resolvedPath := cursorCmd
-	if !filepath.IsAbs(cursorCmd) {
-		// Try to find the command in PATH
-		if path, err := exec.LookPath(cursorCmd); err == nil {
-			resolvedPath = path
-		}
-	}
+	resolvedPath, lookupErr := spi.LookPathForCheck(cursorCmd)
 
 	// Run cursor-agent --version to check version
-	cmd := exec.Command(cursorCmd, "--version")
+	attempt := analytics.CheckAttempt{Provider: "cursor", CustomCommand: isCustomCommand, CommandPath: cursorCmd, ResolvedPath: resolvedPath, VersionFlag: "--version"}
+	if lookupErr != nil {
+		errorType := spi.ClassifyCheckError(lookupErr)
+		analytics.TrackCheckFailure(attempt, errorType, lookupErr.Error(), "")
+		return spi.CheckResult{
+			Success:      false,
+			ErrorType:    errorType,
+			ErrorMessage: buildCheckErrorMessage(errorType, cursorCmd, isCustomCommand, ""),
+		}
+	}
+	cmd := exec.Command(resolvedPath, "--version")
 	var out bytes.Buffer
 	var errOut bytes.Buffer
 	cmd.Stdout = &out
@@ -110,21 +114,16 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 
 	if err := cmd.Run(); err != nil {
 		// Track installation check failure
-		errorType := spi.ClassifyCheckError(err)
+		errorType := spi.ClassifyCheckExecutionError(err)
 
 		stderrOutput := strings.TrimSpace(errOut.String())
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "cursor",
-			"custom_command": isCustomCommand,
-			"command_path":   cursorCmd,
-			"error_type":     errorType,
-			"error_message":  err.Error(),
-		})
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), strings.TrimSpace(errOut.String()))
 
 		errorMessage := buildCheckErrorMessage(errorType, cursorCmd, isCustomCommand, stderrOutput)
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
@@ -134,19 +133,15 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	// Check if we got any output
 	output := strings.TrimSpace(out.String())
 	if output == "" {
+		errorType := spi.CheckErrorNoOutput
 		// Track unexpected output error
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "cursor",
-			"custom_command": isCustomCommand,
-			"command_path":   cursorCmd,
-			"error_type":     spi.CheckErrorNoOutput,
-			"output":         "",
-		})
+		analytics.TrackCheckFailure(attempt, spi.CheckErrorNoOutput, "", strings.TrimSpace(errOut.String()))
 
 		errorMessage := buildCheckErrorMessage(spi.CheckErrorNoOutput, cursorCmd, isCustomCommand, "")
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
@@ -154,12 +149,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	}
 
 	// Success! Track it
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
-		"provider":       "cursor",
-		"custom_command": isCustomCommand,
-		"command_path":   resolvedPath,
-		"version":        output,
-	})
+	analytics.TrackCheckSuccess(attempt, output)
 
 	slog.Debug("Cursor CLI check successful", "version", output, "location", resolvedPath)
 
@@ -319,7 +309,7 @@ func (p *Provider) readAgentChatSession(hashDir, projectPath, sessionID string, 
 
 	if debugRaw {
 		if err := writeDebugOutput(sessionID, rawData, orphanRecords); err != nil {
-			slog.Debug("Failed to write debug output", "sessionID", sessionID, "error", err)
+			slog.Warn("Failed to write debug output", "sessionID", sessionID, "path", spi.GetDebugDir(sessionID), "error", err)
 		}
 	}
 
@@ -346,71 +336,9 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		slog.Info("Resuming Cursor session", "sessionId", resumeSessionID)
 	}
 
-	// Process any existing sessions first before starting the watcher
-	slog.Info("Processing existing sessions...")
-	existingSessionIDs := make(map[string]bool)
-	existingSessions, err := p.GetAgentChatSessions(projectPath, debugRaw, nil)
+	watcher, err := WatchCursorProject(projectPath, debugRaw, sessionCallback)
 	if err != nil {
-		slog.Error("Failed to get existing sessions", "error", err)
-	} else {
-		// Use a worker pool to limit concurrent session processing
-		const maxWorkers = 10
-		var initialWg sync.WaitGroup
-		sessionChan := make(chan spi.AgentChatSession, len(existingSessions))
-
-		// Queue all sessions
-		for _, session := range existingSessions {
-			existingSessionIDs[session.SessionID] = true
-			sessionChan <- session
-		}
-		close(sessionChan)
-
-		// Start worker goroutines (up to maxWorkers or number of sessions, whichever is less)
-		numWorkers := maxWorkers
-		if len(existingSessions) < maxWorkers {
-			numWorkers = len(existingSessions)
-		}
-
-		if sessionCallback != nil && numWorkers > 0 {
-			initialWg.Add(numWorkers)
-			for i := 0; i < numWorkers; i++ {
-				go func() {
-					defer initialWg.Done()
-					for session := range sessionChan {
-						func(s spi.AgentChatSession) {
-							defer func() {
-								if r := recover(); r != nil {
-									slog.Error("Session callback panicked", "panic", r, "sessionId", s.SessionID)
-								}
-							}()
-							sessionCallback(&s)
-						}(session)
-					}
-				}()
-			}
-		}
-
-		// Wait for all workers to complete
-		initialWg.Wait()
-		slog.Info("Processed existing sessions", "count", len(existingSessions), "workers", numWorkers)
-	}
-
-	// Create and configure the watcher before starting it
-	slog.Info("Initializing database monitoring...")
-	watcher, err := NewCursorWatcher(projectPath, debugRaw, sessionCallback)
-	if err != nil {
-		// Log the error but don't fail - watcher might work later
-		slog.Error("Failed to create database watcher", "error", err)
-		watcher = nil
-	} else if watcher != nil {
-		// Tell the watcher about existing sessions and resumed session BEFORE starting
-		watcher.SetInitialState(existingSessionIDs, resumeSessionID)
-
-		// Now start the watcher
-		if err := watcher.Start(); err != nil {
-			slog.Error("Failed to start database watcher", "error", err)
-			watcher = nil
-		}
+		return fmt.Errorf("failed to start Cursor watcher: %w", err)
 	}
 
 	// Execute Cursor CLI - this blocks until Cursor exits
@@ -456,23 +384,6 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 		return fmt.Errorf("failed to create watcher: %w", err)
 	}
 
-	// Get existing sessions to avoid processing pre-existing ones
-	// (unless they're being resumed, but that's handled by the watcher)
-	sessions, err := p.GetAgentChatSessions(projectPath, debugRaw, nil)
-	if err != nil {
-		slog.Warn("WatchAgent: Failed to get existing sessions", "error", err)
-		// Continue anyway - not fatal
-	}
-
-	// Build map of existing session IDs
-	existingSessionIDs := make(map[string]bool)
-	for _, session := range sessions {
-		existingSessionIDs[session.SessionID] = true
-	}
-
-	// Set initial state (no resumed session for watch-only mode)
-	watcher.SetInitialState(existingSessionIDs, "")
-
 	// Start the watcher
 	if err := watcher.Start(); err != nil {
 		slog.Error("WatchAgent: Failed to start Cursor watcher", "error", err)
@@ -490,6 +401,38 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 	return ctx.Err()
 }
 
+// blobDebugName preserves DAG position and native row identity; index zero
+// names an orphan, which has no position in the connected conversation.
+func blobDebugName(index, rowID int) string {
+	if index == 0 {
+		return fmt.Sprintf("orphan-%d.json", rowID)
+	}
+	return fmt.Sprintf("%d-%d.json", index, rowID)
+}
+
+// isBlobDebugName accepts only names the writer generates. Round-tripping
+// through blobDebugName keeps cleanup in sync with the filename format.
+func isBlobDebugName(name string) bool {
+	stem, ok := strings.CutSuffix(name, ".json")
+	if !ok {
+		return false
+	}
+	prefix, row, ok := strings.Cut(stem, "-")
+	if !ok {
+		return false
+	}
+	index := 0
+	if prefix != "orphan" {
+		var err error
+		index, err = strconv.Atoi(prefix)
+		if err != nil || index <= 0 {
+			return false
+		}
+	}
+	rowID, err := strconv.Atoi(row)
+	return err == nil && name == blobDebugName(index, rowID)
+}
+
 // writeDebugOutput writes debug JSON files for a Cursor CLI session
 func writeDebugOutput(sessionID string, rawData string, orphanRecords []BlobRecord) error {
 	// Parse the JSON array
@@ -501,28 +444,25 @@ func writeDebugOutput(sessionID string, rawData string, orphanRecords []BlobReco
 	// Get the debug directory path
 	debugDir := spi.GetDebugDir(sessionID)
 
-	// Create the debug directory
-	if err := os.MkdirAll(debugDir, 0755); err != nil {
-		return fmt.Errorf("failed to create debug directory: %w", err)
+	if err := spi.PrepareDebugDir(debugDir, isBlobDebugName); err != nil {
+		return err
 	}
 
 	// Write each blob as a pretty-printed JSON file
 	for index, blob := range blobs {
 		// Create filename with DAG index and rowid (1-based index for readability)
-		filename := fmt.Sprintf("%d-%d.json", index+1, blob.RowID)
+		filename := blobDebugName(index+1, blob.RowID)
 		filepath := filepath.Join(debugDir, filename)
 
 		// Pretty print the blob
 		prettyJSON, err := json.MarshalIndent(blob, "", "  ")
 		if err != nil {
-			slog.Debug("Failed to marshal blob to JSON", "rowid", blob.RowID, "error", err)
-			continue
+			return fmt.Errorf("format debug file %s: %w", filepath, err)
 		}
 
 		// Write the file
 		if err := os.WriteFile(filepath, prettyJSON, 0644); err != nil {
-			slog.Debug("Failed to write debug file", "path", filepath, "error", err)
-			continue
+			return fmt.Errorf("write debug file %s: %w", filepath, err)
 		}
 
 		slog.Debug("Wrote debug file", "path", filepath, "rowid", blob.RowID)
@@ -531,20 +471,18 @@ func writeDebugOutput(sessionID string, rawData string, orphanRecords []BlobReco
 	// Write orphaned blobs as well
 	for _, blob := range orphanRecords {
 		// Create filename with orphan prefix and rowid
-		filename := fmt.Sprintf("orphan-%d.json", blob.RowID)
+		filename := blobDebugName(0, blob.RowID)
 		filepath := filepath.Join(debugDir, filename)
 
 		// Pretty print the blob
 		prettyJSON, err := json.MarshalIndent(blob, "", "  ")
 		if err != nil {
-			slog.Debug("Failed to marshal orphan blob to JSON", "rowid", blob.RowID, "error", err)
-			continue
+			return fmt.Errorf("format orphan debug file %s: %w", filepath, err)
 		}
 
 		// Write the file
 		if err := os.WriteFile(filepath, prettyJSON, 0644); err != nil {
-			slog.Debug("Failed to write orphan debug file", "path", filepath, "error", err)
-			continue
+			return fmt.Errorf("write orphan debug file %s: %w", filepath, err)
 		}
 
 		slog.Debug("Wrote orphan debug file", "path", filepath, "rowid", blob.RowID)

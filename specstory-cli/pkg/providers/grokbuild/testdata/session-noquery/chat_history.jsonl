@@ -1,0 +1,2 @@
+{"type":"system","content":"You are Grok 4.6."}
+{"type":"user","content":[{"type":"text","text":"<user_info>\nOS Version: macos\n</user_info>"}]}

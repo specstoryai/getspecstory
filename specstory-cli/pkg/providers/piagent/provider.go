@@ -1,0 +1,545 @@
+package piagent
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+)
+
+const (
+	providerID   = "pi"
+	providerName = "Pi"
+	defaultCmd   = "pi"
+	versionFlag  = "--version"
+)
+
+// Keep required and optional SPI capabilities checked at the implementation.
+var (
+	_ spi.Provider           = (*Provider)(nil)
+	_ spi.PathSessionReader  = (*Provider)(nil)
+	_ spi.ProgressEnumerator = (*Provider)(nil)
+)
+
+// Provider implements spi.Provider for the pi coding agent.
+// pi stores sessions as JSONL v3 trees under ~/.pi/agent/sessions/--<encoded-cwd>--/.
+type Provider struct{}
+
+// NewProvider returns a new pi provider instance.
+func NewProvider() *Provider { return &Provider{} }
+
+// Name returns the human-readable provider name.
+func (p *Provider) Name() string { return providerName }
+
+// parsePiCommand splits a custom check/run command into binary + args,
+// expanding a leading ~ (spi.SplitCommandLine handles quoting). An empty
+// custom command uses the default binary.
+func parsePiCommand(customCommand string) (string, []string) {
+	if strings.TrimSpace(customCommand) != "" {
+		parts := spi.SplitCommandLine(customCommand)
+		if len(parts) > 0 {
+			return expandTilde(parts[0]), parts[1:]
+		}
+	}
+	return getDefaultPiCommand(), nil
+}
+
+// buildCheckErrorMessage renders the user-facing Check failure text. The
+// custom-command branch avoids the misleading "not found on PATH" wording when
+// the user pointed at an explicit path, and version-probe failures surface the
+// probe's stderr so the underlying diagnostic is not lost.
+func buildCheckErrorMessage(errorType, command string, isCustom bool, stderr string) string {
+	var b strings.Builder
+	switch errorType {
+	case spi.CheckErrorNotFound:
+		b.WriteString("The pi coding agent was not found.\n\n")
+		if isCustom {
+			b.WriteString("• Verify the custom command/path you provided exists and is executable.\n")
+			fmt.Fprintf(&b, "• Provided command: %s\n", command)
+		} else {
+			b.WriteString("• Install pi (`npm install -g @earendil-works/pi-coding-agent`, see https://pi.dev) and ensure `pi` is on your PATH.\n")
+			b.WriteString("• Re-run `specstory check pi` after installation.\n")
+		}
+	case spi.CheckErrorPermissionDenied:
+		b.WriteString("SpecStory cannot execute the pi binary due to permissions.\n\n")
+		fmt.Fprintf(&b, "Verify execute permissions for the binary in: %s\n", command)
+	default:
+		fmt.Fprintf(&b, "`%s %s` failed.\n\n", command, versionFlag)
+		if stderr != "" {
+			b.WriteString("Error output:\n")
+			b.WriteString(stderr)
+			b.WriteString("\n\n")
+		}
+		fmt.Fprintf(&b, "Run `%s %s` manually to diagnose, then retry.", command, versionFlag)
+	}
+	return b.String()
+}
+
+// Check verifies the pi binary is available and reports its version.
+func (p *Provider) Check(customCommand string) (result spi.CheckResult) {
+	slog.Info("Check: starting Pi version probe", "command", customCommand)
+	defer func() {
+		slog.Info("Check: Pi version probe finished", "success", result.Success, "version", result.Version)
+	}()
+	isCustom := strings.TrimSpace(customCommand) != ""
+	cmdName, cmdArgs := parsePiCommand(customCommand)
+	displayCmd := strings.TrimSpace(customCommand)
+	if displayCmd == "" {
+		displayCmd = cmdName
+	}
+	attempt := analytics.CheckAttempt{Provider: providerID, CustomCommand: isCustom, CommandPath: displayCmd, VersionFlag: versionFlag}
+	resolved, err := spi.LookPathForCheck(cmdName)
+	attempt.ResolvedPath = resolved
+	if err != nil {
+		errorType := spi.ClassifyCheckError(err)
+		slog.Error("Check: Pi binary lookup failed", "command", cmdName, "error", err)
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
+		return spi.CheckResult{
+			Success:      false,
+			ErrorType:    errorType,
+			ErrorMessage: buildCheckErrorMessage(errorType, displayCmd, isCustom, ""),
+		}
+	}
+	var stdout, stderr bytes.Buffer
+	slog.Info("Check: resolved Pi command", "path", resolved)
+	versionArgs := append(append([]string{}, cmdArgs...), versionFlag)
+	cmd := exec.Command(resolved, versionArgs...)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		errorType := spi.ClassifyCheckExecutionError(err)
+		stderrOutput := strings.TrimSpace(stderr.String())
+		slog.Error("Check: Pi version probe failed", "path", resolved, "error", err, "stderr", stderrOutput)
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
+		return spi.CheckResult{
+			Success:      false,
+			ErrorType:    errorType,
+			Location:     resolved,
+			ErrorMessage: buildCheckErrorMessage(errorType, displayCmd, isCustom, stderrOutput),
+		}
+	}
+	version := strings.TrimSpace(stdout.String())
+	if version == "" {
+		version = strings.TrimSpace(stderr.String())
+	}
+	if version == "" {
+		version = "unknown"
+	}
+	analytics.TrackCheckSuccess(attempt, version)
+	return spi.CheckResult{Success: true, Version: version, Location: resolved}
+}
+
+// DetectAgent reports whether pi has created sessions for the given project.
+// When helpOutput is true and nothing is found, CLI callers rely on it to
+// explain a negative result instead of exiting silently.
+func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
+	files, err := SessionFilesInProject(projectPath)
+	if err != nil {
+		slog.Debug("pi: DetectAgent error", "error", err)
+		return false
+	}
+	if len(files) > 0 {
+		return true
+	}
+	if helpOutput {
+		log.UserMessage("No pi sessions found for this project yet.\n")
+		if dir, dirErr := ProjectSessionDir(projectPath); dirErr == nil {
+			log.UserMessage("Expected session directory: %s\n", dir)
+		}
+		log.UserMessage("Run pi inside this project to create a session, then rerun `specstory sync pi`.\n")
+	}
+	return false
+}
+
+// ExecAgentAndWatch runs pi interactively (`specstory run pi`) while watching the
+// project's session directory, invoking sessionCallback as pi writes JSONL so
+// markdown generation and cloud sync happen live. It blocks until pi exits.
+func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) (runErr error) {
+	slog.Info("ExecAgentAndWatch: starting Pi", "projectPath", projectPath, "sessionId", resumeSessionID)
+	defer func() { slog.Info("ExecAgentAndWatch: Pi run finished", "error", runErr) }()
+	// pi resumes by exact session id (`pi --session-id <id>`); the id is pi's
+	// header `id`, an arbitrary string, so we only trim + reject empty here and
+	// let Pi validate the native ID shape.
+	if resumeSessionID != "" {
+		resumeSessionID = strings.TrimSpace(resumeSessionID)
+		if resumeSessionID == "" {
+			return fmt.Errorf("pi: resume session id is empty after trimming whitespace")
+		}
+		slog.Info("ExecAgentAndWatch: resuming Pi session", "sessionId", resumeSessionID)
+	}
+
+	SetWatcherCallback(sessionCallback)
+	defer ClearWatcherCallback()
+	SetWatcherDebugRaw(debugRaw)
+
+	// Establish the watch before launching so startup errors are returned while
+	// the terminal is still ours and the first session write cannot be missed.
+	watcher, err := startProjectWatcher(projectPath)
+	if err != nil {
+		slog.Error("ExecAgentAndWatch: Pi watcher startup failed", "error", err)
+		return fmt.Errorf("pi: failed to start session watcher: %w", err)
+	}
+
+	slog.Info("ExecAgentAndWatch: Pi watcher ready", "projectPath", projectPath)
+	err = ExecutePi(customCommand, resumeSessionID)
+	slog.Info("ExecAgentAndWatch: draining Pi session saves")
+	// Stop the watcher and join in-flight saves BEFORE the exit status is acted
+	// on: pi writes its session file right before it exits, and the callback
+	// for that write is what saves the markdown. This must run on the non-zero
+	// path too, which is why ExecutePi returns pi's status instead of exiting.
+	stopWatcher(watcher)
+	if err != nil {
+		var agentExit *spi.AgentExitError
+		if errors.As(err, &agentExit) {
+			// Preserve the typed exit status even when saving also failed; the
+			// CLI extracts it with errors.As, and the watcher logs its own failure.
+			return errors.Join(err, watcher.err)
+		}
+		return errors.Join(fmt.Errorf("pi execution failed: %w", err), watcher.err)
+	}
+	return watcher.err
+}
+
+// WatchAgent watches for pi session activity (`specstory watch pi`) and invokes
+// sessionCallback with each parsed session. It does not launch pi; it blocks
+// until the context is cancelled.
+func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) (watchErr error) {
+	slog.Info("WatchAgent: starting Pi watcher", "projectPath", projectPath)
+	defer func() { slog.Info("WatchAgent: Pi watcher stopped", "error", watchErr) }()
+	SetWatcherCallback(sessionCallback)
+	defer ClearWatcherCallback()
+	SetWatcherDebugRaw(debugRaw)
+
+	watcher, err := startProjectWatcher(projectPath)
+	if err != nil {
+		slog.Error("WatchAgent: Pi watcher startup failed", "error", err)
+		return fmt.Errorf("pi: failed to start watcher: %w", err)
+	}
+	slog.Info("WatchAgent: Pi watcher ready", "projectPath", projectPath)
+	select {
+	case <-ctx.Done():
+		slog.Info("WatchAgent: draining Pi session saves")
+		stopWatcher(watcher)
+		return errors.Join(ctx.Err(), watcher.err)
+	case <-watcher.done:
+		stopWatcher(watcher)
+		return watcher.err
+	}
+}
+
+// findProjectSession locates the session file with the given ID within the
+// project's pi session directory. Returns "" if not found.
+func findProjectSession(projectPath, sessionID string) (string, error) {
+	files, err := SessionFilesInProject(projectPath)
+	if err != nil {
+		return "", err
+	}
+	for _, f := range files {
+		h, err := readHeader(f)
+		if err != nil || h == nil {
+			continue
+		}
+		if h.ID == sessionID {
+			return f, nil
+		}
+	}
+	return "", nil
+}
+
+// readHeader parses only the first JSON value of a session file and returns it
+// only if it is a valid pi session header (type=="session" with a non-empty
+// id). Well-formed non-session files and empty files (created then abandoned,
+// a benign artifact) return (nil, nil) so callers skip them silently. A first
+// line that fails to decode is a corrupted/truncated header and returns an
+// error so list/reindex log it instead of hiding the file — the full parser
+// errors on the same input. The read is capped at 1MB: a real pi header is a
+// few hundred bytes, and the cap keeps a crafted file with a multi-GB first
+// value from being buffered into memory.
+func readHeader(path string) (*sessionHeader, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	dec := json.NewDecoder(io.LimitReader(f, 1*MB))
+	var h sessionHeader
+	if err := dec.Decode(&h); err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil, nil // empty file: nothing to report
+		}
+		return nil, fmt.Errorf("pi: parsing session header of %s: %w", path, err)
+	}
+	if h.Type != entrySession || h.ID == "" {
+		return nil, nil
+	}
+	return &h, nil
+}
+
+// GetAgentChatSession returns a single pi session by ID for the project.
+func (p *Provider) GetAgentChatSession(projectPath, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
+	path, err := findProjectSession(projectPath, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if path == "" {
+		return nil, nil
+	}
+	candidates, err := projectCandidates(projectPath)
+	if err != nil {
+		return nil, err
+	}
+	return parseToAgentSession(path, candidates[0], debugRaw)
+}
+
+// GetAgentChatSessions returns all pi sessions for the project.
+func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
+	files, candidates, flat, err := projectSessionCandidates(projectPath)
+	if err != nil {
+		return nil, err
+	}
+	// Exclude definite other-project sessions, but keep failures in the worklist.
+	var work []string
+	for _, path := range files {
+		h, _ := readHeader(path)
+		if h != nil && h.Cwd != "" && !cwdMatchesCandidate(h.Cwd, candidates) {
+			continue
+		}
+		work = append(work, path)
+	}
+	total := len(work)
+	var result []spi.AgentChatSession
+	for i, path := range work {
+		snapshot, parseErr := readEntries(path)
+		if parseErr == nil && !headerBelongsToProject(path, snapshot.header, candidates, flat) {
+			slog.Warn("pi: skipping session with unassigned or changed project", "file", path)
+		} else if parseErr == nil {
+			var chat *spi.AgentChatSession
+			chat, parseErr = snapshot.agentSession(path, candidates[0], debugRaw)
+			if parseErr == nil {
+				result = append(result, *chat)
+			}
+		}
+		if parseErr != nil {
+			slog.Warn("pi: skipping session", "file", path, "error", parseErr)
+		}
+		if progress != nil {
+			progress(i+1, total)
+		}
+	}
+	return result, nil
+}
+
+// parseToAgentSession parses one session file into an AgentChatSession,
+// writing debug-raw artifacts when debugRaw is true.
+func parseToAgentSession(path, projectPath string, debugRaw bool) (*spi.AgentChatSession, error) {
+	snapshot, err := readEntries(path)
+	if err != nil {
+		return nil, err
+	}
+	return snapshot.agentSession(path, projectPath, debugRaw)
+}
+
+// agentSession derives every output from the same accepted native records.
+func (snapshot *sessionSnapshot) agentSession(path, projectPath string, debugRaw bool) (*spi.AgentChatSession, error) {
+	data, err := snapshot.sessionData(path, projectPath)
+	if err != nil {
+		return nil, err
+	}
+	if debugRaw {
+		if dErr := writeDebugRaw(data.SessionID, snapshot.records); dErr != nil {
+			slog.Warn("pi: debug-raw write failed", "sessionId", data.SessionID, "path", spi.GetDebugDir(data.SessionID), "error", dErr)
+		}
+	}
+	var raw strings.Builder
+	for _, record := range snapshot.records {
+		raw.Write(record)
+	}
+	return &spi.AgentChatSession{
+		SessionID:   data.SessionID,
+		CreatedAt:   data.CreatedAt,
+		Slug:        deriveSlug(data),
+		SessionData: data,
+		RawData:     raw.String(),
+	}, nil
+}
+
+// GetAgentChatSessionByPath parses a single pi session directly from its native
+// file path, skipping the by-id discovery search. originCwd is the session's
+// originating working directory (GlobalSessionRef.OriginCwd), passed through
+// as the workspace root for path normalization — matching what
+// GetAgentChatSession receives as projectPath. Implements spi.PathSessionReader
+// so `specstory reindex` uses the O(N) path-keyed fast path instead of the
+// O(N²) by-id lookup.
+func (p *Provider) GetAgentChatSessionByPath(nativePath, originCwd string, debugRaw bool) (*spi.AgentChatSession, error) {
+	return parseToAgentSession(nativePath, originCwd, debugRaw)
+}
+
+// ListAgentChatSessions returns lightweight metadata for all project sessions,
+// deriving Slug/Name from the leaf path's first user message (and the user-set
+// session name when present) without decoding full message payloads.
+func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+	files, err := SessionFilesInProject(projectPath)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]spi.SessionMetadata, 0, len(files))
+	for _, f := range files {
+		scan, scanErr := scanPiSession(f)
+		if scanErr != nil {
+			slog.Debug("pi: skipping unreadable session file", "path", f, "error", scanErr)
+			continue
+		}
+		if scan == nil || !scan.foundUser {
+			continue
+		}
+		result = append(result, spi.SessionMetadata{
+			SessionID: scan.sessionID,
+			CreatedAt: scan.timestamp,
+			Slug:      spi.GenerateFilenameFromUserMessage(scan.firstUserMessage),
+			Name:      scanName(scan),
+		})
+	}
+	return result, nil
+}
+
+// ListAllAgentChatSessions enumerates every pi session across all projects,
+// each ref carrying its originating cwd (read from the session header).
+func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
+	return p.ListAllAgentChatSessionsProgress(nil)
+}
+
+// ListAllAgentChatSessionsProgress enumerates all pi sessions with live scan
+// progress, using the shared parallel scanner. Each ref carries Slug/Name
+// derived from the first user message and the originating cwd from the header.
+func (p *Provider) ListAllAgentChatSessionsProgress(r *spi.ScanReporter) ([]spi.GlobalSessionRef, error) {
+	root, flat, err := piSessionsRoot()
+	if err != nil {
+		return nil, err
+	}
+	if _, statErr := os.Stat(root); statErr != nil {
+		if os.IsNotExist(statErr) {
+			return nil, nil
+		}
+		return nil, statErr
+	}
+	// ScanSessionsInParallel walks recursively, but pi session files live at a
+	// fixed depth: directly in the root for the flat override layout, else in
+	// root/<encoded-cwd>/. Deeper *.jsonl files are extension/subagent
+	// internals (observed: <proj>/<ts>_<uuid>/<hash>/run-0/session.jsonl) that
+	// the project-scoped APIs (SessionFilesInProject) can never resolve by id;
+	// indexing them would create rows sync/preview/resume cannot fetch.
+	wantDepth := 1
+	if flat {
+		wantDepth = 0
+	}
+	scan := func(path string) (*spi.GlobalSessionRef, error) {
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil || strings.Count(rel, string(filepath.Separator)) != wantDepth {
+			return nil, nil
+		}
+		s, sErr := scanPiSession(path)
+		if sErr != nil {
+			return nil, sErr
+		}
+		if s == nil {
+			return nil, nil // non-session file
+		}
+		return scanToGlobalRef(s, path), nil
+	}
+	return spi.ScanSessionsInParallel(root, providerID, r, scan)
+}
+
+// piSessionScan holds the metadata fields read from a session file for
+// listing/reindex: identity + first-user-message metadata + originating cwd +
+// the latest user-set session name. The scan walks the SAME leaf path the full
+// parse uses, so its Slug/Name always match what deriveSlug produces for the
+// generated markdown (file order can differ from the active branch when the
+// first prompt was re-edited). foundUser is false for sessions with no real
+// user prompt; scanPiSession returns (nil, nil) for those so callers skip them.
+type piSessionScan struct {
+	sessionID        string
+	timestamp        string
+	firstUserMessage string
+	sessionName      string
+	cwd              string
+	foundUser        bool
+}
+
+// scanPiSession reads a pi session file's metadata for listing: the header
+// (session id, timestamp, cwd), the first user message text on the active leaf
+// path, and the latest session_info display name. Returns (scan, nil) for a
+// real session, (nil, nil) for a non-session file or a session with no user
+// message, and (nil, err) for genuine read/parse errors so
+// ScanSessionsInParallel logs them during reindex.
+func scanPiSession(path string) (*piSessionScan, error) {
+	h, err := readHeader(path)
+	if err != nil {
+		return nil, err
+	}
+	if h == nil {
+		return nil, nil // not a pi session file
+	}
+	entries, latestSessionName, err := readScanEntries(path)
+	if err != nil {
+		return nil, err
+	}
+	if len(entries) == 0 {
+		return nil, nil // header-only session; nothing to list
+	}
+	scan := &piSessionScan{
+		sessionID:   h.ID,
+		timestamp:   h.Timestamp,
+		cwd:         h.Cwd,
+		sessionName: latestSessionName,
+	}
+	for _, e := range leafPathScanEntries(entries) {
+		if scan.foundUser || e.Type != entryMessage {
+			continue
+		}
+		if e.UserText != "" {
+			scan.firstUserMessage = e.UserText
+			scan.foundUser = true
+		}
+	}
+	if !scan.foundUser {
+		return nil, nil // no user prompt; nothing worth listing
+	}
+	return scan, nil
+}
+
+// scanName returns the display name for a scanned session: the user-set
+// session_info name when present (pi lets users rename sessions), otherwise a
+// readable name derived from the first user message like other providers.
+func scanName(scan *piSessionScan) string {
+	if scan.sessionName != "" {
+		return scan.sessionName
+	}
+	return spi.GenerateReadableName(scan.firstUserMessage)
+}
+
+// scanToGlobalRef builds a GlobalSessionRef from a scan, deriving Slug/Name from
+// the first user message. Returns nil for sessions with no user message.
+func scanToGlobalRef(scan *piSessionScan, path string) *spi.GlobalSessionRef {
+	if !scan.foundUser {
+		return nil
+	}
+	return &spi.GlobalSessionRef{
+		SessionID:  scan.sessionID,
+		CreatedAt:  scan.timestamp,
+		Slug:       spi.GenerateFilenameFromUserMessage(scan.firstUserMessage),
+		Name:       scanName(scan),
+		NativePath: path,
+		OriginCwd:  scan.cwd,
+	}
+}

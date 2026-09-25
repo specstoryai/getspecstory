@@ -91,6 +91,24 @@ func TestIndexConversationProjectsFromLog_PendingConversationBeforeProject(t *te
 	}
 }
 
+func TestIndexConversationProjectsFromLogAcceptsLargeSidecarRecords(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cli.log")
+	// A large log line must not prevent discovery of subsequent conversations.
+	body := strings.Repeat("x", 17*1024*1024) + "\n" +
+		`I server.go:726] Conversation using project ID: ` + testProjectID + "\n" +
+		`I server.go:747] Created conversation ` + testConversationID + "\n"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	index := make(map[string]string)
+	if err := indexConversationProjectsFromLog(path, index); err != nil {
+		t.Fatal(err)
+	}
+	if got := index[testConversationID]; got != testProjectID {
+		t.Errorf("conversation project = %q, want %q", got, testProjectID)
+	}
+}
+
 func TestStripFileURI_DecodesEscapedPath(t *testing.T) {
 	if got := stripFileURI("file:///tmp/repo%20with%20space/main.go"); got != "/tmp/repo with space/main.go" {
 		t.Errorf("stripFileURI decoded path = %q", got)
