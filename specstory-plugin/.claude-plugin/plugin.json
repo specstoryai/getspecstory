@@ -1,0 +1,21 @@
+{
+  "name": "specstory",
+  "displayName": "SpecStory",
+  "version": "0.1.0",
+  "description": "Auto-save every Claude Code session as git-friendly markdown in .specstory/history. Hooks run `specstory sync` after each turn, so your full conversation history is always on disk, searchable, and diffable.",
+  "author": {
+    "name": "SpecStory",
+    "url": "https://github.com/specstoryai"
+  },
+  "homepage": "https://specstory.com",
+  "repository": "https://github.com/specstoryai/getspecstory",
+  "license": "Apache-2.0",
+  "keywords": [
+    "history",
+    "sessions",
+    "markdown",
+    "specstory",
+    "auto-save"
+  ],
+  "hooks": "./hooks/hooks.json"
+}
