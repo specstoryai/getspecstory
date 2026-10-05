@@ -143,7 +143,7 @@ func TestResolveProviderIDs(t *testing.T) {
 		{
 			name:          "unknown provider ID is an error",
 			providersFlag: []string{"notaprovider"},
-			wantErrSubstr: "at least one valid provider ID",
+			wantErrSubstr: "at least one valid provider ID.\nAvailable providers:",
 		},
 		{
 			name:          "unknown provider mixed with valid is skipped",

@@ -61,7 +61,7 @@ func ResolveProviderIDs(registry *factory.Registry, args []string, providersFlag
 				// Clients (e.g. the extension) pass provider IDs unconditionally, and some
 				// providers only register when they have data (Copilot IDE variants) or may
 				// postdate this binary. Skip rather than fail the whole command.
-				slog.Warn("Skipping unavailable provider", "id", id, "available", registry.GetProviderList())
+				// registry.Get has already logged a warning for this ID.
 				continue
 			}
 			// Deduplicate while preserving the order of first occurrence
