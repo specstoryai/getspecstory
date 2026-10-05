@@ -35,7 +35,7 @@ func AddUserDataDirFlag(cmd *cobra.Command) {
 // ResolveProviderIDs resolves the effective list of provider IDs from a positional
 // arg and/or --providers flag. Returns nil to indicate "use all providers" when
 // neither is specified. Returns an error if both are specified simultaneously or
-// if a provider ID in --providers is invalid.
+// if --providers yields no valid provider ID. Unknown IDs are skipped with a warning.
 func ResolveProviderIDs(registry *factory.Registry, args []string, providersFlag []string) ([]string, error) {
 	hasPositionalArg := len(args) > 0
 	hasProvidersFlag := len(providersFlag) > 0
@@ -58,9 +58,11 @@ func ResolveProviderIDs(registry *factory.Registry, args []string, providersFlag
 				continue
 			}
 			if _, err := registry.Get(id); err != nil {
-				return nil, utils.ValidationError{
-					Message: fmt.Sprintf("'%s' is not a valid provider ID.\nAvailable providers: %s", id, registry.GetProviderList()),
-				}
+				// Clients (e.g. the extension) pass provider IDs unconditionally, and some
+				// providers only register when they have data (Copilot IDE variants) or may
+				// postdate this binary. Skip rather than fail the whole command.
+				slog.Warn("Skipping unavailable provider", "id", id, "available", registry.GetProviderList())
+				continue
 			}
 			// Deduplicate while preserving the order of first occurrence
 			if !seen[id] {
@@ -69,7 +71,7 @@ func ResolveProviderIDs(registry *factory.Registry, args []string, providersFlag
 			}
 		}
 		if len(ids) == 0 {
-			return nil, utils.ValidationError{Message: "--providers requires at least one provider ID"}
+			return nil, utils.ValidationError{Message: fmt.Sprintf("--providers requires at least one valid provider ID.\nAvailable providers: %s", registry.GetProviderList())}
 		}
 		return ids, nil
 	}
