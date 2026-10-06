@@ -33,7 +33,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0
 	golang.org/x/term v0.46.0 // terminal and console support
 	golang.org/x/text v0.42.0 // Text processing and Unicode normalization
-	modernc.org/sqlite v1.59.0 // Pure Go SQLite database driver
+	modernc.org/sqlite v1.60.1 // Pure Go SQLite database driver
 )
 
 require (
@@ -138,7 +138,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260928230214-8a89bd6388cc // indirect
 	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
-	modernc.org/libc v1.75.7 // indirect
+	modernc.org/libc v1.77.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
