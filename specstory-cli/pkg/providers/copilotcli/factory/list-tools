@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Enumerate GitHub Copilot CLI's tool inventory, for TOOL-AUDIT.
+#
+# Source: the model's report of its declared tools. Copilot 1.0.94 exposes no
+# harness declaration: `copilot help`, the session.start and system.message
+# records, the model-call telemetry and the `--output-format json` stream
+# (whose session.tools_updated event names only the model) carry no tool list.
+# The model is asked to spell each name exactly as it calls the tool, which is
+# also how session data records it (the built-in GitHub MCP server's tools keep
+# their github-mcp-server- prefix).
+#
+# Run this in an empty throwaway directory under an isolated $HOME (the
+# caller's job — no plugins, no user MCP servers; --no-custom-instructions
+# keeps any instruction files out). Auth arrives as COPILOT_GITHUB_TOKEN, a
+# GitHub token with Copilot access, the variable the CLI reads before any
+# stored login. Shell and write tools are denied so the run cannot touch the
+# machine, and -p is a single non-interactive turn.
+#
+# Factory SPI contract: print the raw tool list, one name per line, to stdout
+# and exit 0. Non-zero exit means enumeration failed — never an empty or
+# partial inventory — with the reason on stderr so credential rot is
+# distinguishable from agent breakage. The event stream is left in
+# ./stream.jsonl and the CLI's logs in ./logs for diagnosis.
+set -euo pipefail
+if [ -z "${COPILOT_GITHUB_TOKEN:-}" ]; then
+  echo "list-tools: COPILOT_GITHUB_TOKEN is not set" >&2
+  exit 1
+fi
+copilot="$HOME/.local/bin/copilot"
+export COPILOT_AUTO_UPDATE=false
+
+rm -rf stream.jsonl logs
+status=0
+"$copilot" -p "List the name of every tool you can call, one per line, spelled exactly as you call it. Output only the names: no numbering, no descriptions, no other text. Do not call any tool." \
+  --no-auto-update --no-custom-instructions --deny-tool=shell --deny-tool=write \
+  --output-format json --log-dir ./logs \
+  < /dev/null > stream.jsonl || status=$?
+
+if [ "$status" -ne 0 ]; then
+  echo "list-tools: copilot exited $status" >&2
+  head -c 600 stream.jsonl >&2
+  exit 1
+fi
+tools=$(jq -r 'select(.type=="assistant.message") | .data.content // empty' stream.jsonl 2>/dev/null \
+  | tr -d '`*' | sed -E 's/^[[:space:]-]+//; s/[[:space:]]+$//' | grep -E '^[A-Za-z][A-Za-z0-9_.-]*$' || true)
+if [ -z "$tools" ]; then
+  echo "list-tools: no tool names in the reply" >&2
+  head -c 600 stream.jsonl >&2
+  exit 1
+fi
+printf '%s\n' "$tools"

@@ -6,7 +6,7 @@
 
 ## SpecStory CLI
 
-SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI, Muse Code, OpenCode, Qwen Code, Pi) as well as the Cursor IDE and VS Code Copilot (including VS Code Insiders, VSCodium, and VSCodium Insiders).
+SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Copilot CLI, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI, Muse Code, OpenCode, Qwen Code, Pi) as well as the Cursor IDE and VS Code Copilot (including VS Code Insiders, VSCodium, and VSCodium Insiders).
 
 It saves your AI coding conversations as local markdown files of each session. It can optionally sync your markdown files to the [SpecStory Cloud](https://cloud.specstory.com), turning your AI chat history into a centralized knowledge system that you can chat with and search.
 
@@ -28,6 +28,7 @@ The following coding agents are supported in the SpecStory CLI:
 | -------------------------------------------------------------- | ----------------------------------------------- | ----------- | ------------------------------- |
 | [Claude Code](https://www.claude.com/product/claude-code)      | [claudecode](pkg/providers/claudecode/)         | JSONL       | `~/.claude/projects/`           |
 | [Codex CLI](https://www.openai.com/codex/cli/)                 | [codexcli](pkg/providers/codexcli/)             | JSONL       | `~/.codex/sessions/`            |
+| [Copilot CLI](https://github.com/features/copilot/cli)         | [copilotcli](pkg/providers/copilotcli/)         | JSONL       | `~/.copilot/session-state/`     |
 | [Cursor CLI](https://cursor.com/cli)                           | [cursorcli](pkg/providers/cursorcli/)           | SQLite      | `~/.cursor/chats/`              |
 | [Cursor IDE](https://cursor.com/)                              | [cursoride](pkg/providers/cursoride/)           | SQLite      | `Cursor/User/globalStorage/`    |
 | [VS Code Copilot](https://code.visualstudio.com/)              | [copilotide](pkg/providers/copilotide/)         | JSON/JSONL  | `Code/User/workspaceStorage/`   |
@@ -317,6 +318,9 @@ specstory sync --config-dir ~/specstory-configs/myproject
 # Codex CLI command
 # codex_cmd = "codex"
 
+# Copilot CLI command
+# copilot_cmd = "copilot"
+
 # Copilot IDE commands (used by specstory run copilotide[-variant] to open the IDE)
 # copilotide_cmd = "code"
 # copilotide_insiders_cmd = "code-insiders"
@@ -378,6 +382,7 @@ specstory sync --config-dir ~/specstory-configs/myproject
 | `[redaction]`     | `enabled`                          | `true`               | Redact secrets from markdown and cloud data                         |
 | `[providers]`     | `claude_cmd`                       | `"claude"`           | Claude Code command                                                 |
 | `[providers]`     | `codex_cmd`                        | `"codex"`            | Codex CLI command                                                   |
+| `[providers]`     | `copilot_cmd`                      | `"copilot"`          | Copilot CLI command                                                 |
 | `[providers]`     | `copilotide_cmd`                   | `"code"`             | VS Code launcher command                                            |
 | `[providers]`     | `copilotide_insiders_cmd`          | `"code-insiders"`    | VS Code Insiders launcher command                                   |
 | `[providers]`     | `copilotide_vscodium_cmd`          | `"codium"`           | VSCodium launcher command                                           |
@@ -651,7 +656,7 @@ Sync specific session with debug output:
     └── session-data.json # JSON version of the SessionData returned from the provider for this session
 ```
 
-Claude Code, Codex CLI, Qwen Code, Factory Droid, Pi, Muse Code, OpenCode, and Grok Build use sequentially numbered JSON files in source order. Codex and Grok preserve native number precision and key order. Grok also exports the sidecars used for conversion and refreshes debug files even when its accepted records contain no rendered conversation. Gemini uses numbered per-message diagnostic objects. Pi includes its session header and inactive branches. Muse preserves native envelopes, metadata, diagnostics, and task-stream records even when they are omitted from Markdown. OpenCode exports its SQLite rows: the session row first, then every message row in sequence order, each with all of its stored columns. Antigravity numbers records in native `step_index` order, retains the accepted transcript in source order, and copies async task logs into `tasks/` with their original names and bytes. DeepSeek TUI pretty-prints the original session JSON, including unknown fields, to `raw-session.json`.
+Claude Code, Codex CLI, Copilot CLI, Qwen Code, Factory Droid, Pi, Muse Code, OpenCode, and Grok Build use sequentially numbered JSON files in source order. Codex and Grok preserve native number precision and key order. Grok also exports the sidecars used for conversion and refreshes debug files even when its accepted records contain no rendered conversation. Gemini uses numbered per-message diagnostic objects. Pi includes its session header and inactive branches. Muse preserves native envelopes, metadata, diagnostics, and task-stream records even when they are omitted from Markdown. OpenCode exports its SQLite rows: the session row first, then every message row in sequence order, each with all of its stored columns. Antigravity numbers records in native `step_index` order, retains the accepted transcript in source order, and copies async task logs into `tasks/` with their original names and bytes. Copilot CLI exports every accepted `events.jsonl` record with its full envelope, including the harness records (hooks, permission prompts, model-call telemetry) that are omitted from Markdown. DeepSeek TUI pretty-prints the original session JSON, including unknown fields, to `raw-session.json`.
 
 All numbered exporters refresh their provider-owned debug files on each export, removing obsolete records while preserving `session-data.json` and unrelated files. Native exports use the same input snapshot as conversion. Cursor CLI filenames include both DAG position and SQLite rowid, with separate orphan files. Cursor IDE and VS Code Copilot use a single `raw-composer.json` or `raw-session.json` instead of numbered records.
 

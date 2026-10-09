@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Install GitHub Copilot CLI at an exact version, for the factory's audits
+# (TOOL-AUDIT, SESSION-AUDIT).
+#
+# Channel: npm (@github/copilot), the same package latest-version reads,
+# installed with --prefix "$HOME/.local" so the binary lands at
+# $HOME/.local/bin/copilot and everything stays under $HOME; the caller
+# isolates the install by pointing $HOME at a throwaway directory.
+#
+# Self-update: the CLI otherwise downloads newer releases into its cache and
+# runs those instead of the pinned one. COPILOT_AUTO_UPDATE=false (honored by
+# the CLI, see `copilot help environment`) makes it run the installed version;
+# list-tools exports it for every run, and the read-back here sets it too.
+#
+# Factory SPI contract: `install <version>` installs the agent under $HOME,
+# prints the version as read back from the installed binary, and exits 0.
+# Non-zero exit means the install failed or the binary reports a different
+# version — never "close enough".
+set -euo pipefail
+version=${1:?usage: install <version>}
+npm install --global --prefix "$HOME/.local" --no-fund --no-audit --no-update-notifier \
+  --fetch-timeout=30000 --fetch-retries=2 "@github/copilot@$version" >&2
+# `copilot --version` prints "GitHub Copilot CLI <version>." on its first line.
+installed=$(COPILOT_AUTO_UPDATE=false "$HOME/.local/bin/copilot" --version | head -1 | awk '{print $NF}')
+installed=${installed%.}
+if [ "$installed" != "$version" ]; then
+  echo "install: wanted $version, binary reports ${installed:-nothing}" >&2
+  exit 1
+fi
+echo "$installed"

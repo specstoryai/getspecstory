@@ -1,5 +1,12 @@
 # Specstory CLI Changelog
 
+## Unreleased
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports [GitHub Copilot CLI](https://github.com/features/copilot/cli) (i.e. `copilot`), for sessions created from Copilot CLI version `1.0.95-2` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI), [VS Code Copilot](https://code.visualstudio.com/docs/setup/copilot), [Muse Code](https://developer.meta.com/ai/products/muse-code/), [Pi](https://pi.dev), [Qwen Code](https://github.com/QwenLM/qwen-code), [Grok Build](https://x.ai/cli) and [OpenCode](https://opencode.ai/). Sessions Copilot runs for the GitHub Copilot app and for VS Code's Agents window are saved too, since they are stored the same way.
+- Copilot CLI is a cross-provider `specstory resume` target: you can resume any agent's session into Copilot CLI, and resume a Copilot CLI session into another agent.
+
 ## v2.15.1 2026-09-24
 
 ### 🐛 Bug Fixes

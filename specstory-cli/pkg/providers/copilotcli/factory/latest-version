@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Latest released version of GitHub Copilot CLI.
+#
+# Channel: npm (@github/copilot, dist-tag "latest"), the package GitHub's own
+# install instructions publish and Homebrew follows. Rejected: the
+# "prerelease" dist-tag, the moving pre-release train an installed CLI
+# self-updates to by default (it reported 1.0.95-3 while "latest" was 1.0.94),
+# and the GitHub releases API, which needs auth to escape its rate limit.
+#
+# Factory SPI contract: print the current released version to stdout and exit 0.
+# Non-zero exit means "sensor failure", never "no change". Output is opaque to
+# the factory — byte-compared against the stored reading, never parsed.
+set -euo pipefail
+version=$(npm view @github/copilot@latest version --fetch-timeout=30000 --fetch-retries=2 --no-update-notifier)
+if [ -z "$version" ]; then
+  echo "latest-version: npm returned no version for @github/copilot@latest" >&2
+  exit 1
+fi
+echo "$version"
