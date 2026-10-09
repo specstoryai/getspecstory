@@ -221,3 +221,70 @@ func TestRenderGenericJSON(t *testing.T) {
 		}
 	})
 }
+
+func TestRenderToolInputList(t *testing.T) {
+	long := map[string]any{"a": strings.Repeat("x", 50), "b": strings.Repeat("y", 50)}
+	tests := []struct {
+		name  string
+		input map[string]any
+		want  string
+	}{
+		{"nothing to show", nil, ""},
+		{"only internal keys", map[string]any{"_cwd": "/w"}, ""},
+		{"sorted scalars, internal keys skipped", map[string]any{"path": "/w/a.go", "_cwd": "/w", "limit": float64(5)},
+			"\n**Input:**\n\n- limit: `5`\n- path: `/w/a.go`\n"},
+		{"short collection as compact JSON", map[string]any{"range": []any{float64(1), float64(2)}},
+			"\n**Input:**\n\n- range: `[1,2]`\n"},
+		{"multi-line values fenced", map[string]any{"patch": "line1\nline2"},
+			"\n**Input:**\n\n- patch:\n\n```\nline1\nline2\n```\n\n"},
+		{"long collection pretty-printed and fenced", map[string]any{"opts": long},
+			"\n**Input:**\n\n- opts:\n\n```\n{\n  \"a\": \"" + strings.Repeat("x", 50) + "\",\n  \"b\": \"" + strings.Repeat("y", 50) + "\"\n}\n```\n\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := RenderToolInputList(tt.input); got != tt.want {
+				t.Errorf("RenderToolInputList() =\n%q\nwant\n%q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRenderToolResult(t *testing.T) {
+	tests := []struct {
+		name, result, want string
+	}{
+		{"blank", " \n\t", ""},
+		{"trailing blank lines trimmed", "ok\n\n\n", "\n**Result:**\n\n```\nok\n```\n"},
+		{"backticks cannot close the fence", "a ``` b", "\n**Result:**\n\n````\na ``` b\n````\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := RenderToolResult(tt.result); got != tt.want {
+				t.Errorf("RenderToolResult(%q) = %q, want %q", tt.result, got, tt.want)
+			}
+		})
+	}
+
+	t.Run("capped with a visible marker", func(t *testing.T) {
+		got := RenderToolResult(strings.Repeat("é", ToolResultCap+10))
+		if !strings.Contains(got, "(output truncated)") || strings.Count(got, "é") != ToolResultCap {
+			t.Errorf("result not capped at %d runes with a marker: %d runes kept", ToolResultCap, strings.Count(got, "é"))
+		}
+	})
+}
+
+func TestRenderShellCall(t *testing.T) {
+	tests := []struct {
+		name, explanation, command, result, want string
+	}{
+		{"command only", "", "ls", "", "\n```bash\nls\n```\n"},
+		{"explanation, command and result", "List files", "ls -a", "a.go\n", "\nList files\n\n```bash\nls -a\n```\n\n**Result:**\n\n```\na.go\n```\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := RenderShellCall(tt.explanation, tt.command, tt.result); got != tt.want {
+				t.Errorf("RenderShellCall() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

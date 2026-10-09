@@ -174,3 +174,84 @@ func RenderGenericJSON(args map[string]any, dropKeys ...string) string {
 	}
 	return CodeFence("json", string(data))
 }
+
+// ToolResultCap bounds how much tool output RenderToolResult shows. Inputs are
+// not capped — they carry what the agent chose to do (e.g. the full content of
+// a written file) — but results (file reads, command output) can be
+// arbitrarily large and matter less once the agent has already responded to
+// them.
+const ToolResultCap = 2000
+
+// RenderToolInputList renders tool arguments as a sorted "**Input:**" list of
+// key-value pairs, fencing multi-line values. Keys starting with "_" are
+// internal annotations and are skipped. Returns "" when nothing is left.
+func RenderToolInputList(input map[string]any) string {
+	keys := make([]string, 0, len(input))
+	for key := range input {
+		if !strings.HasPrefix(key, "_") {
+			keys = append(keys, key)
+		}
+	}
+	if len(keys) == 0 {
+		return ""
+	}
+	slices.Sort(keys)
+	var b strings.Builder
+	b.WriteString("\n**Input:**\n\n")
+	for _, key := range keys {
+		valueStr := toolInputValueString(input[key])
+		if strings.Contains(valueStr, "\n") {
+			fmt.Fprintf(&b, "- %s:\n\n%s\n\n", key, CodeFence("", valueStr))
+		} else {
+			fmt.Fprintf(&b, "- %s: `%s`\n", key, valueStr)
+		}
+	}
+	return b.String()
+}
+
+// RenderToolResult renders a fenced "**Result:**" section, or "" when result is
+// blank. Trailing blank lines are trimmed — terminal-style results carry dozens
+// of them and they only pad out the fenced block — and the result is capped at
+// ToolResultCap runes with a visible truncation marker.
+func RenderToolResult(result string) string {
+	if strings.TrimSpace(result) == "" {
+		return ""
+	}
+	capped := CapRunes(strings.TrimRight(result, " \t\n"), ToolResultCap)
+	return fmt.Sprintf("\n**Result:**\n\n%s\n", CodeFence("", capped))
+}
+
+// RenderShellCall renders a shell command the way it reads in a terminal
+// session: the explanation as prose, the command in a bash fence (uncapped —
+// it is what the agent chose to run), then the fenced, capped result.
+func RenderShellCall(explanation, command, result string) string {
+	var b strings.Builder
+	if explanation != "" {
+		fmt.Fprintf(&b, "\n%s\n", explanation)
+	}
+	fmt.Fprintf(&b, "\n%s\n", CodeFence("bash", command))
+	b.WriteString(RenderToolResult(result))
+	return b.String()
+}
+
+// toolInputValueString renders one tool-input value for RenderToolInputList.
+// Scalars print as-is; maps and slices marshal as JSON — Go's %v formatting
+// (map[args:[x] command:echo ...]) is meaningless to readers of the archive.
+// Compact JSON for short values, indented (which the caller fences) for long.
+func toolInputValueString(v any) string {
+	switch v.(type) {
+	case nil, string, bool, float64, int, int64:
+		return fmt.Sprintf("%v", v)
+	}
+	compact, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprintf("%v", v)
+	}
+	if len(compact) <= 80 {
+		return string(compact)
+	}
+	if pretty, err := json.MarshalIndent(v, "", "  "); err == nil {
+		return string(pretty)
+	}
+	return string(compact)
+}

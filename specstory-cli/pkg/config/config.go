@@ -119,6 +119,9 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # Codex CLI command
 # codex_cmd = "codex"
 
+# Copilot CLI command
+# copilot_cmd = "copilot"
+
 # Copilot IDE commands (used by specstory run copilotide[-variant] to open the IDE)
 # copilotide_cmd = "code"
 # copilotide_insiders_cmd = "code-insiders"
@@ -267,6 +270,7 @@ type ProvidersConfig struct {
 	AntigravityCmd                string `toml:"antigravity_cmd"`
 	ClaudeCmd                     string `toml:"claude_cmd"`
 	CodexCmd                      string `toml:"codex_cmd"`
+	CopilotCmd                    string `toml:"copilot_cmd"`
 	CopilotIDECmd                 string `toml:"copilotide_cmd"`
 	CopilotIDEInsidersCmd         string `toml:"copilotide_insiders_cmd"`
 	CopilotIDEVSCodiumCmd         string `toml:"copilotide_vscodium_cmd"`
@@ -1010,6 +1014,8 @@ func (c *Config) GetProviderCmd(providerID string) string {
 		return c.Providers.ClaudeCmd
 	case "codex":
 		return c.Providers.CodexCmd
+	case "copilot":
+		return c.Providers.CopilotCmd
 	case "copilotide":
 		return c.Providers.CopilotIDECmd
 	case "copilotide-insiders":
