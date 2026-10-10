@@ -13,7 +13,12 @@
 #   "1.134.0"), NOT "version" (a build commit sha) — insiders builds ship
 #   daily, but only productVersion changes are release-meaningful; tracking
 #   shas would fire a format-meaningless change event every day.
-# - VSCodium + insiders: GitHub releases redirect (no API rate limits).
+# - VSCodium + insiders: GitHub releases redirect (no API rate limits). Tags
+#   append a build counter to the upstream release (1.135.05777-insider =
+#   upstream 1.135.0, build 5777; older tags dot-separate it) — insiders
+#   builds ship daily and stable occasionally rebuilds the same upstream
+#   release, so the counter is stripped: only the upstream release the build
+#   was cut from is parse-surface-meaningful.
 # - Copilot Chat extension: the VS Code Marketplace gallery API (POST query).
 #   Not on open-vsx — the marketplace is the single source for all variants.
 #
@@ -40,10 +45,18 @@ github_latest_tag() { # $1 = owner/repo
   printf '%s\n' "$tag"
 }
 
+codium_release() { # VSCodium tag -> upstream release (build counter stripped)
+  # Handles both tag shapes: dotted (1.95.3.24321) and concatenated
+  # (1.135.05777, where the upstream patch is the first digit).
+  sed -E \
+    -e 's/^([0-9]+\.[0-9]+\.[0-9]+)\.[0-9]+(-insider)?$/\1\2/' \
+    -e 's/^([0-9]+\.[0-9]+\.[0-9])[0-9]{3,}(-insider)?$/\1\2/'
+}
+
 stable=$(code_product_version stable)            || fail "vscode stable: update API unreadable"
 insiders=$(code_product_version insider)         || fail "vscode insiders: update API unreadable"
-codium=$(github_latest_tag VSCodium/vscodium)    || fail "vscodium: no release tag resolved"
-codium_ins=$(github_latest_tag VSCodium/vscodium-insiders) || fail "vscodium-insiders: no release tag resolved"
+codium=$(github_latest_tag VSCodium/vscodium | codium_release)    || fail "vscodium: no release tag resolved"
+codium_ins=$(github_latest_tag VSCodium/vscodium-insiders | codium_release) || fail "vscodium-insiders: no release tag resolved"
 copilot_chat=$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
   -H "Content-Type: application/json" -H "Accept: application/json;api-version=3.0-preview.1" \
   -d '{"filters":[{"criteria":[{"filterType":7,"value":"GitHub.copilot-chat"}]}],"flags":103}' \
