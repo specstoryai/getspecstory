@@ -110,6 +110,7 @@ func TestResumeArgs(t *testing.T) {
 		{"appends attached flag", []string{"--allow-all-tools"}, "abc", []string{"--allow-all-tools", "--resume=abc"}},
 		{"overrides configured attached flag", []string{"--resume=old"}, "abc", []string{"--resume=abc"}},
 		{"overrides configured short flag", []string{"-r", "old"}, "abc", []string{"-r", "abc"}},
+		{"inserts before the option separator", []string{"--model", "x", "--", "prompt"}, "abc", []string{"--model", "x", "--resume=abc", "--", "prompt"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

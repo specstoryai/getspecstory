@@ -200,9 +200,13 @@ func RenderToolInputList(input map[string]any) string {
 	b.WriteString("\n**Input:**\n\n")
 	for _, key := range keys {
 		valueStr := toolInputValueString(input[key])
-		if strings.Contains(valueStr, "\n") {
+		switch {
+		case strings.Contains(valueStr, "\n"):
 			fmt.Fprintf(&b, "- %s:\n\n%s\n\n", key, CodeFence("", valueStr))
-		} else {
+		case strings.Contains(valueStr, "`"):
+			// A backtick would close a plain span early.
+			fmt.Fprintf(&b, "- %s: %s\n", key, InlineCode(valueStr))
+		default:
 			fmt.Fprintf(&b, "- %s: `%s`\n", key, valueStr)
 		}
 	}

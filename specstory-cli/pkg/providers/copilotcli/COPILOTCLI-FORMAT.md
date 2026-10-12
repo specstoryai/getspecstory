@@ -101,7 +101,7 @@ No end-of-session record is needed: resumed with `copilot --resume=<id> -p ...`,
 
 ## What is not preserved
 
-- Harness records (hooks, permission prompts, per-model-call telemetry including full context snapshots, the system prompt Copilot resends each turn, token counters) are not rendered. Like every accepted record, they are kept in the raw data and in the `--debug-raw` export.
+- Harness records (hooks, permission prompts, per-model-call telemetry including full context snapshots, the system prompt Copilot resends each turn, token counters) are not rendered. All of them are in the `--debug-raw` export. The raw data synced to the cloud leaves out `system.message`, which holds the user's custom instructions, and `model.*`, which carries account quota and hidden side calls such as the automatic permission judge and otherwise repeats the conversation; it keeps the rest.
 - `tool.execution_start`, turn boundaries and lifecycle records are kept in the raw data but not rendered.
 - A tool result's `detailedContent` (for example the diff of an edit) is not rendered; `content` is.
 - Opaque reasoning (`reasoningOpaque`, `encryptedContent`) is kept in the raw data only.

@@ -260,6 +260,15 @@ var (
 	}
 )
 
+// isPrivateKind reports whether a record kind is left out of RawData, which
+// SpecStory Cloud stores: the system prompt (the user's custom instructions
+// included) and the model-call records, which carry account quota and hidden
+// side calls and only repeat the conversation otherwise. Nothing rendered
+// comes from them, and --debug-raw still exports them.
+func isPrivateKind(kind string) bool {
+	return kind == "system.message" || strings.HasPrefix(kind, "model.")
+}
+
 // isHarnessKind reports whether a record kind is harness machinery.
 func isHarnessKind(kind string) bool {
 	return harnessKinds[kind] || hasAnyPrefix(kind, harnessKindPrefixes)
@@ -477,9 +486,11 @@ func convertSession(file sessionFile, header *sessionHeader, debugRaw, live bool
 		if debugRaw {
 			debugRecords = append(debugRecords, json.RawMessage(bytes.TrimSpace(line)))
 		}
-		rawData.Write(line)
-		if !bytes.HasSuffix(line, []byte("\n")) {
-			rawData.WriteByte('\n')
+		if !isPrivateKind(event.Type) {
+			rawData.Write(line)
+			if !bytes.HasSuffix(line, []byte("\n")) {
+				rawData.WriteByte('\n')
+			}
 		}
 		if !isKnownKind(event.Type) && !unknownKinds[event.Type] {
 			unknownKinds[event.Type] = true
@@ -496,8 +507,10 @@ func convertSession(file sessionFile, header *sessionHeader, debugRaw, live bool
 		return nil, nil
 	}
 
+	// The header's ID names the debug directory, so one that is not a safe
+	// path segment falls back to the session directory's own name.
 	sessionID := header.SessionID
-	if sessionID == "" {
+	if !isValidSessionID(sessionID) {
 		sessionID = file.SessionID
 	}
 	version := header.CopilotVersion

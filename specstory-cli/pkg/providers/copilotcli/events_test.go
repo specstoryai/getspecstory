@@ -395,7 +395,7 @@ func nativeSession(t *testing.T, project string) []string {
 	}
 }
 
-func TestRawDataKeepsEveryAcceptedRecord(t *testing.T) {
+func TestRawDataKeepsAcceptedRecordsExceptPrivateOnes(t *testing.T) {
 	home := useSessionStore(t)
 	project := newProjectDir(t, "project")
 	lines := nativeSession(t, project)
@@ -405,8 +405,14 @@ func TestRawDataKeepsEveryAcceptedRecord(t *testing.T) {
 	if err != nil || session == nil {
 		t.Fatalf("GetAgentChatSessionByPath = %v, %v", session, err)
 	}
-	if want := strings.Join(lines, "\n") + "\n"; session.RawData != want {
-		t.Errorf("RawData = %q, want every native record verbatim %q", session.RawData, want)
+	var want strings.Builder
+	for _, line := range lines {
+		if !strings.Contains(line, `"type":"system.message"`) && !strings.Contains(line, `"type":"model.`) {
+			want.WriteString(line + "\n")
+		}
+	}
+	if session.RawData != want.String() {
+		t.Errorf("RawData = %q, want every record but the system prompt and model calls, verbatim: %q", session.RawData, want.String())
 	}
 }
 
@@ -424,6 +430,24 @@ func TestDebugRawExport(t *testing.T) {
 		}
 		if entries, _ := os.ReadDir(debugRoot); len(entries) != 0 {
 			t.Errorf("debug files written without --debug-raw: %v", entries)
+		}
+	})
+
+	t.Run("an unsafe header ID cannot steer the debug directory", func(t *testing.T) {
+		debugRoot := testutil.IsolateDebugDir(t)
+		hostile := writeSession(t, home, "s2",
+			sessionStart(t, "../../escaped", project),
+			record(t, eventUserMessage, "u1", map[string]any{"content": "hello"}),
+		)
+		session, err := p.GetAgentChatSessionByPath(hostile, project, true)
+		if err != nil || session == nil {
+			t.Fatalf("GetAgentChatSessionByPath = %v, %v", session, err)
+		}
+		if session.SessionID != "s2" {
+			t.Errorf("SessionID = %q, want the directory's name", session.SessionID)
+		}
+		if _, err := os.Stat(filepath.Join(debugRoot, "s2", "1.json")); err != nil {
+			t.Errorf("debug records not under the directory's name: %v", err)
 		}
 	})
 

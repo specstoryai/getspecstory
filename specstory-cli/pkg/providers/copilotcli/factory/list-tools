@@ -41,8 +41,13 @@ if [ "$status" -ne 0 ]; then
   head -c 600 stream.jsonl >&2
   exit 1
 fi
-tools=$(jq -r 'select(.type=="assistant.message") | .data.content // empty' stream.jsonl 2>/dev/null \
-  | tr -d '`*' | sed -E 's/^[[:space:]-]+//; s/[[:space:]]+$//' | grep -E '^[A-Za-z][A-Za-z0-9_.-]*$' || true)
+if ! reply=$(jq -r 'select(.type=="assistant.message") | .data.content // empty' stream.jsonl); then
+  echo "list-tools: could not parse copilot's output" >&2
+  head -c 600 stream.jsonl >&2
+  exit 1
+fi
+tools=$(printf '%s\n' "$reply" | tr -d '`*' | sed -E 's/^[[:space:]-]+//; s/[[:space:]]+$//' \
+  | awk '/^[A-Za-z][A-Za-z0-9_.-]*$/')
 if [ -z "$tools" ]; then
   echo "list-tools: no tool names in the reply" >&2
   head -c 600 stream.jsonl >&2

@@ -443,13 +443,16 @@ func expandTilde(path string) string {
 
 // resumeArgs makes the requested session override any configured resume flag.
 // A fresh flag is attached with "=" because --resume's value is optional and
-// a separate argument could be read as a prompt or another option.
+// a separate argument could be read as a prompt or another option. It goes
+// before any "--", after which Copilot reads arguments as positional input.
 func resumeArgs(args []string, sessionID string) []string {
 	if sessionID == "" {
 		return args
 	}
-	for _, arg := range args {
+	end := len(args)
+	for i, arg := range args {
 		if arg == "--" {
+			end = i
 			break
 		}
 		flag, _, _ := strings.Cut(arg, "=")
@@ -457,7 +460,7 @@ func resumeArgs(args []string, sessionID string) []string {
 			return spi.EnsureResumeFlagArgs(args, sessionID, resumeFlag, resumeShortFlag)
 		}
 	}
-	return append(slices.Clone(args), resumeFlag+"="+sessionID)
+	return slices.Insert(slices.Clone(args), end, resumeFlag+"="+sessionID)
 }
 
 // ExecuteCopilot launches Copilot CLI attached to the terminal and blocks until

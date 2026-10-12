@@ -237,6 +237,8 @@ func TestRenderToolInputList(t *testing.T) {
 			"\n**Input:**\n\n- range: `[1,2]`\n"},
 		{"multi-line values fenced", map[string]any{"patch": "line1\nline2"},
 			"\n**Input:**\n\n- patch:\n\n```\nline1\nline2\n```\n\n"},
+		{"backtick in a value widens its span", map[string]any{"command": "echo `date`"},
+			"\n**Input:**\n\n- command: `` echo `date` ``\n"},
 		{"long collection pretty-printed and fenced", map[string]any{"opts": long},
 			"\n**Input:**\n\n- opts:\n\n```\n{\n  \"a\": \"" + strings.Repeat("x", 50) + "\",\n  \"b\": \"" + strings.Repeat("y", 50) + "\"\n}\n```\n\n"},
 	}
