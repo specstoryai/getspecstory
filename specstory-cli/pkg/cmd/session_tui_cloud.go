@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -179,6 +180,9 @@ func (m sessionTUI) upgradeCmd() tea.Cmd {
 type cloudEligibilityMsg struct {
 	loggedIn bool
 	pro      bool
+	// The signed-in user's email, for the "is this row mine?" comparison. Resolved here
+	// because it reads auth.json, which belongs off the UI thread alongside the network check.
+	viewerEmail string
 }
 
 // cloudSessionsMsg carries a completed cloud fetch for a project. sessions is already converted
@@ -198,11 +202,48 @@ type cloudProjectsMsg struct {
 	err       error
 }
 
+// ownerLabel returns the teammate to credit a cloud row to, or "" to credit nobody.
+//
+// Team-shared listings union your own rows with teammates' copies, so a row has to say when it
+// is not yours. The rule is deliberately CONSERVATIVE: label only when the row is positively
+// known to belong to someone else. Anything less certain renders nothing.
+//
+// Three real states would otherwise produce a wrong label:
+//   - the cloud deployment predates attribution and sends no owner fields at all;
+//   - the owner's profile has not been cached yet, so ownerEmail is empty and the row cannot be
+//     compared against the viewer;
+//   - the viewer's email is unknown (not signed in, or auth.json unreadable).
+//
+// Missing a teammate's label occasionally is far cheaper than telling someone their own session
+// belongs to a colleague. This mirrors ownerLabel() in the VS Code extension
+// (src/webview/lib/format.ts) — the two must agree, or the same session reads differently
+// depending on where you look at it.
+func ownerLabel(ownerID, ownerName, ownerEmail, viewerEmail string) string {
+	if ownerID == "" || ownerEmail == "" || viewerEmail == "" {
+		return ""
+	}
+	if strings.EqualFold(ownerEmail, viewerEmail) {
+		return ""
+	}
+	if n := strings.TrimSpace(ownerName); n != "" {
+		return n
+	}
+	return ownerEmail
+}
+
 // cloudEligibilityCmd runs the (networked) eligibility check off the UI thread.
 func cloudEligibilityCmd() tea.Cmd {
 	return func() tea.Msg {
 		loggedIn, pro := cloud.ResumeEligibility()
-		return cloudEligibilityMsg{loggedIn: loggedIn, pro: pro}
+		// The second return is the login TIME, not an error — AuthenticatedAs reports its own
+		// failures (see there). What it cannot know is that an empty email while signed in is
+		// meaningful HERE: it silently disables owner attribution on every cloud row, and the
+		// conservative ownerLabel rule makes that indistinguishable from "no teammates".
+		viewerEmail, _ := cloud.AuthenticatedAs()
+		if loggedIn && viewerEmail == "" {
+			slog.Debug("cloud resume: no viewer email; owner attribution disabled")
+		}
+		return cloudEligibilityMsg{loggedIn: loggedIn, pro: pro, viewerEmail: viewerEmail}
 	}
 }
 
@@ -283,6 +324,9 @@ func cloudToSessions(cs []cloud.CloudSession, agentIDByName map[string]string) [
 			IsCloud:     true,
 			DeviceID:    c.Metadata.DeviceID,
 			MachineName: c.Metadata.MachineName,
+			OwnerID:     c.OwnerID,
+			OwnerName:   c.OwnerName,
+			OwnerEmail:  c.OwnerEmail,
 		})
 	}
 	return out
@@ -415,6 +459,9 @@ func cloudSearchHitsToSessions(
 			IsCloud:     true,
 			DeviceID:    h.Metadata.DeviceID,
 			MachineName: h.Metadata.MachineName,
+			OwnerID:     h.OwnerID,
+			OwnerName:   h.OwnerName,
+			OwnerEmail:  h.OwnerEmail,
 		})
 		if h.Snippet != "" {
 			snippets[sessionindex.FingerprintKey(agentID, h.ClientID)] = h.Snippet
@@ -516,6 +563,7 @@ func (m *sessionTUI) rebuildGlobalResults() {
 func (m sessionTUI) applyCloudEligibility(msg cloudEligibilityMsg) (tea.Model, tea.Cmd) {
 	m.cloudChecked = true
 	m.cloudEligible = msg.loggedIn && msg.pro
+	m.viewerEmail = msg.viewerEmail
 	switch {
 	case !msg.loggedIn:
 		m.cloudNudge = cloudNudgeLogin
@@ -736,6 +784,13 @@ func mergeCloudProjects(local []sessionindex.ProjectSummary, localKeys map[strin
 			AgentCounts:  make(map[string]int),
 			LastActivity: maxReal,
 			IsCloud:      true,
+			// Attribution rides only on cloud-ONLY projects. A project you also have locally is
+			// one you work in yourself, so labelling it with whichever teammate's copy the
+			// server picked as representative would be actively misleading.
+			OwnerID:          c.OwnerID,
+			OwnerName:        c.OwnerName,
+			OwnerEmail:       c.OwnerEmail,
+			ContributorCount: c.ContributorCount,
 		}
 		if ps.LastActivity == "" {
 			ps.LastActivity = maxSync
