@@ -371,12 +371,14 @@ func TestMirrorLocationPrecedence(t *testing.T) {
 	}
 	// An external symlink that points into the project is inside it, even
 	// when the configured path continues below the link into a directory
-	// that does not exist yet.
+	// that does not exist yet. The target exists before the link is made:
+	// on Windows a symlink to a missing target is a file symlink, which
+	// cannot be followed as a directory.
+	if err := os.MkdirAll(inside, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	link := filepath.Join(t.TempDir(), "link")
 	if err := os.Symlink(inside, link); err == nil {
-		if err := os.MkdirAll(inside, 0o755); err != nil {
-			t.Fatal(err)
-		}
 		SetMirrorDir(filepath.Join(link, "deeper"))
 		want := filepath.Join(spi.CanonicalizePathOrClean(inside), "deeper")
 		if m, local := mirrorFor(project); !local || m.root != want {
