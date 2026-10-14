@@ -337,17 +337,22 @@ func TestMirrorLocationPrecedence(t *testing.T) {
 	if m, local := mirrorFor(project); !local || m.root != filepath.Join(project, ".specstory", "cursorcloud") {
 		t.Errorf("default mirror = %s local %v", m.root, local)
 	}
+	// Configured roots come back canonical (t.TempDir sits behind a symlink
+	// on macOS), so comparisons use the canonical spelling too.
 	configDir := t.TempDir()
 	SetMirrorDir(configDir)
-	if m, local := mirrorFor(project); local || m.root != configDir {
+	if m, local := mirrorFor(project); local || m.root != spi.CanonicalizePathOrClean(configDir) {
 		t.Errorf("config mirror = %s local %v", m.root, local)
 	}
 	// Locality follows the resolved path: a configured directory inside the
 	// project still needs the protective .gitignore, the project root itself
 	// must never get one.
+	// Mirrors that do not exist yet canonicalize through their nearest
+	// existing ancestor, so expectations are built from the canonical project.
+	canonicalProject := spi.CanonicalizePathOrClean(project)
 	inside := filepath.Join(project, "var", "cursorcloud")
 	SetMirrorDir(inside)
-	if m, local := mirrorFor(project); !local || m.root != inside {
+	if m, local := mirrorFor(project); !local || m.root != filepath.Join(canonicalProject, "var", "cursorcloud") {
 		t.Errorf("in-project config mirror = %s local %v, want local", m.root, local)
 	}
 	SetMirrorDir(project)
@@ -357,9 +362,30 @@ func TestMirrorLocationPrecedence(t *testing.T) {
 	if _, local := mirrorFor(""); local {
 		t.Error("mirror with no project reported as local")
 	}
+	// A relative setting resolves against the working directory and must come
+	// back absolute, because session refs carry it as NativePath.
+	t.Chdir(project)
+	SetMirrorDir(filepath.Join(".specstory", "cursorcloud"))
+	if m, local := mirrorFor(project); !local || !filepath.IsAbs(m.root) || m.root != filepath.Join(canonicalProject, ".specstory", "cursorcloud") {
+		t.Errorf("relative config mirror = %s local %v, want absolute and local", m.root, local)
+	}
+	// An external symlink that points into the project is inside it, even
+	// when the configured path continues below the link into a directory
+	// that does not exist yet.
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(inside, link); err == nil {
+		if err := os.MkdirAll(inside, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		SetMirrorDir(filepath.Join(link, "deeper"))
+		want := filepath.Join(spi.CanonicalizePathOrClean(inside), "deeper")
+		if m, local := mirrorFor(project); !local || m.root != want {
+			t.Errorf("symlinked config mirror = %s local %v, want %s local", m.root, local, want)
+		}
+	}
 	flagDir := t.TempDir()
 	SetUserDataDirOverride(flagDir)
-	if m, _ := mirrorFor(project); m.root != flagDir {
+	if m, _ := mirrorFor(project); m.root != spi.CanonicalizePathOrClean(flagDir) {
 		t.Errorf("--user-data-dir mirror = %s, want it to win over config", m.root)
 	}
 
@@ -582,5 +608,25 @@ func TestRefreshAgentLeavesMarkerStaleOnTransientFailure(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(m.agentDir(agentID), "conversation.json")); err == nil {
 		t.Error("conversation.json written although the endpoint refused")
+	}
+}
+
+// TestDetectAgentReadsMirrorWithoutKey: `sync cursorcloud` gates on
+// DetectAgent, so already-mirrored histories must still be detected after the
+// key is unset or rotated; only the API probe needs a key.
+func TestDetectAgentReadsMirrorWithoutKey(t *testing.T) {
+	useSettings(t, "")
+	f := newFakeAPI(t)
+	project := makeProject(t, t.TempDir(), testOrigin)
+	if NewProvider().DetectAgent(project, false) {
+		t.Error("detected agents with an empty mirror and no key")
+	}
+	m, _ := mirrorFor(project)
+	writeFixtureMirror(t, m, loadFixture(t, "failure-run"))
+	if !NewProvider().DetectAgent(project, false) {
+		t.Error("mirrored agent not detected without a key")
+	}
+	if n := f.count("/"); n != 0 {
+		t.Errorf("detection without a key made %d API requests", n)
 	}
 }

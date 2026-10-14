@@ -122,18 +122,19 @@ func missingKeyMessage() string {
 		"    [providers]\n    cursor_api_key = \"crsr_...\"\n", apiKeyPage, apiKeyEnvVar)
 }
 
-// DetectAgent reports whether this project has cloud agents: a key is
-// configured, the project has a git origin, and either the mirror already
-// holds an agent for that repository or the first page of the agent list
-// names one.
+// DetectAgent reports whether this project has cloud agents: the project has
+// a git origin, and either the mirror already holds an agent for that
+// repository or, when a key is configured, the first page of the agent list
+// names one. The mirror is consulted without a key so that histories already
+// mirrored can still be synced after the key is unset or rotated.
 func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	key, _ := resolveAPIKey()
 	origin := projectOrigin(projectPath)
 	found := false
-	if key != "" && origin != "" {
+	if origin != "" {
 		m, _ := mirrorFor(projectPath)
 		found = len(m.matchingSnapshots(origin)) > 0
-		if !found {
+		if !found && key != "" {
 			ctx, cancel := context.WithTimeout(context.Background(), jsonTimeout)
 			agents, err := newAPIClient(key).listAgents(ctx, 1)
 			cancel()

@@ -78,7 +78,9 @@ func defaultOpener() []string {
 }
 
 // WatchAgent polls for cloud agent activity on this project's repository and
-// delivers each new or updated session until ctx is cancelled.
+// delivers each new or updated session until ctx is cancelled, or until the
+// API refuses the agent listing permanently (rejected key, Privacy Mode), which
+// is returned as an error so `run` and `watch` report it instead of hanging.
 func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	slog.Info("WatchAgent: starting Cursor Cloud Agent polling", "projectPath", projectPath, "debugRaw", debugRaw)
 	key, source := resolveAPIKey()
@@ -96,9 +98,15 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 	watcher.start(ctx)
 	slog.Info("WatchAgent: polling", "origin", origin, "keySource", source, "mirror", watcher.mirror.root, "interval", pollInterval)
 
-	<-ctx.Done()
-	slog.Info("WatchAgent: context cancelled, stopping")
+	var err error
+	select {
+	case <-ctx.Done():
+		err = ctx.Err()
+		slog.Info("WatchAgent: context cancelled, stopping")
+	case err = <-watcher.fatal:
+		slog.Error("WatchAgent: the API refused the agent listing; stopping", "error", err)
+	}
 	watcher.stop()
 	slog.Info("WatchAgent: stopped")
-	return ctx.Err()
+	return err
 }

@@ -1376,3 +1376,30 @@ func TestLoadTightensUserConfigPermissions(t *testing.T) {
 		})
 	}
 }
+
+// TestLoadTightensUserConfigPermissionsBeforeParsing: the mode is fixed even
+// when the file fails to parse, so a credential in a broken config is not left
+// readable until the syntax is repaired.
+func TestLoadTightensUserConfigPermissionsBeforeParsing(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission bits do not exist on Windows")
+	}
+	tempHome := t.TempDir()
+	testutil.SetHome(t, tempHome)
+	t.Chdir(t.TempDir())
+	userPath := createTempConfigFile(t, tempHome, "[providers\ncursor_api_key = \"crsr_test\"\n")
+	if err := os.Chmod(userPath, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Load(nil); err == nil {
+		t.Fatal("Load() accepted invalid TOML")
+	}
+	info, err := os.Stat(userPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Errorf("mode after a parse error = %v, want 0600", got)
+	}
+}

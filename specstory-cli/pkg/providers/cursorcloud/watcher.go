@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"maps"
 	"sync"
@@ -56,6 +57,7 @@ type cloudWatcher struct {
 	live    map[string]bool   // run ids with an attached stream
 	pending map[string]bool   // agent ids queued for emission
 	emitCh  chan string
+	fatal   chan error // the one error that ends the watch; see pollLoop
 
 	workers  sync.WaitGroup // poll loop and stream followers
 	emitter  sync.WaitGroup // the single delivery worker
@@ -85,6 +87,7 @@ func (w *cloudWatcher) start(parent context.Context) {
 	w.ctx, w.cancel = context.WithCancel(parent)
 	w.startedAt = time.Now()
 	w.emitCh = make(chan string, 64)
+	w.fatal = make(chan error, 1)
 	w.stopOnce = sync.Once{}
 	w.emitter.Go(w.emitLoop)
 	w.workers.Go(w.pollLoop)
@@ -101,11 +104,20 @@ func (w *cloudWatcher) stop() {
 	})
 }
 
-// pollLoop runs the baseline poll, then polls every pollInterval.
+// pollLoop runs the baseline poll, then polls every pollInterval. It ends with
+// the context, or when the API refuses the listing for good: a rejected key or
+// an account on Privacy Mode fails every poll the same way, and polling on
+// would leave `run` and `watch` claiming to watch while nothing can ever be
+// saved. That error is handed to WatchAgent through fatal.
 func (w *cloudWatcher) pollLoop() {
 	baseline := true
 	for {
-		if w.poll(baseline) {
+		listed, err := w.poll(baseline)
+		if err != nil {
+			w.fatal <- err
+			return
+		}
+		if listed {
 			baseline = false
 		}
 		if sleepContext(w.ctx, pollInterval) != nil {
@@ -119,26 +131,32 @@ func (w *cloudWatcher) pollLoop() {
 // because the watcher started. Afterwards an agent seen for the first time or
 // whose updatedAt moved is refreshed and emitted. An agent changing during the
 // baseline is caught by the next poll, because the baseline records the
-// updatedAt it listed, not what the agent became. The result reports whether
-// the listing succeeded: pollLoop keeps the baseline open until it has, so a
-// failed first poll cannot turn every pre-existing agent into news.
+// updatedAt it listed, not what the agent became. The first result reports
+// whether the listing succeeded: pollLoop keeps the baseline open until it has,
+// so a failed first poll cannot turn every pre-existing agent into news. The
+// error is set only when the listing was refused permanently (a 4xx other than
+// 429); transport, 429 and 5xx failures are retried on the next poll.
 //
 // "Listed at startup" and "refreshed" are tracked apart. seen records only
 // refreshes that succeeded, so an agent whose baseline refresh failed is
 // retried on every poll until its mirror is filled; startup remembers the
 // updatedAt the baseline listed, so those retries stay silent while nothing
 // about the agent has changed, and become news once it has.
-func (w *cloudWatcher) poll(baseline bool) bool {
+func (w *cloudWatcher) poll(baseline bool) (bool, error) {
 	agents, err := w.client.listAgents(w.ctx, maxPollPages)
 	if err != nil {
-		if w.ctx.Err() == nil {
-			slog.Warn("WatchAgent: listing cloud agents failed; retrying next poll", "error", err)
+		if w.ctx.Err() != nil {
+			return false, nil
 		}
-		return false
+		if permanentAPIError(err) {
+			return false, fmt.Errorf("listing cloud agents: %w", err)
+		}
+		slog.Warn("WatchAgent: listing cloud agents failed; retrying next poll", "error", err)
+		return false, nil
 	}
 	for _, record := range agents {
 		if w.ctx.Err() != nil {
-			return false
+			return false, nil
 		}
 		agent := record.agent
 		if !agentMatchesOrigin(agent, w.origin) {
@@ -160,7 +178,7 @@ func (w *cloudWatcher) poll(baseline bool) bool {
 
 		if err := w.mirror.ensureRoot(w.projectLocal); err != nil {
 			slog.Error("WatchAgent: cannot create mirror", "path", w.mirror.root, "error", err)
-			return false
+			return false, nil
 		}
 		if err := w.mirror.refreshAgent(w.ctx, w.client, record, refreshOptions{skipStreams: skip, now: time.Now()}); err != nil {
 			if w.ctx.Err() == nil {
@@ -179,7 +197,7 @@ func (w *cloudWatcher) poll(baseline bool) bool {
 		}
 	}
 	w.attachRunning()
-	return true
+	return true, nil
 }
 
 // liveSnapshot copies the attached-run set; callers hold w.mu.

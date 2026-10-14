@@ -100,7 +100,8 @@ agents/<agentId>/runs/<runId>.events.jsonl   one {"id","event","data"} object pe
 - Every write is atomic (a temporary file, then a rename), and a file whose bytes are unchanged is not rewritten, so a sync that finds nothing new leaves every byte and mtime as it was.
 - Runs, conversation and usage are re-fetched only when `agent.updatedAt` differs from the mirrored `agent.json`.
 - A finished run whose events are missing or partial is replayed while it is within 24 h of its `updatedAt`. A `410` leaves the partial capture in place. A whole capture is never fetched again.
-- `sync` never attaches to an unfinished run, because reading its stream blocks until the run ends. `watch` attaches live, appends events, and rewrites the file atomically after each burst.
+- `sync` never attaches to an unfinished run, because reading its stream blocks until the run ends. `watch` attaches live, appends events, and rewrites the file atomically after each burst. A listing refused with a 4xx other than 429 (rejected key, Privacy Mode) ends `watch` and `run` with that error, because every later poll would fail the same way; transport, 429 and 5xx failures are retried on the next poll.
+- Detection (`sync`, `list`) consults the mirror before the API, so histories already mirrored stay readable without a key.
 - An agent directory without `agent.json` is not an agent yet. Readers skip it.
 
 ## Resume

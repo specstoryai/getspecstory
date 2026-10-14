@@ -3,6 +3,7 @@ package cursorcloud
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -313,8 +314,12 @@ func TestWatcherBaselineSurvivesListFailure(t *testing.T) {
 	f.convs[fx.agent.agent.ID] = fx.conversation
 	f.usages[fx.agent.agent.ID] = fx.usage
 	f.streams = fx.streams
-	// 403 is not retried by the client, so the poll itself sees the failure.
-	f.listStatus = http.StatusForbidden
+	// 503 is transient: the client retries it, then the poll sees the
+	// failure and tries again next poll. (A 4xx would end the watch instead.)
+	prev := initialBackoff
+	initialBackoff = time.Millisecond
+	t.Cleanup(func() { initialBackoff = prev })
+	f.listStatus = http.StatusServiceUnavailable
 
 	w, got := startWatcher(t)
 	waitFor(t, "two refused listings", func() bool { return f.count("/v1/agents") >= 2 })
@@ -376,5 +381,33 @@ func TestWatcherRetriesBaselineRefreshQuietly(t *testing.T) {
 	w.mu.Unlock()
 	if !ok || seenAt != fx.agent.agent.UpdatedAt {
 		t.Errorf("seen[%s] = %q %v, want the listed updatedAt after the successful retry", agentID, seenAt, ok)
+	}
+}
+
+// TestWatchAgentStopsOnPermanentListFailure: a rejected key or a Privacy Mode
+// account fails every listing the same way, so WatchAgent returns that error
+// instead of polling forever behind a "watching" banner.
+func TestWatchAgentStopsOnPermanentListFailure(t *testing.T) {
+	useSettings(t, "test-key")
+	fastWatcher(t)
+	f := newFakeAPI(t)
+	f.listStatus = http.StatusUnauthorized
+	project := makeProject(t, t.TempDir(), testOrigin)
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- NewProvider().WatchAgent(context.Background(), project, false, func(*spi.AgentChatSession) {})
+	}()
+	select {
+	case err := <-errCh:
+		var ae *apiError
+		if !errors.As(err, &ae) || ae.Status != http.StatusUnauthorized {
+			t.Errorf("WatchAgent returned %v, want the HTTP 401 listing error", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("WatchAgent kept polling after a permanent listing failure")
+	}
+	if n := f.count("/v1/agents"); n != 1 {
+		t.Errorf("listed %d times, want exactly one refused listing", n)
 	}
 }

@@ -65,22 +65,44 @@ func mirrorFor(projectPath string) (mirror, bool) {
 	if root == "" {
 		return mirror{root: filepath.Join(projectPath, ".specstory", "cursorcloud")}, true
 	}
+	root = canonicalMirrorRoot(root)
 	return mirror{root: root}, insideProject(root, projectPath)
 }
 
-// insideProject reports whether path resolves to a directory strictly below
+// canonicalMirrorRoot resolves a configured root to an absolute path with
+// symlinks evaluated. Session refs carry mirror paths as NativePath, which must
+// be absolute so a resume from another directory still finds them, and the
+// locality check must see where a symlink really points. The directory may not
+// exist yet (ensureRoot creates it), so the nearest existing ancestor is
+// resolved and the missing tail re-appended.
+func canonicalMirrorRoot(path string) string {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return filepath.Clean(path)
+	}
+	tail := ""
+	for dir := abs; ; {
+		if _, err := os.Stat(dir); err == nil {
+			return filepath.Join(spi.CanonicalizePathOrClean(dir), tail)
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return abs
+		}
+		tail = filepath.Join(filepath.Base(dir), tail)
+		dir = parent
+	}
+}
+
+// insideProject reports whether root, already canonical, lies strictly below
 // projectPath. The project root itself does not count: a "*" .gitignore there
 // would hide the whole project from git, which is worse than an unprotected
 // mirror, so that misconfiguration is left to the user.
-func insideProject(path, projectPath string) bool {
+func insideProject(root, projectPath string) bool {
 	if projectPath == "" {
 		return false
 	}
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return false
-	}
-	rel, err := filepath.Rel(filepath.Clean(projectPath), abs)
+	rel, err := filepath.Rel(spi.CanonicalizePathOrClean(projectPath), root)
 	if err != nil || rel == "." || rel == ".." || filepath.IsAbs(rel) {
 		return false
 	}

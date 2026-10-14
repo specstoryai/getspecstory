@@ -116,7 +116,7 @@ The `sync`, `check`, `list` and `watch` commands accept a repeatable `--user-dat
 specstory sync --user-data-dir cursoride:/opt/cursor/data --user-data-dir copilotide:/opt/vscode/data
 ```
 
-Supported provider IDs are `cursoride`, `cursorcloud` (where the path is the location of its local API mirror), `copilotide`, `copilotide-insiders`, `copilotide-vscodium` and `copilotide-vscodium-insiders`. If the override path doesn't exist, SpecStory warns and falls back to the standard location for your OS.
+Supported provider IDs are `cursoride`, `cursorcloud` (where the path is the location of its local API mirror), `copilotide`, `copilotide-insiders`, `copilotide-vscodium` and `copilotide-vscodium-insiders`. If the override path doesn't exist, SpecStory warns and falls back to the standard location for your OS. The exception is `cursorcloud`, whose path is a destination rather than an install: it is created on the first sync.
 
 ### Resume & Search
 

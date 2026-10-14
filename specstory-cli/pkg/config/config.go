@@ -353,6 +353,8 @@ func Load(cliOverrides *CLIOverrides) (*Config, error) {
 	// Load user-level config first (lowest priority)
 	userConfigPath := getUserConfigPath()
 	if userConfigPath != "" {
+		// Before parsing, so a file with a syntax error is still protected.
+		tightenUserConfigMode(userConfigPath)
 		if err := loadTOMLFile(userConfigPath, cfg); err != nil {
 			if os.IsNotExist(err) {
 				slog.Debug("No user-level config file found", "path", userConfigPath)
@@ -363,7 +365,6 @@ func Load(cliOverrides *CLIOverrides) (*Config, error) {
 			}
 		} else {
 			slog.Debug("Loaded user-level config", "path", userConfigPath)
-			tightenUserConfigMode(userConfigPath)
 		}
 	}
 
