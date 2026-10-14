@@ -78,6 +78,13 @@ type GlobalSessionRef struct {
 	NativePath string // absolute path the provider opens to read this session
 	OriginCwd  string // working directory the session was launched from (-> project_id)
 
+	// OriginRepoURL is the git remote URL of the repository the session worked on,
+	// for a hosted agent that records a repository but never a local directory.
+	// When OriginCwd is empty, reindex derives the project from this URL with the
+	// same normalization and hash as a project's git_id, and parses the session's
+	// body through spi.PathSessionReader. Leave it empty when OriginCwd is known.
+	OriginRepoURL string
+
 	// Fingerprint is the provider's own freshness token for the session, for a
 	// store where NativePath is shared by every session (one SQLite database):
 	// that file's size and mtime move whenever any session changes, so a

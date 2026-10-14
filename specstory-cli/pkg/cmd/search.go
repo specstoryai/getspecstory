@@ -125,16 +125,17 @@ func CreateSearchCommand(cloudURL *string, defaults SessionFlagDefaults) *cobra.
 			// A search hit can be from another project; resume must load the source from its
 			// original cwd, not the current directory. The guard also prefers a local copy when a
 			// cloud-badged hit is actually present on this machine.
-			fromCloud, fromCwd := resumeSourceForSession(store, rm.result.session)
+			fromCloud, fromCwd, fromPath := resumeSourceForSession(store, rm.result.session)
 			plan := &resumePlan{
-				from:      fromProv,
-				fromID:    rm.result.session.Agent,
-				sessionID: rm.result.session.SessionID,
-				fromCwd:   fromCwd,
-				to:        toProv,
-				toID:      rm.result.targetID,
-				fromCloud: fromCloud,
-				projectID: rm.result.session.ProjectID,
+				from:           fromProv,
+				fromID:         rm.result.session.Agent,
+				sessionID:      rm.result.session.SessionID,
+				fromCwd:        fromCwd,
+				fromNativePath: fromPath,
+				to:             toProv,
+				toID:           rm.result.targetID,
+				fromCloud:      fromCloud,
+				projectID:      rm.result.session.ProjectID,
 			}
 			return launchResume(plan, cwd, launchOpts)
 		},

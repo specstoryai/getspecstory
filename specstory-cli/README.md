@@ -6,7 +6,7 @@
 
 ## SpecStory CLI
 
-SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI, Muse Code, OpenCode, Qwen Code, Pi) as well as the Cursor IDE and VS Code Copilot (including VS Code Insiders, VSCodium, and VSCodium Insiders).
+SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI, Muse Code, OpenCode, Qwen Code, Pi) as well as the Cursor IDE, Cursor Cloud Agents, and VS Code Copilot (including VS Code Insiders, VSCodium, and VSCodium Insiders).
 
 It saves your AI coding conversations as local markdown files of each session. It can optionally sync your markdown files to the [SpecStory Cloud](https://cloud.specstory.com), turning your AI chat history into a centralized knowledge system that you can chat with and search.
 
@@ -30,6 +30,7 @@ The following coding agents are supported in the SpecStory CLI:
 | [Codex CLI](https://www.openai.com/codex/cli/)                 | [codexcli](pkg/providers/codexcli/)             | JSONL       | `~/.codex/sessions/`            |
 | [Cursor CLI](https://cursor.com/cli)                           | [cursorcli](pkg/providers/cursorcli/)           | SQLite      | `~/.cursor/chats/`              |
 | [Cursor IDE](https://cursor.com/)                              | [cursoride](pkg/providers/cursoride/)           | SQLite      | `Cursor/User/globalStorage/`    |
+| [Cursor Cloud Agent](https://cursor.com/agents)                | [cursorcloud](pkg/providers/cursorcloud/)       | HTTP API    | `api.cursor.com`                |
 | [VS Code Copilot](https://code.visualstudio.com/)              | [copilotide](pkg/providers/copilotide/)         | JSON/JSONL  | `Code/User/workspaceStorage/`   |
 | [Droid CLI](https://factory.ai/product/cli)                    | [droidcli](pkg/providers/droidcli/)             | JSONL       | `~/.factory/sessions/`          |
 | [Gemini CLI](https://ai.google.dev/gemini-cli)                 | [geminicli](pkg/providers/geminicli/)           | JSON        | `~/.gemini/tmp/`                |
@@ -40,6 +41,10 @@ The following coding agents are supported in the SpecStory CLI:
 | [Pi](https://pi.dev)                                           | [piagent](pkg/providers/piagent/)               | JSONL       | `~/.pi/agent/sessions/`         |
 | [Qwen Code](https://github.com/QwenLM/qwen-code)               | [qwencode](pkg/providers/qwencode/)             | JSONL       | `~/.qwen/projects/`             |
 | [Grok Build](https://x.ai/cli)                                 | [grokbuild](pkg/providers/grokbuild/)           | JSONL       | `~/.grok/sessions/`             |
+
+### Notes on Cursor Cloud Agents
+
+Cursor Cloud Agents run in Cursor's backend, and their conversations are never written to your machine. The `cursorcloud` provider reads them from the [Cloud Agents API](https://cursor.com/docs/cloud-agent/api/endpoints) with your Cursor API key (create one at https://cursor.com/dashboard/api, then set `CURSOR_API_KEY` or `cursor_api_key` under `[providers]`). Agents are matched to the current project by repository: an agent belongs to the project when one of its repositories is the project's git `origin`. The provider keeps a local mirror of what it has read in `.specstory/cursorcloud/` (it writes its own `.gitignore` there, because the mirror holds unredacted transcripts); `cursorcloud_mirror_dir` or `--user-data-dir cursorcloud:<path>` moves it. A finished run's full transcript, including tool calls and output, is available from the API for 24 hours; after that only its text remains, so sync at least daily or keep `specstory watch` running. `specstory run cursorcloud` opens https://cursor.com/agents in your browser and then watches until interrupted with `ctrl-c`. Resuming another agent's session into a cloud agent is not supported, because that would launch a new paid run; cloud sessions can be resumed into local agents.
 
 ### Notes on IDEs
 
@@ -111,7 +116,7 @@ The `sync`, `check`, `list` and `watch` commands accept a repeatable `--user-dat
 specstory sync --user-data-dir cursoride:/opt/cursor/data --user-data-dir copilotide:/opt/vscode/data
 ```
 
-Supported provider IDs are `cursoride`, `copilotide`, `copilotide-insiders`, `copilotide-vscodium` and `copilotide-vscodium-insiders`. If the override path doesn't exist, SpecStory warns and falls back to the standard location for your OS.
+Supported provider IDs are `cursoride`, `cursorcloud` (where the path is the location of its local API mirror), `copilotide`, `copilotide-insiders`, `copilotide-vscodium` and `copilotide-vscodium-insiders`. If the override path doesn't exist, SpecStory warns and falls back to the standard location for your OS.
 
 ### Resume & Search
 
@@ -329,6 +334,19 @@ specstory sync --config-dir ~/specstory-configs/myproject
 # Cursor IDE command (used by specstory run cursoride to open the IDE)
 # cursoride_cmd = "cursor"
 
+# Cursor Cloud Agent: command used by specstory run cursorcloud to open
+# https://cursor.com/agents. The default is the system URL opener for your OS,
+# shown below; set it to open a specific browser instead.
+# cursorcloud_cmd = "open"                                  # macOS default
+# cursorcloud_cmd = "xdg-open"                              # Linux default
+# cursorcloud_cmd = "rundll32 url.dll,FileProtocolHandler"  # Windows default
+
+# Cursor API key for reading cloud agents (create one at https://cursor.com/dashboard/api).
+# The CURSOR_API_KEY environment variable takes precedence.
+# cursor_api_key = "crsr_..."
+# Where raw cloud agent transcripts are mirrored (default: .specstory/cursorcloud in the project)
+# cursorcloud_mirror_dir = "~/.specstory/cursorcloud"
+
 # DeepSeek TUI command
 # deepseek_cmd = "deepseek"
 
@@ -384,6 +402,9 @@ specstory sync --config-dir ~/specstory-configs/myproject
 | `[providers]`     | `copilotide_vscodium_insiders_cmd` | `"codium-insiders"`  | VSCodium Insiders launcher command                                  |
 | `[providers]`     | `cursor_cmd`                       | `"cursor-agent"`     | Cursor CLI command                                                  |
 | `[providers]`     | `cursoride_cmd`                    | `"cursor"`           | Cursor IDE launcher command                                         |
+| `[providers]`     | `cursorcloud_cmd`                  | system URL opener    | Command `run cursorcloud` uses to open the cloud agents dashboard   |
+| `[providers]`     | `cursor_api_key`                   | none                 | Cursor API key for cloud agents (`CURSOR_API_KEY` takes precedence) |
+| `[providers]`     | `cursorcloud_mirror_dir`           | `.specstory/cursorcloud` | Where raw cloud agent transcripts are mirrored                  |
 | `[providers]`     | `deepseek_cmd`                     | `"deepseek"`         | DeepSeek TUI command                                                |
 | `[providers]`     | `droid_cmd`                        | `"droid"`            | Droid CLI command                                                   |
 | `[providers]`     | `gemini_cmd`                       | `"gemini"`           | Gemini CLI command                                                  |
@@ -648,10 +669,12 @@ Sync specific session with debug output:
     ├── raw-transcript.jsonl # Antigravity: accepted transcript records
     ├── tasks/task-6.log  # Antigravity: native async task output
     ├── native-sidecars.json # Grok Build: summary, updates, events, and subagent metadata
+    ├── agent.json        # Cursor Cloud Agent: agent, conversation.json, usage.json, and
+    ├── run-1-<run-id>.json # one file per run holding the run object and its stream events
     └── session-data.json # JSON version of the SessionData returned from the provider for this session
 ```
 
-Claude Code, Codex CLI, Qwen Code, Factory Droid, Pi, Muse Code, OpenCode, and Grok Build use sequentially numbered JSON files in source order. Codex and Grok preserve native number precision and key order. Grok also exports the sidecars used for conversion and refreshes debug files even when its accepted records contain no rendered conversation. Gemini uses numbered per-message diagnostic objects. Pi includes its session header and inactive branches. Muse preserves native envelopes, metadata, diagnostics, and task-stream records even when they are omitted from Markdown. OpenCode exports its SQLite rows: the session row first, then every message row in sequence order, each with all of its stored columns. Antigravity numbers records in native `step_index` order, retains the accepted transcript in source order, and copies async task logs into `tasks/` with their original names and bytes. DeepSeek TUI pretty-prints the original session JSON, including unknown fields, to `raw-session.json`.
+Claude Code, Codex CLI, Qwen Code, Factory Droid, Pi, Muse Code, OpenCode, and Grok Build use sequentially numbered JSON files in source order. Codex and Grok preserve native number precision and key order. Grok also exports the sidecars used for conversion and refreshes debug files even when its accepted records contain no rendered conversation. Gemini uses numbered per-message diagnostic objects. Pi includes its session header and inactive branches. Muse preserves native envelopes, metadata, diagnostics, and task-stream records even when they are omitted from Markdown. OpenCode exports its SQLite rows: the session row first, then every message row in sequence order, each with all of its stored columns. Antigravity numbers records in native `step_index` order, retains the accepted transcript in source order, and copies async task logs into `tasks/` with their original names and bytes. DeepSeek TUI pretty-prints the original session JSON, including unknown fields, to `raw-session.json`. Cursor Cloud Agent pretty-prints the mirrored API objects (`agent.json`, `conversation.json`, `usage.json`) and one `run-<n>-<run-id>.json` per run, numbered in run order, holding the run object and its stream events.
 
 All numbered exporters refresh their provider-owned debug files on each export, removing obsolete records while preserving `session-data.json` and unrelated files. Native exports use the same input snapshot as conversion. Cursor CLI filenames include both DAG position and SQLite rowid, with separate orphan files. Cursor IDE and VS Code Copilot use a single `raw-composer.json` or `raw-session.json` instead of numbered records.
 

@@ -1328,3 +1328,33 @@ func TestNewProjectIdentityManagerWithOverrides_RetargetsSharedSpecstoryDir(t *t
 			a2.WorkspaceID, a2.GitID, a.WorkspaceID, a.GitID)
 	}
 }
+
+// TestComputeProjectIDFromRemoteMatchesCheckout guards the contract hosted-agent
+// sessions rely on: a session that names only its repository must land in the
+// same project as a local clone of that repository, whichever URL form each uses.
+func TestComputeProjectIDFromRemoteMatchesCheckout(t *testing.T) {
+	repo := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repo, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := "[remote \"origin\"]\n\turl = git@github.com:specstoryai/cloud-agent-test.git\n"
+	if err := os.WriteFile(filepath.Join(repo, ".git", "config"), []byte(cfg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	wantID, wantName, err := ComputeProjectID(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, remote := range []string{
+		"https://github.com/specstoryai/cloud-agent-test",
+		"github.com/specstoryai/cloud-agent-test",
+	} {
+		id, name, err := ComputeProjectIDFromRemote(remote)
+		if err != nil || id != wantID || name != wantName {
+			t.Errorf("ComputeProjectIDFromRemote(%q) = (%q, %q, %v); want (%q, %q)", remote, id, name, err, wantID, wantName)
+		}
+	}
+	if _, _, err := ComputeProjectIDFromRemote(" "); err == nil {
+		t.Error("an empty remote URL must be an error")
+	}
+}

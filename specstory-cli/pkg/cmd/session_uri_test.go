@@ -83,9 +83,32 @@ func TestParseSessionURI(t *testing.T) {
 			raw:     "550E8400-E29B-41D4-A716-446655440000",
 			wantPID: "", wantSID: validSID,
 		},
+		// A Cursor Cloud Agent id is "bc-" plus a UUID, in every form.
+		{
+			name:    "bare cloud agent id",
+			raw:     "bc-" + validSID,
+			wantPID: "", wantSID: "bc-" + validSID,
+		},
+		{
+			name:    "cloud agent id case-insensitive",
+			raw:     "BC-550E8400-E29B-41D4-A716-446655440000",
+			wantPID: "", wantSID: "bc-" + validSID,
+		},
+		{
+			name:    "specstory uri with cloud agent id",
+			raw:     "specstory://projects/" + validPID + "/sessions/bc-" + validSID,
+			wantPID: validPID, wantSID: "bc-" + validSID,
+		},
+		{
+			name:    "permalink with cloud agent id",
+			raw:     "https://cloud.specstory.com/projects/" + validPID + "/sessions/bc-" + validSID,
+			wantPID: validPID, wantSID: "bc-" + validSID,
+			wantHost: "https://cloud.specstory.com",
+		},
 		// Shape / grammar errors.
 		{name: "empty", raw: "", wantErr: true},
 		{name: "bare garbage", raw: "not-a-session", wantErr: true},
+		{name: "other prefix on a uuid", raw: "xx-" + validSID, wantErr: true},
 		{name: "bare project id (not a uuid)", raw: validPID, wantErr: true},
 		{name: "bad project id shape", raw: "specstory://projects/zzzz/sessions/" + validSID, wantErr: true},
 		{name: "bad session id shape", raw: "specstory://projects/" + validPID + "/sessions/not-a-uuid", wantErr: true},

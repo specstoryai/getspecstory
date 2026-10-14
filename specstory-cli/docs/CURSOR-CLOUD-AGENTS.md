@@ -131,3 +131,7 @@ Still unverified:
 - Local inspection on macOS: Cursor 3.13.25 app bundle strings and logs, `~/Library/Application Support/Cursor/User/globalStorage/{state.vscdb,conversation-search.db}`, `~/Library/Application Support/Cursor/IndexedDB`, `~/.cursor/chats`, `~/.cursor/projects/*/agent-transcripts`, `cursor-agent 2026.09.15` (`agent worker --help`).
 - Spike agents: `bc-4d216726-179c-4a67-92a9-5f429c32630b` (probe) and `bc-a6e21adf-24fd-49ba-bc37-63cc51a58b81` (hooks), branch `cursor/specstory-spike-probe-14e2` in `specstoryai/cloud-agent-test`.
 - This repo: `pkg/providers/cursoride/CURSORIDE-FORMAT.md`, `pkg/providers/cursorcli/`, `pkg/cloud/sync.go`, `docs/PROJECT-IDENTITY.md`, `docs/CLOUD-RESUME.md`, `NEW-PROVIDER-GUIDE.md`; `specstory-monorepo` commit `3029adc6` (extension delegates to CLI).
+
+## 8. Outcome
+
+The `cursorcloud` provider implements the recommendation. The API contract as verified, the run stream grammar, the tool inventory, the session model and the local mirror are described in [pkg/providers/cursorcloud/CURSOR-CLOUD-FORMAT.md](../pkg/providers/cursorcloud/CURSOR-CLOUD-FORMAT.md). Captured fixtures live under `pkg/providers/cursorcloud/testdata/`.

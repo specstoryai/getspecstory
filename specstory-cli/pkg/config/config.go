@@ -131,6 +131,19 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # Cursor IDE command (used by specstory run cursoride to open the IDE)
 # cursoride_cmd = "cursor"
 
+# Cursor Cloud Agent: command used by specstory run cursorcloud to open
+# https://cursor.com/agents. The default is the system URL opener for your OS,
+# shown below; set it to open a specific browser instead.
+# cursorcloud_cmd = "open"                                  # macOS default
+# cursorcloud_cmd = "xdg-open"                              # Linux default
+# cursorcloud_cmd = "rundll32 url.dll,FileProtocolHandler"  # Windows default
+
+# Cursor API key for reading cloud agents (create one at https://cursor.com/dashboard/api).
+# The CURSOR_API_KEY environment variable takes precedence.
+# cursor_api_key = "crsr_..."
+# Where raw cloud agent transcripts are mirrored (default: .specstory/cursorcloud in the project)
+# cursorcloud_mirror_dir = "~/.specstory/cursorcloud"
+
 # Droid CLI command
 # droid_cmd = "droid"
 
@@ -262,7 +275,8 @@ type TelemetryConfig struct {
 
 // ProvidersConfig holds custom agent execution commands by provider.
 // These are used by `specstory run` as the equivalent of the -c flag,
-// scoped to a specific provider.
+// scoped to a specific provider. It also holds the few provider settings
+// that are not commands (the Cursor Cloud Agent key and mirror location).
 type ProvidersConfig struct {
 	AntigravityCmd                string `toml:"antigravity_cmd"`
 	ClaudeCmd                     string `toml:"claude_cmd"`
@@ -273,6 +287,7 @@ type ProvidersConfig struct {
 	CopilotIDEVSCodiumInsidersCmd string `toml:"copilotide_vscodium_insiders_cmd"`
 	CursorCmd                     string `toml:"cursor_cmd"`
 	CursorIDECmd                  string `toml:"cursoride_cmd"`
+	CursorCloudCmd                string `toml:"cursorcloud_cmd"`
 	DeepSeekCmd                   string `toml:"deepseek_cmd"`
 	DroidCmd                      string `toml:"droid_cmd"`
 	GeminiCmd                     string `toml:"gemini_cmd"`
@@ -281,6 +296,11 @@ type ProvidersConfig struct {
 	OpenCodeCmd                   string `toml:"opencode_cmd"`
 	PiCmd                         string `toml:"pi_cmd"`
 	QwenCmd                       string `toml:"qwen_cmd"`
+
+	// Settings that are not launch commands. They reach the provider through
+	// its package-level setters at startup rather than through GetProviderCmd.
+	CursorAPIKey         string `toml:"cursor_api_key"`
+	CursorCloudMirrorDir string `toml:"cursorcloud_mirror_dir"`
 }
 
 // CLIOverrides holds CLI flag values that override config file settings.
@@ -1022,6 +1042,8 @@ func (c *Config) GetProviderCmd(providerID string) string {
 		return c.Providers.CursorCmd
 	case "cursoride":
 		return c.Providers.CursorIDECmd
+	case "cursorcloud":
+		return c.Providers.CursorCloudCmd
 	case "deepseek":
 		return c.Providers.DeepSeekCmd
 	case "droid":

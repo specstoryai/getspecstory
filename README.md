@@ -39,6 +39,7 @@ Cursor IDE         ┐
 Copilot IDE        │
 Claude Code CLI    │
 Cursor CLI         │
+Cursor Cloud Agent │
 Codex CLI          ├──────►  .specstory/history/  ──────►  cloud.specstory.com
 Droid CLI          │          (Auto-Saved Locally)        (Search, Ask & Share)
 DeepSeek TUI       │
@@ -82,6 +83,7 @@ SpecStory integrates seamlessly with your favorite AI coding tools, automaticall
 | [Pi](https://pi.dev) | CLI | 0.85.1+ | **[SpecStory CLI](https://specstory.com/specstory-cli)** | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/piagent) | `brew tap specstoryai/tap`<br/>`brew install specstory` |
 | [Grok Build](https://x.ai/cli) | CLI | 1.0.34+ | **[SpecStory CLI](https://specstory.com/specstory-cli)** | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/grokbuild) | `brew tap specstoryai/tap`<br/>`brew install specstory` |
 | [OpenCode](https://opencode.ai/) | CLI | | **[SpecStory CLI](https://specstory.com/specstory-cli)** | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/opencode) | `brew tap specstoryai/tap`<br/>`brew install specstory` |
+| [Cursor Cloud Agents](https://cursor.com/agents) | Cloud | | **[SpecStory CLI](https://specstory.com/specstory-cli)** | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/cursorcloud) | `brew tap specstoryai/tap`<br/>`brew install specstory` |
 | Any [Agent Skills](https://agentskills.io)                                    | Skill      | Node 22.5+   | **[Lore](./lore)** 📜                                             | [Open](./lore)                                                                                          | `npx skills add specstoryai/getspecstory --skill lore`        |
 
 > [!TIP]
@@ -92,7 +94,7 @@ SpecStory integrates seamlessly with your favorite AI coding tools, automaticall
 
 ### Terminal Coding Agents
 
-**One installation works with all terminal coding agents** - Claude Code, Cursor CLI, Codex, Droid, DeepSeek, Antigravity CLI, OpenCode, Qwen Code, and Pi:
+**One installation works with all terminal coding agents** - Claude Code, Cursor CLI, Codex, Droid, DeepSeek, Antigravity CLI, OpenCode, Qwen Code, and Pi - and with Cursor Cloud Agents, read from the Cursor API with your API key:
 
 ```bash
 # Check which agents are installed
@@ -110,6 +112,7 @@ specstory run muse         # Launch Muse Code
 specstory run opencode     # Launch OpenCode
 specstory run qwen         # Launch Qwen Code
 specstory run pi           # Launch Pi
+specstory run cursorcloud  # Open cursor.com/agents and save Cursor Cloud Agent sessions
 specstory run              # Launch the default agent (Claude Code)
 
 # Render all prior agent coding sessions in the project as markdown

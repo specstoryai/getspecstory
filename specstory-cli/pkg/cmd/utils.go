@@ -8,8 +8,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/config"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/copilotide"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcloud"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursoride"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
@@ -106,15 +108,30 @@ func ApplyUserDataDirOverrides(entries []string) {
 		case cursoride.ProviderID:
 			cursoride.SetUserDataDirOverride(path)
 			slog.Debug("Applied --user-data-dir override", "provider", id, "path", path)
+		case cursorcloud.ProviderID:
+			// The hosted agent has no IDE store; its local mirror of the API stands in.
+			cursorcloud.SetUserDataDirOverride(path)
+			slog.Debug("Applied --user-data-dir override", "provider", id, "path", path)
 		case copilotide.VSCode.ID, copilotide.VSCodeInsiders.ID, copilotide.VSCodium.ID, copilotide.VSCodiumInsiders.ID:
 			copilotide.SetUserDataDirOverride(id, path)
 			slog.Debug("Applied --user-data-dir override", "provider", id, "path", path)
 		default:
 			slog.Warn("ignoring --user-data-dir entry: unknown provider ID "+
-				"(supported: cursoride, copilotide, copilotide-insiders, copilotide-vscodium, copilotide-vscodium-insiders)",
+				"(supported: cursoride, cursorcloud, copilotide, copilotide-insiders, copilotide-vscodium, copilotide-vscodium-insiders)",
 				"providerId", id)
 		}
 	}
+}
+
+// ApplyProviderSettings hands provider settings that are not launch commands to
+// their providers. Providers cannot import pkg/config, so the CLI pushes the
+// values in once at startup, before any provider method runs.
+func ApplyProviderSettings(cfg *config.Config) {
+	if cfg == nil {
+		return
+	}
+	cursorcloud.SetAPIKey(cfg.Providers.CursorAPIKey)
+	cursorcloud.SetMirrorDir(cfg.Providers.CursorCloudMirrorDir)
 }
 
 // CheckAndWarnAuthentication warns the user if cloud sync is enabled but authentication
