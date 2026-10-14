@@ -13,6 +13,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/antigravitycli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/copilotcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/copilotide"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursoride"
@@ -77,6 +78,10 @@ func (r *Registry) registerAll() {
 	codexProvider := codexcli.NewProvider()
 	r.providers["codex"] = codexProvider
 	slog.Debug("Registered provider", "id", "codex", "name", codexProvider.Name())
+
+	copilotProvider := copilotcli.NewProvider()
+	r.providers["copilot"] = copilotProvider
+	slog.Debug("Registered provider", "id", "copilot", "name", copilotProvider.Name())
 
 	geminiProvider := geminicli.NewProvider()
 	r.providers["gemini"] = geminiProvider

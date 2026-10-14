@@ -258,6 +258,8 @@ func colorForAgent(id string) color.Color {
 		// Mid grey (~4.5:1 contrast on both white and black backgrounds) —
 		// Cursor's off-white brand color is invisible on light terminal themes.
 		return lipgloss.Color("#767676")
+	case "copilot":
+		return lipgloss.Color("#8957E5") // GitHub Copilot purple
 	case "gemini":
 		return lipgloss.Color("#3781DE") // blue (matches antigravity)
 	case "droid":
