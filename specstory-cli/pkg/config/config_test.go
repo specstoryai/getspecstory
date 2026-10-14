@@ -877,10 +877,14 @@ func TestEnsureDefaultUserConfig(t *testing.T) {
 // TestDefaultConfigTemplateParsesWhenUncommented verifies the default config
 // template is valid TOML when all comment prefixes are removed. This guards
 // against template syntax rot. We process the template first to strip markers.
-// A key the template lists more than once in a section (alternative values,
-// such as one URL opener per operating system) is kept only the first time,
-// because uncommenting every alternative would be a duplicate-key error that
-// no real user would write.
+// A key the template deliberately lists more than once (one URL opener per
+// operating system) is kept only the first time, because uncommenting every
+// alternative would be a duplicate-key error that no real user would write. Any
+// other repeated key is a template mistake and fails the test.
+// templateAlternativeKeys are the keys the template intentionally shows with
+// several example values.
+var templateAlternativeKeys = map[string]bool{"cursorcloud_cmd": true}
+
 func TestDefaultConfigTemplateParsesWhenUncommented(t *testing.T) {
 	// Process template to strip {u ...} / {p ...} markers before uncommenting
 	processed := processTemplate(defaultConfigTemplate, "user")
@@ -909,6 +913,9 @@ func TestDefaultConfigTemplateParsesWhenUncommented(t *testing.T) {
 		if isKeyValue {
 			key, _, _ := strings.Cut(stripped, " = ")
 			if seenKeys[key] {
+				if !templateAlternativeKeys[key] {
+					t.Errorf("default config template repeats key %q", key)
+				}
 				continue
 			}
 			seenKeys[key] = true

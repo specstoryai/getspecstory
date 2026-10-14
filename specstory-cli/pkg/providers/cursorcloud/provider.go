@@ -107,8 +107,8 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	// The API exposes no agent version, so Version stays empty and the CLI omits
 	// the version line, as it does for IDE providers.
 	location := defaultAPIBaseURL
-	if me.APIKeyName != "" {
-		location = fmt.Sprintf("%s (key %q)", defaultAPIBaseURL, me.APIKeyName)
+	if me.KeyLabel != "" {
+		location = fmt.Sprintf("%s (key %q)", defaultAPIBaseURL, me.KeyLabel)
 	}
 	slog.Info("Check: succeeded", "keySource", source, "location", location)
 	analytics.TrackCheckSuccess(attempt, "")

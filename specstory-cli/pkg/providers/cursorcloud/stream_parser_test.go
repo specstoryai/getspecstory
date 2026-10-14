@@ -65,6 +65,22 @@ func TestReadSSESkipsOversizedBlock(t *testing.T) {
 	}
 }
 
+// TestReadSSECapsBlockAcrossDataLines checks that many individually small data
+// lines cannot add up past the cap, since SSE joins them into one payload.
+func TestReadSSECapsBlockAcrossDataLines(t *testing.T) {
+	prev := maxSSELineSize
+	maxSSELineSize = 64
+	t.Cleanup(func() { maxSSELineSize = prev })
+
+	line := "data: " + strings.Repeat("x", 30) + "\n"
+	input := "id: 1-0\nevent: assistant\n" + line + line + line + "\n" +
+		"id: 2-0\nevent: assistant\ndata: {\"text\":\"kept\"}\n\n"
+	got := parseSSEBytes(t, []byte(input))
+	if len(got) != 1 || got[0].ID != "2-0" {
+		t.Fatalf("got %+v, want only the block after the oversized one", got)
+	}
+}
+
 func TestReadSSEStopsWhenEmitDeclines(t *testing.T) {
 	input := "id: 1-0\nevent: done\ndata: {}\n\nid: 2-0\nevent: assistant\ndata: {}\n\n"
 	var seen []string

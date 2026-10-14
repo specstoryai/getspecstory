@@ -172,10 +172,23 @@ func (m mirror) ensureRoot(projectLocal bool) error {
 		return nil
 	}
 	path := filepath.Join(m.root, ".gitignore")
-	if _, err := os.Stat(path); err == nil {
+	if existing, err := os.ReadFile(path); err == nil && gitignoreExcludesAll(existing) {
 		return nil
 	}
 	return writeFileAtomic(path, []byte(mirrorGitignore))
+}
+
+// gitignoreExcludesAll reports whether a .gitignore carries the bare "*" rule
+// the mirror relies on. A file that exists without it (edited, truncated) would
+// let git track raw transcripts, so ensureRoot rewrites it rather than trusting
+// its presence.
+func gitignoreExcludesAll(content []byte) bool {
+	for _, line := range strings.Split(string(content), "\n") {
+		if strings.TrimSpace(line) == "*" {
+			return true
+		}
+	}
+	return false
 }
 
 // writeFileAtomic replaces path with data via a temporary file and a rename, so
@@ -249,13 +262,22 @@ func (m mirror) refreshAgent(ctx context.Context, c *apiClient, record agentReco
 				return err
 			}
 		}
+		// A transient failure is returned so agent.json keeps its old updatedAt
+		// and the next sync retries; a permanent refusal is logged and the agent
+		// is mirrored without that file, since retrying would never help.
 		if conv, err := c.conversation(ctx, agentID); err != nil {
-			slog.Warn("Failed to fetch conversation", "agentId", agentID, "error", err)
+			if !permanentAPIError(err) {
+				return fmt.Errorf("fetch conversation: %w", err)
+			}
+			slog.Warn("Conversation unavailable for this agent", "agentId", agentID, "error", err)
 		} else if err := writeFileAtomic(filepath.Join(m.agentDir(agentID), "conversation.json"), conv); err != nil {
 			return err
 		}
 		if usage, err := c.usage(ctx, agentID); err != nil {
-			slog.Warn("Failed to fetch usage", "agentId", agentID, "error", err)
+			if !permanentAPIError(err) {
+				return fmt.Errorf("fetch usage: %w", err)
+			}
+			slog.Warn("Usage unavailable for this agent", "agentId", agentID, "error", err)
 		} else if err := writeFileAtomic(filepath.Join(m.agentDir(agentID), "usage.json"), usage); err != nil {
 			return err
 		}

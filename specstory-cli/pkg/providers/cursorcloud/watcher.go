@@ -103,8 +103,9 @@ func (w *cloudWatcher) stop() {
 func (w *cloudWatcher) pollLoop() {
 	baseline := true
 	for {
-		w.poll(baseline)
-		baseline = false
+		if w.poll(baseline) {
+			baseline = false
+		}
 		if sleepContext(w.ctx, pollInterval) != nil {
 			return
 		}
@@ -116,18 +117,20 @@ func (w *cloudWatcher) pollLoop() {
 // because the watcher started. Afterwards an agent seen for the first time or
 // whose updatedAt moved is refreshed and emitted. An agent changing during the
 // baseline is caught by the next poll, because the baseline records the
-// updatedAt it listed, not what the agent became.
-func (w *cloudWatcher) poll(baseline bool) {
+// updatedAt it listed, not what the agent became. The result reports whether
+// the listing succeeded: pollLoop keeps the baseline open until it has, so a
+// failed first poll cannot turn every pre-existing agent into news.
+func (w *cloudWatcher) poll(baseline bool) bool {
 	agents, err := w.client.listAgents(w.ctx, maxPollPages)
 	if err != nil {
 		if w.ctx.Err() == nil {
 			slog.Warn("WatchAgent: listing cloud agents failed; retrying next poll", "error", err)
 		}
-		return
+		return false
 	}
 	for _, record := range agents {
 		if w.ctx.Err() != nil {
-			return
+			return false
 		}
 		agent := record.agent
 		if !agentMatchesOrigin(agent, w.origin) {
@@ -143,11 +146,19 @@ func (w *cloudWatcher) poll(baseline bool) {
 
 		if err := w.mirror.ensureRoot(w.projectLocal); err != nil {
 			slog.Error("WatchAgent: cannot create mirror", "path", w.mirror.root, "error", err)
-			return
+			return false
 		}
 		if err := w.mirror.refreshAgent(w.ctx, w.client, record, refreshOptions{skipStreams: skip, now: time.Now()}); err != nil {
 			if w.ctx.Err() == nil {
 				slog.Error("WatchAgent: refreshing cloud agent failed", "agentId", agent.ID, "error", err)
+			}
+			if baseline {
+				// The agent existed before the watcher started, so it is part
+				// of the baseline even though its mirror could not be filled;
+				// a later successful refresh of the same updatedAt is not news.
+				w.mu.Lock()
+				w.seen[agent.ID] = agent.UpdatedAt
+				w.mu.Unlock()
 			}
 			continue
 		}
@@ -162,6 +173,7 @@ func (w *cloudWatcher) poll(baseline bool) {
 		}
 	}
 	w.attachRunning()
+	return true
 }
 
 // liveSnapshot copies the attached-run set; callers hold w.mu.

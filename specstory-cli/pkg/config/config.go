@@ -139,7 +139,9 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # cursorcloud_cmd = "rundll32 url.dll,FileProtocolHandler"  # Windows default
 
 # Cursor API key for reading cloud agents (create one at https://cursor.com/dashboard/api).
-# The CURSOR_API_KEY environment variable takes precedence.
+# The CURSOR_API_KEY environment variable takes precedence. Prefer it, or your user
+# config (~/.specstory/cli/config.toml): a key in a project config is readable by
+# anyone who can read the project, and is committed unless .specstory/cli/ is ignored.
 # cursor_api_key = "crsr_..."
 # Where raw cloud agent transcripts are mirrored (default: .specstory/cursorcloud in the project)
 # cursorcloud_mirror_dir = "~/.specstory/cursorcloud"
@@ -535,7 +537,7 @@ func ensureDefaultUserConfig(path string) {
 		return
 	}
 	processed := processTemplate(defaultConfigTemplate, "user")
-	if err := os.WriteFile(path, []byte(processed), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(processed), 0o600); err != nil {
 		slog.Debug("Could not write default config file", "path", path, "error", err)
 		return
 	}
@@ -573,7 +575,7 @@ func EnsureDefaultProjectConfig(configDir string) {
 		return
 	}
 	processed := processTemplate(defaultConfigTemplate, "project")
-	if err := os.WriteFile(path, []byte(processed), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(processed), 0o600); err != nil {
 		slog.Debug("Could not write default config file", "path", path, "error", err)
 		return
 	}
@@ -899,7 +901,7 @@ func SaveResumePrefs(viewMode, lastAgent string) error {
 	}
 
 	updated := upsertResumeSection(string(data), viewMode, lastAgent)
-	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(updated), 0o600); err != nil {
 		return fmt.Errorf("writing config: %w", err)
 	}
 	return nil
@@ -929,7 +931,7 @@ func SaveSkillsPrefs(viewMode, defaultLocation string) error {
 		{"view_mode", viewMode},
 		{"default_location", defaultLocation},
 	})
-	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(updated), 0o600); err != nil {
 		return fmt.Errorf("writing config: %w", err)
 	}
 	return nil

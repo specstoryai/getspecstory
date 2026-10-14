@@ -116,7 +116,11 @@ type fakeAPI struct {
 	// onRequest is called (without the lock) before each request is served.
 	onRequest func(path string)
 	meStatus  int
-	requests  map[string]int
+	// listStatus, when set, makes GET /v1/agents fail with that status.
+	listStatus int
+	// convStatus, when set, makes GET /v0/agents/{id}/conversation fail with it.
+	convStatus int
+	requests   map[string]int
 }
 
 // newFakeAPI starts a server, points the client at it and lifts the rate
@@ -225,6 +229,12 @@ func (f *fakeAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (f *fakeAPI) serveAgentList(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
+	if f.listStatus != 0 {
+		status := f.listStatus
+		f.mu.Unlock()
+		writeAPIError(w, status, "forbidden", "listing refused")
+		return
+	}
 	agents := append([]json.RawMessage(nil), f.agents...)
 	pageSize := f.pageSize
 	f.mu.Unlock()
@@ -248,6 +258,10 @@ func (f *fakeAPI) serveAgentPart(w http.ResponseWriter, agentID, part string) {
 	case "usage":
 		body = f.usages[agentID]
 	case "conversation":
+		if f.convStatus != 0 {
+			writeAPIError(w, f.convStatus, "unavailable", "conversation refused")
+			return
+		}
 		body = f.convs[agentID]
 	default:
 		for _, raw := range f.agents {
@@ -385,8 +399,8 @@ func TestClientRetriesThrottledRequests(t *testing.T) {
 			if err != nil {
 				t.Fatalf("me: %v", err)
 			}
-			if me.APIKeyName != "k" || calls != 2 {
-				t.Errorf("got key %q after %d calls, want k after 2", me.APIKeyName, calls)
+			if me.KeyLabel != "k" || calls != 2 {
+				t.Errorf("got key %q after %d calls, want k after 2", me.KeyLabel, calls)
 			}
 			if len(clock.slept) != 1 || clock.slept[0] != tt.wantDelay {
 				t.Errorf("slept %v, want [%v]", clock.slept, tt.wantDelay)
@@ -423,8 +437,8 @@ func TestClientRetriesTransportErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("me: %v", err)
 	}
-	if me.APIKeyName != "k" || calls != 2 {
-		t.Errorf("got key %q after %d calls, want k after 2", me.APIKeyName, calls)
+	if me.KeyLabel != "k" || calls != 2 {
+		t.Errorf("got key %q after %d calls, want k after 2", me.KeyLabel, calls)
 	}
 	if len(clock.slept) != 1 || clock.slept[0] != initialBackoff {
 		t.Errorf("slept %v, want [%v]", clock.slept, initialBackoff)

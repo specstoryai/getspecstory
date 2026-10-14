@@ -299,3 +299,36 @@ func TestWatcherFollowsRunningRunLive(t *testing.T) {
 		t.Errorf("stream requests Last-Event-ID = %q, want a fresh connect then a resume", requests)
 	}
 }
+
+// TestWatcherBaselineSurvivesListFailure starts the watcher while the agent
+// listing is refused. The baseline must stay open until a listing succeeds, so
+// the pre-existing agent is not emitted as news when the API recovers.
+func TestWatcherBaselineSurvivesListFailure(t *testing.T) {
+	useSettings(t, "test-key")
+	fastWatcher(t)
+	f := newFakeAPI(t)
+	fx := loadFixture(t, "fixture-run")
+	f.agents = append(f.agents, fx.agent.raw)
+	f.runs[fx.agent.agent.ID] = []json.RawMessage{fx.runs[0].raw}
+	f.convs[fx.agent.agent.ID] = fx.conversation
+	f.usages[fx.agent.agent.ID] = fx.usage
+	f.streams = fx.streams
+	// 403 is not retried by the client, so the poll itself sees the failure.
+	f.listStatus = http.StatusForbidden
+
+	w, got := startWatcher(t)
+	waitFor(t, "two refused listings", func() bool { return f.count("/v1/agents") >= 2 })
+	f.mu.Lock()
+	f.listStatus = 0
+	f.mu.Unlock()
+	waitFor(t, "the agent to be mirrored", func() bool {
+		snap, _ := loadAgentSnapshot(w.mirror.agentDir(fx.agent.agent.ID))
+		return snap != nil
+	})
+	waitFor(t, "one more poll", func() bool { return f.count("/v1/agents") >= 5 })
+	w.stop()
+
+	if n := len(got.all()); n != 0 {
+		t.Errorf("emitted %d sessions after a failed baseline, want none", n)
+	}
+}

@@ -23,10 +23,13 @@ const (
 	jsonTimeout       = 30 * time.Second
 	maxRetries        = 4
 	maxBackoff        = 60 * time.Second
-	initialBackoff    = 5 * time.Second
 	// listPageSize is the API's maximum page size for GET /v1/agents.
 	listPageSize = 100
 )
+
+// initialBackoff is the first retry delay after a 5xx, 429 or transport
+// failure, doubling up to maxBackoff. A variable so tests can shorten it.
+var initialBackoff = 5 * time.Second
 
 // apiBaseURL is a variable so tests can point the client at an httptest server.
 var apiBaseURL = defaultAPIBaseURL
@@ -47,6 +50,14 @@ type apiError struct {
 	Status  int
 	Code    string
 	Message string
+}
+
+// permanentAPIError reports a 4xx other than 429: the API refused the request
+// itself, so repeating it with the same inputs cannot succeed. Every other
+// failure (5xx, throttling, transport) may pass on a later attempt.
+func permanentAPIError(err error) bool {
+	var ae *apiError
+	return errors.As(err, &ae) && ae.Status >= 400 && ae.Status < 500 && ae.Status != http.StatusTooManyRequests
 }
 
 func (e *apiError) Error() string {
@@ -132,15 +143,25 @@ type apiClient struct {
 
 // newAPIClient builds a client for key. JSON calls carry a whole-request
 // timeout; stream calls cannot (a live run streams for minutes), so they rely
-// on the idle deadline in openStream instead.
+// on the idle deadline in openStream for the body and on streamTransport for
+// the headers.
 func newAPIClient(key string) *apiClient {
 	return &apiClient{
 		key:        key,
 		baseURL:    apiBaseURL,
 		jsonHTTP:   &http.Client{Timeout: jsonTimeout},
-		streamHTTP: &http.Client{},
+		streamHTTP: &http.Client{Transport: streamTransport()},
 		limiter:    sharedLimiter,
 	}
+}
+
+// streamTransport is the default transport with a response-header deadline. The
+// idle reader only guards the body after Do returns, so without this a server
+// that accepts the connection and never answers would hang a replay forever.
+func streamTransport() *http.Transport {
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.ResponseHeaderTimeout = jsonTimeout
+	return tr
 }
 
 // do sends one request built by build, waiting for the rate limiter first and

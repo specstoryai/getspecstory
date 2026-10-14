@@ -342,7 +342,9 @@ specstory sync --config-dir ~/specstory-configs/myproject
 # cursorcloud_cmd = "rundll32 url.dll,FileProtocolHandler"  # Windows default
 
 # Cursor API key for reading cloud agents (create one at https://cursor.com/dashboard/api).
-# The CURSOR_API_KEY environment variable takes precedence.
+# The CURSOR_API_KEY environment variable takes precedence. Prefer it, or your user
+# config (~/.specstory/cli/config.toml): a key in a project config is readable by
+# anyone who can read the project, and is committed unless .specstory/cli/ is ignored.
 # cursor_api_key = "crsr_..."
 # Where raw cloud agent transcripts are mirrored (default: .specstory/cursorcloud in the project)
 # cursorcloud_mirror_dir = "~/.specstory/cursorcloud"

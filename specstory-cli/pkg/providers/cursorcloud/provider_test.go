@@ -67,7 +67,10 @@ func TestCheck(t *testing.T) {
 		useSettings(t, "test-key")
 		bad := filepath.Join(t.TempDir(), "no-such-opener")
 		res := NewProvider().Check(bad)
-		if res.Success || res.ErrorType != spi.CheckErrorNotFound || !strings.Contains(res.ErrorMessage, bad) {
+		// The message names the opener as the command splitter parsed it, which
+		// drops Windows separators (backslash is its escape character), so the
+		// assertion checks the basename.
+		if res.Success || res.ErrorType != spi.CheckErrorNotFound || !strings.Contains(res.ErrorMessage, "no-such-opener") {
 			t.Errorf("result = %+v", res)
 		}
 	})
@@ -486,5 +489,83 @@ func TestListAllCarriesRepositoryNotDirectory(t *testing.T) {
 	}
 	if refs[0].OriginCwd != "" || refs[0].OriginRepoURL != "https://github.com/specstoryai/cloud-agent-test" {
 		t.Errorf("ref = OriginCwd %q OriginRepoURL %q; want no directory and the agent's repository", refs[0].OriginCwd, refs[0].OriginRepoURL)
+	}
+}
+
+// TestEnsureRootRepairsGitignore checks that an existing .gitignore without the
+// "*" rule is rewritten, since trusting its presence would let git track the
+// unredacted mirror, while one that already excludes everything is kept as is.
+func TestEnsureRootRepairsGitignore(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		existing string
+		wantKept bool
+	}{
+		{"missing file is written", "", false},
+		{"empty file is rewritten", "# nothing ignored\n", false},
+		{"file with the rule is left alone", "*\n# keep my note\n", true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m := mirror{root: filepath.Join(t.TempDir(), "mirror")}
+			path := filepath.Join(m.root, ".gitignore")
+			if tt.existing != "" {
+				if err := os.MkdirAll(m.root, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte(tt.existing), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := m.ensureRoot(true); err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tt.wantKept && string(got) != tt.existing {
+				t.Errorf("rewrote a sufficient .gitignore: %q", got)
+			}
+			if !gitignoreExcludesAll(got) {
+				t.Errorf(".gitignore = %q, want the * rule", got)
+			}
+		})
+	}
+}
+
+// TestRefreshAgentLeavesMarkerStaleOnTransientFailure checks that a 5xx from
+// the conversation endpoint fails the refresh before agent.json is written, so
+// the next sync retries, while a permanent 404 mirrors the agent without it.
+func TestRefreshAgentLeavesMarkerStaleOnTransientFailure(t *testing.T) {
+	useSettings(t, "test-key")
+	prev := initialBackoff
+	initialBackoff = time.Millisecond
+	t.Cleanup(func() { initialBackoff = prev })
+	f := newFakeAPI(t)
+	fx := loadFixture(t, "fixture-run")
+	f.addFixture(fx)
+	agentID := fx.agent.agent.ID
+	m := mirror{root: t.TempDir()}
+	now, _ := time.Parse(time.RFC3339, fx.runs[0].run.UpdatedAt)
+
+	f.convStatus = http.StatusServiceUnavailable
+	if err := m.refreshAgent(t.Context(), newAPIClient("test-key"), fx.agent, refreshOptions{now: now}); err == nil {
+		t.Fatal("refresh succeeded despite a failing conversation fetch")
+	}
+	if m.readStoredAgent(agentID) != nil {
+		t.Error("agent.json was written after a transient failure, so the next sync would not retry")
+	}
+
+	f.mu.Lock()
+	f.convStatus = http.StatusNotFound
+	f.mu.Unlock()
+	if err := m.refreshAgent(t.Context(), newAPIClient("test-key"), fx.agent, refreshOptions{now: now}); err != nil {
+		t.Fatalf("refresh failed on a permanent 404: %v", err)
+	}
+	if m.readStoredAgent(agentID) == nil {
+		t.Error("agent.json missing after a permanent refusal; the agent would never be mirrored")
+	}
+	if _, err := os.Stat(filepath.Join(m.agentDir(agentID), "conversation.json")); err == nil {
+		t.Error("conversation.json written although the endpoint refused")
 	}
 }

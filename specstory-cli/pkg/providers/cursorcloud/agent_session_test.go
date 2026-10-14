@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -71,7 +72,7 @@ func TestBuildSessionDataGolden(t *testing.T) {
 				t.Fatalf("read golden (run with -update to create): %v", err)
 			}
 			if !bytes.Equal(got, want) {
-				t.Errorf("session data differs from %s; run with -update after checking the change", golden)
+				t.Errorf("session data differs from %s; run with -update after checking the change\n%s", golden, firstDifference(got, want))
 			}
 		})
 	}
@@ -327,4 +328,23 @@ func TestBuildRawDataPreservesNativeObjects(t *testing.T) {
 	if len(decoded.Runs) != 2 || len(decoded.Runs[1].Events) != len(snap.runs[1].events) || decoded.Usage["cost"] == nil || decoded.Conversation["messages"] == nil {
 		t.Error("raw data is missing runs, events, usage or conversation")
 	}
+}
+
+// firstDifference describes the first line where got and want diverge, so a
+// mismatch seen only on another platform can be diagnosed from the test log.
+func firstDifference(got, want []byte) string {
+	gotLines, wantLines := strings.Split(string(got), "\n"), strings.Split(string(want), "\n")
+	for i := 0; i < len(gotLines) || i < len(wantLines); i++ {
+		var g, w string
+		if i < len(gotLines) {
+			g = gotLines[i]
+		}
+		if i < len(wantLines) {
+			w = wantLines[i]
+		}
+		if g != w {
+			return fmt.Sprintf("line %d:\n  got:  %q\n  want: %q", i+1, g, w)
+		}
+	}
+	return fmt.Sprintf("same lines, lengths %d and %d", len(got), len(want))
 }

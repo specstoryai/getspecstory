@@ -16,9 +16,12 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
-// apiMe is the subset of GET /v1/me that Check reports.
+// apiMe is the subset of GET /v1/me that Check reports. KeyLabel is the
+// display name the user typed when creating the key on the Cursor dashboard,
+// shown so they can tell which key is in use; the key itself never leaves the
+// Authorization header.
 type apiMe struct {
-	APIKeyName string `json:"apiKeyName"`
+	KeyLabel string `json:"apiKeyName"`
 }
 
 // apiAgent is the subset of a v1 agent object the provider reads. The raw
@@ -174,11 +177,17 @@ func readSSE(r io.Reader, source string, emit func(sseEvent) bool) error {
 				case "event":
 					event = value
 				case "data":
-					if hasData {
-						data.WriteString("\n")
+					// SSE joins every data line of a block into one payload, so
+					// the cap applies to their total, not to each line.
+					if data.Len()+1+len(value) > maxSSELineSize {
+						skipBlock = true
+					} else {
+						if hasData {
+							data.WriteString("\n")
+						}
+						data.WriteString(value)
+						hasData = true
 					}
-					data.WriteString(value)
-					hasData = true
 				}
 			}
 		}
