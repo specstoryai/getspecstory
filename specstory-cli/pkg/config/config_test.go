@@ -1331,3 +1331,48 @@ func TestGetResumeViewModeDefaults(t *testing.T) {
 		t.Errorf("view mode not honored")
 	}
 }
+
+// TestLoadTightensUserConfigPermissions covers the upgrade case: a user config
+// created 0644 by an earlier release is tightened on load because it can hold
+// cursor_api_key, while a project config keeps whatever mode the project gave it.
+func TestLoadTightensUserConfigPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission bits do not exist on Windows")
+	}
+	tempHome := t.TempDir()
+	tempProject := t.TempDir()
+	testutil.SetHome(t, tempHome)
+	t.Chdir(tempProject)
+
+	userPath := createTempConfigFile(t, tempHome, "[providers]\ncursor_api_key = \"crsr_test\"\n")
+	projectPath := createTempConfigFile(t, tempProject, "[local_sync]\noutput_dir = \"/project/path\"\n")
+	for _, path := range []string{userPath, projectPath} {
+		if err := os.Chmod(path, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if _, err := Load(nil); err != nil {
+		t.Fatalf("Load() returned error: %v", err)
+	}
+
+	tests := []struct {
+		name string
+		path string
+		want os.FileMode
+	}{
+		{name: "user config tightened", path: userPath, want: 0o600},
+		{name: "project config untouched", path: projectPath, want: 0o644},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info, err := os.Stat(tt.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := info.Mode().Perm(); got != tt.want {
+				t.Errorf("mode = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

@@ -51,16 +51,40 @@ func resolveAPIKey() (key, source string) {
 }
 
 // mirrorFor returns the mirror for a project and whether it lives inside the
-// project. The override and config locations are shared by every project; the
-// default keeps each project's mirror next to its history.
+// project, which decides whether ensureRoot writes the protective .gitignore.
+// The override and config locations are shared by every project and usually
+// sit outside it; the default keeps each project's mirror next to its history.
+// Locality is decided from the resolved path, not from which setting supplied
+// it, because a configured path such as ".specstory/cursorcloud" still writes
+// unredacted transcripts into the project and still needs the .gitignore.
 func mirrorFor(projectPath string) (mirror, bool) {
-	if userDataDirOverride != "" {
-		return mirror{root: userDataDirOverride}, false
+	root := userDataDirOverride
+	if root == "" {
+		root = configMirrorDir
 	}
-	if configMirrorDir != "" {
-		return mirror{root: configMirrorDir}, false
+	if root == "" {
+		return mirror{root: filepath.Join(projectPath, ".specstory", "cursorcloud")}, true
 	}
-	return mirror{root: filepath.Join(projectPath, ".specstory", "cursorcloud")}, true
+	return mirror{root: root}, insideProject(root, projectPath)
+}
+
+// insideProject reports whether path resolves to a directory strictly below
+// projectPath. The project root itself does not count: a "*" .gitignore there
+// would hide the whole project from git, which is worse than an unprotected
+// mirror, so that misconfiguration is left to the user.
+func insideProject(path, projectPath string) bool {
+	if projectPath == "" {
+		return false
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(filepath.Clean(projectPath), abs)
+	if err != nil || rel == "." || rel == ".." || filepath.IsAbs(rel) {
+		return false
+	}
+	return !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // globalMirror is the mirror enumerated by reindex, which has no project: the

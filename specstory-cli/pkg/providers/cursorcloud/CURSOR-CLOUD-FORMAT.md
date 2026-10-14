@@ -87,7 +87,7 @@ Any other name renders as JSON with type `unknown`.
 
 ## The mirror (write lifecycle)
 
-The mirror defaults to `<project>/.specstory/cursorcloud/`. The `cursorcloud_mirror_dir` setting or `--user-data-dir cursorcloud:<path>` relocates it. A project-local mirror gets a `.gitignore` of `*`, because it holds unredacted raw transcripts.
+The mirror defaults to `<project>/.specstory/cursorcloud/`. The `cursorcloud_mirror_dir` setting or `--user-data-dir cursorcloud:<path>` relocates it. A mirror that resolves to a directory inside the project, whether by default or by configuration, gets a `.gitignore` of `*` (verified and rewritten on every sync), because it holds unredacted raw transcripts. A mirror outside the project, or one pointed at the project root itself, gets none.
 
 ```text
 agents/<agentId>/agent.json                  agent object (written last in a refresh)

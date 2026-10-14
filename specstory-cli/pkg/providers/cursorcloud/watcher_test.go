@@ -332,3 +332,49 @@ func TestWatcherBaselineSurvivesListFailure(t *testing.T) {
 		t.Errorf("emitted %d sessions after a failed baseline, want none", n)
 	}
 }
+
+// TestWatcherRetriesBaselineRefreshQuietly: an agent whose baseline refresh
+// fails transiently is retried on later polls until its mirror is filled, and
+// those retries emit nothing because the agent has not changed since startup.
+func TestWatcherRetriesBaselineRefreshQuietly(t *testing.T) {
+	useSettings(t, "test-key")
+	fastWatcher(t)
+	prev := initialBackoff
+	initialBackoff = time.Millisecond
+	t.Cleanup(func() { initialBackoff = prev })
+	f := newFakeAPI(t)
+	fx := loadFixture(t, "fixture-run")
+	f.addFixture(fx)
+	agentID := fx.agent.agent.ID
+	convPath := "/v0/agents/" + agentID + "/conversation"
+	// 503 is transient, so the refresh fails and agent.json is never written.
+	f.convStatus = http.StatusServiceUnavailable
+
+	w, got := startWatcher(t)
+	waitFor(t, "two polls with a failing refresh", func() bool {
+		return f.count("/v1/agents") >= 2 && f.count(convPath) >= 1
+	})
+	if snap, _ := loadAgentSnapshot(w.mirror.agentDir(agentID)); snap != nil {
+		t.Fatal("agent mirrored although its conversation fetch kept failing")
+	}
+	f.mu.Lock()
+	f.convStatus = 0
+	f.mu.Unlock()
+	waitFor(t, "the retried refresh to fill the mirror", func() bool {
+		snap, _ := loadAgentSnapshot(w.mirror.agentDir(agentID))
+		return snap != nil
+	})
+	polls := f.count("/v1/agents")
+	waitFor(t, "one more poll", func() bool { return f.count("/v1/agents") > polls })
+	w.stop()
+
+	if n := len(got.all()); n != 0 {
+		t.Errorf("emitted %d sessions for an unchanged baseline agent, want none", n)
+	}
+	w.mu.Lock()
+	seenAt, ok := w.seen[agentID]
+	w.mu.Unlock()
+	if !ok || seenAt != fx.agent.agent.UpdatedAt {
+		t.Errorf("seen[%s] = %q %v, want the listed updatedAt after the successful retry", agentID, seenAt, ok)
+	}
+}

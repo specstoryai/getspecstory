@@ -342,6 +342,21 @@ func TestMirrorLocationPrecedence(t *testing.T) {
 	if m, local := mirrorFor(project); local || m.root != configDir {
 		t.Errorf("config mirror = %s local %v", m.root, local)
 	}
+	// Locality follows the resolved path: a configured directory inside the
+	// project still needs the protective .gitignore, the project root itself
+	// must never get one.
+	inside := filepath.Join(project, "var", "cursorcloud")
+	SetMirrorDir(inside)
+	if m, local := mirrorFor(project); !local || m.root != inside {
+		t.Errorf("in-project config mirror = %s local %v, want local", m.root, local)
+	}
+	SetMirrorDir(project)
+	if _, local := mirrorFor(project); local {
+		t.Error("mirror at the project root reported as local; a * .gitignore there would hide the project")
+	}
+	if _, local := mirrorFor(""); local {
+		t.Error("mirror with no project reported as local")
+	}
 	flagDir := t.TempDir()
 	SetUserDataDirOverride(flagDir)
 	if m, _ := mirrorFor(project); m.root != flagDir {

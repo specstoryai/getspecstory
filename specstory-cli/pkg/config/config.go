@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -362,6 +363,7 @@ func Load(cliOverrides *CLIOverrides) (*Config, error) {
 			}
 		} else {
 			slog.Debug("Loaded user-level config", "path", userConfigPath)
+			tightenUserConfigMode(userConfigPath)
 		}
 	}
 
@@ -580,6 +582,33 @@ func EnsureDefaultProjectConfig(configDir string) {
 		return
 	}
 	slog.Debug("Created default project config file", "path", path)
+}
+
+// tightenUserConfigMode strips group and other permission bits from the user
+// config, because it can hold credentials such as cursor_api_key. Files created
+// by earlier releases are 0644, and os.WriteFile keeps an existing file's mode,
+// so creation-time permissions alone would leave upgraded installs readable by
+// other local users. Only the user config is touched: a project config is shared
+// with the project on purpose, and its permissions belong to the repository.
+// Windows has no POSIX mode bits (Chmod there only toggles read-only), so the
+// file is left alone.
+func tightenUserConfigMode(path string) {
+	if runtime.GOOS == "windows" {
+		return
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return
+	}
+	perm := info.Mode().Perm()
+	if perm&0o077 == 0 {
+		return
+	}
+	if err := os.Chmod(path, perm&^0o077); err != nil {
+		slog.Debug("Could not tighten user config permissions", "path", path, "error", err)
+		return
+	}
+	slog.Debug("Tightened user config permissions", "path", path, "was", perm.String())
 }
 
 // loadTOMLFile reads a TOML file and decodes it into the config struct.

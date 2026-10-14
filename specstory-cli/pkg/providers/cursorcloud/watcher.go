@@ -51,7 +51,8 @@ type cloudWatcher struct {
 	startedAt time.Time
 
 	mu      sync.Mutex
-	seen    map[string]string // agent id -> updatedAt last acted on
+	seen    map[string]string // agent id -> updatedAt last refreshed successfully
+	startup map[string]string // agent id -> updatedAt listed during the baseline
 	live    map[string]bool   // run ids with an attached stream
 	pending map[string]bool   // agent ids queued for emission
 	emitCh  chan string
@@ -72,6 +73,7 @@ func newCloudWatcher(projectPath, origin string, client *apiClient, debugRaw boo
 		debugRaw:     debugRaw,
 		callback:     callback,
 		seen:         map[string]string{},
+		startup:      map[string]string{},
 		live:         map[string]bool{},
 		pending:      map[string]bool{},
 	}
@@ -120,6 +122,12 @@ func (w *cloudWatcher) pollLoop() {
 // updatedAt it listed, not what the agent became. The result reports whether
 // the listing succeeded: pollLoop keeps the baseline open until it has, so a
 // failed first poll cannot turn every pre-existing agent into news.
+//
+// "Listed at startup" and "refreshed" are tracked apart. seen records only
+// refreshes that succeeded, so an agent whose baseline refresh failed is
+// retried on every poll until its mirror is filled; startup remembers the
+// updatedAt the baseline listed, so those retries stay silent while nothing
+// about the agent has changed, and become news once it has.
 func (w *cloudWatcher) poll(baseline bool) bool {
 	agents, err := w.client.listAgents(w.ctx, maxPollPages)
 	if err != nil {
@@ -138,6 +146,12 @@ func (w *cloudWatcher) poll(baseline bool) bool {
 		}
 		w.mu.Lock()
 		prev, known := w.seen[agent.ID]
+		if baseline {
+			w.startup[agent.ID] = agent.UpdatedAt
+		}
+		// Quiet while the agent is exactly as the baseline listed it, even if
+		// that baseline refresh failed and this is a retry.
+		quiet := baseline || w.startup[agent.ID] == agent.UpdatedAt
 		skip := w.liveSnapshot()
 		w.mu.Unlock()
 		if known && prev == agent.UpdatedAt {
@@ -150,22 +164,14 @@ func (w *cloudWatcher) poll(baseline bool) bool {
 		}
 		if err := w.mirror.refreshAgent(w.ctx, w.client, record, refreshOptions{skipStreams: skip, now: time.Now()}); err != nil {
 			if w.ctx.Err() == nil {
-				slog.Error("WatchAgent: refreshing cloud agent failed", "agentId", agent.ID, "error", err)
-			}
-			if baseline {
-				// The agent existed before the watcher started, so it is part
-				// of the baseline even though its mirror could not be filled;
-				// a later successful refresh of the same updatedAt is not news.
-				w.mu.Lock()
-				w.seen[agent.ID] = agent.UpdatedAt
-				w.mu.Unlock()
+				slog.Error("WatchAgent: refreshing cloud agent failed; retrying next poll", "agentId", agent.ID, "error", err)
 			}
 			continue
 		}
 		w.mu.Lock()
 		w.seen[agent.ID] = agent.UpdatedAt
 		w.mu.Unlock()
-		if baseline {
+		if quiet {
 			slog.Debug("WatchAgent: baseline", "agentId", agent.ID, "updatedAt", agent.UpdatedAt)
 		} else {
 			slog.Info("WatchAgent: cloud agent updated", "agentId", agent.ID, "updatedAt", agent.UpdatedAt)
