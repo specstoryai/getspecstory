@@ -3,8 +3,8 @@ package cursorcloud
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -140,12 +140,15 @@ func formatToolInput(tool *schema.ToolInfo) string {
 	switch tool.Name {
 	case "run_terminal_cmd":
 		return formatShellInput(in)
-	case "read_file", "delete_file", "web_fetch", "web_search", "file_search":
-		return formatLabeledInput(in, tool.Name)
+	case "read_file", "delete_file", "web_fetch", "web_search":
+		// The summary already names the only argument worth showing.
+		return ""
+	case "file_search":
+		return labeledLines(in, [][2]string{{"targetDirectory", "Directory"}})
+	case "grep_search":
+		return formatGrepInput(in)
 	case "edit_file":
 		return formatEditInput(tool)
-	case "grep_search":
-		return formatLabeledInput(in, tool.Name)
 	case "todo_write":
 		return formatTodos(in["todos"])
 	case "mcp":
@@ -172,30 +175,22 @@ func formatToolInput(tool *schema.ToolInfo) string {
 	}
 }
 
-// formatLabeledInput covers the tools whose summary already names the key
-// argument; only the secondary arguments are worth a line.
-func formatLabeledInput(in map[string]any, name string) string {
-	switch name {
-	case "file_search":
-		return labeledLines(in, [][2]string{{"targetDirectory", "Directory"}})
-	case "grep_search":
-		var b strings.Builder
-		b.WriteString(labeledLines(in, [][2]string{{"path", "Path"}, {"glob", "Glob"}}))
-		var flags []string
-		if v, _ := in["caseInsensitive"].(bool); v {
-			flags = append(flags, "case-insensitive")
-		}
-		if v, _ := in["multiline"].(bool); v {
-			flags = append(flags, "multiline")
-		}
-		if len(flags) > 0 {
-			fmt.Fprintf(&b, "Options: %s\n", strings.Join(flags, ", "))
-		}
-		return b.String()
-	default:
-		// read_file, delete_file, web_fetch, web_search: the summary carries it.
-		return ""
+// formatGrepInput renders the search scope and flags; the summary already
+// names the pattern.
+func formatGrepInput(in map[string]any) string {
+	var b strings.Builder
+	b.WriteString(labeledLines(in, [][2]string{{"path", "Path"}, {"glob", "Glob"}}))
+	var flags []string
+	if v, _ := in["caseInsensitive"].(bool); v {
+		flags = append(flags, "case-insensitive")
 	}
+	if v, _ := in["multiline"].(bool); v {
+		flags = append(flags, "multiline")
+	}
+	if len(flags) > 0 {
+		fmt.Fprintf(&b, "Options: %s\n", strings.Join(flags, ", "))
+	}
+	return b.String()
 }
 
 // labeledLines renders the given keys, in order, as "Label: value" lines.
@@ -417,7 +412,12 @@ func formatReadResult(in, success map[string]any) string {
 	if rng, ok := success["readRange"].(map[string]any); ok {
 		start, end := spi.StringValue(rng, "startLine"), spi.StringValue(rng, "endLine")
 		total := spi.StringValue(success, "totalLines")
-		if start != "" && end != "" && (start != "1" || end != total) {
+		switch {
+		case start == "" || end == "" || (start == "1" && end == total):
+			// No range recorded, or the whole file was read.
+		case total == "":
+			fmt.Fprintf(&b, "Lines %s–%s\n\n", start, end)
+		default:
 			fmt.Fprintf(&b, "Lines %s–%s of %s\n\n", start, end, total)
 		}
 	}
@@ -447,7 +447,7 @@ func formatFileSearchResult(success map[string]any) string {
 func formatGrepResult(success map[string]any) string {
 	roots, _ := success["workspaceResults"].(map[string]any)
 	var lines []string
-	for _, root := range sortedKeys(roots) {
+	for _, root := range slices.Sorted(maps.Keys(roots)) {
 		rootResult, _ := roots[root].(map[string]any)
 		content, _ := rootResult["content"].(map[string]any)
 		files, _ := content["matches"].([]any)
@@ -601,15 +601,6 @@ func compactJSON(v any) string {
 		return ""
 	}
 	return string(data)
-}
-
-func sortedKeys(m map[string]any) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 func plural(n int, one, many string) string {

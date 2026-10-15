@@ -231,3 +231,36 @@ func TestFormatToolFallbacks(t *testing.T) {
 		})
 	}
 }
+
+// TestFormatReadResultRange: the range line appears only for a partial read,
+// and names the file's length only when the result recorded it.
+func TestFormatReadResultRange(t *testing.T) {
+	tests := []struct {
+		name       string
+		start, end string
+		total      string
+		want       string
+	}{
+		{"whole file", "1", "12", "12", ""},
+		{"partial read", "5", "9", "12", "Lines 5–9 of 12\n\n"},
+		{"partial read, length unknown", "5", "9", "", "Lines 5–9\n\n"},
+		{"no range recorded", "", "", "12", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			success := map[string]any{"content": "x\n", "readRange": map[string]any{}}
+			rng := success["readRange"].(map[string]any)
+			if tt.start != "" {
+				rng["startLine"], rng["endLine"] = tt.start, tt.end
+			}
+			if tt.total != "" {
+				success["totalLines"] = tt.total
+			}
+			md := formatReadResult(map[string]any{"path": "/workspace/a.txt"}, success)
+			got, _, _ := strings.Cut(md, "```")
+			if got != tt.want {
+				t.Errorf("range line = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

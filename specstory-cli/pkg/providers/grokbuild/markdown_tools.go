@@ -3,6 +3,7 @@ package grokbuild
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"sort"
@@ -192,13 +193,8 @@ var parameterLabels = map[string]string{
 const summaryPromptRunes = 80
 
 func formatParameters(input map[string]any) string {
-	keys := make([]string, 0, len(input))
-	for key := range input {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
 	var b strings.Builder
-	for _, key := range keys {
+	for _, key := range slices.Sorted(maps.Keys(input)) {
 		label := parameterLabels[key]
 		if label == "" {
 			label = key
@@ -479,7 +475,7 @@ func writeSchemaProperties(b *strings.Builder, schema map[string]any, depth int)
 		if schemaTypeName(property) != "" {
 			consumed = append(consumed, "items")
 		}
-		for _, key := range sortedKeys(withoutKeys(property, consumed...)) {
+		for _, key := range slices.Sorted(maps.Keys(withoutKeys(property, consumed...))) {
 			line += fmt.Sprintf("; %s: %s", key, spi.InlineCode(jsonText(property[key])))
 		}
 		b.WriteString(line + "\n")
@@ -904,15 +900,6 @@ func withoutKeys(m map[string]any, keys ...string) map[string]any {
 		}
 	}
 	return kept
-}
-
-func sortedKeys(m map[string]any) []string {
-	keys := make([]string, 0, len(m))
-	for key := range m {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 // jsonText renders a JSON value as its literal text: strings as-is, everything

@@ -156,40 +156,49 @@ func readSSE(r io.Reader, source string, emit func(sseEvent) bool) error {
 		return emit(sseEvent{ID: id, Event: event, Data: sseData(data.String(), hasData)})
 	}
 
+	// parseField applies one non-blank line to the block being built. Lines
+	// starting with ":" are SSE comments.
+	parseField := func(text string) {
+		if strings.HasPrefix(text, ":") {
+			return
+		}
+		field, value, _ := strings.Cut(text, ":")
+		value = strings.TrimPrefix(value, " ")
+		switch field {
+		case "id":
+			id = value
+		case "event":
+			event = value
+		case "data":
+			// SSE joins every data line of a block into one payload, so the
+			// cap applies to their total, not to each line.
+			if data.Len()+1+len(value) > maxSSELineSize {
+				skipBlock = true
+				return
+			}
+			if hasData {
+				data.WriteString("\n")
+			}
+			data.WriteString(value)
+			hasData = true
+		}
+	}
+
 	for {
 		line, oversized, err := spi.ReadRecordLine(reader, maxSSELineSize)
 		if len(line) > 0 || oversized {
 			lineNo++
 		}
-		if oversized {
+		text := strings.TrimRight(string(line), "\r\n")
+		switch {
+		case oversized:
 			skipBlock = true
-		} else if len(line) > 0 || err == nil {
-			text := strings.TrimRight(string(line), "\r\n")
-			if text == "" {
-				if !dispatch() {
-					return nil
-				}
-			} else if !strings.HasPrefix(text, ":") {
-				field, value, _ := strings.Cut(text, ":")
-				value = strings.TrimPrefix(value, " ")
-				switch field {
-				case "id":
-					id = value
-				case "event":
-					event = value
-				case "data":
-					// SSE joins every data line of a block into one payload, so
-					// the cap applies to their total, not to each line.
-					if data.Len()+1+len(value) > maxSSELineSize {
-						skipBlock = true
-					} else {
-						if hasData {
-							data.WriteString("\n")
-						}
-						data.WriteString(value)
-						hasData = true
-					}
-				}
+		case text != "":
+			parseField(text)
+		case err == nil:
+			// A blank line ends the block.
+			if !dispatch() {
+				return nil
 			}
 		}
 		if err != nil {
