@@ -96,7 +96,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		if errors.As(err, &ae) && (ae.Status == http.StatusUnauthorized || ae.Status == http.StatusForbidden) {
 			return fail(spi.CheckErrorPermissionDenied, err.Error(), fmt.Sprintf(
 				"Cursor rejected the API key from %s (HTTP %d).\n\n"+
-					"• Create a new key at %s and set %s or cursor_api_key under [providers] in specstory.toml.\n",
+					"• Create a new key at %s and set %s or cursor_api_key under [providers] in ~/.specstory/cli/config.toml.\n",
 				source, ae.Status, apiKeyPage, apiKeyEnvVar))
 		}
 		return fail(spi.CheckErrorUnknown, err.Error(), fmt.Sprintf(
@@ -119,7 +119,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 func missingKeyMessage() string {
 	return fmt.Sprintf("No Cursor API key is configured.\n\n"+
 		"• Create a key at %s\n"+
-		"• Then set the %s environment variable, or add it to specstory.toml:\n\n"+
+		"• Then set the %s environment variable, or add it to ~/.specstory/cli/config.toml:\n\n"+
 		"    [providers]\n    cursor_api_key = \"crsr_...\"\n", apiKeyPage, apiKeyEnvVar)
 }
 

@@ -21,14 +21,14 @@ var (
 	userDataDirOverride string
 )
 
-// SetAPIKey sets the key from `cursor_api_key` in specstory.toml. The
+// SetAPIKey sets the key from `cursor_api_key` in config.toml. The
 // CURSOR_API_KEY environment variable still wins when set.
 func SetAPIKey(key string) {
 	configAPIKey = strings.TrimSpace(key)
 }
 
 // SetMirrorDir sets the mirror location from `cursorcloud_mirror_dir` in
-// specstory.toml (tilde-expanded). Empty keeps the project-local default.
+// config.toml (tilde-expanded). Empty keeps the project-local default.
 func SetMirrorDir(dir string) {
 	configMirrorDir = expandHome(strings.TrimSpace(dir))
 }

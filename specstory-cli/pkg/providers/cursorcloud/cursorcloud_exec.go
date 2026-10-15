@@ -87,7 +87,7 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 	key, source := resolveAPIKey()
 	if key == "" {
 		slog.Info("WatchAgent: no API key configured")
-		return errors.New("no Cursor API key: set CURSOR_API_KEY or cursor_api_key under [providers] in specstory.toml")
+		return errors.New("no Cursor API key: set CURSOR_API_KEY or cursor_api_key under [providers] in ~/.specstory/cli/config.toml")
 	}
 	origin := projectOrigin(projectPath)
 	if origin == "" {
