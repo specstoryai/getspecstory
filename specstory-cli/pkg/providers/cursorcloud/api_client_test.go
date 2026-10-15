@@ -372,6 +372,10 @@ func TestClientRetriesThrottledRequests(t *testing.T) {
 	}{
 		{"429 with Retry-After seconds", http.StatusTooManyRequests, "7", 7 * time.Second},
 		{"429 without Retry-After backs off", http.StatusTooManyRequests, "", initialBackoff},
+		{"429 with Retry-After date", http.StatusTooManyRequests, time.Unix(1_800_000_010, 0).UTC().Format(http.TimeFormat), 10 * time.Second},
+		// holdUntil pauses every caller, so an outsized value must not stall the process.
+		{"429 with outsized Retry-After is capped", http.StatusTooManyRequests, "3600", maxBackoff},
+		{"429 with unparseable Retry-After backs off", http.StatusTooManyRequests, "soon", initialBackoff},
 		{"503 retried", http.StatusServiceUnavailable, "", initialBackoff},
 	}
 	for _, tt := range tests {

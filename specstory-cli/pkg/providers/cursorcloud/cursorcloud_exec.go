@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"syscall"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -35,9 +36,9 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		// Watching still works when the browser could not be opened; the
 		// user can follow the printed URL.
 		slog.Warn("ExecAgentAndWatch: opening the dashboard failed", "url", target, "error", err)
-		fmt.Fprintf(os.Stderr, "Could not open %s (%v). Open it in a browser; watching for Cursor Cloud Agent activity — press Ctrl-C to stop.\n", target, err)
+		log.UserWarn("Could not open %s (%v). Open it in a browser; watching for Cursor Cloud Agent activity — press Ctrl-C to stop.", target, err)
 	} else {
-		fmt.Fprintf(os.Stderr, "Opened %s — watching for Cursor Cloud Agent activity, press Ctrl-C to stop.\n", target)
+		log.UserMessage("Opened %s — watching for Cursor Cloud Agent activity, press Ctrl-C to stop.\n", target)
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

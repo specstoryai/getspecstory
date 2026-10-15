@@ -43,9 +43,9 @@ func toolType(name string) string {
 	case "todo_write":
 		return schema.ToolTypeTask
 	// Agent-state and harness tools: MCP plumbing, background waits, canvases,
-	// generated assets, pull request management (seen in the research spike).
+	// generated assets.
 	case "mcp", "get_mcp_tools", "await", "generate_image",
-		"write_canvas", "read_canvas", "pr_management":
+		"write_canvas", "read_canvas":
 		return schema.ToolTypeGeneric
 	default:
 		return schema.ToolTypeUnknown

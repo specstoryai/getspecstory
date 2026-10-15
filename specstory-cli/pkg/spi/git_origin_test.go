@@ -7,21 +7,31 @@ import (
 )
 
 func TestNormalizeGitRemoteURL(t *testing.T) {
-	const want = "github.com/specstoryai/cloud-agent-test"
 	tests := []struct {
 		name string
 		url  string
+		want string
 	}{
-		{"https", "https://github.com/specstoryai/cloud-agent-test"},
-		{"https with .git", "https://github.com/specstoryai/cloud-agent-test.git"},
-		{"scp-like ssh", "git@github.com:specstoryai/cloud-agent-test.git"},
-		{"ssh scheme", "ssh://github.com/specstoryai/cloud-agent-test.git"},
-		{"scheme-less as the Cursor v0 API records it", "github.com/specstoryai/cloud-agent-test"},
+		{"https", "https://github.com/specstoryai/cloud-agent-test", "github.com/specstoryai/cloud-agent-test"},
+		{"https with .git", "https://github.com/specstoryai/cloud-agent-test.git", "github.com/specstoryai/cloud-agent-test"},
+		{"scp-like ssh", "git@github.com:specstoryai/cloud-agent-test.git", "github.com/specstoryai/cloud-agent-test"},
+		{"scp-like ssh without .git", "git@github.com:user/repo", "github.com/user/repo"},
+		{"scp-like ssh with a custom user", "customuser@github.com:owner/repo.git", "github.com/owner/repo"},
+		{"ssh scheme", "ssh://github.com/specstoryai/cloud-agent-test.git", "github.com/specstoryai/cloud-agent-test"},
+		{"git scheme", "git://github.com/user/repo.git", "github.com/user/repo"},
+		{"git+ssh scheme", "git+ssh://github.com/user/repo.git", "github.com/user/repo"},
+		{"scheme-less as the Cursor v0 API records it", "github.com/specstoryai/cloud-agent-test", "github.com/specstoryai/cloud-agent-test"},
+		{"GitLab https", "https://gitlab.com/patterns-ai-core/langchainrb.git", "gitlab.com/patterns-ai-core/langchainrb"},
+		{"GitLab ssh", "git@gitlab.com:patterns-ai-core/langchainrb.git", "gitlab.com/patterns-ai-core/langchainrb"},
+		{"Bitbucket https", "https://bitbucket.org/myteam/myrepo.git", "bitbucket.org/myteam/myrepo"},
+		{"Bitbucket ssh", "git@bitbucket.org:myteam/myrepo.git", "bitbucket.org/myteam/myrepo"},
+		{"custom server https", "https://git.company.com/project/repo.git", "git.company.com/project/repo"},
+		{"custom server ssh", "git@git.company.com:project/repo.git", "git.company.com/project/repo"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := NormalizeGitRemoteURL(tt.url); got != want {
-				t.Errorf("NormalizeGitRemoteURL(%q) = %q, want %q", tt.url, got, want)
+			if got := NormalizeGitRemoteURL(tt.url); got != tt.want {
+				t.Errorf("NormalizeGitRemoteURL(%q) = %q, want %q", tt.url, got, tt.want)
 			}
 		})
 	}

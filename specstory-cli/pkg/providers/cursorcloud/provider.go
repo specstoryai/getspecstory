@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
@@ -133,15 +134,18 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	found := false
 	if origin != "" {
 		m, _ := mirrorFor(projectPath)
-		found = len(m.matchingSnapshots(origin)) > 0
+		found = len(m.matchingAgentIDs(origin)) > 0
 		if !found && key != "" {
 			ctx, cancel := context.WithTimeout(context.Background(), jsonTimeout)
-			agents, err := newAPIClient(key).listAgents(ctx, 1)
+			client := newAPIClient(key)
+			page, err := client.listAgentPage(ctx, "")
 			cancel()
 			if err != nil {
 				slog.Warn("DetectAgent: listing cloud agents failed", "error", err)
+			} else {
+				rememberDetectedPage(client, page)
 			}
-			for _, record := range agents {
+			for _, record := range page.records {
 				if agentMatchesOrigin(record.agent, origin) {
 					found = true
 					break
@@ -176,11 +180,11 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 		return []spi.AgentChatSession{}, nil
 	}
 	m, projectLocal := mirrorFor(projectPath)
-	refreshProject(context.Background(), m, projectLocal, origin)
+	refreshProject(context.Background(), m, projectLocal, origin, progress)
 
-	// Progress is reported once per mirrored agent, including those that fail
-	// to convert, so the bar reaches its total. An agent whose refresh failed
-	// is still read from whatever the mirror held before.
+	// Progress is reported again once per mirrored agent, including those that
+	// fail to convert, so the bar reaches its total. An agent whose refresh
+	// failed is still read from whatever the mirror held before.
 	snapshots := m.matchingSnapshots(origin)
 	var sessions []spi.AgentChatSession
 	for i, snap := range snapshots {
@@ -195,31 +199,81 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 }
 
 // refreshProject refreshes every agent for origin. Failures are logged per
-// agent; the mirror still serves the rest.
-func refreshProject(ctx context.Context, m mirror, projectLocal bool, origin string) {
+// agent; the mirror still serves the rest. Progress is reported per agent
+// because at one request every 3 seconds a first sync of a busy repository
+// spends minutes here, before any session is parsed.
+func refreshProject(ctx context.Context, m mirror, projectLocal bool, origin string, progress spi.ProgressCallback) {
 	key, _ := resolveAPIKey()
 	if key == "" {
 		slog.Debug("No Cursor API key; reading the mirror only")
 		return
 	}
 	client := newAPIClient(key)
-	agents, err := client.listAgents(ctx, 0)
+	agents, err := client.listAgentsFrom(ctx, takeDetectedPage(client), 0)
 	if err != nil {
 		slog.Warn("Failed to list cloud agents; using the mirror only", "error", err)
 		return
 	}
+	var matched []agentRecord
 	for _, record := range agents {
-		if !agentMatchesOrigin(record.agent, origin) {
-			continue
+		if agentMatchesOrigin(record.agent, origin) {
+			matched = append(matched, record)
 		}
-		if err := m.ensureRoot(projectLocal); err != nil {
-			slog.Error("Failed to create mirror", "path", m.root, "error", err)
-			return
-		}
+	}
+	if len(matched) == 0 {
+		return
+	}
+	if err := m.ensureRoot(projectLocal); err != nil {
+		slog.Error("Failed to create mirror", "path", m.root, "error", err)
+		return
+	}
+	for i, record := range matched {
+		slog.Info("Refreshing cloud agent", "agentId", record.agent.ID, "index", i+1, "total", len(matched))
 		if err := m.refreshAgent(ctx, client, record, refreshOptions{now: time.Now()}); err != nil {
 			slog.Error("Failed to refresh cloud agent", "agentId", record.agent.ID, "error", err)
 		}
+		if progress != nil {
+			progress(i+1, len(matched))
+		}
 	}
+}
+
+// detectedPage hands the first agent-list page DetectAgent fetched to the
+// refresh that follows it. sync calls the two back to back, and at one request
+// every 3 seconds listing the same page twice is a visible pause. The page is
+// taken at most once, only by a client for the same key and server, and only
+// while fresh, so a later refresh in a long-lived process lists again.
+var detectedPage struct {
+	sync.Mutex
+	baseURL string
+	key     string
+	at      time.Time
+	page    *agentPage
+}
+
+// detectedPageReuse bounds how old a handed-over page may be.
+const detectedPageReuse = 30 * time.Second
+
+func rememberDetectedPage(c *apiClient, page agentPage) {
+	detectedPage.Lock()
+	defer detectedPage.Unlock()
+	detectedPage.baseURL, detectedPage.key = c.baseURL, c.key
+	detectedPage.at = time.Now()
+	detectedPage.page = &page
+}
+
+// takeDetectedPage returns the remembered page for c and forgets it, or nil
+// when there is none, it is stale, or it came from another key or server.
+func takeDetectedPage(c *apiClient) *agentPage {
+	detectedPage.Lock()
+	defer detectedPage.Unlock()
+	page := detectedPage.page
+	detectedPage.page = nil
+	sameClient := detectedPage.baseURL == c.baseURL && detectedPage.key == c.key
+	if page == nil || !sameClient || time.Since(detectedPage.at) > detectedPageReuse {
+		return nil
+	}
+	return page
 }
 
 // matchingSnapshots loads every mirrored agent whose repository is origin.

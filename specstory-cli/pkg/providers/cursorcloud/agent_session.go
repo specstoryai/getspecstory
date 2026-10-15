@@ -198,9 +198,10 @@ func buildSessionData(snap *agentSnapshot, workspaceRoot string) (*schema.Sessio
 		Exchanges:     []schema.Exchange{},
 	}
 
+	conv := alignedConversation(snap)
 	firstPrompt := ""
 	for i, run := range snap.runs {
-		exchange := buildExchange(snap, i, run, workspaceRoot)
+		exchange := buildExchange(snap, conv, i, run, workspaceRoot)
 		if exchange == nil {
 			continue
 		}
@@ -217,12 +218,13 @@ func buildSessionData(snap *agentSnapshot, workspaceRoot string) (*schema.Sessio
 }
 
 // buildExchange builds one run's exchange. The stream is the full-fidelity
-// source; the v0 conversation (text only) fills in when the stream is missing,
-// or when a finished run's capture is partial and the stream has since expired.
-func buildExchange(snap *agentSnapshot, index int, run runSnapshot, workspaceRoot string) *schema.Exchange {
+// source; the v0 conversation conv (text only, nil when unusable) fills in when
+// the stream is missing, or when a finished run's capture is partial and the
+// stream has since expired.
+func buildExchange(snap *agentSnapshot, conv *v0Conversation, index int, run runSnapshot, workspaceRoot string) *schema.Exchange {
 	source := snap.dir + "/runs/" + run.run.ID
 	useStream := len(run.events) > 0
-	if useStream && run.run.isTerminal() && !eventsAreWhole(run.events) && len(v0TurnMessages(snap.conversation, index)) > 0 {
+	if useStream && run.run.isTerminal() && !eventsAreWhole(run.events) && len(v0TurnMessages(conv, index)) > 0 {
 		useStream = false
 	}
 
@@ -231,7 +233,7 @@ func buildExchange(snap *agentSnapshot, index int, run runSnapshot, workspaceRoo
 		exchange = exchangeFromStream(parseRunEvents(run.events, source), run, workspaceRoot)
 	}
 	if exchange == nil {
-		exchange = exchangeFromConversation(snap.conversation, index, run)
+		exchange = exchangeFromConversation(conv, index, run)
 	}
 	if exchange == nil {
 		slog.Debug("Run has no recorded content yet", "agentId", snap.agent.ID, "runId", run.run.ID)
@@ -375,6 +377,29 @@ func displayPath(path string) string {
 		return rest
 	}
 	return path
+}
+
+// alignedConversation returns the snapshot's v0 conversation when its turns
+// line up one-to-one with the mirrored runs, else nil. v0 messages carry no run
+// id, only a turn index, so turn N is taken to be the Nth run in creation
+// order. A run missing from the mirror (undecodable, or a refresh interrupted
+// between files) would shift that pairing and put text under the wrong
+// exchange; a missing exchange is better than a misattributed one.
+func alignedConversation(snap *agentSnapshot) *v0Conversation {
+	conv := snap.conversation
+	if conv == nil {
+		return nil
+	}
+	turns := 0
+	for _, msg := range conv.Messages {
+		turns = max(turns, v0MessageTurn(msg.ID)+1)
+	}
+	if turns != len(snap.runs) {
+		slog.Warn("Ignoring v0 conversation whose turns do not match the mirrored runs",
+			"agentId", snap.agent.ID, "turns", turns, "runs", len(snap.runs))
+		return nil
+	}
+	return conv
 }
 
 // v0TurnMessages returns the v0 messages belonging to run index turn. Ids are

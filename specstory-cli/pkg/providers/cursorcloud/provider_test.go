@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -98,6 +99,9 @@ func TestAgentMatchesOrigin(t *testing.T) {
 		{"git@github.com:specstoryai/cloud-agent-test.git", true},
 		{"ssh://git@github.com/specstoryai/cloud-agent-test", false}, // user@ in an ssh:// URL keeps the user
 		{"git@github.com:specstoryai/other-repo.git", false},
+		// GitHub owner and repository names are case-insensitive.
+		{"git@github.com:SpecStoryAI/Cloud-Agent-Test.git", true},
+		{"https://GitHub.com/specstoryai/cloud-agent-test", true},
 		{"", false},
 	}
 	for _, tt := range tests {
@@ -111,18 +115,61 @@ func TestAgentMatchesOrigin(t *testing.T) {
 	}
 }
 
-// syncProject runs GetAgentChatSessions against the fake API.
+// syncProject runs GetAgentChatSessions against the fake API. Progress runs
+// twice (refresh, then parse), and the parse pass must finish at its total.
 func syncProject(t *testing.T, project string, debugRaw bool) []spi.AgentChatSession {
 	t.Helper()
-	calls := 0
-	sessions, err := NewProvider().GetAgentChatSessions(project, debugRaw, func(current, total int) { calls++ })
+	var last [2]int
+	sessions, err := NewProvider().GetAgentChatSessions(project, debugRaw, func(current, total int) { last = [2]int{current, total} })
 	if err != nil {
 		t.Fatal(err)
 	}
-	if calls != len(sessions) {
-		t.Errorf("progress called %d times for %d sessions", calls, len(sessions))
+	if len(sessions) > 0 && last != [2]int{len(sessions), len(sessions)} {
+		t.Errorf("progress ended at %v for %d sessions", last, len(sessions))
 	}
 	return sessions
+}
+
+// TestSyncAfterDetectListsOnce: sync calls DetectAgent and then
+// GetAgentChatSessions. On a first sync the mirror is empty, so both need the
+// agent list, and at one request every 3 seconds listing it twice is a visible
+// pause. The refresh, which is the slow part, must also report progress before
+// anything is parsed.
+func TestSyncAfterDetectListsOnce(t *testing.T) {
+	useSettings(t, "test-key")
+	f := newFakeAPI(t)
+	f.addFixture(loadFixture(t, "fixture-run"))
+	f.addFixture(loadFixture(t, "failure-run"))
+	project := makeProject(t, t.TempDir(), testOrigin)
+	listings := func() int {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		return f.requests["/v1/agents"]
+	}
+
+	if !NewProvider().DetectAgent(project, false) {
+		t.Fatal("agents not detected through the API")
+	}
+	var progress [][2]int
+	sessions, err := NewProvider().GetAgentChatSessions(project, false, func(current, total int) {
+		progress = append(progress, [2]int{current, total})
+	})
+	if err != nil || len(sessions) != 2 {
+		t.Fatalf("got %d sessions, err %v", len(sessions), err)
+	}
+	if n := listings(); n != 1 {
+		t.Errorf("detect then sync listed agents %d times, want 1", n)
+	}
+	want := [][2]int{{1, 2}, {2, 2}, {1, 2}, {2, 2}}
+	if !slices.Equal(progress, want) {
+		t.Errorf("progress = %v, want refresh then parse %v", progress, want)
+	}
+
+	// The handed-over page is used once: the next sync lists again.
+	syncProject(t, project, false)
+	if n := listings(); n != 2 {
+		t.Errorf("second sync made %d total listings, want 2", n)
+	}
 }
 
 func TestGetAgentChatSessionsSyncsAndMirrors(t *testing.T) {

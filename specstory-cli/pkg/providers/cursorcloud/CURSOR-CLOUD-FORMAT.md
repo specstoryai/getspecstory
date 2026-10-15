@@ -73,9 +73,8 @@ The names recorded in `tool_call.name` differ from the names the model sees. `te
 | `await` | generic | `blockUntilMs` | `complete.runtimeMs` |
 | `generate_image` | generic | `description`, `aspectRatio`, `filePath` | saved `filePath` |
 | `write_canvas` / `read_canvas` | generic | `title` and `contents` / `canvasId` | link to the canvas `url`, plus `source` |
-| `pr_management` | generic | seen once in the research spike, but not captured; rendered generically | generic |
 
-Any other name renders as JSON with type `unknown`.
+Any other name, including `pr_management` (seen once in the research spike but never captured), renders as JSON with type `unknown`.
 
 ## Session model
 

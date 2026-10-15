@@ -235,18 +235,18 @@ func readAPIError(resp *http.Response) *apiError {
 }
 
 // retryAfter parses a Retry-After header, either delay-seconds or an HTTP
-// date, returning zero when the header is absent or unparseable.
+// date, returning zero when the header is absent or unparseable. The delay is
+// capped at maxBackoff: holdUntil pauses every caller in the process, so an
+// outsized value (or a skewed HTTP date) would otherwise stall sync and watch
+// for as long as the header says. Retrying early costs one more 429 at most.
 func retryAfter(header string, now time.Time) time.Duration {
-	if header == "" {
-		return 0
-	}
+	var delay time.Duration
 	if secs, err := strconv.Atoi(header); err == nil && secs > 0 {
-		return time.Duration(secs) * time.Second
+		delay = time.Duration(secs) * time.Second
+	} else if t, err := http.ParseTime(header); err == nil {
+		delay = t.Sub(now)
 	}
-	if t, err := http.ParseTime(header); err == nil {
-		return t.Sub(now)
-	}
-	return 0
+	return min(delay, maxBackoff)
 }
 
 // getJSON fetches path and returns the raw response body. Raw bytes are kept
@@ -287,41 +287,70 @@ func (c *apiClient) me(ctx context.Context) (apiMe, error) {
 	return me, nil
 }
 
+// agentPage is one page of GET /v1/agents.
+type agentPage struct {
+	records    []agentRecord
+	nextCursor string
+}
+
 // listAgents returns every agent the key can see, newest first, following
 // nextCursor. maxPages bounds the walk; zero means no bound.
 func (c *apiClient) listAgents(ctx context.Context, maxPages int) ([]agentRecord, error) {
+	return c.listAgentsFrom(ctx, nil, maxPages)
+}
+
+// listAgentsFrom is listAgents starting from a first page the caller already
+// holds, so it is not requested again; nil fetches it.
+func (c *apiClient) listAgentsFrom(ctx context.Context, first *agentPage, maxPages int) ([]agentRecord, error) {
 	var records []agentRecord
 	cursor := ""
 	for page := 0; maxPages == 0 || page < maxPages; page++ {
-		query := url.Values{"limit": {strconv.Itoa(listPageSize)}}
-		if cursor != "" {
-			query.Set("cursor", cursor)
-		}
-		raw, err := c.getJSON(ctx, "/v1/agents?"+query.Encode())
-		if err != nil {
-			return nil, err
-		}
-		var list struct {
-			Items      []json.RawMessage `json:"items"`
-			NextCursor string            `json:"nextCursor"`
-		}
-		if err := json.Unmarshal(raw, &list); err != nil {
-			return nil, fmt.Errorf("decode agent list: %w", err)
-		}
-		for _, item := range list.Items {
-			record, err := decodeAgent(item)
-			if err != nil {
-				slog.Warn("Skipping undecodable agent in list", "error", err)
-				continue
+		var current agentPage
+		if page == 0 && first != nil {
+			current = *first
+		} else {
+			var err error
+			if current, err = c.listAgentPage(ctx, cursor); err != nil {
+				return nil, err
 			}
-			records = append(records, record)
 		}
-		if list.NextCursor == "" {
+		records = append(records, current.records...)
+		if current.nextCursor == "" {
 			break
 		}
-		cursor = list.NextCursor
+		cursor = current.nextCursor
 	}
 	return records, nil
+}
+
+// listAgentPage fetches the page of agents that starts at cursor ("" for the
+// first page).
+func (c *apiClient) listAgentPage(ctx context.Context, cursor string) (agentPage, error) {
+	query := url.Values{"limit": {strconv.Itoa(listPageSize)}}
+	if cursor != "" {
+		query.Set("cursor", cursor)
+	}
+	raw, err := c.getJSON(ctx, "/v1/agents?"+query.Encode())
+	if err != nil {
+		return agentPage{}, err
+	}
+	var list struct {
+		Items      []json.RawMessage `json:"items"`
+		NextCursor string            `json:"nextCursor"`
+	}
+	if err := json.Unmarshal(raw, &list); err != nil {
+		return agentPage{}, fmt.Errorf("decode agent list: %w", err)
+	}
+	page := agentPage{nextCursor: list.NextCursor}
+	for _, item := range list.Items {
+		record, err := decodeAgent(item)
+		if err != nil {
+			slog.Warn("Skipping undecodable agent in list", "error", err)
+			continue
+		}
+		page.records = append(page.records, record)
+	}
+	return page, nil
 }
 
 // getAgent fetches one agent.

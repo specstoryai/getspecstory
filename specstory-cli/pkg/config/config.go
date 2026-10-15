@@ -589,10 +589,10 @@ func EnsureDefaultProjectConfig(configDir string) {
 // config, because it can hold credentials such as cursor_api_key. Files created
 // by earlier releases are 0644, and os.WriteFile keeps an existing file's mode,
 // so creation-time permissions alone would leave upgraded installs readable by
-// other local users. Only the user config is touched: a project config is shared
-// with the project on purpose, and its permissions belong to the repository.
-// Windows has no POSIX mode bits (Chmod there only toggles read-only), so the
-// file is left alone.
+// other local users. Project configs are created 0600 too, but an existing one
+// is not tightened: it lives in the user's checkout, under permissions they
+// chose. Windows is skipped because it has no POSIX mode bits (Chmod there only
+// toggles read-only).
 func tightenUserConfigMode(path string) {
 	if runtime.GOOS == "windows" {
 		return

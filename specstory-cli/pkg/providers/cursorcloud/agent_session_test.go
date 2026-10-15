@@ -253,6 +253,29 @@ func TestV0FallbackForExpiredPartialRun(t *testing.T) {
 	}
 }
 
+// TestV0FallbackSkippedWhenARunIsMissing: v0 turns pair with runs by position,
+// so a run missing from the mirror would hand turn 0's text to what is really
+// run 1. The partial stream must be kept instead.
+func TestV0FallbackSkippedWhenARunIsMissing(t *testing.T) {
+	snap := snapshotFromFixture(t, "failure-run")
+	snap.runs = snap.runs[1:]
+	snap.runs[0].events = snap.runs[0].events[:40]
+
+	data, _ := buildSessionData(snap, testWorkspace)
+	if data == nil || len(data.Exchanges) != 1 {
+		t.Fatalf("got %+v, want the remaining run's exchange", data)
+	}
+	ex := data.Exchanges[0]
+	if ex.Metadata["source"] == "v0-conversation" {
+		t.Error("v0 text used although its turns no longer line up with the runs")
+	}
+	for _, msg := range ex.Messages {
+		if msg.ID == "cde498a2-37da-4b54-b81f-82bc82341d4b" {
+			t.Error("turn 0's first prompt was attributed to run 1")
+		}
+	}
+}
+
 func TestPartialStreamUsedWhileRunIsLive(t *testing.T) {
 	snap := snapshotFromFixture(t, "failure-run")
 	snap.runs[1].events = snap.runs[1].events[:60]

@@ -53,7 +53,7 @@ Sources: `history/2026-10-13_15-12-11Z-hello-cursor-cloud-agent.md` (the tool en
 | Model-facing tool | Reason |
 | --- | --- |
 | RecordScreen | Needs a display; none in the VM |
-| ManagePullRequest (`pr_management`) | The run was told not to commit or push; the name was seen once in the research spike, but no capture exists, so it renders generically |
+| ManagePullRequest (`pr_management`) | The run was told not to commit or push; the name was seen once in the research spike, but no capture exists, so it renders as `unknown` |
 | EditPullRequestLabels | No pull request existed |
 | CreateGoal, UpdateGoal | No goal workflow was active |
 | EditNotebook | No notebook in the repository |

@@ -47,9 +47,8 @@ type cloudWatcher struct {
 	debugRaw     bool
 	callback     func(*spi.AgentChatSession)
 
-	ctx       context.Context
-	cancel    context.CancelFunc
-	startedAt time.Time
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	mu      sync.Mutex
 	seen    map[string]string // agent id -> updatedAt last refreshed successfully
@@ -85,7 +84,6 @@ func newCloudWatcher(projectPath, origin string, client *apiClient, debugRaw boo
 // watcher can be started again.
 func (w *cloudWatcher) start(parent context.Context) {
 	w.ctx, w.cancel = context.WithCancel(parent)
-	w.startedAt = time.Now()
 	w.emitCh = make(chan string, 64)
 	w.fatal = make(chan error, 1)
 	w.stopOnce = sync.Once{}
@@ -208,37 +206,33 @@ func (w *cloudWatcher) liveSnapshot() map[string]bool {
 // attachRunning starts a follower for every unfinished run in this project's
 // mirror that has none, up to maxLiveStreams.
 func (w *cloudWatcher) attachRunning() {
-	for _, snap := range w.mirror.matchingSnapshots(w.origin) {
-		for _, run := range snap.runs {
-			if run.run.isTerminal() {
-				continue
-			}
-			w.mu.Lock()
-			attach := !w.live[run.run.ID] && len(w.live) < maxLiveStreams && w.ctx.Err() == nil
-			if attach {
-				w.live[run.run.ID] = true
-			}
-			w.mu.Unlock()
-			if !attach {
-				continue
-			}
-			agentID, runID := snap.agent.ID, run.run.ID
-			slog.Info("WatchAgent: following live run", "agentId", agentID, "runId", runID)
-			w.workers.Go(func() {
-				w.followRun(agentID, runID)
-				w.mu.Lock()
-				delete(w.live, runID)
-				w.mu.Unlock()
-			})
+	for _, run := range w.mirror.unfinishedRuns(w.origin) {
+		w.mu.Lock()
+		attach := !w.live[run.runID] && len(w.live) < maxLiveStreams && w.ctx.Err() == nil
+		if attach {
+			w.live[run.runID] = true
 		}
+		w.mu.Unlock()
+		if !attach {
+			continue
+		}
+		agentID, runID := run.agentID, run.runID
+		slog.Info("WatchAgent: following live run", "agentId", agentID, "runId", runID)
+		w.workers.Go(func() {
+			w.followRun(agentID, runID)
+			w.mu.Lock()
+			delete(w.live, runID)
+			w.mu.Unlock()
+		})
 	}
 }
 
 // followRun streams a run into its events file until the run ends or the
 // watcher stops. Events are flushed and the session queued for delivery after
 // each burst (debounced), once more when the run ends, and on stop if an
-// update is still undelivered. Only events stamped after the watcher started
-// count as activity: attaching replays the run from its start.
+// update is still undelivered. Only events newer than the agent as the
+// baseline listed it count as activity: attaching replays the run from its
+// start, and that history is not news.
 func (w *cloudWatcher) followRun(agentID, runID string) {
 	events, err := readEventsFile(w.mirror.eventsFile(agentID, runID))
 	if err != nil {
@@ -248,6 +242,14 @@ func (w *cloudWatcher) followRun(agentID, runID string) {
 	if eventsAreWhole(events) {
 		return
 	}
+	// The cutoff is the agent's updatedAt from the baseline listing, not the
+	// local clock: event ids carry Cursor's server time, so comparing against
+	// another server time cannot be skewed by this machine's clock. An agent
+	// first listed after the baseline has no cutoff, so all of it is news.
+	w.mu.Lock()
+	baselineUpdatedAt := w.startup[agentID]
+	w.mu.Unlock()
+	cutoff, _ := time.Parse(time.RFC3339Nano, baselineUpdatedAt)
 	undelivered := false
 	flush := func() {
 		if err := w.mirror.writeEvents(agentID, runID, events); err != nil {
@@ -308,7 +310,7 @@ func (w *cloudWatcher) followRun(agentID, runID string) {
 					continue
 				}
 				events = append(events, ev)
-				if t, ok := eventInstant(ev.ID); ok && !t.Before(w.startedAt) {
+				if t, ok := eventInstant(ev.ID); ok && t.After(cutoff) {
 					undelivered = true
 				}
 				if ev.Event == "done" {

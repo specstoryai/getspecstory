@@ -137,13 +137,15 @@ func projectOrigin(projectPath string) string {
 }
 
 // agentMatchesOrigin reports whether any of the agent's repositories is the
-// project's origin.
+// project's origin. Case is ignored because GitHub and GitLab treat owner and
+// repository names case-insensitively, so a clone's origin and the URL Cursor
+// records can differ only in case and still name the same repository.
 func agentMatchesOrigin(agent apiAgent, origin string) bool {
 	if origin == "" {
 		return false
 	}
 	for _, repo := range agent.Repos {
-		if spi.NormalizeGitRemoteURL(repo.URL) == origin {
+		if strings.EqualFold(spi.NormalizeGitRemoteURL(repo.URL), origin) {
 			return true
 		}
 	}

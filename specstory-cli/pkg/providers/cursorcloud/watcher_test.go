@@ -301,6 +301,54 @@ func TestWatcherFollowsRunningRunLive(t *testing.T) {
 	}
 }
 
+// TestWatcherAttachReplayCutoff: attaching to a run that was already running
+// at startup replays its stream from the start. Events up to the agent's
+// updatedAt in the baseline listing are history and must not be delivered;
+// events after it are news. Both sides are Cursor's clock, so local clock skew
+// cannot move the line. The fixture's events end at 15:07:42.577, just before
+// its updatedAt.
+func TestWatcherAttachReplayCutoff(t *testing.T) {
+	tests := []struct {
+		name          string
+		baselineAt    string
+		wantDelivered bool
+	}{
+		{"replay older than the baseline is history", "2026-10-13T15:07:42.662Z", false},
+		{"events newer than the baseline are news", "2026-10-13T15:00:00.000Z", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			useSettings(t, "test-key")
+			fastWatcher(t)
+			f := newFakeAPI(t)
+			fx := loadFixture(t, "fixture-run")
+			fx.agent.raw = withUpdatedAt(t, fx.agent.raw, tt.baselineAt)
+			agentID := f.addFixture(fx)
+			runID := fx.runs[0].run.ID
+			var run map[string]any
+			_ = json.Unmarshal(fx.runs[0].raw, &run)
+			run["status"] = "RUNNING"
+			running, _ := json.Marshal(run)
+			f.mu.Lock()
+			f.runs[agentID] = []json.RawMessage{running}
+			f.mu.Unlock()
+
+			w, got := startWatcher(t)
+			m, _ := mirrorFor(w.projectPath)
+			waitFor(t, "the replayed capture", func() bool {
+				events, _ := readEventsFile(m.eventsFile(agentID, runID))
+				return eventsAreWhole(events)
+			})
+			polls := f.count("/v1/agents")
+			waitFor(t, "two more polls", func() bool { return f.count("/v1/agents") >= polls+2 })
+			w.stop()
+			if delivered := len(got.all()) > 0; delivered != tt.wantDelivered {
+				t.Errorf("delivered = %v, want %v", delivered, tt.wantDelivered)
+			}
+		})
+	}
+}
+
 // TestWatcherBaselineSurvivesListFailure starts the watcher while the agent
 // listing is refused. The baseline must stay open until a listing succeeds, so
 // the pre-existing agent is not emitted as news when the API recovers.

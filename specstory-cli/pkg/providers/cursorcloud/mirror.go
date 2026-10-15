@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -70,7 +71,7 @@ type runSnapshot struct {
 func loadAgentSnapshot(dir string) (*agentSnapshot, error) {
 	agentRaw, err := os.ReadFile(filepath.Join(dir, "agent.json"))
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
 		return nil, err
@@ -96,7 +97,7 @@ func loadAgentSnapshot(dir string) (*agentSnapshot, error) {
 
 	runsDir := filepath.Join(dir, "runs")
 	entries, err := os.ReadDir(runsDir)
-	if err != nil && !os.IsNotExist(err) {
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
 	for _, entry := range entries {
@@ -135,7 +136,7 @@ func loadAgentSnapshot(dir string) (*agentSnapshot, error) {
 func (m mirror) agentDirs() ([]string, error) {
 	entries, err := os.ReadDir(filepath.Join(m.root, "agents"))
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
 		return nil, err
@@ -147,6 +148,62 @@ func (m mirror) agentDirs() ([]string, error) {
 		}
 	}
 	return dirs, nil
+}
+
+// matchingAgentIDs lists the mirrored agents whose repository is origin,
+// reading only each agent.json. Callers that need no transcript (detection,
+// the watcher's poll) use it instead of matchingSnapshots, which parses every
+// events file.
+func (m mirror) matchingAgentIDs(origin string) []string {
+	dirs, err := m.agentDirs()
+	if err != nil {
+		slog.Warn("Failed to read mirror", "path", m.root, "error", err)
+		return nil
+	}
+	var ids []string
+	for _, dir := range dirs {
+		agentID := filepath.Base(dir)
+		if agent := m.readStoredAgent(agentID); agent != nil && agentMatchesOrigin(*agent, origin) {
+			ids = append(ids, agentID)
+		}
+	}
+	return ids
+}
+
+// liveRun names an unfinished run in the mirror.
+type liveRun struct {
+	agentID string
+	runID   string
+}
+
+// unfinishedRuns lists the non-terminal runs of every mirrored agent whose
+// repository is origin. It reads only the run records, never the events files:
+// the watcher calls it every poll, and loading whole snapshots there would
+// re-parse every capture in the project each minute.
+func (m mirror) unfinishedRuns(origin string) []liveRun {
+	var live []liveRun
+	for _, agentID := range m.matchingAgentIDs(origin) {
+		entries, err := os.ReadDir(m.runsDir(agentID))
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			name := entry.Name()
+			if entry.IsDir() || !strings.HasSuffix(name, ".json") {
+				continue
+			}
+			raw, err := os.ReadFile(filepath.Join(m.runsDir(agentID), name))
+			if err != nil {
+				continue
+			}
+			record, err := decodeRun(raw)
+			if err != nil || record.run.isTerminal() {
+				continue
+			}
+			live = append(live, liveRun{agentID: agentID, runID: record.run.ID})
+		}
+	}
+	return live
 }
 
 // readStoredAgent returns the mirrored agent object, or nil when absent.
@@ -298,7 +355,7 @@ func (m mirror) refreshAgent(ctx context.Context, c *apiClient, record agentReco
 func (m mirror) fetchMissingStreams(ctx context.Context, c *apiClient, agentID string, opts refreshOptions) error {
 	entries, err := os.ReadDir(m.runsDir(agentID))
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
 		return err
@@ -314,6 +371,7 @@ func (m mirror) fetchMissingStreams(ctx context.Context, c *apiClient, agentID s
 		}
 		record, err := decodeRun(raw)
 		if err != nil {
+			slog.Warn("Skipping undecodable run", "path", filepath.Join(m.runsDir(agentID), name), "error", err)
 			continue
 		}
 		run := record.run
