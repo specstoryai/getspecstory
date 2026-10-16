@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -230,7 +231,7 @@ func TestV0FallbackForExpiredPartialRun(t *testing.T) {
 
 	data, _ := buildSessionData(snap, testWorkspace)
 	for i, ex := range data.Exchanges {
-		if ex.Metadata["source"] != "v0-conversation" {
+		if ex.Metadata["source"] != v0Source {
 			t.Errorf("exchange %d source = %v, want v0-conversation", i, ex.Metadata["source"])
 		}
 	}
@@ -245,6 +246,10 @@ func TestV0FallbackForExpiredPartialRun(t *testing.T) {
 	second := data.Exchanges[1]
 	if second.Messages[0].ID != "turn-1:user" || len(second.Messages) != 2 {
 		t.Errorf("turn 1 messages = %+v", second.Messages)
+	}
+	// The missing tool calls are explained once, for the whole session.
+	if want := []string{textOnlyNote(2, 2)}; !slices.Equal(data.Notes, want) {
+		t.Errorf("notes = %q, want %q", data.Notes, want)
 	}
 	for _, msg := range append(first.Messages, second.Messages...) {
 		if msg.Tool != nil {
@@ -266,7 +271,7 @@ func TestV0FallbackSkippedWhenARunIsMissing(t *testing.T) {
 		t.Fatalf("got %+v, want the remaining run's exchange", data)
 	}
 	ex := data.Exchanges[0]
-	if ex.Metadata["source"] == "v0-conversation" {
+	if ex.Metadata["source"] == v0Source {
 		t.Error("v0 text used although its turns no longer line up with the runs")
 	}
 	for _, msg := range ex.Messages {

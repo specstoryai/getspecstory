@@ -200,6 +200,7 @@ func buildSessionData(snap *agentSnapshot, workspaceRoot string) (*schema.Sessio
 
 	conv := alignedConversation(snap)
 	firstPrompt := ""
+	textOnly := 0
 	for i, run := range snap.runs {
 		exchange := buildExchange(snap, conv, i, run, workspaceRoot)
 		if exchange == nil {
@@ -208,10 +209,16 @@ func buildSessionData(snap *agentSnapshot, workspaceRoot string) (*schema.Sessio
 		if firstPrompt == "" {
 			firstPrompt = firstUserText(exchange)
 		}
+		if exchange.Metadata["source"] == v0Source {
+			textOnly++
+		}
 		data.Exchanges = append(data.Exchanges, *exchange)
 	}
 	if firstPrompt == "" {
 		return nil, ""
+	}
+	if note := textOnlyNote(textOnly, len(data.Exchanges)); note != "" {
+		data.Notes = []string{note}
 	}
 	data.Slug = spi.GenerateFilenameFromUserMessage(firstPrompt)
 	return data, firstPrompt
@@ -443,7 +450,7 @@ func exchangeFromConversation(conv *v0Conversation, index int, run runSnapshot) 
 		ExchangeID: run.run.ID,
 		StartTime:  run.run.CreatedAt,
 		EndTime:    run.run.UpdatedAt,
-		Metadata:   map[string]any{"source": "v0-conversation"},
+		Metadata:   map[string]any{"source": v0Source},
 	}
 	for _, msg := range messages {
 		if strings.TrimSpace(msg.Text) == "" {
@@ -470,6 +477,25 @@ func exchangeFromConversation(conv *v0Conversation, index int, run runSnapshot) 
 		return nil
 	}
 	return exchange
+}
+
+// v0Source marks an exchange built from the text-only v0 conversation.
+const v0Source = "v0-conversation"
+
+// textOnlyNote explains why textOnly of total runs show no tool calls, which
+// otherwise looks like a parser bug rather than data the API no longer serves.
+func textOnlyNote(textOnly, total int) string {
+	const reason = "Cursor keeps a run's full transcript for only 24 hours, so only the conversation text is shown."
+	switch {
+	case textOnly == 0:
+		return ""
+	case textOnly == total && total == 1:
+		return "Tool calls for this run are not available. " + reason
+	case textOnly == total:
+		return "Tool calls for this session's runs are not available. " + reason
+	default:
+		return fmt.Sprintf("Tool calls for %d of this session's %d runs are not available. %s", textOnly, total, reason)
+	}
 }
 
 // exchangeMetadata records what a reader wants to click: the agent page, the
