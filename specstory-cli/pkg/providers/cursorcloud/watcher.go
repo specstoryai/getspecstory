@@ -16,9 +16,10 @@ import (
 // Watcher tuning. A remote store has no filesystem events, so a poll of the
 // agent list is the change signal. Variables so tests can run in milliseconds.
 var (
-	// pollInterval keeps the poll (one request per page) far inside the
-	// 20-requests-per-minute budget, leaving room for refreshes and streams.
-	pollInterval = 60 * time.Second
+	// pollInterval bounds how soon a new agent or run is noticed; a run
+	// already attached streams live. Each poll is one agent-list request plus
+	// one runs request per unfinished agent, well inside what the API allows.
+	pollInterval = 15 * time.Second
 	// emitDebounce coalesces a burst of stream events into one save; the
 	// burst's last event is usually the completed text.
 	emitDebounce = 2 * time.Second

@@ -26,7 +26,7 @@ An account on "Privacy Mode (Legacy)" cannot use cloud agents at all. Every v0 a
 
 ### 2.2 The Cloud Agents REST API (`api.cursor.com`)
 
-Available on all plans in beta; cloud agent runs themselves need a paid plan. Auth is a user API key or a team service-account key (`crsr_…`), Basic or Bearer. Documented rate limit is 20 requests per minute; no rate limit headers are returned. All shapes below were observed live.
+Available on all plans in beta; cloud agent runs themselves need a paid plan. Auth is a user API key or a team service-account key (`crsr_…`), Basic or Bearer. Documented rate limit is 20 requests per minute, but probing on 2026-10-15 at up to 17 requests per second drew no `429`; no rate limit headers are returned on success. All shapes below were observed live.
 
 | Need | v1 (current, public beta) | v0 (legacy, still live, no sunset date) |
 | --- | --- | --- |

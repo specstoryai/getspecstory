@@ -9,7 +9,7 @@ The API exposes no agent version. `CheckResult.Version` is empty, so `check` omi
 ## Authentication and limits
 
 - `Authorization: Bearer <key>`, where the key comes from `https://cursor.com/dashboard/api`. The provider reads `CURSOR_API_KEY`, and otherwise `cursor_api_key` under `[providers]` in `config.toml` (user or project).
-- The documented limit is 20 requests per minute. The OpenAPI document promises `Retry-After` and `X-RateLimit-*` headers on `429`, but no rate-limit headers appeared on successful responses. The client spaces every request 3 s apart across the whole process and retries `429` and `5xx` responses, honouring `Retry-After` when it is present. Transport failures (DNS, connection reset, timeout) take the same backoff; a cancelled context is never retried.
+- The documented limit is 20 requests per minute, but it is not enforced at that rate: on 2026-10-15, about 520 read requests in six minutes, peaking at 17 per second, all returned `200`. The OpenAPI document promises `Retry-After` and `X-RateLimit-Limit`, `-Remaining` and `-Reset` headers on `429`; no rate-limit headers appear on successful responses. The client therefore sends requests one at a time without pacing, and retries `429` and `5xx` responses after `Retry-After` (else `X-RateLimit-Reset`, else exponential backoff), holding every caller in the process meanwhile. Transport failures (DNS, connection reset, timeout) take the same backoff; a cancelled context is never retried.
 - Accounts on Privacy Mode (Legacy) get `400 validation_error` "Cloud agent is not supported in Privacy Mode (Legacy)" from every agent call.
 
 ## Endpoints read

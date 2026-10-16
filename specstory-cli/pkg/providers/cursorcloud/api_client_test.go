@@ -132,12 +132,12 @@ func newFakeAPI(t *testing.T) *fakeAPI {
 		convs: map[string]json.RawMessage{}, usages: map[string]json.RawMessage{}, requests: map[string]int{},
 	}
 	f.server = httptest.NewServer(f)
-	prevBase, prevLimiter := apiBaseURL, sharedLimiter
+	prevBase, prevThrottle := apiBaseURL, sharedThrottle
 	apiBaseURL = f.server.URL
-	sharedLimiter = newRateLimiter(0)
+	sharedThrottle = newThrottle()
 	t.Cleanup(func() {
 		f.server.Close()
-		apiBaseURL, sharedLimiter = prevBase, prevLimiter
+		apiBaseURL, sharedThrottle = prevBase, prevThrottle
 	})
 	return f
 }
@@ -316,7 +316,7 @@ func useSettings(t *testing.T, envKey string) {
 	t.Cleanup(func() { configAPIKey, configMirrorDir, userDataDirOverride = prevKey, prevMirror, prevOverride })
 }
 
-// fakeClock drives a rateLimiter deterministically: sleeping advances time.
+// fakeClock drives a throttle deterministically: sleeping advances time.
 type fakeClock struct {
 	mu    sync.Mutex
 	now   time.Time
@@ -337,46 +337,49 @@ func (c *fakeClock) Sleep(_ context.Context, d time.Duration) error {
 	return nil
 }
 
-func TestRateLimiterSpacesRequests(t *testing.T) {
+// TestThrottleHoldsOnlyAfterPushback: requests are not paced in advance, and a
+// hold set by one caller's 429 delays the next request from any caller.
+func TestThrottleHoldsOnlyAfterPushback(t *testing.T) {
 	clock := &fakeClock{now: time.Unix(1_800_000_000, 0)}
-	limiter := &rateLimiter{interval: 3 * time.Second, now: clock.Now, sleep: clock.Sleep}
+	throttle := &throttle{now: clock.Now, sleep: clock.Sleep}
 
 	for range 3 {
-		if err := limiter.wait(context.Background()); err != nil {
+		if err := throttle.wait(context.Background()); err != nil {
 			t.Fatal(err)
 		}
 	}
-	// The first request goes at once; each later one waits out the interval.
-	want := []time.Duration{3 * time.Second, 3 * time.Second}
-	if len(clock.slept) != len(want) || clock.slept[0] != want[0] || clock.slept[1] != want[1] {
-		t.Errorf("slept %v, want %v", clock.slept, want)
+	if len(clock.slept) != 0 {
+		t.Errorf("unthrottled requests slept %v", clock.slept)
 	}
 
-	// A 429 seen by one caller pushes every later slot past its Retry-After.
-	limiter.holdUntil(clock.Now().Add(20 * time.Second))
-	clock.slept = nil
-	if err := limiter.wait(context.Background()); err != nil {
-		t.Fatal(err)
+	throttle.holdUntil(clock.Now().Add(20 * time.Second))
+	for range 2 {
+		if err := throttle.wait(context.Background()); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if len(clock.slept) != 1 || clock.slept[0] != 20*time.Second {
-		t.Errorf("after holdUntil slept %v, want [20s]", clock.slept)
+		t.Errorf("after holdUntil slept %v, want [20s] and then no further wait", clock.slept)
 	}
 }
 
 func TestClientRetriesThrottledRequests(t *testing.T) {
 	tests := []struct {
-		name       string
-		status     int
-		retryAfter string
-		wantDelay  time.Duration
+		name      string
+		status    int
+		headers   map[string]string
+		wantDelay time.Duration
 	}{
-		{"429 with Retry-After seconds", http.StatusTooManyRequests, "7", 7 * time.Second},
-		{"429 without Retry-After backs off", http.StatusTooManyRequests, "", initialBackoff},
-		{"429 with Retry-After date", http.StatusTooManyRequests, time.Unix(1_800_000_010, 0).UTC().Format(http.TimeFormat), 10 * time.Second},
+		{"429 with Retry-After seconds", http.StatusTooManyRequests, map[string]string{"Retry-After": "7"}, 7 * time.Second},
+		{"429 without Retry-After backs off", http.StatusTooManyRequests, nil, initialBackoff},
+		{"429 with Retry-After date", http.StatusTooManyRequests, map[string]string{"Retry-After": time.Unix(1_800_000_010, 0).UTC().Format(http.TimeFormat)}, 10 * time.Second},
 		// holdUntil pauses every caller, so an outsized value must not stall the process.
-		{"429 with outsized Retry-After is capped", http.StatusTooManyRequests, "3600", maxBackoff},
-		{"429 with unparseable Retry-After backs off", http.StatusTooManyRequests, "soon", initialBackoff},
-		{"503 retried", http.StatusServiceUnavailable, "", initialBackoff},
+		{"429 with outsized Retry-After is capped", http.StatusTooManyRequests, map[string]string{"Retry-After": "3600"}, maxBackoff},
+		{"429 with unparseable Retry-After backs off", http.StatusTooManyRequests, map[string]string{"Retry-After": "soon"}, initialBackoff},
+		{"429 with reset in seconds", http.StatusTooManyRequests, map[string]string{"X-RateLimit-Reset": "12"}, 12 * time.Second},
+		{"429 with reset as a Unix time", http.StatusTooManyRequests, map[string]string{"X-RateLimit-Reset": "1800000015"}, 15 * time.Second},
+		{"Retry-After wins over reset", http.StatusTooManyRequests, map[string]string{"Retry-After": "4", "X-RateLimit-Reset": "30"}, 4 * time.Second},
+		{"503 retried", http.StatusServiceUnavailable, nil, initialBackoff},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -384,8 +387,8 @@ func TestClientRetriesThrottledRequests(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls++
 				if calls == 1 {
-					if tt.retryAfter != "" {
-						w.Header().Set("Retry-After", tt.retryAfter)
+					for k, v := range tt.headers {
+						w.Header().Set(k, v)
 					}
 					writeAPIError(w, tt.status, "rate_limited", "slow down")
 					return
@@ -397,7 +400,7 @@ func TestClientRetriesThrottledRequests(t *testing.T) {
 			clock := &fakeClock{now: time.Unix(1_800_000_000, 0)}
 			c := newAPIClient("test-key")
 			c.baseURL = server.URL
-			c.limiter = &rateLimiter{interval: 0, now: clock.Now, sleep: clock.Sleep}
+			c.throttle = &throttle{now: clock.Now, sleep: clock.Sleep}
 
 			me, err := c.me(context.Background())
 			if err != nil {
@@ -435,7 +438,7 @@ func TestClientRetriesTransportErrors(t *testing.T) {
 	clock := &fakeClock{now: time.Unix(1_800_000_000, 0)}
 	c := newAPIClient("test-key")
 	c.baseURL = server.URL
-	c.limiter = &rateLimiter{interval: 0, now: clock.Now, sleep: clock.Sleep}
+	c.throttle = &throttle{now: clock.Now, sleep: clock.Sleep}
 
 	me, err := c.me(context.Background())
 	if err != nil {
@@ -462,7 +465,7 @@ func TestClientDoesNotRetryCancelledContext(t *testing.T) {
 	clock := &fakeClock{now: time.Unix(1_800_000_000, 0)}
 	c := newAPIClient("test-key")
 	c.baseURL = server.URL
-	c.limiter = &rateLimiter{interval: 0, now: clock.Now, sleep: clock.Sleep}
+	c.throttle = &throttle{now: clock.Now, sleep: clock.Sleep}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -485,7 +488,7 @@ func TestClientGivesUpAfterMaxRetries(t *testing.T) {
 	clock := &fakeClock{now: time.Unix(1_800_000_000, 0)}
 	c := newAPIClient("test-key")
 	c.baseURL = server.URL
-	c.limiter = &rateLimiter{interval: 0, now: clock.Now, sleep: clock.Sleep}
+	c.throttle = &throttle{now: clock.Now, sleep: clock.Sleep}
 
 	_, err := c.me(context.Background())
 	var ae *apiError
@@ -561,7 +564,7 @@ func TestListAgentsDecodesCapturedList(t *testing.T) {
 	defer server.Close()
 	c := newAPIClient("test-key")
 	c.baseURL = server.URL
-	c.limiter = newRateLimiter(0)
+	c.throttle = newThrottle()
 
 	agents, err := c.listAgents(context.Background(), 0)
 	if err != nil {

@@ -130,26 +130,15 @@ func syncProject(t *testing.T, project string, debugRaw bool) []spi.AgentChatSes
 	return sessions
 }
 
-// TestSyncAfterDetectListsOnce: sync calls DetectAgent and then
-// GetAgentChatSessions. On a first sync the mirror is empty, so both need the
-// agent list, and at one request every 3 seconds listing it twice is a visible
-// pause. The refresh, which is the slow part, must also report progress before
-// anything is parsed.
-func TestSyncAfterDetectListsOnce(t *testing.T) {
+// TestSyncReportsRefreshProgress: on a first sync the refresh is the slow
+// part, so it must report progress before anything is parsed.
+func TestSyncReportsRefreshProgress(t *testing.T) {
 	useSettings(t, "test-key")
 	f := newFakeAPI(t)
 	f.addFixture(loadFixture(t, "fixture-run"))
 	f.addFixture(loadFixture(t, "failure-run"))
 	project := makeProject(t, t.TempDir(), testOrigin)
-	listings := func() int {
-		f.mu.Lock()
-		defer f.mu.Unlock()
-		return f.requests["/v1/agents"]
-	}
 
-	if !NewProvider().DetectAgent(project, false) {
-		t.Fatal("agents not detected through the API")
-	}
 	var progress [][2]int
 	sessions, err := NewProvider().GetAgentChatSessions(project, false, func(current, total int) {
 		progress = append(progress, [2]int{current, total})
@@ -157,18 +146,9 @@ func TestSyncAfterDetectListsOnce(t *testing.T) {
 	if err != nil || len(sessions) != 2 {
 		t.Fatalf("got %d sessions, err %v", len(sessions), err)
 	}
-	if n := listings(); n != 1 {
-		t.Errorf("detect then sync listed agents %d times, want 1", n)
-	}
 	want := [][2]int{{1, 2}, {2, 2}, {1, 2}, {2, 2}}
 	if !slices.Equal(progress, want) {
 		t.Errorf("progress = %v, want refresh then parse %v", progress, want)
-	}
-
-	// The handed-over page is used once: the next sync lists again.
-	syncProject(t, project, false)
-	if n := listings(); n != 2 {
-		t.Errorf("second sync made %d total listings, want 2", n)
 	}
 }
 

@@ -14,12 +14,9 @@ import (
 	"time"
 )
 
-// Network constants. The request interval keeps every caller inside the
-// documented 20-requests-per-minute limit of the Cloud Agents API; the API
-// returns no rate-limit headers to pace against, so the client paces itself.
+// Network constants.
 const (
 	defaultAPIBaseURL = "https://api.cursor.com"
-	requestInterval   = 3 * time.Second
 	jsonTimeout       = 30 * time.Second
 	maxRetries        = 4
 	maxBackoff        = 60 * time.Second
@@ -73,46 +70,39 @@ func isNotFound(err error) bool {
 	return errors.As(err, &ae) && ae.Status == http.StatusNotFound
 }
 
-// rateLimiter spaces requests at least interval apart across every caller in
-// the process: sync, watch polling and live streams all draw from one budget
-// because the API limit is per key, not per connection.
-type rateLimiter struct {
-	mu       sync.Mutex
-	interval time.Duration
-	next     time.Time
-	now      func() time.Time
-	sleep    func(ctx context.Context, d time.Duration) error
+// throttle holds every caller in the process back once the API pushes back.
+// Requests are not paced in advance. The API documents 20 requests per minute,
+// but probing it on 2026-10-15 at up to 17 requests per second drew no 429,
+// far above anything the CLI sends one request at a time, so pacing only made
+// syncs slow. A 429, 5xx or transport failure seen by one caller holds all of
+// them (sync, watch polling and live streams) because the limit is per key.
+type throttle struct {
+	mu    sync.Mutex
+	until time.Time
+	now   func() time.Time
+	sleep func(ctx context.Context, d time.Duration) error
 }
 
-func newRateLimiter(interval time.Duration) *rateLimiter {
-	return &rateLimiter{interval: interval, now: time.Now, sleep: sleepContext}
+func newThrottle() *throttle {
+	return &throttle{now: time.Now, sleep: sleepContext}
 }
 
-// wait blocks until the caller may send its request, reserving the slot before
-// sleeping so concurrent callers queue behind each other instead of all waking
-// at the same instant.
-func (l *rateLimiter) wait(ctx context.Context) error {
+// wait blocks while a hold is in effect.
+func (l *throttle) wait(ctx context.Context) error {
 	l.mu.Lock()
-	now := l.now()
-	slot := l.next
-	if slot.Before(now) {
-		slot = now
-	}
-	l.next = slot.Add(l.interval)
+	d := l.until.Sub(l.now())
 	l.mu.Unlock()
-
-	if d := slot.Sub(now); d > 0 {
+	if d > 0 {
 		return l.sleep(ctx, d)
 	}
 	return nil
 }
 
-// holdUntil pushes every future slot to at least t, so a 429 seen by one
-// caller also slows the others rather than letting them hit the limit again.
-func (l *rateLimiter) holdUntil(t time.Time) {
+// holdUntil keeps every caller waiting until at least t.
+func (l *throttle) holdUntil(t time.Time) {
 	l.mu.Lock()
-	if l.next.Before(t) {
-		l.next = t
+	if l.until.Before(t) {
+		l.until = t
 	}
 	l.mu.Unlock()
 }
@@ -129,8 +119,8 @@ func sleepContext(ctx context.Context, d time.Duration) error {
 	}
 }
 
-// sharedLimiter is the process-wide request budget.
-var sharedLimiter = newRateLimiter(requestInterval)
+// sharedThrottle is the process-wide hold shared by every client.
+var sharedThrottle = newThrottle()
 
 // apiClient talks to the Cloud Agents API with one key.
 type apiClient struct {
@@ -138,7 +128,7 @@ type apiClient struct {
 	baseURL    string
 	jsonHTTP   *http.Client
 	streamHTTP *http.Client
-	limiter    *rateLimiter
+	throttle   *throttle
 }
 
 // newAPIClient builds a client for key. JSON calls carry a whole-request
@@ -151,7 +141,7 @@ func newAPIClient(key string) *apiClient {
 		baseURL:    apiBaseURL,
 		jsonHTTP:   &http.Client{Timeout: jsonTimeout},
 		streamHTTP: &http.Client{Transport: streamTransport()},
-		limiter:    sharedLimiter,
+		throttle:   sharedThrottle,
 	}
 }
 
@@ -164,8 +154,9 @@ func streamTransport() *http.Transport {
 	return tr
 }
 
-// do sends one request built by build, waiting for the rate limiter first and
-// retrying 429 and 5xx responses with Retry-After or exponential backoff.
+// do sends one request built by build, waiting out any hold first and
+// retrying 429 and 5xx responses after the server's requested delay or
+// exponential backoff.
 // Transport failures (DNS, connection reset, timeout) take the same backoff,
 // because every request here is an idempotent GET and a sync that gave up on
 // one agent over a blip would leave it stale until the next run. A cancelled
@@ -174,7 +165,7 @@ func streamTransport() *http.Transport {
 func (c *apiClient) do(ctx context.Context, httpClient *http.Client, build func(ctx context.Context) (*http.Request, error)) (*http.Response, error) {
 	backoff := initialBackoff
 	for attempt := 0; ; attempt++ {
-		if err := c.limiter.wait(ctx); err != nil {
+		if err := c.throttle.wait(ctx); err != nil {
 			return nil, err
 		}
 		req, err := build(ctx)
@@ -191,7 +182,7 @@ func (c *apiClient) do(ctx context.Context, httpClient *http.Client, build func(
 			backoff = min(backoff*2, maxBackoff)
 			slog.Warn("Cursor API request failed, retrying",
 				"path", req.URL.Path, "error", err, "delay", delay, "attempt", attempt+1)
-			c.limiter.holdUntil(c.limiter.now().Add(delay))
+			c.throttle.holdUntil(c.throttle.now().Add(delay))
 			continue
 		}
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
@@ -204,14 +195,14 @@ func (c *apiClient) do(ctx context.Context, httpClient *http.Client, build func(
 			return nil, apiErr
 		}
 
-		delay := retryAfter(resp.Header.Get("Retry-After"), c.limiter.now())
+		delay := retryAfter(resp.Header, c.throttle.now())
 		if delay <= 0 {
 			delay = backoff
 			backoff = min(backoff*2, maxBackoff)
 		}
 		slog.Warn("Cursor API request throttled or failed, retrying",
 			"path", req.URL.Path, "status", resp.StatusCode, "delay", delay, "attempt", attempt+1)
-		c.limiter.holdUntil(c.limiter.now().Add(delay))
+		c.throttle.holdUntil(c.throttle.now().Add(delay))
 	}
 }
 
@@ -234,20 +225,35 @@ func readAPIError(resp *http.Response) *apiError {
 	return apiErr
 }
 
-// retryAfter parses a Retry-After header, either delay-seconds or an HTTP
-// date, returning zero when the header is absent or unparseable. The delay is
-// capped at maxBackoff: holdUntil pauses every caller in the process, so an
-// outsized value (or a skewed HTTP date) would otherwise stall sync and watch
-// for as long as the header says. Retrying early costs one more 429 at most.
-func retryAfter(header string, now time.Time) time.Duration {
+// retryAfter returns how long the server asked the client to wait: Retry-After
+// (delay-seconds or an HTTP date), else X-RateLimit-Reset, else zero. The
+// OpenAPI document promises both headers on a 429 without saying whether the
+// reset is seconds from now or a Unix time, so a value too large to be a delay
+// is read as a Unix time. The delay is capped at maxBackoff: holdUntil pauses
+// every caller in the process, so an outsized value (or a skewed clock) would
+// otherwise stall sync and watch for as long as the header says. Retrying
+// early costs one more 429 at most.
+func retryAfter(h http.Header, now time.Time) time.Duration {
 	var delay time.Duration
-	if secs, err := strconv.Atoi(header); err == nil && secs > 0 {
-		delay = time.Duration(secs) * time.Second
-	} else if t, err := http.ParseTime(header); err == nil {
-		delay = t.Sub(now)
+	if header := h.Get("Retry-After"); header != "" {
+		if secs, err := strconv.Atoi(header); err == nil && secs > 0 {
+			delay = time.Duration(secs) * time.Second
+		} else if t, err := http.ParseTime(header); err == nil {
+			delay = t.Sub(now)
+		}
+	} else if secs, err := strconv.ParseInt(h.Get("X-RateLimit-Reset"), 10, 64); err == nil && secs > 0 {
+		if secs > unixTimeThreshold {
+			delay = time.Unix(secs, 0).Sub(now)
+		} else {
+			delay = time.Duration(secs) * time.Second
+		}
 	}
 	return min(delay, maxBackoff)
 }
+
+// unixTimeThreshold separates a reset given as seconds from now from one given
+// as a Unix time: no server asks for a delay of a billion seconds.
+const unixTimeThreshold = 1_000_000_000
 
 // getJSON fetches path and returns the raw response body. Raw bytes are kept
 // rather than a typed decode so the mirror preserves fields this provider does
@@ -296,23 +302,12 @@ type agentPage struct {
 // listAgents returns every agent the key can see, newest first, following
 // nextCursor. maxPages bounds the walk; zero means no bound.
 func (c *apiClient) listAgents(ctx context.Context, maxPages int) ([]agentRecord, error) {
-	return c.listAgentsFrom(ctx, nil, maxPages)
-}
-
-// listAgentsFrom is listAgents starting from a first page the caller already
-// holds, so it is not requested again; nil fetches it.
-func (c *apiClient) listAgentsFrom(ctx context.Context, first *agentPage, maxPages int) ([]agentRecord, error) {
 	var records []agentRecord
 	cursor := ""
 	for page := 0; maxPages == 0 || page < maxPages; page++ {
-		var current agentPage
-		if page == 0 && first != nil {
-			current = *first
-		} else {
-			var err error
-			if current, err = c.listAgentPage(ctx, cursor); err != nil {
-				return nil, err
-			}
+		current, err := c.listAgentPage(ctx, cursor)
+		if err != nil {
+			return nil, err
 		}
 		records = append(records, current.records...)
 		if current.nextCursor == "" {
