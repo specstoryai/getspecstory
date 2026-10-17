@@ -539,7 +539,26 @@ func formatMCPToolsResult(success map[string]any) string {
 	if path := spi.StringValue(success, "outputFilePath"); path != "" {
 		fmt.Fprintf(&b, "Output file: %s\n\n", spi.InlineCode(path))
 	}
-	if content != "" {
+	if content == "" {
+		return b.String()
+	}
+	var result map[string]any
+	_ = json.Unmarshal([]byte(content), &result)
+	schema, isSchema := result["inputSchema"].(map[string]any)
+	note := spi.StringValue(result, "note")
+	switch {
+	case isSchema:
+		// One tool's definition: what the agent learned is the description and
+		// the parameters, which read better as prose and a list than as JSON.
+		if description := spi.StringValue(result, "description"); description != "" {
+			b.WriteString(description + "\n\n")
+		}
+		b.WriteString(spi.FormatInputSchema(schema))
+	case note != "" && len(result) <= 2:
+		// A listing too large to return inline: Cursor wrote it to a file on
+		// the agent's VM and returned only this pointer.
+		b.WriteString("Result: " + note)
+	default:
 		lang := "text"
 		if json.Valid([]byte(content)) {
 			lang = "json"
