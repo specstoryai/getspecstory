@@ -14,6 +14,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
 
 func userMsg(ts, text string) schema.Message {
@@ -442,5 +443,53 @@ func TestStatNativeFoldsInWAL(t *testing.T) {
 	laterSize, laterMtime := statNative(db)
 	if laterSize == withWAL && laterMtime == withWALMtime {
 		t.Error("a later -wal commit did not change the fingerprint")
+	}
+}
+
+// pathOnlyProvider is a provider whose only working method is the by-path read;
+// the embedded nil interface makes any other call panic, proving it is unused.
+type pathOnlyProvider struct {
+	spi.Provider
+	session     *spi.AgentChatSession
+	gotCwd      string
+	byPathCalls int
+}
+
+func (p *pathOnlyProvider) GetAgentChatSessionByPath(nativePath, originCwd string, debugRaw bool) (*spi.AgentChatSession, error) {
+	p.byPathCalls++
+	p.gotCwd = originCwd
+	return p.session, nil
+}
+
+func TestBuildSessionAttributesByRepository(t *testing.T) {
+	data := &schema.SessionData{Exchanges: []schema.Exchange{{Messages: []schema.Message{
+		{Role: schema.RoleUser, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "launch from the dashboard"}}},
+		{Role: schema.RoleAgent, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "done in the cloud"}}},
+	}}}}
+	prov := &pathOnlyProvider{session: &spi.AgentChatSession{SessionData: data}}
+	ref := spi.GlobalSessionRef{
+		SessionID:     "bc-1",
+		NativePath:    "/mirror/agents/bc-1/agent.json",
+		OriginRepoURL: "https://github.com/specstoryai/cloud-agent-test",
+	}
+	cache := &projectIDCache{m: map[string]projectIDName{}}
+	sess := buildSession(reindexItem{agent: "cursorcloud", prov: prov, ref: ref}, cache, "now")
+
+	wantID, wantName, _ := utils.ComputeProjectIDFromRemote(ref.OriginRepoURL)
+	if sess.ProjectID != wantID || sess.ProjectName != wantName {
+		t.Errorf("project = (%q, %q), want (%q, %q)", sess.ProjectID, sess.ProjectName, wantID, wantName)
+	}
+	if !strings.Contains(sess.Body, "done in the cloud") || sess.TotalTurns != 2 {
+		t.Errorf("body %q turns %d: a repository-attributed session must still be parsed", sess.Body, sess.TotalTurns)
+	}
+	if prov.gotCwd != "" {
+		t.Errorf("parsed with cwd %q; the ref has none", prov.gotCwd)
+	}
+
+	// Without a repository the session stays metadata-only under unknown.
+	ref.OriginRepoURL = ""
+	sess = buildSession(reindexItem{agent: "cursorcloud", prov: prov, ref: ref}, cache, "now")
+	if sess.ProjectID != unknownProjectID || sess.Body != "" {
+		t.Errorf("no cwd and no repository: project %q body %q, want unknown and empty", sess.ProjectID, sess.Body)
 	}
 }

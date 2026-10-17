@@ -1,0 +1,12 @@
+HTTP/2 410 
+date: Tue, 13 Oct 2026 16:29:58 GMT
+content-type: application/json; charset=utf-8
+content-length: 81
+x-cursor-stream-retention-seconds: 86400
+vary: Origin
+access-control-allow-credentials: true
+access-control-expose-headers: Grpc-Status, Grpc-Message, Grpc-Status-Details-Bin, Content-Encoding, Connect-Content-Encoding, traceparent, backend-traceparent, x-amzn-trace-id, x-request-id
+x-request-id: 69e72e2f-d6b0-4309-9d80-153f6fd41d39
+x-envoy-upstream-service-time: 148
+server: envoy
+

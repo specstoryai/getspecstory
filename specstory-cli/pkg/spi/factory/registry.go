@@ -15,6 +15,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/copilotide"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcloud"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursoride"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/deepseektui"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli"
@@ -89,6 +90,10 @@ func (r *Registry) registerAll() {
 	cursorideProvider := cursoride.NewProvider()
 	r.providers[cursoride.ProviderID] = cursorideProvider
 	slog.Debug("Registered provider", "id", cursoride.ProviderID, "name", cursorideProvider.Name())
+
+	cursorcloudProvider := cursorcloud.NewProvider()
+	r.providers[cursorcloud.ProviderID] = cursorcloudProvider
+	slog.Debug("Registered provider", "id", cursorcloud.ProviderID, "name", cursorcloudProvider.Name())
 
 	// The Copilot IDE provider is variant-driven: one instance per VS Code
 	// distribution, keyed by the variant's own ID so the registry key always

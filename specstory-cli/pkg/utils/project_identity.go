@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 const PROJECT_JSON_FILE = ".project.json"
@@ -342,38 +343,11 @@ func canonicalizeWorkspacePath(path string) string {
 	return path
 }
 
-// normalizeGitURL normalizes a git URL to ensure HTTPS and SSH URLs for the same repo generate the same ID
-// It extracts the host and repository path, normalizing different URL formats to a common form
+// normalizeGitURL normalizes a git URL so HTTPS and SSH URLs for the same repo generate
+// the same ID. It delegates to spi.NormalizeGitRemoteURL, which providers also use to
+// match sessions to a project by repository, so both sides always agree.
 func (m *ProjectIdentityManager) normalizeGitURL(gitURL string) string {
-	// Remove .git suffix if present
-	normalized := strings.TrimSuffix(gitURL, ".git")
-
-	// Handle SSH format (git@host:owner/repo or user@host:owner/repo)
-	if strings.Contains(normalized, "@") && strings.Contains(normalized, ":") {
-		// Split by @ to get the host part
-		parts := strings.SplitN(normalized, "@", 2)
-		if len(parts) == 2 {
-			// Split by : to separate host from path
-			hostAndPath := strings.SplitN(parts[1], ":", 2)
-			if len(hostAndPath) == 2 {
-				// Return normalized as "host/path"
-				return hostAndPath[0] + "/" + hostAndPath[1]
-			}
-		}
-	}
-
-	// Handle HTTPS and other protocol URLs (https://host/owner/repo, git://host/owner/repo, etc.)
-	if strings.Contains(normalized, "://") {
-		// Remove the protocol
-		protocolIndex := strings.Index(normalized, "://")
-		if protocolIndex != -1 {
-			// Return everything after the protocol
-			return normalized[protocolIndex+3:]
-		}
-	}
-
-	// Handle implicit format (host/owner/repo) - already normalized
-	return normalized
+	return spi.NormalizeGitRemoteURL(gitURL)
 }
 
 // createHash creates a hash from the input string matching the TypeScript implementation
@@ -514,87 +488,6 @@ func (m *ProjectIdentityManager) GetProjectName() (string, error) {
 // docs/SESSIONS-DB.md.
 // ---------------------------------------------------------------------------
 
-// originRemoteURLRegex captures the origin remote's url value from a git config file.
-var originRemoteURLRegex = regexp.MustCompile(`\[remote "origin"\][^\[]*url\s*=\s*([^\n\r]+)`)
-
-// readOriginURL returns the origin remote URL from a git config file, or "" if the
-// file is unreadable or has no origin remote.
-func readOriginURL(gitConfigPath string) string {
-	gitConfig, err := os.ReadFile(gitConfigPath)
-	if err != nil {
-		return ""
-	}
-	matches := originRemoteURLRegex.FindSubmatch(gitConfig)
-	if len(matches) < 2 {
-		return ""
-	}
-	return strings.TrimSpace(string(matches[1]))
-}
-
-// findGitRoot walks up from dir to the nearest ancestor containing a .git entry and
-// returns it. The .git entry may be a directory (normal clone) or a FILE (git
-// worktree / submodule); both satisfy the search. Returns false if no .git is found
-// before the filesystem root. The walk-up is what lets a session launched from a
-// monorepo subdirectory resolve to the repo's identity.
-func findGitRoot(dir string) (string, bool) {
-	if abs, err := filepath.Abs(dir); err == nil {
-		dir = abs
-	}
-	dir = filepath.Clean(dir)
-	for {
-		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
-			return dir, true
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", false // reached the filesystem root without finding .git
-		}
-		dir = parent
-	}
-}
-
-// resolveGitConfigPath returns the path to the git config file that holds a root's
-// remotes, handling both a normal `.git` directory and a `.git` FILE (worktrees /
-// submodules, whose private gitdir points at a commondir that holds the shared
-// config). Returns "" when it cannot be resolved.
-func resolveGitConfigPath(gitRoot string) string {
-	gitPath := filepath.Join(gitRoot, ".git")
-	info, err := os.Stat(gitPath)
-	if err != nil {
-		return ""
-	}
-	if info.IsDir() {
-		return filepath.Join(gitPath, "config")
-	}
-
-	// `.git` is a file of the form "gitdir: <path>" pointing at the worktree's private
-	// git dir; the shared config lives in the common dir, not that private dir.
-	data, err := os.ReadFile(gitPath)
-	if err != nil {
-		return ""
-	}
-	content := strings.TrimSpace(string(data))
-	if !strings.HasPrefix(content, "gitdir:") {
-		return ""
-	}
-	gitDir := strings.TrimSpace(strings.TrimPrefix(content, "gitdir:"))
-	if gitDir == "" {
-		return ""
-	}
-	if !filepath.IsAbs(gitDir) {
-		gitDir = filepath.Join(gitRoot, gitDir)
-	}
-	commonDir := gitDir
-	if cd, err := os.ReadFile(filepath.Join(gitDir, "commondir")); err == nil {
-		c := strings.TrimSpace(string(cd))
-		if !filepath.IsAbs(c) {
-			c = filepath.Join(gitDir, c)
-		}
-		commonDir = filepath.Clean(c)
-	}
-	return filepath.Join(commonDir, "config")
-}
-
 // resolveIdentity computes a project's identity from a starting directory by walking
 // up to the git root. It reads only git metadata — never any .specstory/.project.json
 // — so it cannot be fooled by the per-directory identity files that fragment a
@@ -602,7 +495,7 @@ func resolveGitConfigPath(gitRoot string) string {
 // workspace_id (hash of the resolved root), the project name, and the resolved root.
 func resolveIdentity(startDir string) (gitID, workspaceID, name, root string) {
 	root = startDir
-	if gr, ok := findGitRoot(startDir); ok {
+	if gr, ok := spi.FindGitRoot(startDir); ok {
 		root = gr
 	}
 
@@ -610,11 +503,9 @@ func resolveIdentity(startDir string) (gitID, workspaceID, name, root string) {
 	// normalization / repo-name helpers (they do not depend on manager state).
 	rooted := &ProjectIdentityManager{projectRoot: root}
 	workspaceID = rooted.generateWorkspaceID()
-	if cfg := resolveGitConfigPath(root); cfg != "" {
-		if originURL := readOriginURL(cfg); originURL != "" {
-			gitID = rooted.createHash(rooted.normalizeGitURL(originURL))
-			name = rooted.parseGitRemoteURL(originURL)
-		}
+	if originURL := spi.GitOriginURL(root); originURL != "" {
+		gitID = rooted.createHash(rooted.normalizeGitURL(originURL))
+		name = rooted.parseGitRemoteURL(originURL)
 	}
 	if name == "" {
 		name = filepath.Base(root)
@@ -660,6 +551,19 @@ func ComputeProjectID(cwd string) (id, name string, err error) {
 		return "", "", fmt.Errorf("cannot resolve project id for %q", cwd)
 	}
 	return workspaceID, name, nil
+}
+
+// ComputeProjectIDFromRemote resolves the restore-index project identity for a
+// session that names a repository instead of a working directory. It returns the
+// git_id that ComputeProjectID yields for any checkout whose origin is remoteURL,
+// and the repository name, so a hosted agent's sessions bucket with the local
+// clone's sessions.
+func ComputeProjectIDFromRemote(remoteURL string) (id, name string, err error) {
+	if strings.TrimSpace(remoteURL) == "" {
+		return "", "", fmt.Errorf("cannot resolve project id: empty remote URL")
+	}
+	m := &ProjectIdentityManager{}
+	return m.createHash(m.normalizeGitURL(remoteURL)), m.parseGitRemoteURL(remoteURL), nil
 }
 
 // persistedWorkspaceID returns the workspace_id recorded in dir's .specstory/.project.json,

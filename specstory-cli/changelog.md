@@ -1,5 +1,14 @@
 # Specstory CLI Changelog
 
+## v2.16.0 2026-10-16
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports [Cursor Cloud Agents](https://cursor.com/docs/cloud-agent) (i.e. `cursorcloud`), Cursor's hosted agents launched from cursor.com/agents, Slack, GitHub, Linear, the Cursor apps, or the Cloud Agents API, for sessions read from Cloud Agents API version `1.0.0`. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI), [VS Code Copilot](https://code.visualstudio.com/docs/setup/copilot), [Muse Code](https://developer.meta.com/ai/products/muse-code/), [Pi](https://pi.dev), [Qwen Code](https://github.com/QwenLM/qwen-code), [Grok Build](https://x.ai/cli) and [OpenCode](https://opencode.ai/).
+- Cloud agent conversations are never written to your machine, so SpecStory reads them from the Cursor API with your Cursor API key (`CURSOR_API_KEY`, or `cursor_api_key` under `[providers]` in `~/.specstory/cli/config.toml`) and matches agents to your project by its git `origin`. The Cursor API serves full transcripts, including tool calls and their output, for only 24 hours after a run finishes; after that it returns only the conversation text. `specstory run cursorcloud` opens cursor.com/agents and saves sessions as your agents work.
+- SpecStory keeps a local copy of each cloud agent transcript in `.specstory/cursorcloud/` in your project (or in the directory set by `cursorcloud_mirror_dir` in `config.toml`), so a session synced within those 24 hours keeps its tool calls permanently. Run `specstory sync` at least daily, or keep `specstory watch` running, to capture each run in time. Don't delete that directory: a run older than 24 hours is rebuilt from the conversation text alone, and its saved markdown loses its tool calls. The directory holds unredacted transcripts, so SpecStory adds a `.gitignore` to keep it out of git.
+- You can resume a Cursor Cloud Agent session into another agent. Resuming another agent's session into a Cursor Cloud Agent is not supported, because creating a cloud agent conversation launches a new paid run.
+
 ## v2.15.1 2026-09-24
 
 ### 🐛 Bug Fixes
