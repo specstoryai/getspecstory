@@ -107,19 +107,22 @@ func aiTitleFromFile(path string) string {
 	defer func() { _ = f.Close() }()
 
 	title := ""
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 64*KB), maxReasonableLineSize)
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if !strings.Contains(string(line), `"ai-title"`) {
-			continue
+	reader := bufio.NewReader(f)
+	for {
+		// An oversized record comes back empty, so it simply fails the
+		// "ai-title" match and the scan moves on to the next record.
+		line, _, err := spi.ReadRecordLine(reader, spi.MaxRecordLineSize)
+		if strings.Contains(string(line), `"ai-title"`) {
+			var rec struct {
+				Type    string `json:"type"`
+				AiTitle string `json:"aiTitle"`
+			}
+			if jsonErr := json.Unmarshal(line, &rec); jsonErr == nil && rec.Type == "ai-title" && rec.AiTitle != "" {
+				title = rec.AiTitle // keep scanning; last one wins
+			}
 		}
-		var rec struct {
-			Type    string `json:"type"`
-			AiTitle string `json:"aiTitle"`
-		}
-		if err := json.Unmarshal(line, &rec); err == nil && rec.Type == "ai-title" && rec.AiTitle != "" {
-			title = rec.AiTitle // keep scanning; last one wins
+		if err != nil {
+			break
 		}
 	}
 	return title
