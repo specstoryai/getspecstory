@@ -33,7 +33,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:59:25Z)**_
 <summary>Tool use: **Task**</summary>
 Explore Droid provider watcher
 
-```text
+````text
 Perfect! Now I have a comprehensive understanding of the Droid provider's file watching implementation. Let me compile all the findings:
 
 ## Droid Provider File Watching Implementation Report
@@ -291,7 +291,7 @@ func dispatchSession(sessionCallback func(*spi.AgentChatSession), session *spi.A
 | **Stop Mechanism** | Context cancellation via `ctx.Done()` |
 | **Project Filtering** | Checks if session file mentions the project path |
 agentId: acfd902 (for resuming to continue this agent's work if needed)
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-29 15:59:35Z)**_
@@ -300,7 +300,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:59:35Z)**_
 <summary>Tool use: **Task**</summary>
 Explore fsnotify watcher patterns
 
-```text
+````text
 Excellent! Now I have all the information needed. Let me compile a comprehensive exploration report of the fsnotify-based file watching implementations across the providers.
 
 ## File Watching Implementation Exploration Report
@@ -1003,7 +1003,7 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 5. **Droid CLI (Simple Polling)**:
    - `/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/watcher.go`
 agentId: a95069b (for resuming to continue this agent's work if needed)
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-29 15:59:42Z)**_
@@ -2294,6 +2294,8 @@ _**User (2026-01-29 16:02:48Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-01-29 16:02:49Z)**_
 
 what does go mod graph do?
@@ -2364,7 +2366,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 16:03:39Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+````markdown
 # Plan: Migrate Droid Provider from Polling to fsnotify
 
 ## Overview
@@ -2406,7 +2408,7 @@ Add `"github.com/fsnotify/fsnotify"` to imports (already a project dependency).
 
 Replace the ticker-based loop with fsnotify event handling:
 
-\```go
+```go
 func watchSessions(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
     if sessionCallback == nil {
         return fmt.Errorf("session callback is required")
@@ -2453,13 +2455,13 @@ func watchSessions(ctx context.Context, projectPath string, debugRaw bool, sessi
         }
     }
 }
-\```
+```
 
 ### Step 3: Add helper functions
 
 **`setupDirectoryWatches()`** - Add watches to sessions dir and subdirectories:
 
-\```go
+```go
 func setupDirectoryWatches(watcher *fsnotify.Watcher, sessionsDir string) error {
     // Check if sessions directory exists
     if _, err := os.Stat(sessionsDir); os.IsNotExist(err) {
@@ -2486,11 +2488,11 @@ func setupDirectoryWatches(watcher *fsnotify.Watcher, sessionsDir string) error 
         return nil
     })
 }
-\```
+```
 
 **`handleWatchEvent()`** - Process fsnotify events:
 
-\```go
+```go
 func handleWatchEvent(event fsnotify.Event, watcher *fsnotify.Watcher, sessionsDir string, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession), state *watchState) {
     // Handle directory creation - add new watch
     if event.Has(fsnotify.Create) {
@@ -2520,11 +2522,11 @@ func handleWatchEvent(event fsnotify.Event, watcher *fsnotify.Watcher, sessionsD
     // Process the specific file that changed
     processSessionFile(event.Name, projectPath, debugRaw, sessionCallback, state)
 }
-\```
+```
 
 **`processSessionFile()`** - Process a single changed file:
 
-\```go
+```go
 func processSessionFile(filePath string, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession), state *watchState) {
     info, err := os.Stat(filePath)
     if err != nil {
@@ -2554,7 +2556,7 @@ func processSessionFile(filePath string, projectPath string, debugRaw bool, sess
     state.lastProcessed[filePath] = modTime
     dispatchSession(sessionCallback, chat)
 }
-\```
+```
 
 ### Step 4: Update imports
 
@@ -2575,7 +2577,7 @@ Add to imports in `watcher.go`:
    - Verify file changes trigger processing without 1-second delay
    - Verify new sessions are detected immediately
 
-```
+````
 
 ```text
 File created successfully at: /Users/sean/.claude/plans/scalable-herding-platypus.md
@@ -2612,6 +2614,8 @@ The user doesn't want to proceed with this tool use. The tool use was rejected (
 _**User (2026-01-29 16:07:17Z)**_
 
 [Request interrupted by user for tool use]
+
+---
 
 _**User (2026-01-29 16:07:17Z)**_
 
@@ -5116,9 +5120,13 @@ _**User (2026-01-29 16:20:52Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-01-29 16:20:52Z)**_
 
 <local-command-stdout>Catch you later!</local-command-stdout>
+
+---
 
 _**User (2026-01-29 16:20:52Z)**_
 

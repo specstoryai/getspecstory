@@ -28,6 +28,9 @@ import "github.com/specstoryai/getspecstory/specstory-cli/pkg/provenance"
 | `pkg/provenance/types.go`   | Input types (`FileEvent`, `AgentEvent`), output type (`ProvenanceRecord`), `NormalizePath()`, validation methods      |
 | `pkg/provenance/engine.go`  | Correlation engine — `NewEngine()`, `PushFileEvent()`, `PushAgentEvent()`, path suffix matching, best-match selection |
 | `pkg/provenance/store.go`   | SQLite persistence — WAL mode, event storage, unmatched queries, bidirectional match marking                          |
+| `pkg/provenance/agent.go`   | Extracts file-modifying tool uses from `SessionData` into `AgentEvent`s and pushes them to the engine                 |
+| `pkg/provenance/fswatcher.go` | Recursive project-directory watcher (`fsnotify`), 100ms debounce, `.gitignore`/`.intentignore` filtering             |
+| `pkg/provenance/provenance.go` | `StartEngine(enabled)` — the lifecycle entry point. Returns a nil engine and a no-op cleanup when disabled, so call sites don't branch on the flag |
 
 ### Matching Algorithm
 
@@ -417,11 +420,13 @@ Detailed Intent migration planning stays in Intent's own docs.
 | `pkg/provenance/engine.go`      | Complete | Correlation engine, path matching, best-match selection          |
 | `pkg/provenance/store.go`       | Complete | SQLite persistence, event storage, unmatched queries             |
 | `pkg/provenance/agent.go`       | Complete | Extract AgentEvents from SessionData, push to engine             |
-| `pkg/provenance/fswatcher.go`   | Phase 3  | Project directory file watcher with file/directory filtering     |
+| `pkg/provenance/fswatcher.go`   | Complete | Project directory file watcher with file/directory filtering     |
+| `pkg/provenance/provenance.go`  | Complete | `StartEngine(enabled)` — the lifecycle entry point callers use; returns a nil engine and a no-op cleanup when provenance is off, so call sites need no enabled-check |
 
-## New Dependencies
+## Dependencies
 
-`github.com/sabhiram/go-gitignore` (or similar) - .gitignore/.intentignore parsing
+`github.com/sabhiram/go-gitignore` — `.gitignore` / `.intentignore` parsing. Already in
+`go.mod`.
 
 ## Decisions Deferred
 

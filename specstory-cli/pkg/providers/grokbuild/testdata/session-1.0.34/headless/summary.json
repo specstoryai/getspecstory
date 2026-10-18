@@ -1,0 +1,24 @@
+{
+  "info": {
+    "id": "01a0b15e-ec11-7a92-8cf3-6f78447a84dd",
+    "cwd": "/qa/extended-tools"
+  },
+  "agent_id": "ag1.c3119514955845b1b2ee85ebbae1834c",
+  "attempt_id": "at1.6397bee0c69f4ca5b1b23c40f667aaca",
+  "session_summary": "Headless QA Scheduler Plan Workflow Validation",
+  "created_at": "2026-09-17T21:56:23.196716Z",
+  "updated_at": "2026-09-17T21:57:05.672457Z",
+  "num_messages": 35,
+  "num_chat_messages": 26,
+  "current_model_id": "grok-4.6",
+  "next_trace_turn": 1,
+  "chat_format_version": 1,
+  "session_kind": "headless",
+  "request_id": "8d27ccbe-9f99-41fc-b0de-632e1fda3aab",
+  "grok_home": "/qa/extended-home",
+  "last_active_at": "2026-09-17T21:57:05.672457Z",
+  "generated_title": "Headless QA Scheduler Plan Workflow Validation",
+  "agent_name": "grok-build-plan",
+  "sandbox_profile": "off",
+  "reasoning_effort": "high"
+}

@@ -3,6 +3,7 @@ package cursorcli
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 )
 
@@ -44,10 +45,18 @@ func TestParseCursorCommand(t *testing.T) {
 		{
 			name:          "custom command with tilde expansion",
 			customCommand: "~/bin/cursor-agent --verbose",
-			expectedCmd:   os.Getenv("HOME") + "/bin/cursor-agent",
-			expectedArgs:  []string{"--verbose"},
-			setupMocks:    func() {},
-			restoreMocks:  func() {},
+			// Mirror expandTilde's own derivation: HOME env alone is empty on
+			// Windows, where os.UserHomeDir reads USERPROFILE instead.
+			expectedCmd: func() string {
+				home, err := os.UserHomeDir()
+				if err != nil {
+					return ""
+				}
+				return filepath.Join(home, "bin", "cursor-agent")
+			}(),
+			expectedArgs: []string{"--verbose"},
+			setupMocks:   func() {},
+			restoreMocks: func() {},
 		},
 		{
 			name:          "command with quoted argument containing spaces",
@@ -114,7 +123,7 @@ func TestGetDefaultCursorCommand(t *testing.T) {
 					return home, nil
 				}
 				osStat = func(name string) (os.FileInfo, error) {
-					if name == home+"/.cursor/bin/cursor-agent" {
+					if name == filepath.Join(home, ".cursor", "bin", "cursor-agent") {
 						return nil, nil // File exists
 					}
 					return nil, os.ErrNotExist
@@ -128,7 +137,7 @@ func TestGetDefaultCursorCommand(t *testing.T) {
 				osStat = os.Stat
 				execLookPath = exec.LookPath
 			},
-			expected: "/test/home/.cursor/bin/cursor-agent",
+			expected: filepath.FromSlash("/test/home/.cursor/bin/cursor-agent"),
 		},
 		{
 			name: "finds cursor-agent in .local/bin",
@@ -138,7 +147,7 @@ func TestGetDefaultCursorCommand(t *testing.T) {
 					return home, nil
 				}
 				osStat = func(name string) (os.FileInfo, error) {
-					if name == home+"/.local/bin/cursor-agent" {
+					if name == filepath.Join(home, ".local", "bin", "cursor-agent") {
 						return nil, nil // File exists
 					}
 					return nil, os.ErrNotExist
@@ -152,7 +161,7 @@ func TestGetDefaultCursorCommand(t *testing.T) {
 				osStat = os.Stat
 				execLookPath = exec.LookPath
 			},
-			expected: "/test/home/.local/bin/cursor-agent",
+			expected: filepath.FromSlash("/test/home/.local/bin/cursor-agent"),
 		},
 		{
 			name: "defaults to cursor-agent when not found",

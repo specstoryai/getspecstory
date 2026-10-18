@@ -5,22 +5,43 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 )
 
 func TestHashProjectPathDeterministic(t *testing.T) {
-	const (
-		projectPath = "/tmp/specstory"
-		expected    = "a1b4e20c87f45c8f60096db37201de7ebdf549f1b6b33012051046d782f9b67e"
-	)
+	const projectPath = "/tmp/specstory"
 
 	hash, err := HashProjectPath(projectPath)
 	if err != nil {
 		t.Fatalf("HashProjectPath returned error: %v", err)
 	}
 
-	if hash != expected {
-		t.Fatalf("HashProjectPath = %s, want %s", hash, expected)
+	// The pinned value guards cross-version stability: the hash must keep
+	// matching what Gemini CLI itself computes for the same directory, or
+	// existing sessions become unfindable. The fixture is a Unix path, which a
+	// Windows host legitimately canonicalizes differently — and real inputs
+	// there are native paths — so the pin only holds off Windows.
+	if runtime.GOOS != "windows" {
+		const expected = "a1b4e20c87f45c8f60096db37201de7ebdf549f1b6b33012051046d782f9b67e"
+		if hash != expected {
+			t.Fatalf("HashProjectPath = %s, want %s", hash, expected)
+		}
+		return
+	}
+
+	// On Windows assert the properties instead: shape, determinism, and
+	// sensitivity to the input path.
+	if len(hash) != 64 {
+		t.Fatalf("HashProjectPath = %s, want 64-char sha256 hex", hash)
+	}
+	again, err := HashProjectPath(projectPath)
+	if err != nil || again != hash {
+		t.Fatalf("HashProjectPath not deterministic: %s vs %s (err %v)", hash, again, err)
+	}
+	other, err := HashProjectPath("/tmp/other")
+	if err != nil || other == hash {
+		t.Fatalf("HashProjectPath should differ for different paths (err %v)", err)
 	}
 }
 
@@ -46,7 +67,13 @@ func TestGetGeminiProjectDirWithDefaultPath(t *testing.T) {
 		t.Fatalf("GetGeminiProjectDir returned error: %v", err)
 	}
 
-	expected := filepath.Join(fakeHome, ".gemini", "tmp", "a1b4e20c87f45c8f60096db37201de7ebdf549f1b6b33012051046d782f9b67e")
+	// Composition check: the dir must be {home}/.gemini/tmp/{hash of the cwd}.
+	// The hash value itself is pinned by TestHashProjectPathDeterministic.
+	hash, err := HashProjectPath("/tmp/specstory")
+	if err != nil {
+		t.Fatalf("HashProjectPath returned error: %v", err)
+	}
+	expected := filepath.Join(fakeHome, ".gemini", "tmp", hash)
 	if dir != expected {
 		t.Fatalf("GetGeminiProjectDir returned %q, want %q", dir, expected)
 	}
@@ -280,7 +307,13 @@ func TestResolveGeminiProjectDirProjectMissing(t *testing.T) {
 	if pathErr.Kind != "project_missing" {
 		t.Fatalf("Kind = %s, want project_missing", pathErr.Kind)
 	}
-	if pathErr.ProjectHash != "a1b4e20c87f45c8f60096db37201de7ebdf549f1b6b33012051046d782f9b67e" {
-		t.Fatalf("ProjectHash = %s, want hashed value", pathErr.ProjectHash)
+	// The error must carry the hash of the project the caller asked about;
+	// the hash value itself is pinned by TestHashProjectPathDeterministic.
+	wantHash, err := HashProjectPath("/tmp/specstory")
+	if err != nil {
+		t.Fatalf("HashProjectPath returned error: %v", err)
+	}
+	if pathErr.ProjectHash != wantHash {
+		t.Fatalf("ProjectHash = %s, want %s", pathErr.ProjectHash, wantHash)
 	}
 }

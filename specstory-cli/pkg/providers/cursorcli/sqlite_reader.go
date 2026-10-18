@@ -181,8 +181,9 @@ func ReadSessionData(sessionPath string) (string, string, []BlobRecord, []BlobRe
 
 	slog.Debug("Opening Cursor CLI SQLite database", "path", dbPath)
 
-	// Open the database in read-only mode
-	db, err := sql.Open("sqlite", dbPath+"?mode=ro")
+	// Open read-only with a busy timeout so a transient lock held by
+	// cursor-agent's writer doesn't fail the read
+	db, err := sql.Open("sqlite", "file:"+dbPath+"?mode=ro&"+spi.BusyTimeoutPragma)
 	if err != nil {
 		return "", "", nil, nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -192,16 +193,12 @@ func ReadSessionData(sessionPath string) (string, string, []BlobRecord, []BlobRe
 		}
 	}()
 
-	slog.Debug("Successfully opened database", "path", dbPath)
+	// Limit the connection pool: SQLite serialises access anyway, so one
+	// connection is sufficient
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 
-	// Enable WAL mode for non-blocking reads
-	// This prevents readers from blocking the cursor-agent writer
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		// Log warning but continue - not fatal if WAL fails
-		slog.Warn("Failed to enable WAL mode", "error", err)
-	} else {
-		slog.Debug("Enabled WAL mode for non-blocking reads")
-	}
+	slog.Debug("Successfully opened database", "path", dbPath)
 
 	// Validate that this is actually a Cursor database with the expected schema
 	if err := validateCursorDatabase(db); err != nil {
@@ -299,12 +296,15 @@ func ReadSessionData(sessionPath string) (string, string, []BlobRecord, []BlobRe
 	// Sort rowids for easier debugging
 	sort.Ints(allRowIDs)
 
-	// Log all rowids we got from the database - check if 1555-1560 are present
-	slog.Debug("All rowids from database query",
-		"count", len(allRowIDs),
-		"min", allRowIDs[0],
-		"max", allRowIDs[len(allRowIDs)-1],
-		"rowids", allRowIDs)
+	// Cursor can commit its schema before its first blob. Log bounds only
+	// when rows exist; the watcher will retry the empty session on later writes.
+	if len(allRowIDs) > 0 {
+		slog.Debug("All rowids from database query",
+			"count", len(allRowIDs),
+			"min", allRowIDs[0],
+			"max", allRowIDs[len(allRowIDs)-1],
+			"rowids", allRowIDs)
+	}
 
 	slog.Debug("Blob processing summary",
 		"totalBlobs", totalBlobs,
@@ -356,12 +356,4 @@ func ReadSessionData(sessionPath string) (string, string, []BlobRecord, []BlobRe
 	slug := extractSlugFromBlobs(blobRecords)
 
 	return createdAt, slug, blobRecords, orphanRecords, nil
-}
-
-// min returns the minimum of two integers
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

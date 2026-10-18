@@ -1,0 +1,24 @@
+{
+  "info": {
+    "id": "01a0b157-a837-7681-8cfa-55f72b4f7efa",
+    "cwd": "/qa/project space_under"
+  },
+  "agent_id": "ag1.efa09825d649488fad0b77d8e9716e62",
+  "attempt_id": "at1.7bcb95fc6a094c64a13bcb02c0089266",
+  "session_summary": "QA Search Use-Tool Web-Fetch Exercise",
+  "created_at": "2026-09-17T21:48:27.071175Z",
+  "updated_at": "2026-09-17T21:48:41.084285Z",
+  "num_messages": 19,
+  "num_chat_messages": 17,
+  "current_model_id": "grok-4.6",
+  "next_trace_turn": 1,
+  "chat_format_version": 1,
+  "session_kind": "headless",
+  "request_id": "353aab98-7123-4e1e-86ad-32663f4d1329",
+  "grok_home": "/qa/grok",
+  "last_active_at": "2026-09-17T21:48:41.084285Z",
+  "generated_title": "QA Search Use-Tool Web-Fetch Exercise",
+  "agent_name": "grok-build-plan",
+  "sandbox_profile": "off",
+  "reasoning_effort": "high"
+}

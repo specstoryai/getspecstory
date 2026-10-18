@@ -1686,9 +1686,13 @@ _**User (2026-02-23 23:39:45Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-02-23 23:39:45Z)**_
 
 <local-command-stdout>Bye!</local-command-stdout>
+
+---
 
 _**User (2026-02-23 23:39:45Z)**_
 

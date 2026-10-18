@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/url"
 	"os"
 	"strings"
@@ -43,6 +44,12 @@ func telemetryLogger() *slog.Logger {
 const (
 	// metricExportInterval is how often metrics are exported to the collector.
 	metricExportInterval = 10 * time.Second
+
+	// endpointDialTimeout caps the pre-init reachability probe of the collector
+	// endpoint. It is an upper bound, not a fixed cost: a running collector accepts
+	// in ~1ms and a refused local connection fails just as fast. Only silently
+	// dropped packets (firewalled or dead remote hosts) wait the full timeout.
+	endpointDialTimeout = 500 * time.Millisecond
 )
 
 // Options configures telemetry initialisation.
@@ -138,6 +145,19 @@ func parseEndpoint(raw string) (host string, insecure bool) {
 	return host, insecure
 }
 
+// endpointReachable reports whether a TCP connection to the collector endpoint
+// (bare "host:port", as produced by parseEndpoint) can be established within
+// endpointDialTimeout. A plain dial is enough here: we only need to distinguish
+// "something is listening" from "nothing there", not speak OTLP or gRPC.
+func endpointReachable(host string) bool {
+	conn, err := net.DialTimeout("tcp", host, endpointDialTimeout)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close() // Probe connection only; nothing was sent, so close errors are irrelevant
+	return true
+}
+
 // Init configures the OTel tracing and metrics subsystem. Thread-safe and idempotent — only the
 // first call takes effect. When Enabled is false the global no-op provider remains
 // active, so callers can emit spans/events and record metrics safely with zero overhead.
@@ -165,6 +185,18 @@ func Init(ctx context.Context, opts Options) error {
 		// conventionally a full URL (e.g. "http://localhost:4317"), but
 		// WithEndpoint expects just "host:port".
 		host, insecure := parseEndpoint(opts.Endpoint)
+
+		// Probe the collector before wiring up real exporters. Without this, an
+		// unreachable collector makes the gRPC exporters retry until the shutdown
+		// context expires, stalling every CLI exit by up to 10 seconds. Falling
+		// back to the no-op provider keeps telemetry best-effort: the command runs
+		// normally, it just doesn't export this invocation.
+		if !endpointReachable(host) {
+			telemetryLogger().Warn("Telemetry collector unreachable, using no-op provider",
+				"endpoint", host,
+			)
+			return
+		}
 
 		// Create shared resource for both traces and metrics.
 		// Use resource.New() with detectors to pick up OTEL_RESOURCE_ATTRIBUTES env var.

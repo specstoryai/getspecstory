@@ -2,6 +2,7 @@ package claudecode
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -167,7 +168,7 @@ func TestGetDefaultClaudeCommand(t *testing.T) {
 				return "/home/user", nil
 			},
 			mockStat: func(name string) (os.FileInfo, error) {
-				if name == "/home/user/.local/bin/claude" {
+				if name == filepath.FromSlash("/home/user/.local/bin/claude") {
 					return nil, nil
 				}
 				return nil, os.ErrNotExist
@@ -175,7 +176,7 @@ func TestGetDefaultClaudeCommand(t *testing.T) {
 			mockLookPath: func(name string) (string, error) {
 				return "", os.ErrNotExist
 			},
-			expectedResult: "/home/user/.local/bin/claude",
+			expectedResult: filepath.FromSlash("/home/user/.local/bin/claude"),
 		},
 		{
 			name: "claude on PATH when native doesn't exist",
@@ -196,7 +197,7 @@ func TestGetDefaultClaudeCommand(t *testing.T) {
 				return "/home/user", nil
 			},
 			mockStat: func(name string) (os.FileInfo, error) {
-				if name == "/home/user/.claude/local/claude" {
+				if name == filepath.FromSlash("/home/user/.claude/local/claude") {
 					return nil, nil
 				}
 				return nil, os.ErrNotExist
@@ -204,7 +205,7 @@ func TestGetDefaultClaudeCommand(t *testing.T) {
 			mockLookPath: func(name string) (string, error) {
 				return "", os.ErrNotExist
 			},
-			expectedResult: "/home/user/.claude/local/claude",
+			expectedResult: filepath.FromSlash("/home/user/.claude/local/claude"),
 		},
 		{
 			name: "native takes precedence over PATH and legacy",
@@ -212,7 +213,7 @@ func TestGetDefaultClaudeCommand(t *testing.T) {
 				return "/home/user", nil
 			},
 			mockStat: func(name string) (os.FileInfo, error) {
-				if name == "/home/user/.local/bin/claude" || name == "/home/user/.claude/local/claude" {
+				if name == filepath.FromSlash("/home/user/.local/bin/claude") || name == filepath.FromSlash("/home/user/.claude/local/claude") {
 					return nil, nil
 				}
 				return nil, os.ErrNotExist
@@ -220,7 +221,7 @@ func TestGetDefaultClaudeCommand(t *testing.T) {
 			mockLookPath: func(name string) (string, error) {
 				return "/usr/bin/claude", nil
 			},
-			expectedResult: "/home/user/.local/bin/claude",
+			expectedResult: filepath.FromSlash("/home/user/.local/bin/claude"),
 		},
 		{
 			name: "PATH takes precedence over legacy",
@@ -228,7 +229,7 @@ func TestGetDefaultClaudeCommand(t *testing.T) {
 				return "/home/user", nil
 			},
 			mockStat: func(name string) (os.FileInfo, error) {
-				if name == "/home/user/.claude/local/claude" {
+				if name == filepath.FromSlash("/home/user/.claude/local/claude") {
 					return nil, nil
 				}
 				return nil, os.ErrNotExist

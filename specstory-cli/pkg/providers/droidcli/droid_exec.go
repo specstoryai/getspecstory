@@ -1,6 +1,7 @@
 package droidcli
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,24 +44,14 @@ func ExecuteDroid(customCommand string, resumeSessionID string) error {
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 
-	return command.Run()
+	err := command.Run()
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return &spi.AgentExitError{Agent: "Factory Droid", Code: exitErr.ExitCode()}
+	}
+	return err
 }
 
 func ensureResumeArgs(args []string, resumeSessionID string) []string {
-	if resumeSessionID == "" {
-		return args
-	}
-
-	for i, arg := range args {
-		if arg == "--resume" || arg == "-r" {
-			if i+1 < len(args) {
-				return args
-			}
-		}
-		if strings.HasPrefix(arg, "--resume=") {
-			return args
-		}
-	}
-
-	return append(args, "--resume", resumeSessionID)
+	return spi.EnsureResumeFlagArgs(args, resumeSessionID, "--resume", "-r")
 }

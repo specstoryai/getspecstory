@@ -1,12 +1,58 @@
 package codexcli
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
+
+func TestDebugRawRefreshPreservesUnownedFiles(t *testing.T) {
+	testutil.IsolateDebugDir(t)
+	path := filepath.Join(t.TempDir(), "session.jsonl")
+	header := `{"type":"session_meta","timestamp":"2026-09-18T12:00:00Z","payload":{"id":"debug-refresh","cwd":"/project"}}` + "\n"
+	user := `{"type":"event_msg","timestamp":"2026-09-18T12:00:01Z","payload":{"type":"user_message","message":"hello"},"unknownNative":{"z":9007199254740993,"a":1.234567890123456789}}` + "\n"
+	third := `{"type":"future_record","unknownNative":"old"}` + "\n"
+	if err := os.WriteFile(path, []byte(header+"{broken\n"+user+third), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	meta, err := loadCodexSessionMeta(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	info := &codexSessionInfo{SessionID: "debug-refresh", SessionPath: path, Meta: meta}
+	dir := spi.GetDebugDir(info.SessionID)
+	if _, err := processSessionToAgentChat(info, "/project", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("debug-disabled conversion created output: %v", err)
+	}
+	if _, err := processSessionToAgentChat(info, "/project", true); err != nil {
+		t.Fatal(err)
+	}
+	testutil.AssertDebugRefresh(t, dir, []string{"3.json"}, []string{"session-data.json", "3-notes.json"}, func() {
+		if err := os.WriteFile(path, []byte(header+user), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := processSessionToAgentChat(info, "/project", true); err != nil {
+			t.Fatal(err)
+		}
+	})
+	data, err := os.ReadFile(filepath.Join(dir, "2.json"))
+	if err != nil || !json.Valid(data) || !strings.Contains(string(data), "\n  \"unknownNative\": {") {
+		t.Fatalf("native fields/formatting lost: %s (%v)", data, err)
+	}
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, data); err != nil || compact.String() != strings.TrimSpace(user) {
+		t.Fatalf("debug export changed numeric precision or key order: %s (%v)", data, err)
+	}
+}
 
 func TestLoadCodexSessionMeta(t *testing.T) {
 	tests := []struct {
@@ -135,7 +181,7 @@ func TestReadSessionRawData(t *testing.T) {
 `,
 			wantError:       false,
 			wantRecordCount: 2, // Malformed line skipped but parsing continues
-			wantRawLines:    3, // Raw data includes all non-empty lines
+			wantRawLines:    2, // Only accepted records belong to the parsing snapshot
 		},
 		{
 			name: "very long line (under limit)",
@@ -183,32 +229,6 @@ func TestReadSessionRawData(t *testing.T) {
 	}
 }
 
-func TestReadSessionRawData_ExceedsMaxSize(t *testing.T) {
-	// Create a line that exceeds maxReasonableLineSize
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "huge.jsonl")
-
-	// Create a very large line (just over the 250MB limit)
-	// Note: We can't actually test this fully in a unit test as it would consume too much memory
-	// Instead, we'll verify the size check logic exists by testing with a smaller mock
-
-	t.Run("line size check exists", func(t *testing.T) {
-		// Create a valid file that won't trigger the size limit
-		content := `{"type":"session_meta","payload":{"id":"test"}}` + "\n"
-		if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
-			t.Fatalf("Failed to create test file: %v", err)
-		}
-
-		records, _, err := readSessionRawData(tmpFile)
-		if err != nil {
-			t.Errorf("readSessionRawData() unexpected error for normal file: %v", err)
-		}
-		if len(records) != 1 {
-			t.Errorf("readSessionRawData() should parse normal file, got %d records", len(records))
-		}
-	})
-}
-
 func TestNormalizeCodexPath(t *testing.T) {
 	tests := []struct {
 		name string
@@ -248,12 +268,35 @@ func TestNormalizeCodexPath(t *testing.T) {
 }
 
 func TestCodexSessionsRoot(t *testing.T) {
-	homeDir := "/Users/testuser"
-	want := filepath.Join(homeDir, ".codex", "sessions")
-	got := codexSessionsRoot(homeDir)
+	tests := []struct {
+		name      string
+		codexHome string // "" means CODEX_HOME is neutralized so the default path is exercised
+		homeDir   string
+		want      string
+	}{
+		{
+			name:    "default uses home/.codex",
+			homeDir: "/Users/testuser",
+			want:    filepath.Join("/Users/testuser", ".codex", "sessions"),
+		},
+		{
+			name:      "CODEX_HOME overrides home",
+			codexHome: "/tmp/custom-codex",
+			homeDir:   "/ignored",
+			want:      filepath.Join("/tmp/custom-codex", "sessions"),
+		},
+	}
 
-	if got != want {
-		t.Errorf("codexSessionsRoot() = %q, want %q", got, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Always set the env so an inherited CODEX_HOME can't make the
+			// default case non-hermetic; "" exercises the fall-through.
+			t.Setenv("CODEX_HOME", tt.codexHome)
+
+			if got := codexSessionsRoot(tt.homeDir); got != tt.want {
+				t.Errorf("codexSessionsRoot() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -650,7 +693,7 @@ func TestFindCodexSessions(t *testing.T) {
 			}
 
 			// Override home directory for the test
-			t.Setenv("HOME", tempHome)
+			testutil.SetHome(t, tempHome)
 
 			// Call findCodexSessions
 			sessions, err := findCodexSessions(tt.projectPath, tt.targetSessionID, tt.stopOnFirst)
@@ -889,7 +932,7 @@ func TestFindCodexSessions_ShortCircuit(t *testing.T) {
 			}
 
 			// Override home directory for the test
-			t.Setenv("HOME", tempHome)
+			testutil.SetHome(t, tempHome)
 
 			// Call findCodexSessions with targetSessionID
 			// stopOnFirst parameter is ignored when targetSessionID is provided
@@ -976,5 +1019,47 @@ func TestExecuteCodex(t *testing.T) {
 				t.Errorf("ExecuteCodex() unexpected error: %v", err)
 			}
 		})
+	}
+}
+
+// An oversized record costs that record and nothing else. Failing the file
+// instead would mean one poisoned line loses the user the whole session. The
+// header scan walks the same file and must reach the same verdict about it,
+// since a session the full read accepts has to stay indexable.
+func TestReadCodexJSONLKeepsRecordsAroundAnOversizedOne(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "oversized.jsonl")
+	lines := []string{
+		`{"type":"session_meta","payload":{"id":"sess-1","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp/project"}}`,
+		`{"type":"event_msg","payload":{"type":"agent_message","message":"` + strings.Repeat("x", spi.MaxRecordLineSize) + `"}}`,
+		`{"type":"event_msg","payload":{"type":"user_message","message":"survived the oversized record"}}`,
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	records, raw, err := readCodexJSONL(path, true)
+	if err != nil {
+		t.Fatalf("an oversized record must not fail the file: %v", err)
+	}
+	if len(records) != 2 {
+		t.Fatalf("got %d records, want the records before and after the oversized one", len(records))
+	}
+	if records[0]["type"] != "session_meta" {
+		t.Errorf("first record = %v, want the session_meta before the oversized record", records[0]["type"])
+	}
+	if !strings.Contains(raw, "survived the oversized record") {
+		t.Error("the record after the oversized one was lost")
+	}
+	if strings.Contains(raw, strings.Repeat("x", 1024)) {
+		t.Error("the oversized record leaked into the raw transcript")
+	}
+
+	// The header scan walks the same file and must agree about what is readable.
+	header, err := scanCodexSessionHeader(path)
+	if err != nil {
+		t.Fatalf("header scan failed on the same file: %v", err)
+	}
+	if header == nil || header.sessionID != "sess-1" {
+		t.Errorf("header = %+v, want the session still indexable", header)
 	}
 }

@@ -36,7 +36,7 @@ _**Agent (claude-opus-4-6 2026-02-22 15:20:13Z)**_
 <summary>Tool use: **Task**</summary>
 Explore config package
 
-```text
+````text
 Perfect! Now I have a comprehensive understanding. Let me create a thorough report:
 
 ## Configuration System Analysis for SpecStory CLI
@@ -192,7 +192,7 @@ agentId: a13a7db (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 57328
 tool_uses: 20
 duration_ms: 45088</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-22 15:19:28Z)**_
@@ -257,7 +257,7 @@ _**Agent (claude-opus-4-6 2026-02-22 15:19:57Z)**_
 <summary>Tool use: **Task**</summary>
 Explore CLI startup flow
 
-```text
+````text
 Perfect! I now have a comprehensive understanding of the CLI startup flow. Let me provide a detailed report.
 
 ## CLI Startup Flow Analysis
@@ -424,7 +424,7 @@ agentId: ad4d774 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 47466
 tool_uses: 8
 duration_ms: 25140</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-22 15:19:31Z)**_
@@ -5264,7 +5264,7 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-22 15:19:47Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
      1→<img width="1649" height="158" alt="Group 6 (1)" src="https://github.com/user-attachments/assets/93f0210f-c3ce-4035-91df-ec597e00a3ce" />
      2→
      3→# Intent is the new source code
@@ -5615,7 +5615,7 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-22 15:19:47Z)**_
    348→
    349→SpecStory® is a registered trademark of SpecStory, Inc.
    350→
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-22 15:19:48Z)**_
@@ -7044,7 +7044,7 @@ _**Agent (claude-opus-4-6 2026-02-22 15:22:38Z)**_
 <summary>Tool use: **Task**</summary>
 Plan default config creation
 
-```text
+````text
 I now have a complete understanding of the codebase. Here is the implementation plan.
 
 ---
@@ -7435,7 +7435,7 @@ agentId: a0e6887 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 56770
 tool_uses: 12
 duration_ms: 113691</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-22 15:20:45Z)**_
@@ -10569,7 +10569,7 @@ _**Agent (claude-opus-4-6 2026-02-22 15:23:06Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+````markdown
 # Plan: Auto-Create Default User Config File
 
 ## Context
@@ -10584,7 +10584,7 @@ All changes are in `pkg/config/config.go` and `pkg/config/config_test.go`. No ne
 
 A const string containing the full commented-out TOML template. Every option is prefixed with `#` so the file has zero effect when created. Each option includes a description and its default value.
 
-\```toml
+```toml
 # SpecStory CLI Configuration
 #
 # This is the user-level config file for SpecStory CLI.
@@ -10624,7 +10624,7 @@ A const string containing the full commented-out TOML template. Every option is 
 # Send anonymous usage analytics to help improve SpecStory.
 # Default: true
 # enabled = true
-\```
+```
 
 ### 2. Add `ensureDefaultUserConfig(path string)` function (config.go, after `getUserConfigPath`)
 
@@ -10636,12 +10636,12 @@ A const string containing the full commented-out TOML template. Every option is 
 
 In the existing `os.IsNotExist` branch for the user config, add a call to `ensureDefaultUserConfig(userConfigPath)` right after the existing debug log line. This is the natural place — we already know the file doesn't exist and have the path.
 
-\```go
+```go
 if os.IsNotExist(err) {
     slog.Debug("No user-level config file found", "path", userConfigPath)
     ensureDefaultUserConfig(userConfigPath)  // <-- new line
 } else {
-\```
+```
 
 ### 4. Tests (config_test.go)
 
@@ -10664,7 +10664,7 @@ The created file has everything commented out, so it behaves identically to no f
 3. Manual: delete `~/.specstory/cli-config.toml`, run `./specstory sync`, verify the file is created with commented-out content
 4. Manual: run `./specstory sync` again, verify the file is not overwritten
 
-```
+````
 
 ```text
 File created successfully at: /Users/sean/.claude/plans/goofy-conjuring-wombat.md
@@ -10690,6 +10690,8 @@ The user doesn't want to proceed with this tool use. The tool use was rejected (
 _**User (2026-02-22 15:44:59Z)**_
 
 [Request interrupted by user for tool use]
+
+---
 
 _**User (2026-02-22 15:46:04Z)**_
 
@@ -11001,7 +11003,7 @@ _**Agent (claude-opus-4-6 2026-02-22 15:57:49Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+````markdown
 # Plan: Fix Config Paths + Auto-Create Default User Config
 
 ## Context
@@ -11018,7 +11020,7 @@ Two related issues:
 
 Change the constants (lines 20-25):
 
-\```go
+```go
 // Before
 ConfigFileName = "cli-config.toml"
 SpecStoryDir   = ".specstory"
@@ -11027,23 +11029,23 @@ SpecStoryDir   = ".specstory"
 ConfigFileName = "config.toml"
 SpecStoryDir   = ".specstory"
 CLIDir         = "cli"
-\```
+```
 
 Update `getUserConfigPath()` (line 153):
-\```go
+```go
 // Before
 return filepath.Join(home, SpecStoryDir, ConfigFileName)
 // After
 return filepath.Join(home, SpecStoryDir, CLIDir, ConfigFileName)
-\```
+```
 
 Update `getLocalConfigPath()` (line 163):
-\```go
+```go
 // Before
 return filepath.Join(cwd, SpecStoryDir, ConfigFileName)
 // After
 return filepath.Join(cwd, SpecStoryDir, CLIDir, ConfigFileName)
-\```
+```
 
 Update comments at top of file (lines 4-5) and on the two path functions (lines 146, 156).
 
@@ -11051,7 +11053,7 @@ Update comments at top of file (lines 4-5) and on the two path functions (lines 
 
 Update `createTempConfigFile` helper — the dir structure changes from `dir/.specstory/cli-config.toml` to `dir/.specstory/cli/config.toml`:
 
-\```go
+```go
 func createTempConfigFile(t *testing.T, dir, content string) string {
     t.Helper()
     configDir := filepath.Join(dir, SpecStoryDir, CLIDir)
@@ -11061,7 +11063,7 @@ func createTempConfigFile(t *testing.T, dir, content string) string {
     configPath := filepath.Join(configDir, ConfigFileName)
     // ...
 }
-\```
+```
 
 Also update `TestMissingFileHandling` which manually constructs paths using `SpecStoryDir` — add `CLIDir` to those joins.
 
@@ -11077,7 +11079,7 @@ Update the 4 references (lines 86, 87, 91, 92):
 
 All options commented out with descriptions and defaults:
 
-\```toml
+```toml
 # SpecStory CLI Configuration
 #
 # This is the user-level config file for SpecStory CLI.
@@ -11117,7 +11119,7 @@ All options commented out with descriptions and defaults:
 # Send anonymous usage analytics to help improve SpecStory.
 # Default: true
 # enabled = true
-\```
+```
 
 ### Add `ensureDefaultUserConfig(path string)` function (`config.go`)
 
@@ -11127,12 +11129,12 @@ All options commented out with descriptions and defaults:
 
 ### One-line addition in `Load()` (line 113, the `os.IsNotExist` branch)
 
-\```go
+```go
 if os.IsNotExist(err) {
     slog.Debug("No user-level config file found", "path", userConfigPath)
     ensureDefaultUserConfig(userConfigPath)  // new line
 } else {
-\```
+```
 
 ## Tests (`config_test.go`)
 
@@ -11166,7 +11168,7 @@ Unaffected — they use the constants (`SpecStoryDir`, `ConfigFileName`) which w
 3. Manual: delete `~/.specstory/cli/config.toml`, run `./specstory sync`, verify file created with commented-out content
 4. Manual: run again, verify file not overwritten
 
-```
+````
 
 ```text
 The file /Users/sean/.claude/plans/goofy-conjuring-wombat.md has been overwritten successfully.

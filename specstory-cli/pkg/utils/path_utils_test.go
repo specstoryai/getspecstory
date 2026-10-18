@@ -3,6 +3,7 @@ package utils
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -102,6 +103,11 @@ func TestNewOutputPathConfig(t *testing.T) {
 			name: "directory without write permissions",
 			dir:  "",
 			setup: func(t *testing.T) string {
+				// Unix permission bits don't restrict directories on Windows —
+				// 0555 stays writable there, so the failure can't be provoked.
+				if runtime.GOOS == "windows" {
+					t.Skip("directory write permissions cannot be revoked via mode bits on Windows")
+				}
 				dir := t.TempDir()
 				noWriteDir := filepath.Join(dir, "no-write")
 				if err := os.Mkdir(noWriteDir, 0555); err != nil {
@@ -121,6 +127,10 @@ func TestNewOutputPathConfig(t *testing.T) {
 			name: "parent directory without write permissions",
 			dir:  "",
 			setup: func(t *testing.T) string {
+				// See the skip above — mode bits don't restrict Windows directories.
+				if runtime.GOOS == "windows" {
+					t.Skip("directory write permissions cannot be revoked via mode bits on Windows")
+				}
 				dir := t.TempDir()
 				noWriteDir := filepath.Join(dir, "no-write")
 				if err := os.Mkdir(noWriteDir, 0555); err != nil {
@@ -240,24 +250,32 @@ func TestNewOutputPathConfig(t *testing.T) {
 }
 
 func TestOutputPathConfigMethods(t *testing.T) {
-	t.Run("with custom base directory", func(t *testing.T) {
+	// When --output-dir is set, all outputs go there: history directly in BaseDir,
+	// .project.json / statistics.json at BaseDir, debug/ inside BaseDir.
+	t.Run("with output-dir set (BaseDir)", func(t *testing.T) {
 		baseDir := t.TempDir()
 		config := &OutputPathConfig{BaseDir: baseDir}
 
-		// Test GetHistoryDir
+		// History goes directly to BaseDir (no /history suffix)
 		historyDir := config.GetHistoryDir()
 		if historyDir != baseDir {
 			t.Errorf("GetHistoryDir() = %v, want %v", historyDir, baseDir)
 		}
 
-		// Test GetDebugDir
+		// Specstory dir is also BaseDir (.project.json and statistics.json land here)
+		specstoryDir := config.GetSpecstoryDir()
+		if specstoryDir != baseDir {
+			t.Errorf("GetSpecstoryDir() = %v, want %v", specstoryDir, baseDir)
+		}
+
+		// Debug goes to {BaseDir}/debug/
 		debugDir := config.GetDebugDir()
 		expectedDebugDir := filepath.Join(baseDir, DEBUG_DIR)
 		if debugDir != expectedDebugDir {
 			t.Errorf("GetDebugDir() = %v, want %v", debugDir, expectedDebugDir)
 		}
 
-		// Test GetLogPath
+		// Log file goes to {BaseDir}/debug/debug.log
 		logPath := config.GetLogPath()
 		expectedLogPath := filepath.Join(expectedDebugDir, DEBUG_LOG_FILE)
 		if logPath != expectedLogPath {
@@ -309,6 +327,92 @@ func TestOutputPathConfigMethods(t *testing.T) {
 		logPath := config.GetLogPath()
 		if !strings.Contains(logPath, DEBUG_LOG_FILE) {
 			t.Errorf("GetLogPath() = %v, want path containing %s", logPath, DEBUG_LOG_FILE)
+		}
+	})
+}
+
+// TestResolveProjectPath covers the platform-independent behavior: empty-override
+// fallback, cleaning of absolute overrides, absolutization of relative overrides,
+// and canonicalization to the on-disk spelling. The Windows-only branch that
+// preserves rootless remote-workspace paths (VS Code fsPaths like /home/u/proj on
+// a Windows host) is gated on runtime.GOOS and exercised only on Windows builds,
+// and the fallback-to-cwd error path requires os.Getwd to fail, which is not
+// portably testable.
+func TestResolveProjectPath(t *testing.T) {
+	// Results are canonicalized (symlinks resolved), so expectations must start
+	// from symlink-free fixture paths — t.TempDir() is a symlink on macOS
+	// (/var -> /private/var).
+	canonicalDir := func(t *testing.T) string {
+		t.Helper()
+		dir, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatalf("Failed to resolve temp dir symlinks: %v", err)
+		}
+		return dir
+	}
+
+	fallbackCwd := canonicalDir(t)
+	absDir := canonicalDir(t)
+
+	// Pin the process cwd for the relative-override case so the expectation is
+	// built from a known-canonical base rather than whatever spelling the test
+	// runner was launched from.
+	processCwd := canonicalDir(t)
+	t.Chdir(processCwd)
+
+	tests := []struct {
+		name     string
+		override string
+		want     string
+	}{
+		{
+			name:     "empty override falls back to cwd",
+			override: "",
+			want:     fallbackCwd,
+		},
+		{
+			name:     "absolute override returned as-is",
+			override: absDir,
+			want:     absDir,
+		},
+		{
+			name:     "absolute override is cleaned",
+			override: filepath.Join(absDir, "sub") + string(os.PathSeparator) + ".." + string(os.PathSeparator) + "proj",
+			want:     filepath.Join(absDir, "proj"),
+		},
+		{
+			name:     "relative override resolved against the process working directory",
+			override: filepath.Join("some", "relative", "dir"),
+			want:     filepath.Join(processCwd, "some", "relative", "dir"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ResolveProjectPath(tt.override, fallbackCwd); got != tt.want {
+				t.Errorf("ResolveProjectPath(%q) = %q, want %q", tt.override, got, tt.want)
+			}
+		})
+	}
+
+	// A cwd spelled with the wrong case (possible on case-insensitive
+	// filesystems, where the shell preserves whatever the user typed) must
+	// resolve to the on-disk spelling — the exact prefix comparisons that
+	// relativize recorded paths in generated markdown depend on it. Detected at
+	// runtime rather than by GOOS: macOS volumes can be formatted either way.
+	t.Run("cwd case corrected to on-disk spelling", func(t *testing.T) {
+		base := canonicalDir(t)
+		onDisk := filepath.Join(base, "MixedCase")
+		if err := os.Mkdir(onDisk, 0755); err != nil {
+			t.Fatalf("Failed to create MixedCase dir: %v", err)
+		}
+		misspelled := filepath.Join(base, "mixedcase")
+		if _, err := os.Stat(misspelled); err != nil {
+			t.Skip("filesystem is case-sensitive; misspelled path does not resolve")
+		}
+
+		if got := ResolveProjectPath("", misspelled); got != onDisk {
+			t.Errorf("ResolveProjectPath cwd %q = %q, want on-disk spelling %q", misspelled, got, onDisk)
 		}
 	})
 }

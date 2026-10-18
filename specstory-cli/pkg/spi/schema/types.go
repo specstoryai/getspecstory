@@ -27,6 +27,18 @@ const (
 	ToolTypeUnknown = "unknown"
 )
 
+// CurrentSchemaVersion is the SessionData schema version this CLI produces and understands.
+// Cloud resume compares a fetched blob's SchemaVersion against this: a newer blob (produced by
+// a newer CLI on another machine) is refused rather than mis-reconstructed.
+const CurrentSchemaVersion = "1.0"
+
+// MetadataOpenedBySpecStory is the Exchange.Metadata key (value true) marking an
+// exchange whose prompt SpecStory sent to open a session, such as a greeting or
+// a transcript carried into a new agent, rather than one the user wrote. The
+// exchange is still part of the conversation; only choosing a session's title
+// skips it, because a title should say what the user asked for.
+const MetadataOpenedBySpecStory = "openedBySpecStory"
+
 // SessionData is the unified data format for sessions from all terminal coding agent providers
 type SessionData struct {
 	SchemaVersion string       `json:"schemaVersion"`
@@ -36,7 +48,11 @@ type SessionData struct {
 	UpdatedAt     string       `json:"updatedAt,omitempty"`
 	Slug          string       `json:"slug,omitempty"`
 	WorkspaceRoot string       `json:"workspaceRoot"`
-	Exchanges     []Exchange   `json:"exchanges"`
+	// Notes tell a reader something about the session as a whole that its
+	// messages cannot, such as content the provider could not recover. They
+	// are not part of the conversation, so they never become messages.
+	Notes     []string   `json:"notes,omitempty"`
+	Exchanges []Exchange `json:"exchanges"`
 }
 
 // ProviderInfo is the information about the agent provider that created the session
@@ -150,8 +166,8 @@ func (s *SessionData) Validate() bool {
 	valid := true
 
 	// Check schema version
-	if s.SchemaVersion != "1.0" {
-		slog.Warn("schema validation: schemaVersion must be '1.0'", "got", s.SchemaVersion)
+	if s.SchemaVersion != CurrentSchemaVersion {
+		slog.Warn("schema validation: schemaVersion must be '"+CurrentSchemaVersion+"'", "got", s.SchemaVersion)
 		valid = false
 	}
 

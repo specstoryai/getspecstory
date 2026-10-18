@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"log/slog"
 	"sync"
 
@@ -41,21 +42,20 @@ func WatchAgents(ctx context.Context, projectPath string, debugRaw bool, session
 func WatchProviders(ctx context.Context, projectPath string, providers map[string]spi.Provider, debugRaw bool, sessionCallback func(providerID string, session *spi.AgentChatSession)) error {
 	slog.Info("WatchProviders: Starting multi-provider watch", "projectPath", projectPath, "providerCount", len(providers), "debugRaw", debugRaw)
 
-	// Track last-seen message count per session to suppress duplicate callbacks.
-	// Providers fire callbacks on every JSONL change, but not all changes produce
-	// new messages in the parsed SessionData. Messages are append-only, so a
-	// matching total count means nothing meaningful changed.
+	// Track a per-provider, per-session content fingerprint to suppress duplicate callbacks.
+	// Providers fire callbacks on every session-file change, but not all changes
+	// produce new content in the parsed SessionData (e.g. UI metadata updates).
+	// The message count alone is not enough: patch-log providers (e.g. VS Code
+	// Copilot) stream an agent response by growing the text of an existing
+	// message in place, so the count stays flat while the content changes.
 	var mu sync.Mutex
-	lastMsgCount := make(map[string]int)
+	lastFingerprint := make(map[string]sessionFingerprint)
 
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(providers))
 
 	for providerID, provider := range providers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			slog.Info("WatchProviders: Starting watcher for provider", "providerID", providerID, "providerName", provider.Name())
 
 			// Wrap the callback to deduplicate and include provider ID
@@ -64,30 +64,33 @@ func WatchProviders(ctx context.Context, projectPath string, providers map[strin
 					return
 				}
 
-				// Count total messages across all exchanges
-				totalMsgs := 0
-				for _, exchange := range session.SessionData.Exchanges {
-					totalMsgs += len(exchange.Messages)
-				}
+				fingerprint := fingerprintSession(session)
 
-				// Skip if message count hasn't changed for this session
+				// Key by provider as well as session: the map is shared across all
+				// provider goroutines, and without the scope two providers emitting
+				// the same session ID would suppress each other's callbacks.
+				dedupKey := providerID + "/" + session.SessionID
+
+				// Skip if the parsed content hasn't changed for this session
 				mu.Lock()
-				prev, seen := lastMsgCount[session.SessionID]
-				if seen && prev == totalMsgs {
+				prev, seen := lastFingerprint[dedupKey]
+				if seen && prev == fingerprint {
 					mu.Unlock()
 					slog.Debug("WatchProviders: Skipping duplicate callback",
 						"providerID", providerID,
 						"sessionID", session.SessionID,
-						"totalMsgs", totalMsgs)
+						"messages", fingerprint.messages,
+						"contentBytes", fingerprint.contentBytes)
 					return
 				}
-				lastMsgCount[session.SessionID] = totalMsgs
+				lastFingerprint[dedupKey] = fingerprint
 				mu.Unlock()
 
 				slog.Debug("WatchProviders: Provider callback fired",
 					"providerID", providerID,
 					"sessionID", session.SessionID,
-					"totalMsgs", totalMsgs)
+					"messages", fingerprint.messages,
+					"contentBytes", fingerprint.contentBytes)
 
 				sessionCallback(providerID, session)
 			}
@@ -105,16 +108,72 @@ func WatchProviders(ctx context.Context, projectPath string, providers map[strin
 			} else {
 				errChan <- nil
 			}
-		}()
+		})
 	}
 
 	// Wait for all watchers to complete (they run until Ctrl+C)
 	wg.Wait()
 
-	// Drain error channel — errors are already logged in the goroutines with full context
+	// Individual watcher failures are already logged in the goroutines with
+	// full context and must not kill the surviving watchers' results. But when
+	// EVERY watcher failed (e.g. `specstory watch <provider>` on a provider
+	// whose watch is unsupported), returning nil would print the watching
+	// banner and then silently exit 0 — surface the failure instead.
+	var failures []error
 	for range len(providers) {
-		<-errChan
+		if err := <-errChan; err != nil {
+			failures = append(failures, err)
+		}
+	}
+	if len(providers) > 0 && len(failures) == len(providers) {
+		return errors.Join(failures...)
 	}
 
 	return nil
+}
+
+// sessionFingerprint summarizes the parsed content of a session for callback
+// deduplication. Comparable by value.
+type sessionFingerprint struct {
+	messages     int    // total messages across all exchanges
+	contentBytes int    // total bytes of message text, tool summaries, and pre-rendered tool markdown
+	contentHash  uint64 // FNV-1a over the same content; catches edits that keep the total length identical
+}
+
+// fingerprintSession computes the dedup fingerprint for a session. Content size
+// is tracked alongside the message count because a streaming agent response can
+// grow the text of an existing message without adding new messages; the hash is
+// tracked as well because an in-place edit can change content without changing
+// its total length, and suppressing that callback would leave stale markdown.
+func fingerprintSession(session *spi.AgentChatSession) sessionFingerprint {
+	var fp sessionFingerprint
+	h := fnv.New64a()
+	// A zero byte after every part keeps part boundaries in the hash, so content
+	// shifting between adjacent parts can't collide with the original.
+	addContent := func(s string) {
+		fp.contentBytes += len(s)
+		_, _ = h.Write([]byte(s))
+		_, _ = h.Write([]byte{0})
+	}
+	for _, exchange := range session.SessionData.Exchanges {
+		fp.messages += len(exchange.Messages)
+		for _, msg := range exchange.Messages {
+			for _, part := range msg.Content {
+				addContent(part.Text)
+			}
+			if msg.Tool != nil {
+				// The summary is rendered content too (markdown <summary> tag), and a
+				// provider can update it alone — e.g. when a running tool completes —
+				// without growing any message text or formatted markdown.
+				if msg.Tool.Summary != nil {
+					addContent(*msg.Tool.Summary)
+				}
+				if msg.Tool.FormattedMarkdown != nil {
+					addContent(*msg.Tool.FormattedMarkdown)
+				}
+			}
+		}
+	}
+	fp.contentHash = h.Sum64()
+	return fp
 }
