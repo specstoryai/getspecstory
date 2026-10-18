@@ -474,6 +474,46 @@ specstory sync --output-dir C:\Temp\specstory-{workspace-hash}
 
 A separate `--specstory-dir` flag was once planned for this; it became unnecessary when `--output-dir` was extended to also redirect `.project.json` and `statistics.json` alongside the markdown output (implemented via `OutputPathConfig.GetSpecstoryDir` and `cloud.SetSpecstoryDir`).
 
+### `--project-path <path>` (hidden)
+
+**Purpose:** Tell the CLI which project it is acting on, independently of the directory it was launched from.
+
+**Why the extension needs it:** for a remote workspace the extension runs the CLI on the client with a temp `--output-dir`, so the process cwd is *not* the project. This flag supplies the real target. Identity detection then walks up from the given path rather than from cwd, and the project name becomes that path's basename.
+
+It works even for paths that do not exist locally — an SSH remote path is hashed as-is for `workspace_id`, so two different remote projects launched from the same local directory get distinct identities rather than colliding.
+
+Registered as a hidden persistent flag on the root command, so every subcommand accepts it.
+
+### `--git-origin <url>` (hidden)
+
+**Purpose:** Supply the git remote origin URL used to compute `git_id`, instead of reading `.git/config`.
+
+**Why the extension needs it:** the same remote-workspace case — the `.git/config` for a remote project is not readable from the client. Without it the project falls back to a path-based `workspace_id` and would not join up with the same repo indexed from elsewhere. The override is applied even when a `git_id` already exists.
+
+Also a hidden persistent flag on the root command.
+
+### `--config-dir <path>`
+
+**Purpose:** Relocate the *project-level* `config.toml` directory (default `./.specstory/cli`), both where it is read from and where a default is created.
+
+**Use case:** the project directory should not be written to at all.
+
+Accepted by `sync`, `run` and `watch`.
+
+### `--user-data-dir <provider_id>:<path>`
+
+**Purpose:** Point an IDE provider at a non-default install location. Repeatable, once per provider.
+
+**Use case:** portable installs, and — the one that matters here — reading a **Windows-side** IDE install from inside WSL.
+
+The path is the IDE's user-data-dir itself (the parent of the `User` directory), the same value the IDE's own `--user-data-dir` argument takes. Valid provider IDs: `cursoride`, `copilotide`, `copilotide-insiders`, `copilotide-vscodium`, `copilotide-vscodium-insiders`. If the override path does not exist, the CLI warns and falls back to the OS-default location rather than going idle.
+
+```zsh
+specstory sync --user-data-dir cursoride:/opt/cursor/data --user-data-dir copilotide:/opt/vscode/data
+```
+
+Accepted by `sync`, `check`, `list` and `watch`.
+
 ## Future Enhancements
 
 ### Accessing Remote CLI/Agent Data
@@ -495,25 +535,6 @@ To access Claude Code conversations created on SSH remote machines:
 - Windows CLI exports IDE data (current approach)
 - Separate command to fetch remote agent data via SSH
 - Merge results in extension
-
-### `--workspace-uri <uri>` Flag
-
-**Purpose:** Precisely filter to a single workspace when multiple workspaces have the same folder name.
-
-**Use case:**
-- User has `myproject` locally, in WSL, and on SSH remote (all same name)
-- Extension only wants conversations from the current workspace
-- Not from all workspaces with that name
-
-**Example:**
-```zsh
-specstory list \
-    --workspace-uri "vscode-remote://ssh-remote+server/home/user/code/myproject"
-```
-
-**Implementation:**
-1. Find all workspaces whose URI matches the provided URI
-2. Return conversations from that specific workspace
 
 ## Summary
 

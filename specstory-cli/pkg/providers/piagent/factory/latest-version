@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Latest released version of Pi (the pi coding agent).
+#
+# Channel: npm (@earendil-works/pi-coding-agent, dist-tag "latest") — the only
+# release channel; `npm install -g` is the documented install (pi.dev). Not the
+# older @mariozechner/pi-coding-agent package, which stopped at 0.73.1. The
+# package's other dist-tag, "legacy-node20", trails behind and is ignored.
+#
+# Factory SPI contract: print the current released version to stdout and exit 0.
+# Non-zero exit means "sensor failure", never "no change". Output is opaque to
+# the factory — byte-compared against the stored reading, never parsed.
+set -euo pipefail
+version=$(npm view @earendil-works/pi-coding-agent@latest version --fetch-timeout=30000 --fetch-retries=2)
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+  echo "latest-version: npm returned an empty or invalid version" >&2
+  exit 1
+fi
+printf '%s\n' "$version"

@@ -64,6 +64,8 @@ func reconstructSampleData() *schema.SessionData {
 func TestReconstructSession_WritesGlobalDB(t *testing.T) {
 	data := reconstructSampleData()
 	expected := spi.FlattenSessionData(data, "")
+	// Resumed sessions are titled with the source's first prompt.
+	const wantTitle = "What's wrong with the login flow?"
 
 	// Point the provider at temp databases instead of the live Cursor installation.
 	dbPath := createTestGlobalDB(t, map[string]string{})
@@ -94,8 +96,8 @@ func TestReconstructSession_WritesGlobalDB(t *testing.T) {
 	if !ok {
 		t.Fatalf("composer row %q not found in database after reconstruction", out.SessionID)
 	}
-	if composer.Name != "fix the login bug" {
-		t.Errorf("composer name = %q, want %q", composer.Name, "fix the login bug")
+	if composer.Name != wantTitle {
+		t.Errorf("composer name = %q, want %q", composer.Name, wantTitle)
 	}
 	if len(composer.FullConversationHeadersOnly) != len(expected) {
 		t.Errorf("composer has %d headers, want %d", len(composer.FullConversationHeadersOnly), len(expected))
@@ -153,8 +155,8 @@ func TestReconstructSession_WritesGlobalDB(t *testing.T) {
 	for _, h := range headers {
 		if h["composerId"] == out.SessionID {
 			found = true
-			if h["name"] != "fix the login bug" {
-				t.Errorf("composerHeaders entry name = %v, want %q", h["name"], "fix the login bug")
+			if h["name"] != wantTitle {
+				t.Errorf("composerHeaders entry name = %v, want %q", h["name"], wantTitle)
 			}
 			break
 		}

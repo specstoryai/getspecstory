@@ -13,7 +13,7 @@
 # Non-zero exit means "sensor failure", never "no change". Output is opaque to
 # the factory — byte-compared against the stored reading, never parsed.
 set -euo pipefail
-version=$(curl -fsSL "https://cursor.com/api/download?platform=darwin-universal&releaseTrack=stable" \
+version=$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 "https://cursor.com/api/download?platform=darwin-universal&releaseTrack=stable" \
   | jq -r '.version // empty')
 if [ -z "$version" ]; then
   echo "could not read .version from cursor.com download API" >&2

@@ -250,7 +250,7 @@ func (f *fakeProvider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error
 // invalid reconstruction target.
 func TestSupportsReconstruction(t *testing.T) {
 	registry := factory.GetRegistry()
-	for id, want := range map[string]bool{"claude": true, "codex": true, "antigravity": false} {
+	for id, want := range map[string]bool{"claude": true, "codex": true, "pi": true, "qwen": true, "cursorcloud": true, "antigravity": false} {
 		prov, err := registry.Get(id)
 		if err != nil {
 			t.Fatalf("registry.Get(%q): %v", id, err)
@@ -442,4 +442,46 @@ func TestLiveIndexerRecord(t *testing.T) {
 	var nilLI *LiveIndexer
 	nilLI.Record("claude", sess(user1))
 	nilLI.Close()
+}
+
+// byIDProvider records the cwd a by-id lookup was scoped to.
+type byIDProvider struct {
+	pathOnlyProvider
+	byIDCwd string
+}
+
+func (p *byIDProvider) GetAgentChatSession(projectPath, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
+	p.byIDCwd = projectPath
+	return p.session, nil
+}
+
+func TestLoadResumeSource(t *testing.T) {
+	want := &spi.AgentChatSession{SessionID: "bc-1"}
+	tests := []struct {
+		name       string
+		fromCwd    string
+		nativePath string
+		wantByPath bool
+		wantCwd    string
+	}{
+		{"no cwd but a native path reads by path", "", "/mirror/agents/bc-1/agent.json", true, ""},
+		{"recorded cwd keeps the by-id lookup", "/origin", "/mirror/agents/bc-1/agent.json", false, "/origin"},
+		{"neither falls back to the current directory", "", "", false, "/current"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			prov := &byIDProvider{pathOnlyProvider: pathOnlyProvider{session: want}}
+			plan := &resumePlan{from: prov, sessionID: "bc-1", fromCwd: tt.fromCwd, fromNativePath: tt.nativePath}
+			got, err := loadResumeSource(plan, "/current")
+			if err != nil || got != want {
+				t.Fatalf("got %v, %v", got, err)
+			}
+			if tt.wantByPath && (prov.byPathCalls != 1 || prov.byIDCwd != "") {
+				t.Errorf("by-path calls %d, by-id cwd %q; want one by-path read and no by-id lookup", prov.byPathCalls, prov.byIDCwd)
+			}
+			if !tt.wantByPath && (prov.byPathCalls != 0 || prov.byIDCwd != tt.wantCwd) {
+				t.Errorf("by-path calls %d, by-id cwd %q; want a by-id lookup under %q", prov.byPathCalls, prov.byIDCwd, tt.wantCwd)
+			}
+		})
+	}
 }

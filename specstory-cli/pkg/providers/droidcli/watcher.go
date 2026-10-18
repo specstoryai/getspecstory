@@ -27,7 +27,7 @@ func watchSessions(ctx context.Context, projectPath string, debugRaw bool, sessi
 		return err
 	}
 
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return fmt.Errorf("droidcli: failed to create watcher: %w", err)
 	}
@@ -195,7 +195,7 @@ func processSessionFile(filePath string, projectPath string, debugRaw bool, sess
 	}
 
 	state.lastProcessed[filePath] = modTime
-	spi.DispatchSession("droidcli", sessionCallback, chat)
+	spi.DeliverSession("droidcli", sessionCallback, chat)
 }
 
 // seedProcessedSessions marks every session already on disk as seen, without
@@ -244,7 +244,7 @@ func scanAndProcessSessions(projectPath string, debugRaw bool, sessionCallback f
 			continue
 		}
 		state.lastProcessed[file.Path] = file.ModTime
-		spi.DispatchSession("droidcli", sessionCallback, chat)
+		spi.DeliverSession("droidcli", sessionCallback, chat)
 	}
 	return nil
 }

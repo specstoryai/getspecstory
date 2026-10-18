@@ -12,6 +12,8 @@
    git push origin --tags
    ```
 4. Monitor the [GitHub Action](https://github.com/specstoryai/getspecstory/actions)
+
+   Only the one `specstory-cli/vX.Y.Z` tag is ever pushed by hand. A plain `vX.Y.Z` tag will also appear on the remote after the release is published: goreleaser is given the un-prefixed name as its current tag (it cannot parse a version out of the namespaced one), the workflow creates that tag in the runner's checkout, and GitHub records it when the release is published under that name. The GitHub release itself is named `vX.Y.Z` for the same reason.
 5. Verify the [GitHub Release](https://github.com/specstoryai/getspecstory/releases) has correct changelog
 6. Verify [homebrew-tap](https://github.com/specstoryai/homebrew-tap) was updated
 

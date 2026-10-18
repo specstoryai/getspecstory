@@ -1,10 +1,39 @@
 package geminicli
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
+
+func TestDebugRawRefreshPreservesUnownedFiles(t *testing.T) {
+	testutil.IsolateDebugDir(t)
+	session := &GeminiSession{ID: "debug-refresh", Messages: []GeminiMessage{
+		{Type: "user", Content: json.RawMessage(`"hello"`)},
+		{Type: "gemini", Content: json.RawMessage(`"world"`)},
+		{Type: "user", Content: json.RawMessage(`"more"`)},
+	}}
+	if err := writeDebugRawFiles(session); err != nil {
+		t.Fatal(err)
+	}
+	dir := spi.GetDebugDir(session.ID)
+	testutil.AssertDebugRefresh(t, dir, []string{"3.json"},
+		[]string{"session-data.json", "notes.md", "nested/notes.md"}, func() {
+			session.Messages = session.Messages[:2]
+			if err := writeDebugRawFiles(session); err != nil {
+				t.Fatal(err)
+			}
+		})
+	data, err := os.ReadFile(filepath.Join(dir, "1.json"))
+	if err != nil || !strings.Contains(string(data), "\n  \"rawContent\": \"hello\"") {
+		t.Fatalf("diagnostic content or formatting lost: %s (%v)", data, err)
+	}
+}
 
 func TestProviderGetAgentChatSessions(t *testing.T) {
 	tmp := t.TempDir()

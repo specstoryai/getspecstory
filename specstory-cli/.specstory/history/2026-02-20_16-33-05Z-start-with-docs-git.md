@@ -63,7 +63,7 @@ docs/git-provenance/systems/whogitit.md
 _**Agent (gpt-5.3-codex 2026-02-20 16:33:17Z)**_
 
 <think><details><summary>Thought Process</summary>
-**Planning file reading strategy**
+**Listing files in directory****Planning file reading strategy**
 </details></think>
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:33:17Z)**_
@@ -356,7 +356,7 @@ Output:
 _**Agent (gpt-5.3-codex 2026-02-20 16:33:43Z)**_
 
 <think><details><summary>Thought Process</summary>
-**Planning batched file reads**
+**Planning markdown reading strategy****Planning batched file reads**
 </details></think>
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:33:43Z)**_
@@ -688,7 +688,7 @@ No dedicated AI blame command. Teams can parse trailers after `git blame` identi
 _**Agent (gpt-5.3-codex 2026-02-20 16:33:56Z)**_
 
 <think><details><summary>Thought Process</summary>
-**Planning next batch exploration**
+**Planning sequential file reads****Planning next batch exploration**
 </details></think>
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:33:56Z)**_

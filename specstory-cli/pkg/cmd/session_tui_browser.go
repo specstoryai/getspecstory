@@ -167,16 +167,17 @@ func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, p
 		slog.Debug("resume: could not save prefs", "error", err)
 	}
 
-	fromCloud, fromCwd := resumeSourceForSession(store, rm.result.session)
+	fromCloud, fromCwd, fromPath := resumeSourceForSession(store, rm.result.session)
 	return &resumePlan{
-		from:      fromProv,
-		fromID:    fromID,
-		sessionID: rm.result.session.SessionID,
-		fromCwd:   fromCwd,
-		to:        toProv,
-		toID:      rm.result.targetID,
-		fromCloud: fromCloud,
-		projectID: rm.result.session.ProjectID,
+		from:           fromProv,
+		fromID:         fromID,
+		sessionID:      rm.result.session.SessionID,
+		fromCwd:        fromCwd,
+		fromNativePath: fromPath,
+		to:             toProv,
+		toID:           rm.result.targetID,
+		fromCloud:      fromCloud,
+		projectID:      rm.result.session.ProjectID,
 	}, nil
 }
 
@@ -215,36 +216,39 @@ func resumePlanFromSession(registry *factory.Registry, store *sessionindex.Store
 		return nil, utils.ValidationError{Message: fmt.Sprintf(
 			"agent %q is not installed, so it can't be a resume target.", targetID)}
 	}
-	fromCloud, fromCwd := resumeSourceForSession(store, s)
+	fromCloud, fromCwd, fromPath := resumeSourceForSession(store, s)
 	return &resumePlan{
-		from:      fromProv,
-		fromID:    s.Agent,
-		sessionID: s.SessionID,
-		fromCwd:   fromCwd,
-		to:        toProv,
-		toID:      targetID,
-		fromCloud: fromCloud,
-		projectID: s.ProjectID,
+		from:           fromProv,
+		fromID:         s.Agent,
+		sessionID:      s.SessionID,
+		fromCwd:        fromCwd,
+		fromNativePath: fromPath,
+		to:             toProv,
+		toID:           targetID,
+		fromCloud:      fromCloud,
+		projectID:      s.ProjectID,
 	}, nil
 }
 
 // resumeSourceForSession applies the selection-time guard: a cloud-badged row can be a session
 // that is ALSO present locally (e.g. a cloud search hit that local FTS didn't match). When it is,
 // prefer the local copy — an in-place resume is instant, works offline, and doesn't mint a fresh
-// reconstructed session id — over the cloud fetch/reconstruct path. Returns the fromCloud flag and
-// fromCwd for the resume plan. A soft-deleted local row does NOT count (GetSession filters it), so
+// reconstructed session id — over the cloud fetch/reconstruct path. Returns the fromCloud flag,
+// fromCwd and the native path for the resume plan. A soft-deleted local row does NOT count (GetSession filters it), so
 // a session you deleted locally still resumes from the cloud. In browse this never fires — dedup
 // already dropped any cloud row with a local twin — but cloud search can surface such a row.
-func resumeSourceForSession(store *sessionindex.Store, s *sessionindex.Session) (fromCloud bool, fromCwd string) {
+func resumeSourceForSession(store *sessionindex.Store, s *sessionindex.Session) (fromCloud bool, fromCwd, fromPath string) {
 	fromCloud = s.IsCloud
 	fromCwd = s.OriginCwd
+	fromPath = s.NativePath
 	if s.IsCloud {
 		if local, ok, err := store.GetSession(s.Agent, s.SessionID); err == nil && ok {
 			fromCloud = false
 			fromCwd = local.OriginCwd
+			fromPath = local.NativePath
 		}
 	}
-	return fromCloud, fromCwd
+	return fromCloud, fromCwd, fromPath
 }
 
 // colorForAgent returns a stable accent color per provider for the list.
@@ -258,6 +262,10 @@ func colorForAgent(id string) color.Color {
 		// Mid grey (~4.5:1 contrast on both white and black backgrounds) —
 		// Cursor's off-white brand color is invisible on light terminal themes.
 		return lipgloss.Color("#767676")
+	case "cursorcloud":
+		// A readable blue, distinct from the grey of the two local Cursor
+		// providers so cloud sessions stand out in a mixed list.
+		return lipgloss.Color("#4F8EF7")
 	case "gemini":
 		return lipgloss.Color("#3781DE") // blue (matches antigravity)
 	case "droid":
@@ -266,8 +274,20 @@ func colorForAgent(id string) color.Color {
 		return lipgloss.Color("#4C59FA") // blue-violet
 	case "antigravity":
 		return lipgloss.Color("#3781DE") // blue
+	case "grok":
+		// xAI's black and white brand is invisible on one terminal theme or the
+		// other, so use a distinct readable accent instead.
+		return lipgloss.Color("#D6336C") // magenta
 	case "muse":
 		return lipgloss.Color("#0866FF") // Meta blue
+	case "opencode":
+		// OpenCode's theme orange (orange-400); its lighter peach accent is
+		// unreadable on light terminal backgrounds.
+		return lipgloss.Color("#b67c56")
+	case "pi":
+		return lipgloss.Color("#8B5CF6") // violet
+	case "qwen":
+		return lipgloss.Color("#0A2DFF") // Qwen blue
 	default:
 		return lipgloss.Color("250")
 	}

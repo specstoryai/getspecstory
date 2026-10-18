@@ -4457,7 +4457,7 @@ _**Agent (claude-opus-4-6 2026-02-23 12:05:30Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
     85→
     86→1. **User-level config**: `~/.specstory/cli/config.toml` - applies to all projects
     87→2. **Project-level config**: `.specstory/cli/config.toml` - applies only to the current project
@@ -4538,7 +4538,7 @@ _**Agent (claude-opus-4-6 2026-02-23 12:05:30Z)**_
    162→
    163→### Building from source
    164→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-23 12:05:32Z)**_
@@ -7505,7 +7505,7 @@ _**Agent (claude-opus-4-6 2026-02-23 13:16:27Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
     94→### Example Configuration
     95→
     96→```toml
@@ -7561,7 +7561,7 @@ _**Agent (claude-opus-4-6 2026-02-23 13:16:27Z)**_
    146→| `[logging]` | `silent` | `false` | Suppress non-error output |
    147→| `[analytics]` | `enabled` | `true` | Send anonymous usage analytics |
    148→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-23 13:16:41Z)**_
@@ -7681,7 +7681,7 @@ _**Agent (claude-opus-4-6 2026-02-23 13:17:45Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
     94→### Example Configuration
     95→
     96→```toml
@@ -7742,7 +7742,7 @@ _**Agent (claude-opus-4-6 2026-02-23 13:17:45Z)**_
    151→- macOS development environment
    152→- Go 1.25.1 or later
    153→- golangci-lint, latest version
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-23 13:17:49Z)**_
@@ -7867,7 +7867,7 @@ _**Agent (claude-opus-4-6 2026-02-23 13:20:12Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
     94→### Example Configuration
     95→
     96→```toml
@@ -7914,7 +7914,7 @@ _**Agent (claude-opus-4-6 2026-02-23 13:20:12Z)**_
    137→gemini_cmd = "gemini"
    138→```
    139→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-23 13:20:27Z)**_

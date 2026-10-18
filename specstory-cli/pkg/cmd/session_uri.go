@@ -38,7 +38,8 @@ type sessionURI struct {
 // xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx. Both are matched case-insensitively.
 var (
 	projectIDRe = regexp.MustCompile(`(?i)^[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}$`)
-	sessionIDRe = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+	// The optional bc- prefix is a Cursor Cloud Agent id, which is "bc-" plus a UUID.
+	sessionIDRe = regexp.MustCompile(`(?i)^(bc-)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 )
 
 // parseSessionURI parses the three accepted --session forms:

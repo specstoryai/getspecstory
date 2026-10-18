@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -70,5 +72,41 @@ func TestClassifyCheckError(t *testing.T) {
 				t.Errorf("ClassifyCheckError(%v) = %q, want %q", tt.err, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestCheckLookupAndExecutionClassification(t *testing.T) {
+	if got := ClassifyCheckError(fmt.Errorf("storage: %w", os.ErrNotExist)); got != CheckErrorNotFound {
+		t.Fatalf("wrapped missing storage = %q", got)
+	}
+	if got := ClassifyCheckError(fmt.Errorf("lookup: %w", exec.ErrNotFound)); got != CheckErrorNotFound {
+		t.Fatalf("wrapped missing executable = %q", got)
+	}
+	if got := ClassifyCheckExecutionError(&os.PathError{Op: "fork/exec", Path: "/agent", Err: os.ErrNotExist}); got != CheckErrorUnknown {
+		t.Fatalf("missing interpreter = %q, want unknown", got)
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix PATH permission semantics")
+	}
+	dir := t.TempDir()
+	t.Setenv("PATH", dir)
+	path := filepath.Join(dir, "agent")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := LookPathForCheck("agent")
+	if got := ClassifyCheckError(err); got != CheckErrorPermissionDenied {
+		t.Fatalf("non-executable PATH candidate = %q (%v), want permission_denied", got, err)
+	}
+	// The denied candidate must not mask a working installation later on PATH.
+	runnableDir := t.TempDir()
+	runnable := filepath.Join(runnableDir, "agent")
+	if err := os.WriteFile(runnable, []byte("#!/bin/sh\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+runnableDir)
+	got, err := LookPathForCheck("agent")
+	if err != nil || got != runnable {
+		t.Fatalf("lookup = %q, %v; want %q", got, err, runnable)
 	}
 }

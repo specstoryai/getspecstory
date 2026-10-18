@@ -1,0 +1,14 @@
+{
+  "info": {
+    "id": "aaaaaaaa-bbbb-7ccc-8ddd-eeeeeeeeeeee",
+    "cwd": "/Users/dev/project"
+  },
+  "session_summary": "Edit calc and run tests",
+  "generated_title": "Edit calc and run tests",
+  "created_at": "2026-08-12T20:00:00.000000Z",
+  "updated_at": "2026-08-12T20:05:00.000000Z",
+  "num_messages": 12,
+  "num_chat_messages": 12,
+  "current_model_id": "grok-4.6",
+  "chat_format_version": 1
+}

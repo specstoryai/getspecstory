@@ -1236,7 +1236,7 @@ _**Agent (claude-fable-5 2026-07-20 13:19:31Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
 203	### Example Configuration
 204	
 205	```toml
@@ -1352,7 +1352,7 @@ _**Agent (claude-fable-5 2026-07-20 13:19:31Z)**_
 315	
 316	SpecStory CLI collects anonymous usage analytics to PostHog to help improve the product. The following events are tracked:
 317
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-07-20 13:19:39Z)**_

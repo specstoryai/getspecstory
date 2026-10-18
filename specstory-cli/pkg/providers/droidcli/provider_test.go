@@ -1,11 +1,50 @@
 package droidcli
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
+
+func TestDebugRawRefreshPreservesNativeRecordsAndUnownedFiles(t *testing.T) {
+	testutil.IsolateDebugDir(t)
+	path := filepath.Join(t.TempDir(), "session.jsonl")
+	header := `{"type":"session_start","id":"debug-refresh"}`
+	future := `{"type":"future","z":9007199254740993,"a":1.234567890123456789}`
+	if err := os.WriteFile(path, []byte(header+"\n{broken\n"+future+"\n"+future+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	session, err := parseFactorySession(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeFactoryDebugRaw(session); err != nil {
+		t.Fatal(err)
+	}
+	dir := spi.GetDebugDir(session.ID)
+	testutil.AssertDebugRefresh(t, dir, []string{"3.json"},
+		[]string{"session-data.json", "notes.md", "nested/notes.md"}, func() {
+			session.RawData = header + "\n" + future + "\n"
+			if err := writeFactoryDebugRaw(session); err != nil {
+				t.Fatal(err)
+			}
+		})
+	data, err := os.ReadFile(filepath.Join(dir, "2.json"))
+	if err != nil || !strings.Contains(string(data), "\n  \"z\": 9007199254740993") {
+		t.Fatalf("native record not pretty-printed: %s (%v)", data, err)
+	}
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, data); err != nil || compact.String() != future {
+		t.Fatalf("native order or precision changed: %s (%v)", data, err)
+	}
+}
 
 func TestSessionMentionsProject(t *testing.T) {
 	tests := []struct {

@@ -1,9 +1,38 @@
 package claudecode
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
+
+func TestDebugRawRefreshPreservesUnownedFiles(t *testing.T) {
+	testutil.IsolateDebugDir(t)
+	session := Session{SessionUuid: "debug-refresh", Records: []JSONLRecord{
+		{Data: map[string]interface{}{"isSidechain": true, "unknownNative": "keep"}},
+		{Data: map[string]interface{}{"type": "user"}},
+		{Data: map[string]interface{}{"type": "assistant"}},
+	}}
+	if err := writeDebugRawFiles(session); err != nil {
+		t.Fatal(err)
+	}
+	dir := spi.GetDebugDir(session.SessionUuid)
+	testutil.AssertDebugRefresh(t, dir, []string{"3.json"},
+		[]string{"session-data.json", "notes.md", "nested/notes.md"}, func() {
+			session.Records = session.Records[:2]
+			if err := writeDebugRawFiles(session); err != nil {
+				t.Fatal(err)
+			}
+		})
+	data, err := os.ReadFile(filepath.Join(dir, "1.json"))
+	if err != nil || !strings.Contains(string(data), "\n  \"unknownNative\": \"keep\"") {
+		t.Fatalf("warmup record or native fields lost: %s (%v)", data, err)
+	}
+}
 
 // TestFilterWarmupMessages tests warmup message filtering
 func TestFilterWarmupMessages(t *testing.T) {

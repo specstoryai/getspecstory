@@ -1,6 +1,7 @@
 package antigravitycli
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -64,7 +65,10 @@ func convertToAgentSession(session *agSession, workspaceRoot string, debugRaw bo
 	}
 
 	if debugRaw {
-		writeDebugRaw(session)
+		if err := writeDebugRaw(session); err != nil {
+			slog.Warn("antigravity: failed to write debug raw files", "conversationId", session.ConversationID,
+				"path", spi.GetDebugDir(session.ConversationID), "error", err)
+		}
 	}
 
 	return &spi.AgentChatSession{
@@ -606,21 +610,36 @@ func msEpochToRFC3339(ms int64) string {
 	return time.UnixMilli(ms).UTC().Format(time.RFC3339)
 }
 
-// writeDebugRaw writes the raw transcript to the debug directory when --debug-raw
-// is set. The unified session-data.json is written centrally by the CLI.
-func writeDebugRaw(session *agSession) {
-	if session == nil || session.RawData == "" {
-		return
+// writeDebugRaw expands the accepted transcript in step order and preserves
+// async task logs by native filename. Everything comes from the parse snapshot.
+func writeDebugRaw(session *agSession) error {
+	if session == nil {
+		return nil
 	}
 	dir := spi.GetDebugDir(session.ConversationID)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		slog.Debug("antigravity: unable to create debug dir", "error", err)
-		return
+	records := make([]json.RawMessage, 0, len(session.Steps))
+	for _, step := range session.Steps {
+		if len(step.RawRecord) > 0 {
+			records = append(records, step.RawRecord)
+		}
+	}
+	if err := spi.WriteDebugRecords(dir, records); err != nil {
+		return err
 	}
 	rawPath := filepath.Join(dir, "raw-transcript.jsonl")
 	if err := os.WriteFile(rawPath, []byte(session.RawData), 0o644); err != nil {
-		slog.Debug("antigravity: failed to write debug raw file", "path", rawPath, "error", err)
-		return
+		return fmt.Errorf("write transcript %s: %w", rawPath, err)
+	}
+	tasksDir := filepath.Join(dir, tasksDirName)
+	if err := spi.PrepareDebugDir(tasksDir, isTaskLogName); err != nil {
+		return err
+	}
+	for name, data := range session.TaskLogs {
+		path := filepath.Join(tasksDir, name)
+		if err := os.WriteFile(path, data, 0o644); err != nil {
+			return fmt.Errorf("write task log %s: %w", path, err)
+		}
 	}
 	slog.Debug("antigravity: wrote debug raw file", "conversationId", session.ConversationID, "path", rawPath)
+	return nil
 }

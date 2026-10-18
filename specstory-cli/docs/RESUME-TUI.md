@@ -1,122 +1,117 @@
 # `specstory resume` — the picker TUI
 
-The interactive session picker that makes SpecStory the best way to resume a coding-agent
-session. It reads the [`sessions.db` index](SESSIONS-DB.md) and launches the chosen session
-via the existing reconstruct + `ExecAgentAndWatch` plumbing (see
-[SESSION-PORTABILITY.md](SESSION-PORTABILITY.md)). This doc covers the UX and the build plan;
-it replaces the old plain numbered-menu selection in `pkg/cmd/resume.go`.
+The interactive session picker. It reads the [`sessions.db` index](SESSIONS-DB.md), blends in
+sessions from SpecStory Cloud, and launches the chosen one via the reconstruct +
+`ExecAgentAndWatch` plumbing (see [SESSION-PORTABILITY.md](SESSION-PORTABILITY.md)).
 
 > **Shared model.** `resume` and [`search`](SESSION-SEARCH.md) are the **same** Bubble Tea
 > model (`sessionTUI` in `pkg/cmd/session_tui.go`), differing only in entry point: `resume`
 > opens on the current project's session list; `search` opens straight into the all-projects
-> FTS with the input focused. Keys, preview, agent filter, dense/sparse, and the target-agent
-> step are identical by construction.
+> FTS with the input focused. Everything below is therefore true of both.
 
-## Decisions (ratified)
+This document records the **design decisions and their reasons** — the things the code shows
+*what* but not *why*. For how the index behind it is built, see
+[SESSIONS-DB.md](SESSIONS-DB.md); for the cloud blend's design, see
+[CLOUD-RESUME.md](CLOUD-RESUME.md).
 
-- **TUI stack:** Bubble Tea v2 + Bubbles v2 + Lipgloss v2 (the `charm.land/*/v2` modules —
-  latest, and aligned with the `lipgloss/v2` already pulled in by `fang`). Not the v1 stack
-  stoa-cli pins; we use the latest.
-- **No source-agent step.** The picker shows **all sessions across all agents** for the
-  current project by default, each row tagged with its agent. (The old flow's "pick the source
-  agent first" is gone.)
-- **Empty current project → all-projects view.** If the current project has no sessions, skip
-  the project list and open directly in the all-projects view.
-- **Empty/missing `sessions.db` → reindex first.** If the index doesn't exist, run `reindex`
-  (with its normal progress UI) and then continue straight into the picker (don't exit).
-- **Dense / sparse view modes.** Dense = more sessions, less per-session detail; sparse = more
-  detail, fewer sessions. Toggle is easy/obvious; the choice is **remembered** in
-  `~/.specstory/cli/config.toml` `[resume] view_mode` (via `config.SaveResumePrefs`).
-- **Preview (`space`)** opens a scrollable, **glamour-rendered** reader of the session — the
-  real specstory markdown (`session.GenerateMarkdownFromAgentSession` → `glamour`), falling
-  back to the stored FTS body (`Store.SessionBody`) for sessions that can't be re-parsed (no
-  resolvable cwd, e.g. Cursor). Identical to what `search` shows. `r` resumes from the preview.
-- **All-projects view rolls up by relative date** (Today · Yesterday · Previous 7 days ·
-  Previous 30 days · Older) by each project's latest activity, showing per-agent session counts
-  (`Store.ListProjects`); the user expands a project to see its sessions.
-- **`r` resumes; `enter` is deliberately inert in the lists.** Resuming launches an agent, so
-  it must be an explicit keystroke (`r`) — a stray `↵` can't accidentally start a session. The
-  one place `↵` *does* commit is the final target-agent step (an explicit confirmation screen).
-- **`d` deletes (soft), behind a `y/N` confirmation.** In a session list (or a cross-project
-  search hit) `d` removes the highlighted **session**; in the all-projects browser it removes
-  the highlighted **project** (all its sessions at once). This is a *soft delete*: the native
-  session files on disk are untouched, but the row is tombstoned (`sessions.deleted = 1`, FTS
-  body stripped) so it vanishes from resume/search and — crucially — **is not re-added by any
-  later `reindex`/warm or live write** (see the tombstone guard in
-  [SESSIONS-DB.md](SESSIONS-DB.md)). Deleting a project does **not** blacklist it: new sessions
-  started there later index normally. The only way to restore a tombstoned session is to delete
-  `~/.specstory/sessions.db` and rebuild it with `specstory reindex`. The confirmation screen
-  spells all of this out; every key other than `y` cancels, so the destructive path is never
-  the default.
-- **Target agent (last step).** `specstory resume` lets the user pick the target agent as the
-  final step; `specstory resume <agent>` pre-selects it. The **last-resumed agent** is the
-  default selection there, remembered in `[resume] last_agent`.
-- **`/` is always session full-text search; only its scope changes.** In a session list `/`
-  is FTS scoped to that project; in the all-projects browser `/` is FTS across *all* projects
-  (a flat results list, project shown per row, `r` resumes a hit).
-  Project-name filtering is a *separate* key, **`p`** (browser only) — never a single box that
-  mode-switches between the two.
-- **Search results show the match, not the title.** Each result row renders the FTS
-  `snippet()` (matched terms highlighted) in place of the session title once the visible-row
-  snippet fetch lands, so you see *why* it matched without making the main search pay for every
-  match. The query runs **async + debounced** (`searchDebounceMsg`/`searchResultMsg`, ~50ms)
-  off the UI thread, `LIMIT`-bounded, newest-first, and snippet-free; snippets are fetched
-  lazily for the visible window.
+## Keymap
 
-## Data foundation (built)
+| Key | Action |
+|---|---|
+| `↑` `↓` / `k` `j` | move · `pgup`/`pgdn`, `g`/`home`, `G`/`end` also work |
+| `r` | **resume** the highlighted session |
+| `space` | preview (glamour-rendered). `enter` is silently aliased to it |
+| `/` | full-text search — scope follows the view (see below) |
+| `a` | cycle the agent filter |
+| `m` | cycle the machine filter (all → this machine → each remote machine) |
+| `v` | toggle dense / sparse |
+| `d` | soft-delete, behind a `y`/`N` confirmation |
+| `tab` | toggle between the current project and the all-projects browser |
+| `p` | filter the project list by name (browser only) |
+| `u` | open the upgrade page — only when the Pro nudge is showing |
+| `esc` | back one level |
+| `q` / `ctrl+c` | quit |
 
-- `config`: `[resume]` section (`view_mode`, `last_agent`), `GetResumeViewMode()` /
-  `GetResumeLastAgent()`, and `SaveResumePrefs()` — a section-preserving writer that upserts
-  only `[resume]` so the self-documenting template's comments survive.
-- `sessionindex`: `ListByProject(projectID)` (sessions, newest first), `ListProjects()`
-  (date-sortable rollup with per-agent counts), `SessionBody(agent, sessionID)` (preview),
-  `Search(query)` (global FTS), `SoftDeleteSession(agent, id)` / `SoftDeleteProject(projectID)`
-  (the `d` tombstone). All tested.
+Skipping the picker entirely — `specstory resume --session <uri>` — is documented in the
+README; the URI forms and the local-first resolution order are
+[CLOUD-RESUME.md](CLOUD-RESUME.md)'s Chunk 5.
 
-## Build plan
+## Why the interaction works the way it does
 
-### Stage A — current-project picker **(built)**
+- **`r` resumes; `enter` is deliberately inert as a resume trigger.** Resuming launches an
+  agent, so it must be an explicit, unusual keystroke — a stray `↵` must never start a
+  session. `enter` is aliased to `space` (preview) instead, so pressing it does something
+  harmless rather than nothing. The one place `↵` *does* commit is the final target-agent
+  step, which is an explicit confirmation screen.
 
-`pkg/cmd/session_tui.go` — a Bubble Tea v2 model wired into `resume.go`:
+- **`d` is a soft delete, and the tombstone is the point.** The native session files on disk
+  are never touched; the index row is tombstoned (`sessions.deleted = 1`, FTS body stripped).
+  A plain `DELETE` would be undone by the very next `reindex` or live write, because the
+  native file is still there to be re-enumerated. The tombstone makes the delete *stick* —
+  see the write-path guard in [SESSIONS-DB.md](SESSIONS-DB.md#soft-delete-the-d-key).
+  Consequences worth knowing:
+  - In a session list (or a search hit) `d` removes the **session**; in the all-projects
+    browser it removes the **project** — all its sessions at once.
+  - Deleting a project does **not** blacklist it. New sessions started there later index
+    normally.
+  - The only way back is deleting `~/.specstory/sessions.db` and running `specstory reindex`.
+    The confirmation screen spells this out, and every key other than `y` cancels, so the
+    destructive path is never the default.
 
-- Mixed-agent session list for the current project (`ComputeProjectID(cwd)` →
-  `ListByProject`), newest first, colored agent tags.
-- Agent filter (`a` cycles all → each present agent); dense/sparse toggle (`v`, persisted
-  via `SaveResumePrefs`); glamour preview (`space`); full-text search (`/` → FTS, scoped to
-  the project).
-- Missing/empty `sessions.db` → `reindex` (normal progress UI) then continue.
-- Resume a session (`r`) → target-agent step (pre-selected by `resume <agent>`; else the
-  last-resumed agent; else the session's own agent) → hands off to the existing
-  `prepareResumeTarget` + `ExecAgentAndWatch`.
-- Keys: `↑↓`/`jk` move · `r` resume · `space` preview · `/` search · `a` agent · `d` delete
-  (soft, confirmed) · `v` dense/sparse · `tab` all-projects · `q`/`esc` quit. (`↵` is inert in
-  the list.)
+- **`/` is always session full-text search; only its scope changes.** In a session list it is
+  FTS scoped to that project; in the all-projects browser it is FTS across every project (a
+  flat result list, project shown per row). Filtering the *project list by name* is a
+  separate key, **`p`** — deliberately not one box that mode-switches between two different
+  kinds of search, which would make the same keystroke mean different things depending on
+  invisible state.
 
-**Deferred to Stage B / follow-up:** empty current project currently shows a message rather
-than jumping to all-projects (that view *is* Stage B); the `tab` scope toggle; and persisting
-the view-mode on cancel (today it saves only on a committed resume). The interactive UX itself
-is validated by running it in a real terminal (it can't be exercised headless).
+- **Search results show the match, not the title.** Each row renders the FTS `snippet()` with
+  matched terms highlighted, so you see *why* it matched. The query runs async and debounced
+  off the UI thread, `LIMIT`-bounded and newest-first; snippets are fetched lazily for just
+  the visible window, so the main search never pays for every match.
 
-### Stage B — all-projects browser **(built)**
+- **Preview falls back when a session can't be re-parsed.** `space` renders the real
+  SpecStory markdown (`session.GenerateMarkdownFromAgentSession` → `glamour`). When the
+  session has no resolvable cwd — Cursor CLI being the case that motivated this — it falls
+  back to the stored FTS body (`Store.SessionBody`) rather than showing nothing.
 
-- A `modeProjects` screen: the `ListProjects` rollup grouped by relative date buckets
-  (Today · Yesterday · Previous 7 days · Previous 30 days · Older) by each project's latest
-  activity, each row showing the project name, colored per-agent count chips, and relative
-  time. `↵` drills into a project's session list (the Stage A list, scoped); `esc`/`tab`
-  returns to the browser.
-- **Scope toggle:** `tab` from the home session list opens the browser; `tab` (or `esc`)
-  from the browser returns to the current project.
-- **Empty current project → browser:** the picker opens directly in `modeProjects`.
-- **Search:** `/` in the browser runs **session FTS across all projects** → a flat results
-  list (agent · time · project · highlighted snippet); `r` resumes a hit, `space` previews it,
-  `d` soft-deletes it, `a`/`v` filter and toggle density, `esc` back to the rollup. `p` filters
-  the **project list by name**; in the rollup, `d` soft-deletes the highlighted **project**. (`/` in a drilled-in session list stays project-scoped FTS — same key, scope
-  follows the view. This same screen, entered directly, *is* `specstory search`.)
-- Header reflects scope: `project: <name>` vs `all projects`. The whole-index empty case
-  (nothing indexed at all) prints a hint instead of opening an empty browser.
+- **No source-agent step.** The picker shows all sessions across all agents for the current
+  project, each row tagged with its agent. Choosing the *target* agent is the last step, not
+  the first: `specstory resume <agent>` pre-selects it, otherwise the default is the
+  last-resumed agent (remembered in `[resume] last_agent`), falling back to the session's own
+  agent.
 
-## Out of scope (here)
+- **Filters are client-side re-filters, not re-queries.** Both `a` and `m` re-filter already
+  cached rows. That keeps them instant and, importantly, keeps them working when the cloud
+  half of a blended list is unreachable.
 
-- Reconstruction / launch plumbing — unchanged (`prepareResumeTarget`, `ExecAgentAndWatch`).
-- Index population / freshness — see [SESSIONS-DB.md](SESSIONS-DB.md). `resume` is one of the
-  staleness-trigger occasions, handled in the warm-keeping thread.
+- **The machine filter's "this machine" entry is identity-based, not local-index-based.** It
+  covers local rows *plus* cloud rows whose `deviceId` matches this machine — so sessions
+  this machine synced and then pruned locally still appear under it. See
+  [CLOUD-RESUME.md](CLOUD-RESUME.md) D15.
+
+- **Dense / sparse is remembered.** Dense shows more sessions with less detail each; sparse
+  the reverse. The choice persists in `~/.specstory/cli/config.toml` `[resume] view_mode` via
+  `config.SaveResumePrefs`, a section-preserving writer that upserts only `[resume]` so the
+  config template's explanatory comments survive.
+
+- **Missing index is recovered, not reported.** If `sessions.db` doesn't exist the picker
+  runs `reindex` with its normal progress UI and then continues straight into the picker,
+  rather than exiting with an error telling the user to run a command.
+
+- **Empty current project opens the browser.** If the current project has no sessions there is
+  nothing to show, so the picker opens directly in the all-projects view instead of an empty
+  list.
+
+- **The all-projects view rolls up by relative date** (Today · Yesterday · Previous 7 days ·
+  Previous 30 days · Older) on each project's latest activity, with per-agent count chips.
+  Sorting by name would bury what you were just working on.
+
+## Out of scope here
+
+- Reconstruction and launch plumbing — `prepareResumeTarget`, `ExecAgentAndWatch`. See
+  [SESSION-PORTABILITY.md](SESSION-PORTABILITY.md).
+- Index population and freshness — see [SESSIONS-DB.md](SESSIONS-DB.md). `resume` is one of
+  the staleness-trigger occasions, handled by the background warm.
+- The cloud blend's design (eligibility gating, dedup, the async supplement model) — see
+  [CLOUD-RESUME.md](CLOUD-RESUME.md).

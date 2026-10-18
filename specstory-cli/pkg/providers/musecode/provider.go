@@ -3,7 +3,6 @@ package musecode
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -49,27 +48,29 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 
 	slog.Info("Check: verifying Muse Code installation", "command", cmdName, "customCommand", isCustom)
 
-	resolvedPath, err := exec.LookPath(cmdName)
+	resolvedPath, err := spi.LookPathForCheck(cmdName)
 	if err != nil {
-		slog.Info("Check: binary not found on PATH", "command", cmdName, "error", err)
-		errorMessage := buildMuseCheckErrorMessage(spi.CheckErrorNotFound, cmdName, isCustom, "")
-		analytics.TrackCheckFailure(attempt, spi.CheckErrorNotFound, err.Error(), "")
+		errorType := spi.ClassifyCheckError(err)
+		slog.Info("Check: binary lookup failed", "command", cmdName, "error", err)
+		errorMessage := buildMuseCheckErrorMessage(errorType, cmdName, isCustom, "")
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Location:     "",
 			ErrorMessage: errorMessage,
 		}
 	}
 	attempt.ResolvedPath = resolvedPath
 
-	cmd := exec.Command(cmdName, versionFlag)
+	cmd := exec.Command(resolvedPath, versionFlag)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		errorType := spi.ClassifyCheckError(err)
+		errorType := spi.ClassifyCheckExecutionError(err)
 		stderrOutput := strings.TrimSpace(stderr.String())
 		slog.Info("Check: version probe failed",
 			"resolved", resolvedPath,
@@ -81,6 +82,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
 		}
@@ -276,18 +278,17 @@ func convertToAgentChatSession(session *MuseSession, workspaceRoot string, debug
 	slug := museSessionSlug(session)
 	sessionData.Slug = slug
 
-	// Raw data: the original JSONL transcript
-	rawData, err := os.ReadFile(session.FilePath)
-	if err != nil {
-		slog.Debug("convertToAgentChatSession: failed to read raw transcript",
-			"path", session.FilePath, "error", err)
-		rawData = nil
+	// Use the parsing snapshot: a live transcript can grow before conversion.
+	var rawData strings.Builder
+	for _, record := range session.RawRecords {
+		rawData.Write(record)
 	}
 
 	if debugRaw {
 		if err := writeDebugRawFiles(session); err != nil {
-			slog.Debug("convertToAgentChatSession: failed to write debug files",
+			slog.Warn("convertToAgentChatSession: failed to write debug files",
 				"sessionId", session.ID,
+				"path", spi.GetDebugDir(session.ID),
 				"error", err)
 		}
 	}
@@ -297,7 +298,7 @@ func convertToAgentChatSession(session *MuseSession, workspaceRoot string, debug
 		CreatedAt:   session.StartTime,
 		Slug:        slug,
 		SessionData: sessionData,
-		RawData:     string(rawData),
+		RawData:     rawData.String(),
 	}
 }
 
@@ -312,32 +313,10 @@ func museSessionSlug(session *MuseSession) string {
 	return "muse-session"
 }
 
-// writeDebugRawFiles writes debug JSON files for a Muse Code session.
-// Each conversation event is written as a numbered JSON file in
-// .specstory/debug/<session-id>/. Only conversation events are written: the
-// telemetry and diagnostics records the parser drops are noise for debugging
-// markdown generation.
+// writeDebugRawFiles preserves native envelopes in source order, including
+// metadata, telemetry, and task streams omitted from the rendered conversation.
 func writeDebugRawFiles(session *MuseSession) error {
-	debugDir := spi.GetDebugDir(session.ID)
-	if err := os.MkdirAll(debugDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create debug dir: %w", err)
-	}
-
-	for idx := range session.Events {
-		number := idx + 1
-		data, err := json.MarshalIndent(session.Events[idx], "", "  ")
-		if err != nil {
-			slog.Debug("writeDebugRawFiles: failed to marshal", "index", number, "error", err)
-			continue
-		}
-
-		filename := filepath.Join(debugDir, fmt.Sprintf("%d.json", number))
-		if err := os.WriteFile(filename, data, 0o644); err != nil {
-			slog.Debug("writeDebugRawFiles: failed to write", "index", number, "error", err)
-			continue
-		}
-	}
-	return nil
+	return spi.WriteDebugRecords(spi.GetDebugDir(session.ID), session.RawRecords)
 }
 
 // ListAgentChatSessions retrieves lightweight session metadata without full

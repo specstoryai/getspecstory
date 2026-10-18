@@ -12,18 +12,23 @@ type CheckAttempt struct {
 	CustomCommand bool   // whether the command came from user configuration rather than PATH
 	CommandPath   string // the command as configured or discovered, before resolution
 	ResolvedPath  string // absolute path the command resolved to; empty if it never resolved
+	Location      string // IDE store location; empty for binary probes
 	VersionFlag   string // flag used to probe the version, e.g. "--version"
 }
 
 // properties renders the fields common to both check outcomes.
 func (a CheckAttempt) properties() Properties {
-	return Properties{
+	props := Properties{
 		"provider":       a.Provider,
 		"custom_command": a.CustomCommand,
 		"command_path":   a.CommandPath,
 		"resolved_path":  a.ResolvedPath,
 		"version_flag":   a.VersionFlag,
 	}
+	if a.Location != "" {
+		props["location"] = a.Location
+	}
+	return props
 }
 
 // TrackCheckSuccess reports an agent installation check that resolved the

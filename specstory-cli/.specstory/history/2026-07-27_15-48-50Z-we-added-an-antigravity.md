@@ -615,7 +615,7 @@ Read antigravity skills doc
 
 `sed -n '1,60p' ~/.gemini/antigravity-cli/builtin/skills/agy-customizations/docs/skills.md; echo "=== GLOBAL SECTION ==="; grep -n -A6 -i "global" ~/.gemini/antigravity-cli/builtin/skills/agy-customizations/docs/skills.md | head -60`
 
-```text
+````text
 # Workspace Skills
 
 Skills are modular packages of knowledge and procedures that extend the agent's
@@ -677,7 +677,7 @@ Provide clear, step-by-step instructions for the agent here.
     `references/` subdirectory for bulky documentation and link to it from
     `SKILL.md`. The agent will only read those reference files if it needs them,
 === GLOBAL SECTION ===
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-07-27 15:49:51Z)**_
@@ -1627,7 +1627,7 @@ _**Agent (claude-opus-5 2026-07-27 16:16:13Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
 148	#   • Run Activity — see past runs, kick one off (`m`), and watch it live.
 149	specstory skills
 150	```
@@ -1642,7 +1642,7 @@ _**Agent (claude-opus-5 2026-07-27 16:16:13Z)**_
 159	
 160	```zsh
 161	specstory skills list --json                 # browse the library + local install state
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-07-27 16:16:20Z)**_

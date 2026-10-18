@@ -1,13 +1,77 @@
 package deepseektui
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
+
+func TestDebugRawPrettyPrintsNativeSnapshot(t *testing.T) {
+	testutil.IsolateDebugDir(t)
+	path := filepath.Join(t.TempDir(), "session.json")
+	native := `{"metadata":{"id":"pretty","created_at":"2026-09-18T12:00:00Z","workspace":"/project","unknownHeader":true},"messages":[{"role":"user","content":[{"type":"text","text":"hello","unknownContent":9007199254740993}]}],"unknownNative":{"keep":true}}`
+	if err := os.WriteFile(path, []byte(native), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	session, err := parseSessionFile(path, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chat := convertToAgentSession(session, "/project", false); chat == nil || chat.RawData != native {
+		t.Fatal("conversion did not retain native snapshot")
+	}
+	dir := spi.GetDebugDir("pretty")
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("debug-disabled conversion created output: %v", err)
+	}
+	// Changing the source after parsing must not change this export.
+	if err := os.WriteFile(path, []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if chat := convertToAgentSession(session, "/project", true); chat == nil || chat.RawData != native {
+		t.Fatal("debug conversion changed native snapshot")
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "raw-session.json"))
+	if err != nil || !bytes.Contains(data, []byte("\n  \"metadata\": {")) {
+		t.Fatalf("not pretty printed: %s (%v)", data, err)
+	}
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, data); err != nil || compact.String() != native {
+		t.Fatalf("pretty printing changed native data: %s (%v)", data, err)
+	}
+}
+
+func TestDebugRawFailureDoesNotPreventConversion(t *testing.T) {
+	testutil.IsolateDebugDir(t)
+	path := filepath.Join(t.TempDir(), "session.json")
+	native := `{"metadata":{"id":"write-error","created_at":"2026-09-18T12:00:00Z","workspace":"/project"},"messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`
+	if err := os.WriteFile(path, []byte(native), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	session, err := parseSessionFile(path, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A file at the directory path makes the writer fail on every platform.
+	dir := spi.GetDebugDir(session.Metadata.ID)
+	if err := os.WriteFile(dir, []byte("blocked"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeDebugRaw(session); err == nil || !strings.Contains(err.Error(), dir) {
+		t.Fatalf("expected writer error with directory context, got %v", err)
+	}
+	if chat := convertToAgentSession(session, "/project", true); chat == nil || chat.RawData != native {
+		t.Fatal("debug failure prevented conversion")
+	}
+}
 
 // TestBuildExchanges_DeterministicTimestamps: re-parsing the same session must
 // produce identical EndTimes. Fix: buildExchanges uses UpdatedAt (fallback

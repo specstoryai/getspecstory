@@ -1,7 +1,9 @@
 package copilotide
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -106,6 +108,39 @@ func GetWorkspaceStoragePath(variant Variant) string {
 // VS Code variant. Returns empty string if the directory doesn't exist.
 func (p *Provider) workspaceStoragePath() string {
 	return GetWorkspaceStoragePath(p.variant)
+}
+
+// checkWorkspaceStorage preserves filesystem errors so Check can distinguish an
+// absent optional IDE from storage that exists but cannot be read.
+func checkWorkspaceStorage(variant Variant) (string, error) {
+	path := workspaceStorageRoot(variant)
+	if path == "" {
+		return "", fmt.Errorf("cannot resolve workspace storage directory for %s", variant.AppName)
+	}
+	dir, err := os.Open(path)
+	if err != nil {
+		return path, err
+	}
+	defer func() {
+		if err := dir.Close(); err != nil {
+			slog.Warn("Failed to close workspace storage during check", "path", path, "error", err)
+		}
+	}()
+	// Windows can report "path not found" when ReadDir is called on a regular
+	// file. Check the type first so invalid storage is not classified as absent.
+	info, err := dir.Stat()
+	if err != nil {
+		return path, err
+	}
+	if !info.IsDir() {
+		return path, fmt.Errorf("workspace storage path is not a directory: %s", path)
+	}
+	// Read one entry to verify access without loading the entire workspace
+	// listing. An empty directory is valid.
+	if _, err := dir.ReadDir(1); err != nil && !errors.Is(err, io.EOF) {
+		return path, err
+	}
+	return path, nil
 }
 
 // HasAnyChatSessions reports whether any workspace in the given distribution's

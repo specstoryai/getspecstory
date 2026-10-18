@@ -1181,7 +1181,7 @@ _**Agent (claude-opus-4-6 2026-02-26 09:55:52Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/8bda05a6-149b-4fd3-b417-985bf1623e7e/tool-results/1aa49d68-af9a-4f4f-85a9-df16531c62b9.txt`
 
-```text
+````text
      1→diff --git a/specstory-cli/.specstory/history/2026-02-24_13-47-24Z-use-gh-to-check.md b/specstory-cli/.specstory/history/2026-02-24_13-47-24Z-use-gh-to-check.md
      2→new file mode 100644
      3→index 0000000..f923ac5
@@ -1382,7 +1382,7 @@ _**Agent (claude-opus-4-6 2026-02-26 09:55:52Z)**_
    198→+1. `specstory run` → Calls CheckForUpdates (line 1460 in main)
    199→+2. `specstory sync` → Calls CheckForUpdates (line 1460 in main)
    200→+3. `specstory --help` → Calls CheckForUpdates (line 1460 in main)
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-26 09:55:53Z)**_
