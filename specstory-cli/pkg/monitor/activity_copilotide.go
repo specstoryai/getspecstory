@@ -12,14 +12,16 @@ import (
 // (GetWorkspaceStoragePath returns "" otherwise); the monitor command skips
 // absent variants.
 //
-// This is the copilotide_monitor build's implementation: it depends on the
-// copilotide provider package, which is not yet present in this tree, so the
-// whole file is gated behind the copilotide_monitor tag. The default build uses
-// the stub in activity_stub.go, which returns nil.
+// This is the copilotide_monitor build's implementation, gated behind the
+// copilotide_monitor tag so Copilot IDE detection stays opt-in. The default
+// build uses the stub in activity_stub.go, which returns nil.
 func copilotStorageRoots() map[string]string {
 	copilotRoots := make(map[string]string)
-	for _, variant := range copilotide.Variants() {
-		if p := copilotide.GetWorkspaceStoragePath(variant.DataDirName); p != "" {
+	variants := []copilotide.Variant{
+		copilotide.VSCode, copilotide.VSCodeInsiders, copilotide.VSCodium, copilotide.VSCodiumInsiders,
+	}
+	for _, variant := range variants {
+		if p := copilotide.GetWorkspaceStoragePath(variant); p != "" {
 			copilotRoots[variant.ID] = p
 		}
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/copilotide"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
 )
 
 // copilotWorkspaceJSONRetries and copilotWorkspaceJSONRetryDelay bound the
@@ -240,7 +241,7 @@ func mapCopilotWorkspaces(root string, resolver *Resolver) (map[string]string, e
 // which folder of the window it belongs to, so one deterministic attribution
 // is the best available.
 func copilotWorkspaceRepo(wsDir string, resolver *Resolver) (string, bool, error) {
-	ws, err := copilotide.ReadWorkspaceJSON(copilotide.GetWorkspaceMetadataPath(wsDir))
+	ws, err := vscode.ReadWorkspaceJSON(copilotide.GetWorkspaceMetadataPath(wsDir))
 	if err != nil {
 		return "", false, err
 	}
@@ -257,14 +258,14 @@ func copilotWorkspaceRepo(wsDir string, resolver *Resolver) (string, bool, error
 		return "", false, nil
 	}
 
-	p, err := copilotide.URIToPath(uri)
+	p, err := vscode.URIToPath(uri)
 	if err != nil {
 		// Non-file URIs (remote workspaces etc.) can never map to a local repo.
 		return "", false, nil
 	}
 
 	if strings.HasSuffix(p, ".code-workspace") {
-		for _, folder := range copilotide.CollectCodeWorkspaceFolders(p) {
+		for _, folder := range vscode.CollectCodeWorkspaceFolders(p) {
 			if repo, ok := resolver.repoContaining(folder); ok {
 				return repo, true, nil
 			}

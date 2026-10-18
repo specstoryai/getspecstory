@@ -386,3 +386,18 @@ func TestResolveNewCopilotWorkspace_RetriesUntilWorkspaceJSONAppears(t *testing.
 		})
 	}
 }
+
+// count returns how many times path has been recorded, so tests can assert
+// that NEW events keep arriving after a state transition (contains alone
+// cannot distinguish old notifications from fresh ones).
+func (r *eventRecorder) count(path string) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := 0
+	for _, p := range r.paths {
+		if p == path {
+			n++
+		}
+	}
+	return n
+}

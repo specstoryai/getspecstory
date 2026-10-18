@@ -32,21 +32,6 @@ func (r *eventRecorder) contains(path string) bool {
 	return false
 }
 
-// count returns how many times path has been recorded, so tests can assert
-// that NEW events keep arriving after a state transition (contains alone
-// cannot distinguish old notifications from fresh ones).
-func (r *eventRecorder) count(path string) int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	n := 0
-	for _, p := range r.paths {
-		if p == path {
-			n++
-		}
-	}
-	return n
-}
-
 // waitFor polls cond until it is true or the (deliberately generous, for flake
 // resistance) timeout elapses.
 func waitFor(t *testing.T, timeout time.Duration, cond func() bool, msg string) {
