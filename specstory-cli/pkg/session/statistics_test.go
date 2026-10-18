@@ -2,12 +2,57 @@ package session
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
+
+// TestCollectSessionStatistics_ConcurrentSaves guards the shared-collector design:
+// concurrent CollectSessionStatistics calls (as watch-mode callbacks produce) must
+// all land in statistics.json. Per-call collector instances would race in Flush's
+// read-modify-write cycle and silently drop sessions.
+func TestCollectSessionStatistics_ConcurrentSaves(t *testing.T) {
+	config := &utils.OutputPathConfig{BaseDir: t.TempDir()}
+
+	const sessionCount = 25
+	var wg sync.WaitGroup
+	for i := 0; i < sessionCount; i++ {
+		wg.Go(func() {
+			sess := &spi.AgentChatSession{
+				SessionID: fmt.Sprintf("session-%02d", i),
+				SessionData: &schema.SessionData{
+					Provider:  schema.ProviderInfo{ID: "claude", Name: "Claude"},
+					CreatedAt: "2026-02-09T10:00:00Z",
+				},
+			}
+			if err := CollectSessionStatistics("claude", sess, "# markdown", config); err != nil {
+				t.Errorf("CollectSessionStatistics(%s): %v", sess.SessionID, err)
+			}
+		})
+	}
+	wg.Wait()
+
+	data, err := os.ReadFile(filepath.Join(config.GetSpecstoryDir(), utils.STATISTICS_FILE))
+	if err != nil {
+		t.Fatalf("Failed to read statistics.json: %v", err)
+	}
+	var statsFile StatisticsFile
+	if err := json.Unmarshal(data, &statsFile); err != nil {
+		t.Fatalf("Failed to parse statistics.json: %v", err)
+	}
+	if len(statsFile.Sessions) != sessionCount {
+		t.Errorf("statistics.json has %d sessions, want %d — concurrent saves dropped sessions",
+			len(statsFile.Sessions), sessionCount)
+	}
+}
 
 func TestComputeSessionStatistics(t *testing.T) {
 	tests := []struct {
@@ -25,6 +70,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 			sessionData: &schema.SessionData{
 				CreatedAt: "2026-02-09T10:00:00Z",
 				UpdatedAt: "2026-02-09T10:15:00Z",
+				Provider: schema.ProviderInfo{
+					ID:   "claude",
+					Name: "Claude",
+				},
 				Exchanges: []schema.Exchange{
 					{
 						StartTime: "2026-02-09T10:00:00Z",
@@ -48,6 +97,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 			sessionData: &schema.SessionData{
 				CreatedAt: "2026-02-09T10:00:00Z",
 				UpdatedAt: "2026-02-09T10:30:00Z",
+				Provider: schema.ProviderInfo{
+					ID:   "codex",
+					Name: "codex",
+				},
 				Exchanges: []schema.Exchange{
 					{
 						StartTime: "2026-02-09T10:00:00Z",
@@ -81,6 +134,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 			sessionData: &schema.SessionData{
 				CreatedAt: "2026-02-09T10:00:00Z",
 				UpdatedAt: "2026-02-09T10:05:00Z",
+				Provider: schema.ProviderInfo{
+					ID:   "cursor",
+					Name: "Cursor",
+				},
 				Exchanges: []schema.Exchange{
 					{
 						StartTime: "2026-02-09T10:00:00Z",
@@ -104,6 +161,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 				CreatedAt: "2026-02-09T09:00:00Z",
 				UpdatedAt: "",
 				Exchanges: []schema.Exchange{},
+				Provider: schema.ProviderInfo{
+					ID:   "claude",
+					Name: "Claude",
+				},
 			},
 			markdownContent:   "",
 			providerID:        "claude",
@@ -118,6 +179,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 				CreatedAt: "2026-02-09T09:00:00Z",
 				UpdatedAt: "2026-02-09T09:30:00Z",
 				Exchanges: []schema.Exchange{},
+				Provider: schema.ProviderInfo{
+					ID:   "codex",
+					Name: "Codex",
+				},
 			},
 			markdownContent:   "# Empty",
 			providerID:        "codex",
@@ -131,6 +196,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 			sessionData: &schema.SessionData{
 				CreatedAt: "2026-02-09T10:00:00Z",
 				UpdatedAt: "2026-02-09T10:20:00Z",
+				Provider: schema.ProviderInfo{
+					ID:   "claude",
+					Name: "Claude",
+				},
 				Exchanges: []schema.Exchange{
 					{
 						StartTime: "2026-02-09T10:00:00Z",
@@ -153,6 +222,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 			sessionData: &schema.SessionData{
 				CreatedAt: "2026-02-09T10:00:00Z",
 				UpdatedAt: "",
+				Provider: schema.ProviderInfo{
+					ID:   "cursor",
+					Name: "Cursor",
+				},
 				Exchanges: []schema.Exchange{
 					{
 						StartTime: "2026-02-09T10:00:00Z",
@@ -175,6 +248,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 			sessionData: &schema.SessionData{
 				CreatedAt: "2026-02-09T09:00:00Z",
 				UpdatedAt: "2026-02-09T10:00:00Z",
+				Provider: schema.ProviderInfo{
+					ID:   "claude",
+					Name: "Claude",
+				},
 				Exchanges: []schema.Exchange{
 					{
 						StartTime: "",
@@ -387,4 +464,118 @@ func TestStatisticsCollector_CorruptJSON(t *testing.T) {
 	if _, exists := sf.Sessions["session-corrupt"]; !exists {
 		t.Error("Session session-corrupt not found after recovery")
 	}
+}
+
+// TestAcquireFileLock exercises the cross-process lock primitive that Flush
+// wraps around its read-merge-write cycle: a held lock blocks acquisition until
+// released, and a lock left behind by a crashed process (detected by age) is
+// stolen rather than deadlocking every future flush.
+func TestAcquireFileLock(t *testing.T) {
+	t.Run("held lock blocks until released, then acquires", func(t *testing.T) {
+		lockPath := filepath.Join(t.TempDir(), "statistics.json.lock")
+
+		unlock, err := acquireFileLock(lockPath)
+		if err != nil {
+			t.Fatalf("first acquire failed: %v", err)
+		}
+
+		// A second acquirer must wait; release shortly after it starts polling.
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			unlock()
+		}()
+
+		start := time.Now()
+		unlock2, err := acquireFileLock(lockPath)
+		if err != nil {
+			t.Fatalf("second acquire failed after release: %v", err)
+		}
+		defer unlock2()
+		if time.Since(start) < 40*time.Millisecond {
+			t.Error("second acquire returned before the first lock was released")
+		}
+	})
+
+	t.Run("stale lock from a crashed process is stolen", func(t *testing.T) {
+		lockPath := filepath.Join(t.TempDir(), "statistics.json.lock")
+		if err := os.WriteFile(lockPath, nil, 0644); err != nil {
+			t.Fatalf("failed to plant stale lock: %v", err)
+		}
+		// Backdate past the stale threshold to simulate a crashed owner.
+		old := time.Now().Add(-time.Minute)
+		if err := os.Chtimes(lockPath, old, old); err != nil {
+			t.Fatalf("failed to backdate lock: %v", err)
+		}
+
+		unlock, err := acquireFileLock(lockPath)
+		if err != nil {
+			t.Fatalf("acquire should have stolen the stale lock: %v", err)
+		}
+		unlock()
+	})
+
+	t.Run("unremovable stale lock times out instead of spinning forever", func(t *testing.T) {
+		// Unix mode bits can't make a directory read-only on Windows, so the
+		// removal failure can't be provoked there.
+		if runtime.GOOS == "windows" {
+			t.Skip("directory write permissions cannot be revoked via mode bits on Windows")
+		}
+		dir := t.TempDir()
+		lockPath := filepath.Join(dir, "statistics.json.lock")
+		if err := os.WriteFile(lockPath, nil, 0644); err != nil {
+			t.Fatalf("failed to plant stale lock: %v", err)
+		}
+		old := time.Now().Add(-time.Minute)
+		if err := os.Chtimes(lockPath, old, old); err != nil {
+			t.Fatalf("failed to backdate lock: %v", err)
+		}
+		// Read-only dir: the steal's os.Remove fails on every iteration.
+		if err := os.Chmod(dir, 0555); err != nil {
+			t.Fatalf("failed to chmod dir: %v", err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(dir, 0755) })
+
+		start := time.Now()
+		_, err := acquireFileLock(lockPath)
+		elapsed := time.Since(start)
+		if err == nil {
+			t.Fatal("acquire should fail when the stale lock cannot be removed")
+		}
+		// The retry budget is 2s; anything wildly beyond it means the loop spun
+		// past the deadline check. Generous bound for slow CI.
+		if elapsed > 10*time.Second {
+			t.Fatalf("acquire took %s — the removal-failure path is bypassing the deadline", elapsed)
+		}
+	})
+
+	t.Run("stolen-from owner's release cannot delete the new owner's lock", func(t *testing.T) {
+		lockPath := filepath.Join(t.TempDir(), "statistics.json.lock")
+
+		releaseOld, err := acquireFileLock(lockPath)
+		if err != nil {
+			t.Fatalf("first acquire failed: %v", err)
+		}
+		// Backdate so the next acquirer treats the (still-live) owner as crashed
+		// and steals — the slow-writer scenario.
+		old := time.Now().Add(-time.Minute)
+		if err := os.Chtimes(lockPath, old, old); err != nil {
+			t.Fatalf("failed to backdate lock: %v", err)
+		}
+		releaseNew, err := acquireFileLock(lockPath)
+		if err != nil {
+			t.Fatalf("steal acquire failed: %v", err)
+		}
+
+		// The stale original releases; the new owner's lock must survive, or a
+		// third writer could enter the critical section.
+		releaseOld()
+		if _, err := os.Stat(lockPath); err != nil {
+			t.Fatalf("previous owner's release deleted the new owner's lock: %v", err)
+		}
+
+		releaseNew()
+		if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+			t.Errorf("new owner's release should remove the lock, stat err = %v", err)
+		}
+	})
 }

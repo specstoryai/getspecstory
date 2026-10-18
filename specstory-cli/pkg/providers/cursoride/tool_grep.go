@@ -1,0 +1,275 @@
+package cursoride
+
+import (
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
+)
+
+// GrepHandler handles grep and ripgrep tool invocations
+type GrepHandler struct{}
+
+// GrepParams represents parameters for grep tools
+type GrepParams struct {
+	Pattern         string `json:"pattern"`
+	Path            string `json:"path,omitempty"`
+	OutputMode      string `json:"outputMode,omitempty"`
+	CaseInsensitive bool   `json:"caseInsensitive,omitempty"`
+}
+
+// GrepResult represents the result of a grep operation
+type GrepResult struct {
+	Success *GrepSuccess `json:"success,omitempty"`
+}
+
+// GrepSuccess contains the successful grep results
+type GrepSuccess struct {
+	Pattern          string                          `json:"pattern"`
+	Path             string                          `json:"path,omitempty"`
+	OutputMode       string                          `json:"outputMode,omitempty"`
+	WorkspaceResults map[string]*GrepWorkspaceResult `json:"workspaceResults,omitempty"`
+}
+
+// GrepWorkspaceResult contains results for a specific workspace
+type GrepWorkspaceResult struct {
+	Content *GrepContentResult `json:"content,omitempty"`
+	Files   *GrepFilesResult   `json:"files,omitempty"`
+}
+
+// GrepContentResult contains content matches with line numbers
+type GrepContentResult struct {
+	Matches           []GrepFileMatch `json:"matches,omitempty"`
+	TotalLines        int             `json:"totalLines,omitempty"`
+	TotalMatchedLines int             `json:"totalMatchedLines,omitempty"`
+}
+
+// GrepFileMatch represents matches in a single file
+type GrepFileMatch struct {
+	File    string      `json:"file,omitempty"`
+	Matches []GrepMatch `json:"matches,omitempty"`
+}
+
+// GrepMatch represents a single match with line number
+type GrepMatch struct {
+	LineNumber    int    `json:"lineNumber"`
+	Content       string `json:"content,omitempty"`
+	IsContextLine bool   `json:"isContextLine,omitempty"`
+}
+
+// GrepFilesResult contains just file names (for files_with_matches mode)
+type GrepFilesResult struct {
+	Files      []string `json:"files,omitempty"`
+	TotalFiles int      `json:"totalFiles,omitempty"`
+}
+
+// AdaptMessage formats grep tool invocations as markdown
+func (h *GrepHandler) AdaptMessage(bubble *BubbleConversation) (summary string, body string, err error) {
+	var params GrepParams
+	if bubble.Params != "" {
+		if err := json.Unmarshal([]byte(bubble.Params), &params); err != nil {
+			return "", "", fmt.Errorf("failed to parse grep params: %w", err)
+		}
+	}
+
+	var result GrepResult
+	if bubble.Result != "" {
+		if err := json.Unmarshal([]byte(bubble.Result), &result); err != nil {
+			return "", "", fmt.Errorf("failed to parse grep result: %w", err)
+		}
+	}
+
+	// Extract results
+	var resultsLength int
+	var messageDetails string
+
+	if workspaceResult := firstWorkspaceResult(result.Success); workspaceResult != nil {
+		if workspaceResult.Content != nil {
+			// Content mode: show matches in a table
+			resultsLength = workspaceResult.Content.TotalMatchedLines
+			if resultsLength == 0 {
+				messageDetails = "\n_No matches found_"
+			} else {
+				messageDetails = h.formatContentResults(workspaceResult.Content)
+			}
+		} else if workspaceResult.Files != nil {
+			// Files mode: show file names in a table
+			resultsLength = workspaceResult.Files.TotalFiles
+			if resultsLength == 0 {
+				messageDetails = "\n_No matches found_"
+			} else {
+				messageDetails = h.formatFilesResults(workspaceResult.Files)
+			}
+		}
+	} else {
+		messageDetails = "\n_No matches found_"
+	}
+
+	// Build summary line
+	inString := ""
+	if params.Path != "" {
+		inString = fmt.Sprintf(` in "%s"`, escapeSummaryText(params.Path))
+	}
+	matchWord := "match"
+	if resultsLength != 1 {
+		matchWord = "matches"
+	}
+	summary = fmt.Sprintf("Tool use: **%s** • Grep for \"%s\"%s • %d %s", escapeSummaryText(bubble.Name), escapeSummaryText(params.Pattern), inString, resultsLength, matchWord)
+
+	// Build the body
+	var message strings.Builder
+
+	// Add output mode
+	outputMode := params.OutputMode
+	if outputMode == "" {
+		outputMode = "content"
+	}
+	fmt.Fprintf(&message, "Output mode: %s\n", outputMode)
+
+	// Add details
+	fmt.Fprintf(&message, "\n%s\n", messageDetails)
+
+	return summary, message.String(), nil
+}
+
+// firstWorkspaceResult picks the single workspace result to render. Only one workspace's
+// results are shown (multi-root workspaces are rare), and taking the lexicographically
+// smallest key keeps the choice deterministic — Go randomizes map iteration order, so
+// ranging over the map would render a different workspace on different runs.
+func firstWorkspaceResult(success *GrepSuccess) *GrepWorkspaceResult {
+	if success == nil || len(success.WorkspaceResults) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(success.WorkspaceResults))
+	for key := range success.WorkspaceResults {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return success.WorkspaceResults[keys[0]]
+}
+
+// formatContentResults formats content matches as a markdown table
+func (h *GrepHandler) formatContentResults(content *GrepContentResult) string {
+	if len(content.Matches) == 0 {
+		return "\n_No matches found_"
+	}
+
+	// Check if we have file names in the results
+	hasFiles := false
+	for _, fileMatch := range content.Matches {
+		if fileMatch.File != "" {
+			hasFiles = true
+			break
+		}
+	}
+
+	var result strings.Builder
+
+	// Build table header
+	if hasFiles {
+		result.WriteString("\n| File | Content | Line |\n|------|------|------|\n")
+	} else {
+		result.WriteString("\n| Content | Line |\n|------|------|\n")
+	}
+
+	// Build table rows
+	for _, fileMatch := range content.Matches {
+		for _, match := range fileMatch.Matches {
+			// Skip context lines
+			if match.IsContextLine {
+				continue
+			}
+			// Skip matches without content (empty lines)
+			if match.Content == "" {
+				continue
+			}
+
+			// Add file column if needed
+			if hasFiles {
+				fmt.Fprintf(&result, "| `%s` ", escapeTableCellValue(fileMatch.File))
+			}
+
+			// Add content and line number
+			fmt.Fprintf(&result, "| `%s` | L%d |\n",
+				escapeTableCellValue(match.Content),
+				match.LineNumber)
+		}
+	}
+
+	return result.String()
+}
+
+// formatFilesResults formats file matches as a markdown table
+func (h *GrepHandler) formatFilesResults(files *GrepFilesResult) string {
+	if len(files.Files) == 0 {
+		return "\n_No matches found_"
+	}
+
+	var result strings.Builder
+	result.WriteString("\n| File |\n|------|\n")
+
+	for _, file := range files.Files {
+		// Escape the DB-sourced name so pipes/newlines can't break the table
+		fmt.Fprintf(&result, "| `%s` |\n", escapeTableCellValue(file))
+	}
+
+	return result.String()
+}
+
+// GetToolType returns the tool type category
+func (h *GrepHandler) GetToolType() ToolType {
+	return ToolTypeSearch
+}
+
+// escapeTableCellValue escapes special characters for markdown table cells.
+// Matches the TypeScript escapeTableCellValue function, plus backtick escaping:
+// callers wrap cell values in `...` code spans, and grep results contain source
+// code lines where backticks are common (markdown, JS template literals), which
+// would otherwise terminate the span and corrupt the table. The TS extension has
+// the same flaw; &#96; renders back as a literal backtick in HTML-capable viewers.
+func escapeTableCellValue(value string) string {
+	// Escape pipes
+	value = strings.ReplaceAll(value, "|", "\\|")
+	// Escape backticks so values survive being wrapped in `...` code spans
+	value = strings.ReplaceAll(value, "`", "&#96;")
+	// Convert newlines to HTML breaks
+	value = strings.ReplaceAll(value, "\n", "<br/>")
+	// Escape braces (for some markdown parsers)
+	value = escapeBraces(value)
+	// Normalize tabs to spaces
+	value = strings.ReplaceAll(value, "\t", "    ")
+	// Remove carriage returns
+	value = strings.ReplaceAll(value, "\r", "")
+	// Trim whitespace
+	value = strings.TrimSpace(value)
+
+	return value
+}
+
+// escapeBraces escapes curly braces in markdown.
+//
+// Why count backslashes: a brace is only already escaped when preceded by an odd
+// number of backslashes. Looking at just the previous character mistakes an
+// escaped backslash ("\\{") for an escaped brace and leaves the brace unescaped.
+func escapeBraces(s string) string {
+	var result strings.Builder
+	backslashCount := 0
+
+	for _, char := range s {
+		switch char {
+		case '\\':
+			backslashCount++
+		case '{', '}':
+			// An even count (including zero) means the brace is not yet escaped.
+			if backslashCount%2 == 0 {
+				result.WriteRune('\\')
+			}
+			backslashCount = 0
+		default:
+			backslashCount = 0
+		}
+		result.WriteRune(char)
+	}
+
+	return result.String()
+}

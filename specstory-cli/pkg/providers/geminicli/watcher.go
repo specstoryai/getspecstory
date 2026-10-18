@@ -23,10 +23,6 @@ var (
 	watcherWorkspaceRoot string
 )
 
-func init() {
-	watcherCtx, watcherCancel = context.WithCancel(context.Background())
-}
-
 func SetWatcherCallback(callback func(*spi.AgentChatSession)) {
 	watcherMutex.Lock()
 	defer watcherMutex.Unlock()
@@ -58,11 +54,14 @@ func getWatcherDebugRaw() bool {
 }
 
 func StopWatcher() {
-	watcherCancel()
+	if watcherCancel != nil {
+		watcherCancel()
+	}
 	watcherWg.Wait()
 }
 
 func WatchGeminiProject(projectPath string, callback func(*spi.AgentChatSession)) error {
+	watcherCtx, watcherCancel = context.WithCancel(context.Background())
 	SetWatcherCallback(callback)
 	SetWatcherWorkspaceRoot(projectPath)
 
@@ -77,10 +76,7 @@ func WatchGeminiProject(projectPath string, callback func(*spi.AgentChatSession)
 	geminiDir := filepath.Dir(filepath.Dir(hashDir)) // ~/.gemini
 	tmpDir := filepath.Dir(hashDir)                  // ~/.gemini/tmp
 
-	watcherWg.Add(1)
-	go func() {
-		defer watcherWg.Done()
-
+	watcherWg.Go(func() {
 		if err := waitForDirectoryFsnotify(watcherCtx, geminiDir, "Gemini root directory"); err != nil {
 			slog.Debug("Stopped Gemini watcher while waiting for root directory", "error", err)
 			return
@@ -115,7 +111,7 @@ func WatchGeminiProject(projectPath string, callback func(*spi.AgentChatSession)
 		if err := startArtifactWatcher(filepath.Join(resolvedDir, "shell_history"), "shell_history"); err != nil {
 			slog.Warn("Failed to watch shell_history", "error", err)
 		}
-	}()
+	})
 
 	return nil
 }
@@ -154,7 +150,7 @@ func waitForProjectDir(ctx context.Context, tmpDir, projectPath, hashDir string)
 	}
 
 	// Nothing exists yet — watch tmpDir for new directory creation
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return "", fmt.Errorf("failed to create fsnotify watcher for project dir: %w", err)
 	}
@@ -200,14 +196,12 @@ func waitForProjectDir(ctx context.Context, tmpDir, projectPath, hashDir string)
 }
 
 func startChatsWatcher(chatsDir string) error {
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return err
 	}
 
-	watcherWg.Add(1)
-	go func() {
-		defer watcherWg.Done()
+	watcherWg.Go(func() {
 		defer func() {
 			_ = watcher.Close()
 		}()
@@ -235,7 +229,7 @@ func startChatsWatcher(chatsDir string) error {
 				slog.Error("Watcher error", "error", err)
 			}
 		}
-	}()
+	})
 
 	return nil
 }
@@ -311,15 +305,27 @@ func processSessionChange(filePath string) {
 	triggerCallback(agentSession)
 }
 
-// triggerCallback is a helper to call the watcher callback with proper locking
+// triggerCallback is a helper to call the watcher callback with proper locking.
+//
+// Delivery is synchronous so session changes reach the consumer in the order
+// fsnotify reported them, but a panic in the consumer is contained here: it
+// would otherwise unwind the fsnotify event goroutine and take down the whole
+// process over one malformed session.
 func triggerCallback(agentSession *spi.AgentChatSession) {
 	watcherMutex.RLock()
 	cb := watcherCallback
 	watcherMutex.RUnlock()
 
-	if cb != nil && agentSession != nil {
-		cb(agentSession)
+	if cb == nil || agentSession == nil {
+		return
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("gemini: session callback panicked", "sessionId", agentSession.SessionID, "panic", r)
+		}
+	}()
+	cb(agentSession)
 }
 
 // waitForDirectoryFsnotify waits for a directory to exist using fsnotify on its parent.
@@ -341,7 +347,7 @@ func waitForDirectoryFsnotify(ctx context.Context, dir string, label string) err
 		return fmt.Errorf("parent directory %q does not exist for %s: %w", parentDir, label, err)
 	}
 
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return fmt.Errorf("failed to create fsnotify watcher for %s: %w", label, err)
 	}
@@ -383,7 +389,7 @@ func waitForDirectoryFsnotify(ctx context.Context, dir string, label string) err
 
 func startArtifactWatcher(filePath string, label string) error {
 	dir := filepath.Dir(filePath)
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return err
 	}
@@ -393,9 +399,7 @@ func startArtifactWatcher(filePath string, label string) error {
 		return err
 	}
 
-	watcherWg.Add(1)
-	go func() {
-		defer watcherWg.Done()
+	watcherWg.Go(func() {
 		defer func() {
 			_ = watcher.Close()
 		}()
@@ -423,7 +427,7 @@ func startArtifactWatcher(filePath string, label string) error {
 				slog.Warn("Gemini artifact watcher error", "artifact", label, "error", err)
 			}
 		}
-	}()
+	})
 
 	return nil
 }

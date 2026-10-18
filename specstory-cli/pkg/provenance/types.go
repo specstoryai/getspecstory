@@ -4,6 +4,7 @@ package provenance
 
 import (
 	"errors"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -13,7 +14,7 @@ var (
 	ErrMissingID              = errors.New("ID is required")
 	ErrMissingPath            = errors.New("path is required")
 	ErrMissingFilePath        = errors.New("file path is required")
-	ErrPathNotAbsolute        = errors.New("path must be absolute (start with /)")
+	ErrPathNotAbsolute        = errors.New("path must be absolute")
 	ErrMissingTimestamp       = errors.New("timestamp is required")
 	ErrMissingChangeType      = errors.New("change type is required")
 	ErrInvalidFileChangeType  = errors.New("change type must be one of: create, modify, delete, rename")
@@ -56,7 +57,12 @@ func (e FileEvent) Validate() error {
 	if e.Path == "" {
 		return ErrMissingPath
 	}
-	if !strings.HasPrefix(e.Path, "/") {
+	// Accept both absolute forms: filepath.IsAbs covers the host's native shape
+	// (C:\… on Windows), the "/" prefix covers Unix-shaped paths regardless of
+	// host — file events carry native watcher paths while agent events can carry
+	// paths recorded on another OS. The old "/"-only check rejected every native
+	// Windows file event, silently disabling provenance there.
+	if !strings.HasPrefix(e.Path, "/") && !filepath.IsAbs(e.Path) {
 		return ErrPathNotAbsolute
 	}
 	if e.ChangeType == "" {

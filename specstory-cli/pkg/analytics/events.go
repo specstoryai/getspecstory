@@ -10,6 +10,10 @@ import (
 const (
 	EventExtensionActivated     = "ext_activated"                // Tracks when `run` command is started
 	EventWatchActivated         = "ext_watch_activated"          // Tracks when `watch` command is started
+	EventResumeActivated        = "ext_resume_activated"         // Tracks when `resume` command is started
+	EventReindexCompleted       = "ext_reindex_completed"        // Tracks when `reindex` finishes building the restore index
+	EventResumeReconstructed    = "ext_resume_reconstructed"     // Tracks the outcome of a cross-agent session reconstruction (success/unsupported/error)
+	EventSearchActivated        = "ext_search_activated"         // Tracks when `search` command is started
 	EventProjectIdentityCreated = "ext_project_identity_created" // Tracks when new project identity is created
 	EventCheckInstallSuccess    = "ext_check_install_success"    // Tracks successful agent installation check
 	EventCheckInstallFailed     = "ext_check_install_failed"     // Tracks failed agent installation check
@@ -29,6 +33,13 @@ const (
 	EventCloudSyncComplete      = "ext_cloudsync_complete"       // Tracks cloud sync completion with statistics
 	EventSyncStatsComplete      = "ext_sync_stats_complete"      // Tracks when --only-stats sync completes
 	EventListSessions           = "ext_list_sessions"            // Tracks when users list sessions with the list command
+	EventSkillsActivated        = "ext_skills_activated"         // Tracks when the `skills` command is started
+	EventSkillsInstalled        = "ext_skills_installed"         // Tracks when a cloud skill is installed locally
+	EventSkillsUninstalled      = "ext_skills_uninstalled"       // Tracks when a cloud skill is uninstalled
+	EventSkillsApproved         = "ext_skills_approved"          // Tracks when a review-state skill is approved
+	EventSkillsRejected         = "ext_skills_rejected"          // Tracks when a review-state skill is rejected
+	EventSkillsRunTriggered     = "ext_skills_run_triggered"     // Tracks when a new lore mining run is started
+	EventSessionDeleted         = "ext_session_deleted"          // Tracks when a user soft-deletes a session or project from the resume/search TUI
 )
 
 // Properties is a type alias for event properties to avoid exposing PostHog types

@@ -385,3 +385,13 @@ func TestBuildAgentMessage_Usage(t *testing.T) {
 		})
 	}
 }
+
+func TestToolMarkdownPreservesNestedFences(t *testing.T) {
+	content := "before\n````markdown\n```text\ninner\n```\n````\nafter"
+	for _, isError := range []bool{false, true} {
+		got := formatToolAsMarkdown(&ToolInfo{Name: "Bash", Input: map[string]interface{}{}, Output: map[string]interface{}{"content": content, "is_error": isError}}, "")
+		if !strings.Contains(got, "`````text\n"+content+"\n`````") {
+			t.Fatalf("unsafe fence: %s", got)
+		}
+	}
+}

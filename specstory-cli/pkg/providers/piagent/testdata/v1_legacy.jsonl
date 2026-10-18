@@ -1,0 +1,6 @@
+{"type":"session","id":"v1-uuid","timestamp":"2026-07-09T10:00:00.000Z","cwd":"/test"}
+{"type":"message","timestamp":"2026-07-09T10:00:01.000Z","message":{"role":"user","content":"legacy prompt","timestamp":1783600001000}}
+{"type":"message","timestamp":"2026-07-09T10:00:02.000Z","message":{"role":"assistant","content":[{"type":"text","text":"legacy answer"}],"provider":"x","model":"m","usage":{"input":1,"output":1,"cacheRead":0,"cacheWrite":0,"totalTokens":2,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}}}}
+{"type":"compaction","timestamp":"2026-07-09T10:00:03.000Z","summary":"legacy compaction summary","firstKeptEntryIndex":1,"tokensBefore":500}
+{"type":"message","timestamp":"2026-07-09T10:00:04.000Z","message":{"role":"user","content":"legacy prompt two","timestamp":1783600004000}}
+{"type":"message","timestamp":"2026-07-09T10:00:05.000Z","message":{"role":"assistant","content":[{"type":"text","text":"legacy answer two"}],"provider":"x","model":"m","usage":{"input":1,"output":1,"cacheRead":0,"cacheWrite":0,"totalTokens":2,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}}}}

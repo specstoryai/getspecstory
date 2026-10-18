@@ -5,124 +5,6 @@ import (
 	"testing"
 )
 
-func TestGetLanguageFromExtension(t *testing.T) {
-	tests := []struct {
-		name     string
-		filePath string
-		expected string
-	}{
-		{
-			name:     "JavaScript file",
-			filePath: "script.js",
-			expected: "javascript",
-		},
-		{
-			name:     "TypeScript file",
-			filePath: "app.ts",
-			expected: "typescript",
-		},
-		{
-			name:     "Python file",
-			filePath: "main.py",
-			expected: "python",
-		},
-		{
-			name:     "Go file",
-			filePath: "server.go",
-			expected: "go",
-		},
-		{
-			name:     "HTML file",
-			filePath: "index.html",
-			expected: "html",
-		},
-		{
-			name:     "CSS file",
-			filePath: "styles.css",
-			expected: "css",
-		},
-		{
-			name:     "JSON file",
-			filePath: "config.json",
-			expected: "json",
-		},
-		{
-			name:     "YAML file",
-			filePath: "config.yml",
-			expected: "yaml",
-		},
-		{
-			name:     "Markdown file",
-			filePath: "README.md",
-			expected: "markdown",
-		},
-		{
-			name:     "JSX file",
-			filePath: "component.jsx",
-			expected: "javascript",
-		},
-		{
-			name:     "TSX file",
-			filePath: "component.tsx",
-			expected: "typescript",
-		},
-		{
-			name:     "Ruby file",
-			filePath: "script.rb",
-			expected: "ruby",
-		},
-		{
-			name:     "C file",
-			filePath: "main.c",
-			expected: "c",
-		},
-		{
-			name:     "C++ file",
-			filePath: "main.cpp",
-			expected: "cpp",
-		},
-		{
-			name:     "C# file",
-			filePath: "Program.cs",
-			expected: "csharp",
-		},
-		{
-			name:     "Rust file",
-			filePath: "main.rs",
-			expected: "rust",
-		},
-		{
-			name:     "Full path",
-			filePath: "/Users/test/project/index.html",
-			expected: "html",
-		},
-		{
-			name:     "No extension",
-			filePath: "Makefile",
-			expected: "",
-		},
-		{
-			name:     "Empty path",
-			filePath: "",
-			expected: "",
-		},
-		{
-			name:     "Unknown extension",
-			filePath: "file.xyz",
-			expected: "xyz",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := getLanguageFromExtension(tt.filePath)
-			if result != tt.expected {
-				t.Errorf("getLanguageFromExtension(%s) = %q, want %q", tt.filePath, result, tt.expected)
-			}
-		})
-	}
-}
-
 func TestFormatWriteTool(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -146,12 +28,12 @@ func TestFormatWriteTool(t *testing.T) {
 			expected: "```javascript\nfunction hello() {\n  console.log('Hello');\n}\n```",
 		},
 		{
-			name: "Content with triple backticks (needs escaping)",
+			name: "Content with triple backticks (fence sized past them)",
 			args: map[string]interface{}{
 				"path":     "README.md",
 				"contents": "# Example\n\n```js\ncode here\n```\n\nMore text",
 			},
-			expected: "```markdown\n# Example\n\n\\```js\ncode here\n\\```\n\nMore text\n```",
+			expected: "````markdown\n# Example\n\n```js\ncode here\n```\n\nMore text\n````",
 		},
 		{
 			name: "File path only, no contents",
@@ -799,9 +681,9 @@ func TestFormatToolResult(t *testing.T) {
 			expected: "```\nCreated file: test.js\nWrote 50 lines\nOperation successful\n```",
 		},
 		{
-			name:     "Result with triple backticks (needs escaping)",
+			name:     "Result with triple backticks (fence sized past them)",
 			result:   "Error in code:\n```\nerror here\n```",
-			expected: "```\nError in code:\n\\```\nerror here\n\\```\n```",
+			expected: "````\nError in code:\n```\nerror here\n```\n````",
 		},
 		{
 			name:     "Empty result",

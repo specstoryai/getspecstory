@@ -5,8 +5,11 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 func TestGetCursorChatsDir(t *testing.T) {
@@ -57,7 +60,19 @@ func TestGetProjectHashDir(t *testing.T) {
 			projectPath: "/tmp/test-project",
 			wantErr:     false,
 			validate: func(t *testing.T, result string) {
-				// Calculate expected hash
+				// The reference md5 pins compatibility with Cursor CLI's own hash
+				// of the same directory. The fixture is a Unix path, which a
+				// Windows host legitimately canonicalizes differently — and real
+				// inputs there are native paths — so the pin only holds off
+				// Windows; there the shape checks of the other cases apply.
+				if runtime.GOOS == "windows" {
+					parts := strings.Split(result, string(os.PathSeparator))
+					hashPart := parts[len(parts)-1]
+					if len(hashPart) != 32 {
+						t.Errorf("Expected 32-character MD5 hash, got %s", hashPart)
+					}
+					return
+				}
 				canonicalPath := "/tmp/test-project"
 				hash := md5.Sum([]byte(canonicalPath))
 				expectedHash := hex.EncodeToString(hash[:])
@@ -85,13 +100,16 @@ func TestGetProjectHashDir(t *testing.T) {
 			projectPath: "/tmp/test-project/",
 			wantErr:     false,
 			validate: func(t *testing.T, result string) {
-				// Should normalize and produce same hash as without trailing slash
-				canonicalPath := "/tmp/test-project"
-				hash := md5.Sum([]byte(canonicalPath))
-				expectedHash := hex.EncodeToString(hash[:])
-
-				if !strings.HasSuffix(result, expectedHash) {
-					t.Errorf("Expected normalized hash %s, got %s", expectedHash, result)
+				// The invariant is the point: a trailing slash must not change
+				// the hash. Comparing against the slashless call keeps this
+				// platform-independent (the exact value is pinned by the
+				// "absolute path" case).
+				slashless, err := GetProjectHashDir("/tmp/test-project")
+				if err != nil {
+					t.Fatalf("GetProjectHashDir without slash failed: %v", err)
+				}
+				if result != slashless {
+					t.Errorf("trailing slash changed result: %s vs %s", result, slashless)
 				}
 			},
 		},
@@ -265,5 +283,49 @@ func TestHasStoreDB(t *testing.T) {
 				t.Errorf("HasStoreDB() = %v, expected %v", result, tt.expected)
 			}
 		})
+	}
+}
+
+// TestRecoverOriginCwds covers the reindex cwd-recovery: a Cursor session whose project-hash dir
+// matches a known cwd gets that cwd; one whose hash is unknown, or that already has a cwd, or whose
+// NativePath is malformed, is left as-is.
+func TestRecoverOriginCwds(t *testing.T) {
+	const chats = "/home/u/.cursor/chats"
+	known := "/Users/u/projects/alpha"
+	knownHash := ProjectHash(known) // same hashing RecoverOriginCwds uses internally
+	if !isMD5Hex(knownHash) {
+		t.Fatalf("ProjectHash(%q) = %q, not an md5 hex", known, knownHash)
+	}
+
+	np := func(hash, sid string) string { return filepath.Join(chats, hash, sid, "store.db") }
+
+	refs := []spi.GlobalSessionRef{
+		{SessionID: "s1", NativePath: np(knownHash, "s1")},                             // resolvable
+		{SessionID: "s2", NativePath: np("ffffffffffffffffffffffffffffffff", "s2")},    // hash unknown
+		{SessionID: "s3", NativePath: np(knownHash, "s3"), OriginCwd: "/already/here"}, // preset
+		{SessionID: "s4", NativePath: "/weird/store.db"},                               // malformed
+	}
+
+	RecoverOriginCwds(refs, []string{known, "/Users/u/projects/beta"})
+
+	cases := []struct {
+		name, got, want string
+	}{
+		{"resolvable session gets its cwd", refs[0].OriginCwd, known},
+		{"unknown-project session stays empty", refs[1].OriginCwd, ""},
+		{"preset cwd is untouched", refs[2].OriginCwd, "/already/here"},
+		{"malformed path stays empty", refs[3].OriginCwd, ""},
+	}
+	for _, c := range cases {
+		if c.got != c.want {
+			t.Errorf("%s: OriginCwd = %q, want %q", c.name, c.got, c.want)
+		}
+	}
+
+	// No known cwds → nothing changes (nothing to match against).
+	only := []spi.GlobalSessionRef{{SessionID: "x", NativePath: np(knownHash, "x")}}
+	RecoverOriginCwds(only, nil)
+	if only[0].OriginCwd != "" {
+		t.Errorf("with no known cwds, OriginCwd = %q, want empty", only[0].OriginCwd)
 	}
 }

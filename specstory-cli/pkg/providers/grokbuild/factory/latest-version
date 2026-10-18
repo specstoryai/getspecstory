@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Channel: the public stable manifest named by https://x.ai/cli/install.sh.
+# Reject npm lookalikes and alpha/enterprise trains: the supported binary is
+# the vendor's standalone stable release, not an npm package or GitHub project.
+# Factory SPI: print the released semantic version only; a failed request or
+# invalid/empty manifest is sensor failure (nonzero), never "no change".
+set -euo pipefail
+installer=$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 https://x.ai/cli/install.sh)
+if ! printf '%s\n' "$installer" | grep -q '^BASE_URL_PRIMARY="https://x.ai/cli"$'; then
+  echo 'latest-version: vendor installer manifest location changed' >&2
+  exit 1
+fi
+version=$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 https://x.ai/cli/stable)
+version=${version//$'\r'/}
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo 'latest-version: invalid stable manifest' >&2
+  exit 1
+fi
+printf '%s\n' "$version"

@@ -430,6 +430,32 @@ func TestNormalizePath(t *testing.T) {
 			workspaceRoot: "/project",
 			want:          ".",
 		},
+		// Shape-based cases, identical on every host: recorded paths keep their
+		// recorded shape, and relativized hints come out forward-slashed.
+		{
+			name:          "sibling sharing a name prefix is not inside the workspace",
+			path:          "/project-api/file.txt",
+			workspaceRoot: "/project",
+			want:          "/project-api/file.txt",
+		},
+		{
+			name:          "windows-recorded path under windows-recorded root",
+			path:          `C:\proj\src\main.go`,
+			workspaceRoot: `C:\proj`,
+			want:          "src/main.go",
+		},
+		{
+			name:          "windows-recorded path outside root unchanged",
+			path:          `D:\elsewhere\file.txt`,
+			workspaceRoot: `C:\proj`,
+			want:          `D:\elsewhere\file.txt`,
+		},
+		{
+			name:          "unix-recorded path with windows root unchanged",
+			path:          "/home/u/proj/main.go",
+			workspaceRoot: `C:\proj`,
+			want:          "/home/u/proj/main.go",
+		},
 	}
 
 	for _, tt := range tests {

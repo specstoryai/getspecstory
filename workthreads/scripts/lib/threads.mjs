@@ -1,0 +1,272 @@
+// threads.mjs - the work-thread roll-up engine (sibling lens to report.mjs).
+//
+// Same corpus as `index`/`report`; no schema change, no PARSER_VERSION bump, no LLM, no network.
+// It groups the indexed beats BY PROJECT, clusters them into THREADS of work (a line of work that
+// can span several sessions), and assigns each thread one lifecycle status - new / open / closed -
+// relative to the current date. The engine produces deterministic structure; the agent writes the
+// weekly rollup from this evidence (the same engine/agent split as lore's report).
+//
+// CLUSTERING (deterministic): two substantive beats join the same thread when they share a touched
+// file or a salient symbol (an identifier or path drawn from the intent and the executed commands -
+// the "intent/command grams" the spec calls for). Reaction turns ("perfect", "no, revert it") carry
+// FORWARD onto the previous beat in their session, so a follow-up and the work it reacts to stay one
+// thread (and a revert command lands on the thread it reverts).
+//
+// STATUS PRECEDENCE (relative to now):
+//   1. closed  - latest verdict is success, quiet >= 3 days, last activity within 30 days.
+//                Also closed + reverted when a beat ran a revert command.
+//   2. new     - first activity within the last `days` (default 7).
+//   3. open    - otherwise, activity within the last 2*`days` (default 14): the open loops.
+//   threads with no qualifying recent activity are dropped from the window.
+
+import { relative } from 'node:path'
+import { CORRECTED_RE, SUCCESS_RE } from './patterns.mjs'
+
+const DAY = 86400000
+
+// Salient identifiers: snake_case / kebab tokens, ALL-CAPS constants, camelCase names. Plain
+// lowercase English words are deliberately NOT symbols, so generic intent words ("feature",
+// "module") never over-merge two distinct lines of work.
+// snake_case / ALL_CAPS_WITH_UNDERSCORE and camelCase only. Bare short ALL-CAPS
+// (AI, API, CLI, EOF, DB) are abbreviations, not distinctive identifiers, so they are
+// deliberately excluded - they were bridging unrelated work into one mega-thread.
+const SYMBOL_RE = /[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+|[a-z][a-z0-9]*(?:[A-Z][a-z0-9]+)+/g
+// File-like tokens: an optional dir chain ending in a dotted extension (with or without a path).
+const FILE_RE = /(?:\.{0,2}\/)?(?:[\w@.-]+\/)+[\w@-]+\.[A-Za-z][\w]{0,9}|[\w@-]+\.[A-Za-z][\w]{0,9}/g
+// Revert / rollback commands (precedence-1 closed flag).
+const REVERT_RE = /git\s+revert\b|git\s+reset\s+--hard\b|git\s+checkout\s+--(?:\s|$)/
+
+const matchAll = (re, s) => { const out = []; if (!s) return out; for (const m of s.matchAll(re)) out.push(m[0]); return out }
+
+// Infra/config files are not a line of work and must never be a merge signal: dotfiles,
+// tool dirs (.claude/.specstory/.stoa/.git), absolute home/cache paths, ubiquitous files.
+const NOISE_FILE_RE = /(^|\/)\.[^/]|\/\.(claude|specstory|stoa|git|vscode|config)\/|(^|\/)(node_modules|dist|build|coverage)\//i
+const NOISE_BASE = new Set(['package.json', 'package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'tsconfig.json', 'readme.md', 'claude.md', 'agents.md'])
+function cleanFile(f) {
+  f = (f || '').trim()
+  if (!f) return null
+  if (f.startsWith('/Users/') || f.startsWith('/home/')) return null
+  if (NOISE_FILE_RE.test(f)) return null
+  if (NOISE_BASE.has(f.split('/').pop().toLowerCase())) return null
+  return f
+}
+// A symbol must be distinctive: at least 5 chars (drops residual short noise).
+const cleanSymbol = (s) => (s && s.length >= 5 ? s : null)
+
+// A reaction turn is the user reacting to the previous turn rather than opening new work.
+function isReaction(intent) {
+  const f = (intent || '').trim()
+  return !!f && (CORRECTED_RE.test(f) || SUCCESS_RE.test(f))
+}
+
+const daysSince = (date, now) => Math.floor((now - Date.parse(date + 'T00:00:00Z')) / DAY)
+
+// Disjoint-set over beat indices.
+function makeDSU(n) {
+  const p = Array.from({ length: n }, (_, i) => i)
+  const find = (x) => { while (p[x] !== x) { p[x] = p[p[x]]; x = p[x] } return x }
+  const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) p[Math.max(ra, rb)] = Math.min(ra, rb) }
+  return { find, union }
+}
+
+// Build threads from the corpus. Pure read of the DB; `now` is injectable for deterministic tests.
+export function computeThreads(db, { now = Date.now(), days = 7 } = {}) {
+  const newWin = days > 0 ? days : 7
+  const openWin = newWin * 2
+
+  const rows = db.prepare(`
+    SELECT s.id sid, s.project_id pid, s.project_name pname, s.date date, s.path path,
+           e.id eid, e.ord ord, e.start_line line, e.intent_raw intent, e.outcome outcome, e.files files
+    FROM beats e JOIN sessions s ON s.id = e.session_id
+    WHERE s.date IS NOT NULL AND s.date != ''
+    ORDER BY s.project_id, s.date, s.id, e.ord
+  `).all()
+  if (!rows.length) return []
+
+  const cmdMap = new Map()
+  for (const c of db.prepare('SELECT beat_id, raw FROM commands ORDER BY beat_id, ord').all()) {
+    if (!cmdMap.has(c.beat_id)) cmdMap.set(c.beat_id, [])
+    cmdMap.get(c.beat_id).push(c.raw || '')
+  }
+
+  // Per-beat evidence: touched files, salient symbols, reaction/revert flags.
+  const beats = rows.map((r) => {
+    const cmds = cmdMap.get(r.eid) || []
+    const files = new Set()
+    const symbols = new Set()
+    const addFile = (f) => { const c = cleanFile(f); if (c) files.add(c) }
+    const addSym = (s) => { const c = cleanSymbol(s); if (c) symbols.add(c) }
+    for (const f of (r.files || '').split(',')) addFile(f)
+    for (const src of [r.intent || '', ...cmds]) {
+      for (const f of matchAll(FILE_RE, src)) addFile(f)
+      for (const s of matchAll(SYMBOL_RE, src)) addSym(s)
+    }
+    return {
+      ...r, cmds, files, symbols,
+      keys: new Set([...files, ...symbols]),
+      reaction: isReaction(r.intent),
+      reverted: cmds.some((raw) => REVERT_RE.test(raw)),
+    }
+  })
+
+  const dsu = makeDSU(beats.length)
+  // 1) A SESSION is one line of work: union all of its beats. This alone collapses a
+  //    long single-session task (dozens of prompts touching different files) into ONE
+  //    thread instead of one-thread-per-prompt. A representative beat per session lets
+  //    later steps merge whole sessions by unioning their representatives.
+  const sidRep = new Map()
+  beats.forEach((b, i) => {
+    if (sidRep.has(b.sid)) dsu.union(i, sidRep.get(b.sid))
+    else sidRep.set(b.sid, i)
+  })
+
+  // 2) Cross-session merge by SHARED RARE KEYS. A key is a symbol or a file; a key in
+  //    more than COMMON_MAX sessions is ubiquitous (config, util, abbreviation) and is
+  //    ignored. Single-linkage on ONE shared key chains unrelated work into a mega-thread,
+  //    so two sessions merge only when they share >= 2 distinct rare keys - two independent
+  //    signals that they are the same line of work (e.g. a feature file AND its symbol).
+  const COMMON_MAX = 4
+  const MAX_SESSIONS = 5            // a real line of work spans a few sessions, not dozens.
+  const keySids = new Map()         // "pid\tkey" -> Set(sid)
+  const add = (k, sid) => { if (!keySids.has(k)) keySids.set(k, new Set()); keySids.get(k).add(sid) }
+  for (const b of beats) {
+    for (const s of b.symbols) add(b.pid + '\t' + s, b.sid)
+    for (const f of b.files) add(b.pid + '\t' + f, b.sid)
+  }
+
+  // 3) Bounded union: even with rare keys, single-linkage can chain a whole project into
+  //    one mega-thread. Track sessions per component and REFUSE any merge that would push a
+  //    thread past MAX_SESSIONS. This keeps threads at the scale of a real line of work.
+  const compSessions = new Map()
+  for (const rep of sidRep.values()) compSessions.set(dsu.find(rep), 1)
+  const tryMerge = (x, y) => {
+    const rx = dsu.find(x), ry = dsu.find(y)
+    if (rx === ry) return
+    const total = (compSessions.get(rx) || 1) + (compSessions.get(ry) || 1)
+    if (total > MAX_SESSIONS) return
+    dsu.union(x, y)
+    compSessions.set(dsu.find(x), total)
+  }
+  const pairShare = new Map()       // "sidA\tsidB" -> count of shared rare keys
+  for (const sids of keySids.values()) {
+    if (sids.size < 2 || sids.size > COMMON_MAX) continue
+    const arr = [...sids]
+    for (let a = 0; a < arr.length; a++) for (let c = a + 1; c < arr.length; c++) {
+      const pk = arr[a] < arr[c] ? arr[a] + '\t' + arr[c] : arr[c] + '\t' + arr[a]
+      const n = (pairShare.get(pk) || 0) + 1
+      pairShare.set(pk, n)
+      if (n === 2) { const [x, y] = pk.split('\t'); tryMerge(sidRep.get(x), sidRep.get(y)) }
+    }
+  }
+
+  // Gather members per root.
+  const groups = new Map()
+  beats.forEach((b, i) => {
+    const root = dsu.find(i)
+    if (!groups.has(root)) groups.set(root, [])
+    groups.get(root).push(b)
+  })
+
+  const cwd = process.cwd()
+  const threads = []
+  for (const members of groups.values()) {
+    members.sort((a, b) => a.date.localeCompare(b.date) || a.sid.localeCompare(b.sid) || a.ord - b.ord)
+    const files = [...new Set(members.flatMap((m) => [...m.files]))].sort()
+    const symbols = [...new Set(members.flatMap((m) => [...m.symbols]))].sort()
+    const sessions = new Set(members.map((m) => m.sid))
+    const firstActivity = members[0].date
+    const lastActivity = members[members.length - 1].date
+    const reverted = members.some((m) => m.reverted)
+
+    // latest verdict = last beat (chronologically) with a real success/corrected outcome.
+    let lastVerdict = null
+    for (const m of members) if (m.outcome === 'success' || m.outcome === 'corrected') lastVerdict = m.outcome
+
+    const anchor = members.find((m) => !m.reaction) || members[0]
+    const title = (anchor.intent || symbols[0] || files[0] || '(untitled thread)').slice(0, 120)
+    const evidence = members.map((m) => `${relative(cwd, m.path) || m.path}:${m.line}`)
+
+    const dsLast = daysSince(lastActivity, now)
+    const dsFirst = daysSince(firstActivity, now)
+    let status = null
+    if (lastVerdict === 'success' && dsLast >= 3 && dsLast <= 30) status = 'closed'
+    else if (dsFirst <= newWin) status = 'new'
+    else if (dsLast <= openWin) status = 'open'
+    if (!status) continue
+
+    threads.push({
+      project: members[0].pname,
+      project_id: members[0].pid,
+      status, reverted, files, symbols, title,
+      firstActivity, lastActivity,
+      sessions: sessions.size,
+      beats: members.length,
+      evidence,
+    })
+  }
+
+  // stable deterministic order: project, then status rank, then first activity / title.
+  const rank = { new: 0, open: 1, closed: 2 }
+  threads.sort((a, b) =>
+    a.project.localeCompare(b.project) ||
+    rank[a.status] - rank[b.status] ||
+    a.firstActivity.localeCompare(b.firstActivity) ||
+    a.title.localeCompare(b.title) ||
+    a.lastActivity.localeCompare(b.lastActivity))
+  return threads
+}
+
+const SECTIONS = [['New', 'new'], ['Open', 'open'], ['Recently closed', 'closed']]
+
+// The digest: a top line, then per project the three sections in order (printed even when empty),
+// each thread showing its title, status, reverted marker, last-activity date, and evidence refs.
+export function renderDigest(threads, { days = 7 } = {}) {
+  const projects = new Set(threads.map((t) => t.project))
+  const win = days > 0 ? days : 7
+
+  const L = []
+  L.push(`workthreads digest - ${threads.length} thread(s) across ${projects.size} active project(s) (window: last ${win} days)`)
+  L.push('')
+
+  const byProject = new Map()
+  for (const t of threads) {
+    if (!byProject.has(t.project)) byProject.set(t.project, [])
+    byProject.get(t.project).push(t)
+  }
+  const names = [...byProject.keys()].sort()
+  if (!names.length) L.push('(no active threads in this window)')
+  for (const name of names) {
+    const list = byProject.get(name)
+    L.push(`## ${name}`)
+    for (const [label, status] of SECTIONS) {
+      L.push(`  ${label}`)
+      const items = list.filter((t) => t.status === status)
+      if (!items.length) { L.push('    (none)'); continue }
+      for (const t of items) {
+        const mark = t.reverted ? ' · reverted' : ''
+        L.push(`    - ${t.title}  [${t.status}${mark}]  · last ${t.lastActivity} · ${t.sessions} session(s), ${t.beats} beat(s)`)
+        if (t.files.length) L.push(`        files: ${t.files.join(', ')}`)
+        for (const ref of t.evidence.slice(0, 4)) L.push(`        ${ref}`)
+      }
+    }
+    L.push('')
+  }
+  return L.join('\n').replace(/\n+$/, '\n')
+}
+
+// JSON view: only the array of threads, each with the contract fields (plus useful extras).
+export function threadsJson(threads) {
+  return threads.map((t) => ({
+    project: t.project,
+    status: t.status,
+    reverted: t.reverted,
+    files: t.files,
+    symbols: t.symbols,
+    title: t.title,
+    firstActivity: t.firstActivity,
+    lastActivity: t.lastActivity,
+    sessions: t.sessions,
+    beats: t.beats,
+    evidence: t.evidence,
+  }))
+}

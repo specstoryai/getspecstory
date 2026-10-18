@@ -1,0 +1,5 @@
+Pi: 0.85.1
+Node: v22.20.0
+Platform: macOS arm64
+SpecStory: 2.12.1 release candidate
+Validation date: 2026-09-17

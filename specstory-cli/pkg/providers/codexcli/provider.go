@@ -9,7 +9,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -18,11 +17,9 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
-const (
-	KB                    = 1024
-	MB                    = 1024 * 1024
-	maxReasonableLineSize = 250 * MB // 250MB sanity limit to prevent OOM from malformed or malicious files
-)
+// MB labels the large-line debug log below; the record cap itself is
+// spi.MaxRecordLineSize.
+const MB = 1024 * 1024
 
 // codexSessionMetaPayload captures the payload embedded in the Codex CLI session metadata record.
 type codexSessionMetaPayload struct {
@@ -112,31 +109,32 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	codexCmd, _ := parseCodexCommand(customCommand)
 	isCustomCommand := customCommand != ""
 
-	resolvedPath := codexCmd
-	if !filepath.IsAbs(codexCmd) {
-		if path, err := exec.LookPath(codexCmd); err == nil {
-			resolvedPath = path
+	resolvedPath, lookupErr := spi.LookPathForCheck(codexCmd)
+
+	attempt := analytics.CheckAttempt{Provider: "codex", CustomCommand: isCustomCommand, CommandPath: codexCmd, ResolvedPath: resolvedPath, VersionFlag: "--version"}
+	if lookupErr != nil {
+		errorType := spi.ClassifyCheckError(lookupErr)
+		analytics.TrackCheckFailure(attempt, errorType, lookupErr.Error(), "")
+		return spi.CheckResult{
+			Success:      false,
+			ErrorType:    errorType,
+			ErrorMessage: buildCheckErrorMessage(errorType, codexCmd, isCustomCommand, ""),
 		}
 	}
-
-	versionOutput, versionFlag, stderrOutput, err := runCodexVersionCommand(codexCmd)
+	versionOutput, versionFlag, stderrOutput, err := runCodexVersionCommand(resolvedPath)
+	attempt.VersionFlag = versionFlag
 	if err != nil {
 		errorType := classifyCheckError(err)
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "codex",
-			"custom_command": isCustomCommand,
-			"command_path":   codexCmd,
-			"resolved_path":  resolvedPath,
-			"error_type":     errorType,
-			"version_flag":   versionFlag,
-			"stderr":         stderrOutput,
-			"error_message":  err.Error(),
-		})
+		if errorType == spi.CheckErrorNotFound {
+			errorType = spi.CheckErrorUnknown
+		}
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
 
 		errorMessage := buildCheckErrorMessage(errorType, codexCmd, isCustomCommand, stderrOutput)
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
@@ -144,34 +142,21 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	}
 
 	if versionOutput == "" {
-		errorType := "no_output"
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "codex",
-			"custom_command": isCustomCommand,
-			"command_path":   codexCmd,
-			"resolved_path":  resolvedPath,
-			"error_type":     errorType,
-			"version_flag":   versionFlag,
-			"stderr":         stderrOutput,
-		})
+		errorType := spi.CheckErrorNoOutput
+		analytics.TrackCheckFailure(attempt, errorType, "version command produced no output", stderrOutput)
 
 		errorMessage := buildCheckErrorMessage(errorType, codexCmd, isCustomCommand, stderrOutput)
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
 		}
 	}
 
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
-		"provider":       "codex",
-		"custom_command": isCustomCommand,
-		"command_path":   resolvedPath,
-		"version":        versionOutput,
-		"version_flag":   versionFlag,
-	})
+	analytics.TrackCheckSuccess(attempt, versionOutput)
 
 	slog.Debug("Codex CLI check successful", "version", versionOutput, "location", resolvedPath, "flag", versionFlag)
 
@@ -330,6 +315,48 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 	return processSessionToAgentChat(&sessions[0], projectPath, debugRaw)
 }
 
+// GetAgentChatSessionByPath parses a single Codex session directly from its native file
+// path, implementing spi.PathSessionReader. It skips findCodexSessions' whole-tree walk —
+// which is what makes the by-id GetAgentChatSession O(N) per call, and a reindex of every
+// session O(N²) — by reading session_meta from the known file and handing off to the same
+// processSessionToAgentChat the by-id path uses. originCwd is the workspace root, matching
+// what GetAgentChatSession passes as projectPath.
+func (p *Provider) GetAgentChatSessionByPath(nativePath string, originCwd string, debugRaw bool) (*spi.AgentChatSession, error) {
+	meta, err := loadCodexSessionMeta(nativePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load codex session meta: %w", err)
+	}
+	// debugRaw is only set when a caller wants provider-specific raw dumps + RawData; reindex
+	// (the only caller) never does. Honor it via the full path so that behavior is unchanged.
+	if debugRaw {
+		info := codexSessionInfo{
+			SessionID:   strings.TrimSpace(meta.Payload.ID),
+			SessionPath: nativePath,
+			Meta:        meta,
+		}
+		return processSessionToAgentChat(&info, originCwd, debugRaw)
+	}
+	// Index fast path: read records only (skip the whole-file rawData string reindex never
+	// reads) and skip slug derivation (reindex uses the slug from enumeration). The SessionData
+	// produced here is identical to the full path's.
+	records, err := readSessionRecords(nativePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read session data: %w", err)
+	}
+	if len(records) == 0 {
+		return nil, nil
+	}
+	sessionData, err := GenerateAgentSession(records, originCwd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate SessionData: %w", err)
+	}
+	return &spi.AgentChatSession{
+		SessionID:   strings.TrimSpace(meta.Payload.ID),
+		CreatedAt:   meta.Timestamp,
+		SessionData: sessionData,
+	}, nil
+}
+
 // ExecAgentAndWatch executes the Codex CLI in interactive mode and monitors for session updates.
 // The function blocks until the Codex CLI exits. During execution, it watches for JSONL file changes
 // and invokes sessionCallback for each update, enabling real-time markdown generation and cloud sync.
@@ -365,11 +392,16 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 
 	// Execute Codex CLI - this blocks until Codex exits
 	slog.Info("Executing Codex CLI", "command", customCommand, "resumeSessionID", resumeSessionID)
+	homeDir, _ := osUserHomeDir()
+	finalChanges := spi.SessionFileChanges(codexSessionsRoot(homeDir), "*/*/*/*.jsonl")
 	err := ExecuteCodex(customCommand, resumeSessionID)
 
 	// Stop the watcher goroutine and wait for it to finish before returning
 	slog.Info("Codex CLI has exited, stopping watcher")
 	StopWatcher()
+	for _, path := range finalChanges() {
+		ScanCodexSessions(projectPath, filepath.Dir(path), &path)
+	}
 
 	// Return any execution error
 	if err != nil {
@@ -576,9 +608,23 @@ func findCodexSessions(projectPath string, targetSessionID string, stopOnFirst b
 	return sessions, nil
 }
 
-// readSessionRawData reads all JSONL lines from a Codex CLI session file and returns
-// both the parsed records and the raw JSONL content.
+// readSessionRawData reads all JSONL records and the raw JSONL content from a Codex session.
 func readSessionRawData(sessionPath string) ([]map[string]interface{}, string, error) {
+	return readCodexJSONL(sessionPath, true)
+}
+
+// readSessionRecords reads only the parsed JSONL records, skipping construction of the raw
+// JSONL string. reindex parses on this path: the raw content (up to the full file size — some
+// Codex sessions are hundreds of MB) is never read when indexing, so building it is pure waste.
+func readSessionRecords(sessionPath string) ([]map[string]interface{}, error) {
+	records, _, err := readCodexJSONL(sessionPath, false)
+	return records, err
+}
+
+// readCodexJSONL reads a Codex session's JSONL records, and — when collectRaw is true — the raw
+// JSONL content as one string. Callers that only need records pass collectRaw=false to skip the
+// whole-file string builder.
+func readCodexJSONL(sessionPath string, collectRaw bool) ([]map[string]interface{}, string, error) {
 	file, err := os.Open(sessionPath)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to open session file: %w", err)
@@ -590,28 +636,37 @@ func readSessionRawData(sessionPath string) ([]map[string]interface{}, string, e
 	var records []map[string]interface{}
 	var rawBuilder strings.Builder
 
-	// Use bufio.Reader instead of Scanner to handle arbitrarily large lines
-	// Scanner has a token size limit (even with custom buffer), but Reader does not
 	reader := bufio.NewReader(file)
 
 	lineNumber := 0
 	for {
-		// Read line using ReadString which has no size limit
-		line, err := reader.ReadString('\n')
-		line = strings.TrimSuffix(line, "\n")
+		rawLine, oversized, err := spi.ReadRecordLine(reader, spi.MaxRecordLineSize)
+		line := strings.TrimSuffix(string(rawLine), "\n")
 
 		// EOF is expected at end of file, other errors are genuine failures
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, "", fmt.Errorf("error reading line %d: %w", lineNumber+1, err)
 		}
 
 		// Determine if we're at end of file and if we have content to process
-		atEOF := err == io.EOF
+		atEOF := errors.Is(err, io.EOF)
 		hasContent := len(line) > 0
 
 		// Increment line number for every line read (including empty lines) to match text editor line numbers
-		if hasContent || !atEOF {
+		if hasContent || oversized || !atEOF {
 			lineNumber++
+		}
+
+		// One pathological record costs that record, not the rest of the session.
+		if oversized {
+			slog.Warn("Skipping oversized JSONL line",
+				"file", filepath.Base(sessionPath),
+				"line", lineNumber,
+				"limit", spi.MaxRecordLineSize)
+			if atEOF {
+				break
+			}
+			continue
 		}
 
 		// If no content, either skip empty line or exit at EOF
@@ -620,17 +675,6 @@ func readSessionRawData(sessionPath string) ([]map[string]interface{}, string, e
 				break // Reached end of file with no content
 			}
 			continue // Empty line in middle of file, skip it
-		}
-
-		// Sanity check to prevent OOM from pathological files
-		if len(line) > maxReasonableLineSize {
-			slog.Warn("line exceeds reasonable size limit",
-				"lineNumber", lineNumber,
-				"sizeMB", len(line)/MB,
-				"limitMB", maxReasonableLineSize/MB,
-				"file", filepath.Base(sessionPath))
-			return nil, "", fmt.Errorf("line %d exceeds reasonable size limit (%d MB): refusing to process potentially malformed file",
-				lineNumber, maxReasonableLineSize/MB)
 		}
 
 		// Log when processing unusually large lines (helps debug performance issues)
@@ -650,10 +694,6 @@ func readSessionRawData(sessionPath string) ([]map[string]interface{}, string, e
 			continue
 		}
 
-		// Add to raw data
-		rawBuilder.WriteString(line)
-		rawBuilder.WriteString("\n")
-
 		// Parse JSON
 		var record map[string]interface{}
 		if err := json.Unmarshal([]byte(line), &record); err != nil {
@@ -669,6 +709,12 @@ func readSessionRawData(sessionPath string) ([]map[string]interface{}, string, e
 		}
 
 		records = append(records, record)
+		// Keep the accepted native JSON: the parsed maps may already have
+		// lost numeric precision. Debug output must use the original bytes.
+		if collectRaw {
+			rawBuilder.WriteString(line)
+			rawBuilder.WriteByte('\n')
+		}
 
 		// After processing record, check if we're done
 		if atEOF {
@@ -750,12 +796,15 @@ func processSessionToAgentChat(sessionInfo *codexSessionInfo, workspaceRoot stri
 		slog.Error("Failed to generate SessionData", "sessionId", sessionInfo.SessionID, "error", err)
 		return nil, fmt.Errorf("failed to generate SessionData: %w", err)
 	}
+	// Resume titles a reconstructed session from SessionData's slug.
+	sessionData.Slug = slug
 
 	// Write provider-specific debug files if requested
 	if debugRaw {
-		if err := writeDebugRawFiles(sessionInfo.SessionID, records); err != nil {
-			slog.Debug("processSessionToAgentChat: Failed to write debug files",
+		if err := writeDebugRawFiles(sessionInfo.SessionID, rawData); err != nil {
+			slog.Warn("processSessionToAgentChat: Failed to write debug files",
 				"sessionID", sessionInfo.SessionID,
+				"path", spi.GetDebugDir(sessionInfo.SessionID),
 				"error", err)
 			// Don't fail the operation if debug output fails
 		}
@@ -772,44 +821,8 @@ func processSessionToAgentChat(sessionInfo *codexSessionInfo, workspaceRoot stri
 
 // writeDebugRawFiles writes debug JSON files for a Codex CLI session.
 // Each record is written as a numbered JSON file in .specstory/debug/<session-id>/
-func writeDebugRawFiles(sessionID string, records []map[string]interface{}) error {
-	// Get the debug directory path
-	debugDir := spi.GetDebugDir(sessionID)
-
-	// Create the debug directory
-	if err := os.MkdirAll(debugDir, 0755); err != nil {
-		return fmt.Errorf("failed to create debug directory: %w", err)
-	}
-
-	// Write each record as a pretty-printed JSON file
-	for index, record := range records {
-		// Create filename with 1-based index for readability
-		filename := fmt.Sprintf("%d.json", index+1)
-		debugPath := filepath.Join(debugDir, filename)
-
-		// Pretty print the record
-		prettyJSON, err := json.MarshalIndent(record, "", "  ")
-		if err != nil {
-			slog.Debug("writeDebugRawFiles: Failed to marshal record to JSON",
-				"index", index,
-				"error", err)
-			continue
-		}
-
-		// Write the file
-		if err := os.WriteFile(debugPath, prettyJSON, 0644); err != nil {
-			slog.Debug("writeDebugRawFiles: Failed to write debug file",
-				"path", debugPath,
-				"error", err)
-			continue
-		}
-
-		slog.Debug("writeDebugRawFiles: Wrote debug file",
-			"path", debugPath,
-			"index", index)
-	}
-
-	return nil
+func writeDebugRawFiles(sessionID, rawData string) error {
+	return spi.WriteDebugJSONL(spi.GetDebugDir(sessionID), rawData)
 }
 
 // findFirstUserMessage extracts the first user message from Codex CLI session records.
@@ -828,9 +841,15 @@ func findFirstUserMessage(records []map[string]interface{}) string {
 			continue
 		}
 
-		// Check if this is a user message
+		// Check if this is a user message, in either of the shapes Codex writes
 		payloadType, ok := payload["type"].(string)
-		if !ok || payloadType != "user_message" {
+		if !ok {
+			continue
+		}
+		if payloadType == itemCompletedEvent {
+			payloadType, payload = codexItemAsLegacyEvent(payload)
+		}
+		if payloadType != "user_message" {
 			continue
 		}
 
@@ -909,7 +928,7 @@ func extractCodexSessionMetadata(sessionInfo *codexSessionInfo) (*spi.SessionMet
 	// so we always process the line first, then check for EOF once at the bottom.
 	for {
 		line, readErr := reader.ReadString('\n')
-		if readErr != nil && readErr != io.EOF {
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
 			return nil, fmt.Errorf("failed to read line: %w", readErr)
 		}
 
@@ -926,7 +945,11 @@ func extractCodexSessionMetadata(sessionInfo *codexSessionInfo) (*spi.SessionMet
 					"error", jsonErr)
 			} else if recordType, ok := record["type"].(string); ok && recordType == "event_msg" {
 				if payload, ok := record["payload"].(map[string]interface{}); ok {
-					if payloadType, ok := payload["type"].(string); ok && payloadType == "user_message" {
+					payloadType, _ := payload["type"].(string)
+					if payloadType == itemCompletedEvent {
+						payloadType, payload = codexItemAsLegacyEvent(payload)
+					}
+					if payloadType == "user_message" {
 						if message, ok := payload["message"].(string); ok && message != "" {
 							firstUserMessage = message
 						}
@@ -936,7 +959,7 @@ func extractCodexSessionMetadata(sessionInfo *codexSessionInfo) (*spi.SessionMet
 		}
 
 		// Single exit: found what we need, or reached end of file
-		if firstUserMessage != "" || readErr == io.EOF {
+		if firstUserMessage != "" || errors.Is(readErr, io.EOF) {
 			break
 		}
 	}
@@ -958,4 +981,172 @@ func extractCodexSessionMetadata(sessionInfo *codexSessionInfo) (*spi.SessionMet
 		Slug:      slug,
 		Name:      name,
 	}, nil
+}
+
+// codexSessionHeader is the minimal metadata enumeration needs from a session file: the
+// session_meta fields plus the first user message (for slug/name), produced in a SINGLE pass.
+type codexSessionHeader struct {
+	sessionID        string
+	cwd              string
+	createdAt        string
+	firstUserMessage string
+}
+
+// userMessageMarker and itemUserMessageMarker are the cheap substring screens for the two shapes
+// a Codex first prompt takes: the user_message event, and the thread item 0.147's TUI writes in
+// its place. Every real record of either kind contains its marker (each is a JSON "type" value),
+// so screening on them before a full JSON parse never misses one; a rare false positive (the
+// literal text inside an injected context record) just costs one extra parse that
+// codexUserMessageText then rejects.
+const (
+	userMessageMarker     = `"user_message"`
+	itemUserMessageMarker = `"UserMessage"`
+)
+
+// scanCodexSessionHeader reads a Codex session file ONCE and extracts the session_meta
+// (id/cwd/timestamp from line 1) and the first user message. It deliberately avoids fully
+// parsing the large injected-context records (environment, instructions, AGENTS.md — often MB
+// each) that precede the first user message: each line is first cheaply screened for the
+// user_message marker, and only a candidate line is JSON-decoded. The result is identical to the
+// prior loadCodexSessionMeta + extractCodexSessionMetadata pair, in one pass instead of two opens.
+// Returns (nil, nil) for a session with no user message — treated as empty, as before.
+func scanCodexSessionHeader(sessionPath string) (*codexSessionHeader, error) {
+	file, err := os.Open(sessionPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open session file: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+
+	reader := bufio.NewReader(file)
+	h := &codexSessionHeader{}
+	lineNum := 0
+	for {
+		rawLine, oversized, readErr := spi.ReadRecordLine(reader, spi.MaxRecordLineSize)
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return nil, fmt.Errorf("failed to read line: %w", readErr)
+		}
+		line := string(rawLine)
+		lineNum++
+
+		// Skip a pathological record, for parity with readCodexJSONL (this parallel
+		// scan must not be the weaker path). Such a record cannot be the small
+		// user_message we seek; line 1 has its own tighter limit below.
+		if oversized {
+			if errors.Is(readErr, io.EOF) {
+				break
+			}
+			continue
+		}
+
+		if lineNum == 1 {
+			// Line 1 is session_meta. Keep loadCodexSessionMeta's 64 KB first-line limit so
+			// the set of indexed sessions is unchanged from the Scanner-based path.
+			trimmed := strings.TrimSpace(line)
+			if trimmed != "" {
+				if len(trimmed) > bufio.MaxScanTokenSize {
+					return nil, errors.New("codex session meta exceeds line limit")
+				}
+				var meta codexSessionMeta
+				if err := json.Unmarshal([]byte(trimmed), &meta); err != nil {
+					return nil, fmt.Errorf("failed to parse codex session meta: %w", err)
+				}
+				if meta.Type != "session_meta" {
+					return nil, fmt.Errorf("unexpected codex session record type: %s", meta.Type)
+				}
+				h.sessionID = strings.TrimSpace(meta.Payload.ID)
+				h.cwd = meta.Payload.CWD
+				h.createdAt = meta.Timestamp
+			}
+		} else if strings.Contains(line, userMessageMarker) || strings.Contains(line, itemUserMessageMarker) {
+			// Cheap screen passed: only now pay for a full parse. The big context records before
+			// the first user message lack the marker and are skipped without a parse. The marker
+			// is interior JSON, so the screen runs on the RAW line — no TrimSpace copy of a
+			// possibly multi-MB context record; only a real match (a small line) is parsed.
+			if msg := codexUserMessageText(strings.TrimSpace(line)); msg != "" {
+				h.firstUserMessage = msg
+				break
+			}
+		}
+
+		if errors.Is(readErr, io.EOF) {
+			break
+		}
+	}
+
+	if h.sessionID == "" {
+		return nil, errors.New("codex session meta not found")
+	}
+	if h.firstUserMessage == "" {
+		return nil, nil // no user message → empty session, excluded from enumeration
+	}
+	return h, nil
+}
+
+// codexUserMessageText returns the message text when line is an event_msg carrying a user prompt
+// in either shape Codex writes, else "". It is only called for lines that passed one of the
+// marker screens, and applies the same structural checks extractCodexSessionMetadata used.
+func codexUserMessageText(line string) string {
+	var record map[string]interface{}
+	if err := json.Unmarshal([]byte(line), &record); err != nil {
+		return ""
+	}
+	if recordType, _ := record["type"].(string); recordType != "event_msg" {
+		return ""
+	}
+	payload, ok := record["payload"].(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	payloadType, _ := payload["type"].(string)
+	if payloadType == itemCompletedEvent {
+		payloadType, payload = codexItemAsLegacyEvent(payload)
+	}
+	if payloadType != "user_message" {
+		return ""
+	}
+	message, _ := payload["message"].(string)
+	return message
+}
+
+// ListAllAgentChatSessions enumerates every Codex CLI session across all projects. It is the
+// no-progress form of ListAllAgentChatSessionsProgress.
+func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
+	return p.ListAllAgentChatSessionsProgress(nil)
+}
+
+// ListAllAgentChatSessionsProgress enumerates every Codex CLI session across all projects by
+// walking ~/.codex/sessions for *.jsonl rollouts (Codex sessions are not project-keyed by
+// directory; the originating cwd lives in the session_meta record), reporting scan progress into r
+// (nil-safe). The per-file header read is the dominant cost of `specstory reindex` (parsing each
+// file's injected context), so headers are scanned in parallel across CPUs; output order is
+// irrelevant (reindex dedups and sorts later). Implements spi.ProgressEnumerator. See
+// docs/SESSIONS-DB.md.
+func (p *Provider) ListAllAgentChatSessionsProgress(r *spi.ScanReporter) ([]spi.GlobalSessionRef, error) {
+	homeDir, err := osUserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine home directory: %w", err)
+	}
+	sessionsRoot := codexSessionsRoot(homeDir)
+	if _, err := os.Stat(sessionsRoot); err != nil {
+		// No sessions directory yet → nothing to enumerate (not an error).
+		return []spi.GlobalSessionRef{}, nil
+	}
+
+	return spi.ScanSessionsInParallel(sessionsRoot, "codex", r, func(path string) (*spi.GlobalSessionRef, error) {
+		h, err := scanCodexSessionHeader(path)
+		if err != nil {
+			return nil, err
+		}
+		if h == nil {
+			return nil, nil // empty session (no user message)
+		}
+		return &spi.GlobalSessionRef{
+			SessionID:  h.sessionID,
+			CreatedAt:  h.createdAt,
+			Slug:       spi.GenerateFilenameFromUserMessage(h.firstUserMessage),
+			Name:       spi.GenerateReadableName(h.firstUserMessage),
+			NativePath: path,
+			OriginCwd:  h.cwd,
+		}, nil
+	})
 }

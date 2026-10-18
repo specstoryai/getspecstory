@@ -8,11 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 const PROJECT_JSON_FILE = ".project.json"
@@ -28,29 +30,97 @@ type ProjectIdentity struct {
 
 // ProjectIdentityManager handles project identity operations
 type ProjectIdentityManager struct {
-	projectRoot string
+	projectRoot         string
+	specstoryDir        string // optional override for the .specstory directory location (from --output-dir, when set)
+	detectionRoot       string // when non-empty, identity auto-detection walks up from here instead of projectRoot (a locally readable --project-path)
+	overrideProjectName string // when non-empty, use instead of auto-detecting project name (the basename of --project-path)
+	overrideGitOrigin   string // when non-empty, use instead of reading from .git/config (from --git-origin)
 }
 
-// NewProjectIdentityManager creates a new project identity manager
-func NewProjectIdentityManager(projectRoot string) *ProjectIdentityManager {
+// NewProjectIdentityManager creates a new project identity manager.
+// specstoryDir overrides the default {projectRoot}/.specstory location when non-empty,
+// directing .project.json reads and writes to that directory instead.
+func NewProjectIdentityManager(projectRoot, specstoryDir string) *ProjectIdentityManager {
 	return &ProjectIdentityManager{
-		projectRoot: projectRoot,
+		projectRoot:  projectRoot,
+		specstoryDir: specstoryDir,
 	}
 }
 
-// getProjectJSONPath returns the path to .specstory/.project.json
+// NewProjectIdentityManagerWithOverrides builds the identity manager the CLI
+// commands share, wiring in the hidden override flags. gitOriginOverride always
+// feeds WithGitOrigin (empty means no override). When projectPathOverride is
+// set, the project is named after the effective path's basename: the walk-up
+// name detection would otherwise describe the directory the CLI happens to run
+// from rather than the project being targeted.
+func NewProjectIdentityManagerWithOverrides(cwd, specstoryDir, projectPathOverride, gitOriginOverride string) *ProjectIdentityManager {
+	manager := NewProjectIdentityManager(cwd, specstoryDir).WithGitOrigin(gitOriginOverride)
+	if projectPathOverride != "" {
+		effectivePath := ResolveProjectPath(projectPathOverride, cwd)
+		manager = manager.WithProjectName(filepath.Base(effectivePath))
+		// The target drives identity detection: the identity describes the project
+		// being targeted, not the directory the CLI was launched from. This holds
+		// even for remote (SSH) paths that don't exist locally — the manager hashes
+		// the path itself for workspace_id, so two different remote projects
+		// launched from the same local directory get distinct identities.
+		manager = manager.WithDetectionRoot(effectivePath)
+	}
+	return manager
+}
+
+// WithProjectName sets an explicit project name override, bypassing auto-detection.
+// The override is applied even if a project name already exists in .project.json.
+func (m *ProjectIdentityManager) WithProjectName(name string) *ProjectIdentityManager {
+	m.overrideProjectName = name
+	return m
+}
+
+// WithGitOrigin sets an explicit git remote origin URL override, bypassing .git/config.
+// The override is used to compute the git_id even if one already exists in .project.json.
+func (m *ProjectIdentityManager) WithGitOrigin(origin string) *ProjectIdentityManager {
+	m.overrideGitOrigin = origin
+	return m
+}
+
+// WithDetectionRoot points identity auto-detection (the workspace_id/git_id/name
+// walk-up) at dir instead of projectRoot, while the .specstory location stays
+// anchored to projectRoot. Callers pass the effective --project-path here so the
+// detected identity describes that project rather than the launch directory. The
+// path may name a remote (SSH) directory that does not exist locally — detection
+// then hashes the path for workspace_id and skips the filesystem-dependent steps.
+func (m *ProjectIdentityManager) WithDetectionRoot(dir string) *ProjectIdentityManager {
+	m.detectionRoot = dir
+	return m
+}
+
+// getDetectionRoot returns the directory identity auto-detection starts from.
+func (m *ProjectIdentityManager) getDetectionRoot() string {
+	if m.detectionRoot != "" {
+		return m.detectionRoot
+	}
+	return m.projectRoot
+}
+
+// getSpecstoryDir returns the .specstory directory to use for this project.
+func (m *ProjectIdentityManager) getSpecstoryDir() string {
+	if m.specstoryDir != "" {
+		return m.specstoryDir
+	}
+	return filepath.Join(m.projectRoot, SPECSTORY_DIR)
+}
+
+// getProjectJSONPath returns the path to .project.json
 func (m *ProjectIdentityManager) getProjectJSONPath() string {
-	return filepath.Join(m.projectRoot, SPECSTORY_DIR, PROJECT_JSON_FILE)
+	return filepath.Join(m.getSpecstoryDir(), PROJECT_JSON_FILE)
 }
 
 // EnsureProjectIdentity initializes or updates the project identity
 // Returns true if the identity was created or modified
 func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
-	slog.Debug("Ensuring project identity", "projectRoot", m.projectRoot)
+	slog.Debug("Ensuring project identity", "projectRoot", m.projectRoot, "specstoryDir", m.getSpecstoryDir())
 
-	// Ensure .specstory directory exists (create if needed)
-	specstoryDir := filepath.Join(m.projectRoot, SPECSTORY_DIR)
-	if err := os.MkdirAll(specstoryDir, 0755); err != nil {
+	// Ensure the specstory directory exists (create if needed)
+	if err := os.MkdirAll(m.getSpecstoryDir(), 0755); err != nil {
 		return false, fmt.Errorf("failed to create .specstory directory: %w", err)
 	}
 
@@ -59,6 +129,37 @@ func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
 	existingIdentity, err := m.ReadProjectIdentity()
 	if err != nil && !os.IsNotExist(err) {
 		return false, fmt.Errorf("failed to read existing project identity: %w", err)
+	}
+
+	// Resolve identity by walking up to the git root (NOT the launch directory), so a
+	// session run from a monorepo subdirectory attributes to the repo, not a fragment.
+	// resolvedName always falls back to the root's base name, so it is never empty.
+	// The walk starts from the detection root, which a --project-path override may
+	// have pointed at the targeted project instead of the launch directory.
+	//
+	// A detection root that isn't a locally readable directory is a remote (SSH)
+	// project path: either it doesn't exist here, or — a driveless rooted path on
+	// Windows like \home\u\project — it cannot even be probed safely, because
+	// os.Stat resolves it against the process's current drive and could match an
+	// unrelated local directory. Its identity still must come from the path
+	// itself: hashing the launch directory instead would hand every remote
+	// project launched from the same local directory the same workspace_id.
+	//
+	// The path is hashed exactly as given, skipping every host-filesystem step:
+	// no walk-up (the remote path's LOCAL ancestors could hold an unrelated
+	// repo's .git — git identity for remote targets comes from --git-origin), no
+	// filepath.Abs (it would staple the current drive letter on), and no host
+	// case-folding (the host may be case-insensitive, but remote SSH/WSL
+	// filesystems are case-sensitive — folding would collide /home/u/Repo with
+	// /home/u/repo).
+	var resolvedGitID, resolvedWorkspaceID, resolvedName string
+	detectionRoot := m.getDetectionRoot()
+	if info, statErr := os.Stat(detectionRoot); !IsDrivelessRootedPath(detectionRoot) && statErr == nil && info.IsDir() {
+		resolvedGitID, resolvedWorkspaceID, resolvedName, _ = resolveIdentity(detectionRoot)
+	} else {
+		rooted := &ProjectIdentityManager{projectRoot: detectionRoot}
+		resolvedWorkspaceID = rooted.createHash(detectionRoot)
+		resolvedName = filepath.Base(detectionRoot)
 	}
 
 	// Determine what needs to be done
@@ -70,7 +171,7 @@ func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
 		// Case 1: No .project.json yet
 		slog.Debug("No existing project identity found, creating new identity")
 		identity = ProjectIdentity{
-			WorkspaceID:   m.generateWorkspaceID(),
+			WorkspaceID:   resolvedWorkspaceID,
 			WorkspaceIDAt: time.Now().UTC().Format(time.RFC3339),
 		}
 		isModified = true
@@ -82,36 +183,59 @@ func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
 		// Check if workspace_id is missing (shouldn't happen, but be defensive)
 		if identity.WorkspaceID == "" {
 			slog.Warn("Project identity file exists but has no workspace_id")
-			identity.WorkspaceID = m.generateWorkspaceID()
+			identity.WorkspaceID = resolvedWorkspaceID
 			identity.WorkspaceIDAt = time.Now().UTC().Format(time.RFC3339)
 			isModified = true
 		}
+
+		// With --project-path in effect, a stored identity whose workspace_id
+		// doesn't match the target belongs to a DIFFERENT project — most likely
+		// this .specstory dir was previously used for another target. The
+		// fill-if-empty rules below would keep the old project's ids (only the
+		// name would update), so sessions of the new target would sync under the
+		// old project's identity. Retarget wholesale: take the new workspace_id
+		// and drop the stale git_id so the override/detection logic below fills
+		// it fresh for the new target.
+		if m.detectionRoot != "" && identity.WorkspaceID != resolvedWorkspaceID {
+			slog.Debug("Retargeting stored identity to the --project-path target",
+				"oldWorkspaceID", identity.WorkspaceID, "newWorkspaceID", resolvedWorkspaceID)
+			identity.WorkspaceID = resolvedWorkspaceID
+			identity.WorkspaceIDAt = time.Now().UTC().Format(time.RFC3339)
+			identity.GitID = ""
+			identity.GitIDAt = ""
+			isModified = true
+		}
 	}
 
-	// Check if we need to add git_id
-	if identity.GitID == "" {
-		gitID, err := m.generateGitID()
-		if err == nil && gitID != "" {
+	// Determine git_id: prefer explicit override, then the walk-up resolver
+	if m.overrideGitOrigin != "" {
+		// Always apply the explicit override (force-update even if already set)
+		gitID := m.createHash(m.normalizeGitURL(m.overrideGitOrigin))
+		if identity.GitID != gitID {
 			identity.GitID = gitID
 			identity.GitIDAt = time.Now().UTC().Format(time.RFC3339)
 			isModified = true
-			slog.Debug("Added git_id to project identity", "git_id", gitID)
-		} else if err != nil {
-			slog.Debug("Could not generate git_id", "error", err)
+			slog.Debug("Set git_id from --git-origin override", "git_id", gitID)
 		}
+	} else if identity.GitID == "" && resolvedGitID != "" {
+		identity.GitID = resolvedGitID
+		identity.GitIDAt = time.Now().UTC().Format(time.RFC3339)
+		isModified = true
+		slog.Debug("Added git_id to project identity", "git_id", resolvedGitID)
 	}
 
-	// Check if we need to add project_name
-	if identity.ProjectName == "" {
-		projectName := m.generateProjectName()
-		if projectName != "" {
-			identity.ProjectName = projectName
+	// Determine project_name: prefer explicit override, then the walk-up resolver
+	if m.overrideProjectName != "" {
+		// Always apply the explicit override (force-update even if already set)
+		if identity.ProjectName != m.overrideProjectName {
+			identity.ProjectName = m.overrideProjectName
 			isModified = true
-			slog.Debug("Added project_name to project identity", "project_name", projectName)
-		} else {
-			slog.Warn("Could not generate project_name, using workspace_id instead")
-			identity.ProjectName = identity.WorkspaceID
+			slog.Debug("Set project_name from --project-path override", "project_name", m.overrideProjectName)
 		}
+	} else if identity.ProjectName == "" {
+		identity.ProjectName = resolvedName
+		isModified = true
+		slog.Debug("Added project_name to project identity", "project_name", resolvedName)
 	}
 
 	// Write the project identity file if modified
@@ -186,76 +310,44 @@ func (m *ProjectIdentityManager) generateWorkspaceID() string {
 	}
 
 	// The TypeScript version hashes the workspace URI, but in our case
-	// we'll hash the absolute path for compatibility
-	return m.createHash(absPath)
+	// we'll hash the absolute path for compatibility. The path is canonicalized first so
+	// the same physical directory yields one id regardless of the casing a caller passes
+	// (os.Getwd may echo a lowercase $PWD; a session's recorded cwd may differ in case).
+	return m.createHash(canonicalizeWorkspacePath(absPath))
 }
 
-// generateGitID generates a git ID by finding and hashing the git origin URL
-func (m *ProjectIdentityManager) generateGitID() (string, error) {
-	gitConfigPath := filepath.Join(m.projectRoot, ".git", "config")
+// caseInsensitiveFilesystem is a best-effort, OS-level default for whether paths
+// should be case-folded — NOT a per-volume probe. macOS and Windows volumes are
+// usually case-insensitive and Linux case-sensitive, so we key off GOOS for
+// simplicity and stability. It is a var so tests can exercise both behaviors.
+//
+// Accepted trade-off: macOS (APFS/HFS+) can be formatted case-SENSITIVE, where
+// this default wrongly folds two genuinely-distinct directories that differ only
+// by case into one workspace_id. That is rare and low-impact — case-sensitive
+// macOS volumes are uncommon, and it only affects the path-based fallback id
+// (git-remote projects hash the normalized URL, not the path). It is the
+// deliberate inverse of the common bug this fixes: case-divergent references to
+// the SAME directory on the usual case-insensitive volume (e.g. a lowercased
+// $PWD vs a session's recorded cwd) hashing to two different ids.
+var caseInsensitiveFilesystem = runtime.GOOS == "darwin" || runtime.GOOS == "windows"
 
-	// Check if git config exists
-	if _, err := os.Stat(gitConfigPath); err != nil {
-		return "", fmt.Errorf("no git config found: %w", err)
+// canonicalizeWorkspacePath normalizes a path before it is hashed into a workspace_id. On
+// a case-insensitive filesystem the same directory can be named with different casing,
+// which would otherwise hash to different ids for one physical directory; case-folding
+// makes the id stable. On case-sensitive filesystems the path is left byte-exact, since
+// there two differently-cased paths are genuinely different directories.
+func canonicalizeWorkspacePath(path string) string {
+	if caseInsensitiveFilesystem {
+		return strings.ToLower(path)
 	}
-
-	// Read git config file
-	gitConfig, err := os.ReadFile(gitConfigPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read git config: %w", err)
-	}
-
-	// Find origin remote URL using regex
-	// Match [remote "origin"] section and capture the url value
-	originURLRegex := regexp.MustCompile(`\[remote "origin"\][^\[]*url\s*=\s*([^\n\r]+)`)
-	matches := originURLRegex.FindSubmatch(gitConfig)
-	if len(matches) < 2 {
-		return "", fmt.Errorf("no origin URL found in git config")
-	}
-
-	originURL := strings.TrimSpace(string(matches[1]))
-	if originURL == "" {
-		return "", fmt.Errorf("no URL found for origin remote")
-	}
-
-	// Normalize git URLs to ensure HTTPS and SSH URLs for the same repo generate the same ID
-	normalizedURL := m.normalizeGitURL(originURL)
-
-	return m.createHash(normalizedURL), nil
+	return path
 }
 
-// normalizeGitURL normalizes a git URL to ensure HTTPS and SSH URLs for the same repo generate the same ID
-// It extracts the host and repository path, normalizing different URL formats to a common form
+// normalizeGitURL normalizes a git URL so HTTPS and SSH URLs for the same repo generate
+// the same ID. It delegates to spi.NormalizeGitRemoteURL, which providers also use to
+// match sessions to a project by repository, so both sides always agree.
 func (m *ProjectIdentityManager) normalizeGitURL(gitURL string) string {
-	// Remove .git suffix if present
-	normalized := strings.TrimSuffix(gitURL, ".git")
-
-	// Handle SSH format (git@host:owner/repo or user@host:owner/repo)
-	if strings.Contains(normalized, "@") && strings.Contains(normalized, ":") {
-		// Split by @ to get the host part
-		parts := strings.SplitN(normalized, "@", 2)
-		if len(parts) == 2 {
-			// Split by : to separate host from path
-			hostAndPath := strings.SplitN(parts[1], ":", 2)
-			if len(hostAndPath) == 2 {
-				// Return normalized as "host/path"
-				return hostAndPath[0] + "/" + hostAndPath[1]
-			}
-		}
-	}
-
-	// Handle HTTPS and other protocol URLs (https://host/owner/repo, git://host/owner/repo, etc.)
-	if strings.Contains(normalized, "://") {
-		// Remove the protocol
-		protocolIndex := strings.Index(normalized, "://")
-		if protocolIndex != -1 {
-			// Return everything after the protocol
-			return normalized[protocolIndex+3:]
-		}
-	}
-
-	// Handle implicit format (host/owner/repo) - already normalized
-	return normalized
+	return spi.NormalizeGitRemoteURL(gitURL)
 }
 
 // createHash creates a hash from the input string matching the TypeScript implementation
@@ -373,31 +465,6 @@ func (m *ProjectIdentityManager) parseGitRemoteURL(remoteURL string) string {
 	return repoName
 }
 
-// generateProjectName generates a project name from git remote or directory name
-func (m *ProjectIdentityManager) generateProjectName() string {
-	// First, try to get from git remote
-	gitConfigPath := filepath.Join(m.projectRoot, ".git", "config")
-
-	if _, err := os.Stat(gitConfigPath); err == nil {
-		// Git config exists, try to parse it
-		gitConfig, err := os.ReadFile(gitConfigPath)
-		if err == nil {
-			// Find origin remote URL using regex
-			originURLRegex := regexp.MustCompile(`\[remote "origin"\][^\[]*url\s*=\s*([^\n\r]+)`)
-			matches := originURLRegex.FindSubmatch(gitConfig)
-			if len(matches) >= 2 {
-				originURL := strings.TrimSpace(string(matches[1]))
-				if repoName := m.parseGitRemoteURL(originURL); repoName != "" {
-					return repoName
-				}
-			}
-		}
-	}
-
-	// Fallback: use the last component of the project directory
-	return filepath.Base(m.projectRoot)
-}
-
 // GetProjectName returns the project name from the project identity
 func (m *ProjectIdentityManager) GetProjectName() (string, error) {
 	identity, err := m.ReadProjectIdentity()
@@ -408,4 +475,105 @@ func (m *ProjectIdentityManager) GetProjectName() (string, error) {
 		return "", fmt.Errorf("no project name found")
 	}
 	return identity.ProjectName, nil
+}
+
+// ---------------------------------------------------------------------------
+// Walk-up identity resolution (shared by ComputeProjectID and the writer).
+//
+// The stored .specstory/.project.json fragments a monorepo: it is written per
+// launch directory, keyed to a .git at exactly that directory with no walk-up — so a
+// session launched from a subdirectory gets no git_id and a path-based workspace_id all
+// its own. The resolver below instead walks UP to the git root and computes identity
+// from there, so every directory inside one repo resolves to a single project. See
+// docs/SESSIONS-DB.md.
+// ---------------------------------------------------------------------------
+
+// resolveIdentity computes a project's identity from a starting directory by walking
+// up to the git root. It reads only git metadata — never any .specstory/.project.json
+// — so it cannot be fooled by the per-directory identity files that fragment a
+// monorepo. Returns the git_id (empty when there is no resolvable origin remote), the
+// workspace_id (hash of the resolved root), the project name, and the resolved root.
+func resolveIdentity(startDir string) (gitID, workspaceID, name, root string) {
+	root = startDir
+	if gr, ok := spi.FindGitRoot(startDir); ok {
+		root = gr
+	}
+
+	// A zero-state manager rooted at the resolved root reuses the existing hashing /
+	// normalization / repo-name helpers (they do not depend on manager state).
+	rooted := &ProjectIdentityManager{projectRoot: root}
+	workspaceID = rooted.generateWorkspaceID()
+	if originURL := spi.GitOriginURL(root); originURL != "" {
+		gitID = rooted.createHash(rooted.normalizeGitURL(originURL))
+		name = rooted.parseGitRemoteURL(originURL)
+	}
+	if name == "" {
+		name = filepath.Base(root)
+	}
+	return gitID, workspaceID, name, root
+}
+
+// ComputeProjectID resolves the restore-index project identity for a session's
+// working directory. It walks up to the git root and computes identity fresh, never
+// writing a .specstory/.project.json. Returns the project id (git_id when a remote
+// is resolvable, else the path-based workspace_id) and the project name.
+//
+// Stored .project.json handling differs by branch, on purpose:
+//   - With a resolvable remote, the git_id is computed from the remote URL and any
+//     stored file is ignored — this is what collapses a monorepo to one id.
+//   - In the no-remote fallback, a stored workspace_id IS preferred (see below).
+//     That deliberately keeps this id equal to the one cloud sync derives from the
+//     same launch dir's .project.json (sync.go reads it directly and does NOT walk
+//     up). The trade: a remote-less git monorepo whose subdirs carry legacy
+//     per-subdir .project.json files stays fragmented in BOTH the index and cloud,
+//     rather than collapsing in the index while diverging from cloud.
+func ComputeProjectID(cwd string) (id, name string, err error) {
+	if strings.TrimSpace(cwd) == "" {
+		return "", "", fmt.Errorf("cannot resolve project id: empty working directory")
+	}
+	gitID, workspaceID, name, _ := resolveIdentity(cwd)
+
+	// Prefer a resolvable git_id: it hashes the normalized remote URL, not a path, so it is
+	// immune to the case divergence handled below and never fragments a monorepo.
+	if gitID != "" {
+		return gitID, name, nil
+	}
+
+	// No git remote → use the path-based workspace_id. Prefer an id already persisted in the
+	// launch dir's .project.json so every consumer (reindex, resume, cloud sync) agrees on a
+	// single value, even for projects whose file predates path canonicalization. Only when no
+	// file exists (e.g. a portable session whose recorded cwd is not present locally) do we
+	// fall back to the freshly computed — and now canonical — hash.
+	if stored := persistedWorkspaceID(cwd); stored != "" {
+		return stored, name, nil
+	}
+	if workspaceID == "" {
+		return "", "", fmt.Errorf("cannot resolve project id for %q", cwd)
+	}
+	return workspaceID, name, nil
+}
+
+// ComputeProjectIDFromRemote resolves the restore-index project identity for a
+// session that names a repository instead of a working directory. It returns the
+// git_id that ComputeProjectID yields for any checkout whose origin is remoteURL,
+// and the repository name, so a hosted agent's sessions bucket with the local
+// clone's sessions.
+func ComputeProjectIDFromRemote(remoteURL string) (id, name string, err error) {
+	if strings.TrimSpace(remoteURL) == "" {
+		return "", "", fmt.Errorf("cannot resolve project id: empty remote URL")
+	}
+	m := &ProjectIdentityManager{}
+	return m.createHash(m.normalizeGitURL(remoteURL)), m.parseGitRemoteURL(remoteURL), nil
+}
+
+// persistedWorkspaceID returns the workspace_id recorded in dir's .specstory/.project.json,
+// or "" when there is no readable file or it carries no workspace_id. The file is read from
+// the launch directory (where the writer puts it), not the resolved git root.
+func persistedWorkspaceID(dir string) string {
+	m := &ProjectIdentityManager{projectRoot: dir}
+	identity, err := m.ReadProjectIdentity()
+	if err != nil || identity == nil {
+		return ""
+	}
+	return identity.WorkspaceID
 }

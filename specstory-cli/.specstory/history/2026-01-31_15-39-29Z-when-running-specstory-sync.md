@@ -68,7 +68,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:40:04Z)**_
 <summary>Tool use: **Task**</summary>
 Explore sync progress feedback
 
-```text
+````text
 Perfect! Now I have all the information I need. Let me provide a comprehensive summary of how the `specstory sync` command provides progress feedback.
 
 ## Summary: How `specstory sync` Provides Progress Feedback
@@ -184,7 +184,7 @@ The flow is:
 
 The design allows for real-time progress feedback since the dot printing happens inside the main processing loop after each session is handled, providing visual feedback even for large batches of sessions.
 agentId: aee44f0 (for resuming to continue this agent's work if needed)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-01-31 15:39:39Z)**_
@@ -3086,7 +3086,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:41:39Z)**_
 <summary>Tool use: **Task**</summary>
 Design progress feedback solution
 
-```text
+````text
 Now I have a complete picture of the codebase. Let me summarize my findings and propose a design.
 
 ## Analysis Summary
@@ -3241,7 +3241,7 @@ Syncing markdown files for Claude Code
 - `/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/codexcli/provider.go` - Implement progress callback in GetAgentChatSessions
 - `/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/provider.go` - Implement progress callback in GetAgentChatSessions
 agentId: ab73365 (for resuming to continue this agent's work if needed)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-01-31 15:40:27Z)**_
@@ -3725,7 +3725,7 @@ _**Agent - sidechain (claude-opus-4-5-20251101 2026-01-31 15:40:43Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/claudecode/agent_session.go`
 
-```text
+````text
      1→package claudecode
      2→
      3→import (
@@ -4281,7 +4281,7 @@ _**Agent - sidechain (claude-opus-4-5-20251101 2026-01-31 15:40:43Z)**_
    553→	return markdown.String()
    554→}
    555→
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-4-5-20251101 2026-01-31 15:40:43Z)**_
@@ -4290,7 +4290,7 @@ _**Agent - sidechain (claude-opus-4-5-20251101 2026-01-31 15:40:43Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/codexcli/agent_session.go`
 
-```text
+````text
      1→package codexcli
      2→
      3→import (
@@ -4932,7 +4932,7 @@ _**Agent - sidechain (claude-opus-4-5-20251101 2026-01-31 15:40:43Z)**_
    639→	return false
    640→}
    641→
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-4-5-20251101 2026-01-31 15:40:44Z)**_
@@ -11546,16 +11546,16 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:42:35Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+````markdown
 # Plan: Add Progress Feedback During Session Parsing
 
 ## Problem
 
 When running `specstory sync` on a project with many sessions, the "Parsing {Provider} sessions" phase shows no progress feedback. The user sees:
 
-\```
+```
 Parsing Claude Code sessions
-\```
+```
 
 ...and nothing else for a long time, leading users to think it's hung. Meanwhile, the "Syncing markdown files" line shows progressive dots.
 
@@ -11587,13 +11587,13 @@ Parsing Claude Code sessions
 **Option A: Interface Change (Recommended)**
 Add a `ProgressCallback` to the provider interface:
 
-\```go
+```go
 // In pkg/spi/provider.go
 type ProgressCallback func(current, total int)
 
 // Updated signature
 GetAgentChatSessions(projectPath string, debugRaw bool, progress ProgressCallback) ([]AgentChatSession, error)
-\```
+```
 
 Changes:
 1. **pkg/spi/provider.go**: Add `ProgressCallback` type, update interface
@@ -11616,22 +11616,22 @@ With the callback approach from Option A:
 ## Display Format Options
 
 **Option 1: Dots only (simple)**
-\```
+```
 Parsing Claude Code sessions.......
 Syncing markdown files for Claude Code..........
-\```
+```
 
 **Option 2: Count with dots**
-\```
+```
 Parsing Claude Code sessions [5/36]...
 Syncing markdown files for Claude Code [5/36]...
-\```
+```
 
 **Option 3: Count only (clean)**
-\```
+```
 Parsing Claude Code sessions [5/36]
 Syncing markdown files for Claude Code [5/36]
-\```
+```
 
 ## Files to Modify
 
@@ -11651,7 +11651,7 @@ Syncing markdown files for Claude Code [5/36]
 5. Run tests: `go test -v ./...`
 6. Run linter: `golangci-lint run`
 
-```
+````
 
 ```text
 File created successfully at: /Users/sean/.claude/plans/stateful-chasing-seahorse.md
@@ -11727,7 +11727,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:47:22Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/plans/stateful-chasing-seahorse.md`
 
-```text
+````text
      1→# Plan: Add Progress Feedback During Session Parsing
      2→
      3→## Problem
@@ -11841,7 +11841,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:47:22Z)**_
    111→5. Run tests: `go test -v ./...`
    112→6. Run linter: `golangci-lint run`
    113→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-31 15:47:24Z)**_
@@ -12112,7 +12112,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:51:29Z)**_
 <tool-use data-tool-type="generic" data-tool-name="ExitPlanMode"><details>
 <summary>Tool use: **ExitPlanMode**</summary>
 
-```text
+````text
 User has approved your plan. You can now start coding. Start with updating your todo list if applicable
 
 Your plan has been saved to: /Users/sean/.claude/plans/stateful-chasing-seahorse.md
@@ -12258,7 +12258,7 @@ This format provides:
    - Droid CLI
 5. Run tests: `go test -v ./...`
 6. Run linter: `golangci-lint run`
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-31 15:51:32Z)**_
@@ -14197,6 +14197,8 @@ The user doesn't want to proceed with this tool use. The tool use was rejected (
 _**User (2026-01-31 16:10:51Z)**_
 
 [Request interrupted by user for tool use]
+
+---
 
 _**User (2026-01-31 16:10:57Z)**_
 
