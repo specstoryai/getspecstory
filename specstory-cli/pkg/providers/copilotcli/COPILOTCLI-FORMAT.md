@@ -64,7 +64,14 @@ A kind not in this table is logged at debug level and otherwise ignored.
 
 `assistant.message` carries `content`, `reasoningText` (when the model exposes it), `model`, `outputTokens`, and `toolRequests`, each `{toolCallId, name, arguments, intentionSummary}`. `arguments` is usually an object; `apply_patch` takes the raw patch text as a string, rendered as its `input`. Streaming chunk placeholders arrive with empty content and no requests and are skipped. `reasoningOpaque` and `encryptedContent` are opaque and not rendered.
 
-`tool.execution_complete` carries `success` and either `result.content` or `error.message`. A failed call renders its error text as the result.
+`tool.execution_complete` carries `success` and either `result.content` or `error.message`. Each call has exactly one `tool.execution_complete`; Copilot never re-serializes a call, so a call interrupted before it completes (an `abort`, say) keeps its request and renders without a result.
+
+Copilot records failure in two shapes, both rendered:
+
+- `success: false` with `error.message` (and an `error.code` such as `failure`): the tool itself failed, for example `view` of a missing path or an MCP server error. The error text renders as the result.
+- A shell command that exits non-zero is a successful call: `success: true`, the command's output in `result.content` ending with a `<shellId: <id> completed with exit code <n>>` line, and the code repeated in `shellExecution.exitCode`. The output renders with that exit line, so the exit code is shown.
+
+Tool names in `toolRequests` are the names the model calls, so the recorded names and the model-facing inventory are the same list.
 
 `task_complete` is how Copilot ends an autonomous turn: its `summary` argument is the closing answer the user sees, so it renders as agent text rather than as a tool block.
 

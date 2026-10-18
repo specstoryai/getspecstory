@@ -345,6 +345,15 @@ func TestToolMarkdown(t *testing.T) {
 			wantBody: "\n**Input:**\n\n- path: `a.go`\n\n**Result:**\n\n```\nno match\n```\n",
 		},
 		{
+			// A command that exits non-zero is a successful call, not an
+			// error: Copilot appends the exit line to the output, so the exit
+			// code must survive rendering alongside the command's own output.
+			name:     "shell command exiting non-zero shows its output and exit code",
+			request:  `{"toolCallId":"c6","name":"bash","arguments":{"command":"ls /missing"}}`,
+			result:   `{"toolCallId":"c6","success":true,"result":{"content":"ls: /missing: No such file or directory\n<shellId: 0 completed with exit code 1>"},"shellExecution":{"exitCode":1}}`,
+			wantBody: "\n```bash\nls /missing\n```\n\n**Result:**\n\n```\nls: /missing: No such file or directory\n<shellId: 0 completed with exit code 1>\n```\n",
+		},
+		{
 			name:     "call with no result yet still renders its input",
 			request:  `{"toolCallId":"c4","name":"bash","arguments":{"command":"make"}}`,
 			wantBody: "\n```bash\nmake\n```\n",
