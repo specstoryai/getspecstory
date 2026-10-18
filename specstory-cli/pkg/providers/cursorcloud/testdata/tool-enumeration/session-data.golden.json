@@ -817,7 +817,7 @@
                 "content": [
                   {
                     "text": {
-                      "text": "Cursor Cloud MCP identity\nThis cloud agent run is available at https://cursor.com/agents/bc-24df7300-9c89-4d2e-8dad-339b7c2d36b5\n{\n  \"bcId\": \"bc-24df7300-9c89-4d2e-8dad-339b7c2d36b5\",\n  \"name\": \"specstory-tool-enumeration\",\n  \"branchName\": \"cursor/specstory-tool-enumeration-8dcf\",\n  \"repoUrl\": \"github.com/specstoryai/cloud-agent-test\",\n  \"status\": \"RUNNING\",\n  \"setupStatus\": null,\n  \"source\": \"api\",\n  \"visibility\": \"user\",\n  \"originalModelName\": \"claude-4.5-opus-high-thinking\",\n  \"owningUser\": 36679501,\n  \"owningServiceAccount\": null,\n  \"isArchived\": false,\n  \"isKilled\": false,\n  \"createdAtMs\": 1791904331441,\n  \"updatedAtMs\": 1791904422731,\n  \"lastMessageActivityAtMs\": 1791904331433,\n  \"privateWorkerId\": null,\n  \"usePrivateWorker\": false,\n  \"sourceDetails\": null,\n  \"owningUserEmail\": \"owner@example.com\",\n  \"owningUserName\": \"Example Owner\",\n  \"url\": \"https://cursor.com/agents/bc-24df7300-9c89-4d2e-8dad-339b7c2d36b5\"\n}"
+                      "text": "Cursor Cloud MCP identity\nThis cloud agent run is available at https://cursor.com/agents/bc-24df7300-9c89-4d2e-8dad-339b7c2d36b5\n{\n  \"bcId\": \"bc-24df7300-9c89-4d2e-8dad-339b7c2d36b5\",\n  \"name\": \"specstory-tool-enumeration\",\n  \"branchName\": \"cursor/specstory-tool-enumeration-8dcf\",\n  \"repoUrl\": \"github.com/specstoryai/cloud-agent-test\",\n  \"status\": \"RUNNING\",\n  \"setupStatus\": null,\n  \"source\": \"api\",\n  \"visibility\": \"user\",\n  \"originalModelName\": \"claude-4.5-opus-high-thinking\",\n  \"owningUser\": 10000001,\n  \"owningServiceAccount\": null,\n  \"isArchived\": false,\n  \"isKilled\": false,\n  \"createdAtMs\": 1791904331441,\n  \"updatedAtMs\": 1791904422731,\n  \"lastMessageActivityAtMs\": 1791904331433,\n  \"privateWorkerId\": null,\n  \"usePrivateWorker\": false,\n  \"sourceDetails\": null,\n  \"owningUserEmail\": \"owner@example.com\",\n  \"owningUserName\": \"Example Owner\",\n  \"url\": \"https://cursor.com/agents/bc-24df7300-9c89-4d2e-8dad-339b7c2d36b5\"\n}"
                     }
                   }
                 ],
@@ -831,7 +831,7 @@
                   "name": "specstory-tool-enumeration",
                   "originalModelName": "claude-4.5-opus-high-thinking",
                   "owningServiceAccount": null,
-                  "owningUser": 36679501,
+                  "owningUser": 10000001,
                   "owningUserEmail": "owner@example.com",
                   "owningUserName": "Example Owner",
                   "privateWorkerId": null,
@@ -848,7 +848,7 @@
               }
             },
             "summary": "Tool use: **mcp** `cursor-cloud-run-info`",
-            "formattedMarkdown": "\nServer: `cursor-cloud`\nTool: `run-info`\n\nResult:\n```text\nCursor Cloud MCP identity\nThis cloud agent run is available at https://cursor.com/agents/bc-24df7300-9c89-4d2e-8dad-339b7c2d36b5\n{\n  \"bcId\": \"bc-24df7300-9c89-4d2e-8dad-339b7c2d36b5\",\n  \"name\": \"specstory-tool-enumeration\",\n  \"branchName\": \"cursor/specstory-tool-enumeration-8dcf\",\n  \"repoUrl\": \"github.com/specstoryai/cloud-agent-test\",\n  \"status\": \"RUNNING\",\n  \"setupStatus\": null,\n  \"source\": \"api\",\n  \"visibility\": \"user\",\n  \"originalModelName\": \"claude-4.5-opus-high-thinking\",\n  \"owningUser\": 36679501,\n  \"owningServiceAccount\": null,\n  \"isArchived\": false,\n  \"isKilled\": false,\n  \"createdAtMs\": 1791904331441,\n  \"updatedAtMs\": 1791904422731,\n  \"lastMessageActivityAtMs\": 1791904331433,\n  \"privateWorkerId\": null,\n  \"usePrivateWorker\": false,\n  \"sourceDetails\": null,\n  \"owningUserEmail\": \"owner@example.com\",\n  \"owningUserName\": \"Example Owner\",\n  \"url\": \"https://cursor.com/agents/bc-24df7300-9c89-4d2e-8dad-339b7c2d36b5\"\n}\n```\n"
+            "formattedMarkdown": "\nServer: `cursor-cloud`\nTool: `run-info`\n\nResult:\n```text\nCursor Cloud MCP identity\nThis cloud agent run is available at https://cursor.com/agents/bc-24df7300-9c89-4d2e-8dad-339b7c2d36b5\n{\n  \"bcId\": \"bc-24df7300-9c89-4d2e-8dad-339b7c2d36b5\",\n  \"name\": \"specstory-tool-enumeration\",\n  \"branchName\": \"cursor/specstory-tool-enumeration-8dcf\",\n  \"repoUrl\": \"github.com/specstoryai/cloud-agent-test\",\n  \"status\": \"RUNNING\",\n  \"setupStatus\": null,\n  \"source\": \"api\",\n  \"visibility\": \"user\",\n  \"originalModelName\": \"claude-4.5-opus-high-thinking\",\n  \"owningUser\": 10000001,\n  \"owningServiceAccount\": null,\n  \"isArchived\": false,\n  \"isKilled\": false,\n  \"createdAtMs\": 1791904331441,\n  \"updatedAtMs\": 1791904422731,\n  \"lastMessageActivityAtMs\": 1791904331433,\n  \"privateWorkerId\": null,\n  \"usePrivateWorker\": false,\n  \"sourceDetails\": null,\n  \"owningUserEmail\": \"owner@example.com\",\n  \"owningUserName\": \"Example Owner\",\n  \"url\": \"https://cursor.com/agents/bc-24df7300-9c89-4d2e-8dad-339b7c2d36b5\"\n}\n```\n"
           },
           "metadata": {
             "status": "completed"

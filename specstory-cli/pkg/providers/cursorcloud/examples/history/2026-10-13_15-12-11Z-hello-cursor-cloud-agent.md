@@ -721,7 +721,7 @@ This cloud agent run is available at https://cursor.com/agents/bc-24df7300-9c89-
   "source": "api",
   "visibility": "user",
   "originalModelName": "claude-4.5-opus-high-thinking",
-  "owningUser": 36679501,
+  "owningUser": 10000001,
   "owningServiceAccount": null,
   "isArchived": false,
   "isKilled": false,
