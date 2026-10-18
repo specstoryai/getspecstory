@@ -1454,7 +1454,7 @@ Read antigravitycli helpers
 
 `sed -n '725,900p' pkg/providers/antigravitycli/markdown_tools.go`
 
-```text
+````text
 		return renderGenericJSON(args)
 	}
 	return out
@@ -1609,7 +1609,7 @@ func normalizeToolName(name string) string {
 	cleaned = strings.ReplaceAll(cleaned, "_", "")
 	return cleaned
 }
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-5 2026-08-13 13:45:48Z)**_
@@ -1620,7 +1620,7 @@ Read geminicli and cursorcli lang/todo helpers
 
 `sed -n '255,290p;330,365p' pkg/providers/geminicli/markdown_tools.go; echo "=== CURSORCLI 20-60"; sed -n '20,60p' pkg/providers/cursorcli/markdown_tools.go`
 
-```text
+````text
 	var builder strings.Builder
 	builder.WriteString("Todo List:\n")
 	for _, raw := range todos {
@@ -1728,7 +1728,7 @@ func truncate(text string, limit int) string {
 func formatWriteTool(args map[string]interface{}) string {
 	// Extract file path and contents
 	filePath, _ := args["path"].(string)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-5 2026-08-13 13:45:53Z)**_
@@ -3664,7 +3664,7 @@ Read gemini inputAsString and session renderGenericTool
 
 `echo "### gemini inputAsString 275,325"; sed -n '275,325p' pkg/providers/geminicli/markdown_tools.go; echo "### session/markdown renderGenericTool 275,325"; sed -n '275,325p' pkg/session/markdown.go`
 
-```text
+````text
 ### gemini inputAsString 275,325
 	}
 }
@@ -3769,7 +3769,7 @@ func renderGenericTool(tool *ToolInfo) string {
 // shouldAddSeparator determines if a separator should be added between messages
 func shouldAddSeparator(currentRole, prevRole string, newExchange bool) bool {
 	// Never before the very first rendered message
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-08-13 13:46:49Z)**_
@@ -3818,7 +3818,7 @@ Find diff-fence formatting sites
 
 `grep -rn --include="*.go" -E '"diff"|```diff|CodeFence\("diff' pkg | grep -v "\.specstory/" | grep -v _test`
 
-```text
+````text
 pkg/providers/codexcli/markdown_tools.go:129:		result.WriteString(spi.CodeFence("diff", strings.TrimRight(patchContent.String(), "\n")))
 pkg/providers/geminicli/markdown_tools.go:225:		builder.WriteString("```diff\n")
 pkg/providers/droidcli/markdown_tools.go:131:	return spi.CodeFence("diff", strings.TrimRight(builder.String(), "\n"))
@@ -3833,7 +3833,7 @@ pkg/providers/antigravitycli/markdown_tools.go:169:	return "Output:\n" + codeFen
 pkg/providers/antigravitycli/markdown_tools.go:746:	return codeFence("diff", strings.TrimSuffix(b.String(), "\n"))
 pkg/providers/cursorcli/markdown_tools.go:103:		result.WriteString(spi.CodeFence("diff", strings.TrimRight(diff.String(), "\n")))
 pkg/spi/fence.go:20:// lang is an optional info string (e.g. "bash", "diff"); pass "" for none.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-5 2026-08-13 13:46:51Z)**_
@@ -3862,7 +3862,7 @@ _**Agent (claude-fable-5 2026-08-13 13:46:56Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/antigravitycli/markdown_tools.go`
 
-```text
+````text
 750	// one backtick longer than the longest backtick run inside body (never fewer
 751	// than the standard three), because a backslash cannot escape a backtick inside
 752	// a fence — lengthening the fence is the only way to keep an embedded ```
@@ -3878,7 +3878,7 @@ _**Agent (claude-fable-5 2026-08-13 13:46:56Z)**_
 762			run++
 763			if run > longest {
 764				longest = run
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-5 2026-08-13 13:46:58Z)**_
@@ -4332,7 +4332,7 @@ _**Agent (claude-fable-5 2026-08-13 13:47:20Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/spi/fence.go`
 
-```text
+````text
 1	package spi
 2	
 3	import (
@@ -4399,7 +4399,7 @@ _**Agent (claude-fable-5 2026-08-13 13:47:20Z)**_
 64		return s // more bytes than max but fewer runes (multi-byte characters)
 65	}
 66
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-5 2026-08-13 13:47:25Z)**_
@@ -4410,7 +4410,7 @@ Read spi CodeFence and claudecode path canonicalization
 
 `echo "### spi/fence.go 1,55"; sed -n '1,55p' pkg/spi/fence.go; echo "### claudecode/path_utils.go 35,110"; sed -n '35,110p' pkg/providers/claudecode/path_utils.go`
 
-```text
+````text
 ### spi/fence.go 1,55
 package spi
 
@@ -4543,7 +4543,7 @@ func GetClaudeCodeProjectDir(projectPath string) (string, error) {
 			"original", cwd,
 			"resolved", realPath)
 	}
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-5 2026-08-13 13:47:27Z)**_
@@ -4629,7 +4629,7 @@ List docs directory and sample existing doc style
 
 `ls docs/ 2>/dev/null | head -30; echo ---; head -30 docs/*.md 2>/dev/null | head -40`
 
-```text
+````text
 AGENT-PLUGIN-FEASIBILITY.md
 AI-PROVENANCE.md
 ANTIGRAVITY-FORMAT.md
@@ -4698,7 +4698,7 @@ npm has no way to say "download only my platform's binary" *without running inst
 The provenance system determines **which file changes were caused by which AI agent interactions**. It does this by:
 
 1. **Receiving file events** — consumers push filesystem changes (create, modify, delete, rename)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-5 2026-08-13 13:47:36Z)**_
@@ -4781,7 +4781,7 @@ Read SPI doc intro and count helper call sites
 
 `head -60 docs/PROVIDER-SPI.md; echo '---CALLSITES---'; for fn in stringValue renderJSONValue normalizeToolName todoSymbol languageFromPath formatDiffBlock renderGenericJSON canonicalizePath dispatchSession classifyCheckError trackCheckSuccess trackCheckFailure; do printf '%s: ' $fn; grep -rn --include='*.go' "\b$fn(" pkg/providers/ | grep -v "func $fn" | grep -v _test.go | grep -v .specstory | wc -l; done`
 
-```text
+````text
 # SpecStory CLI's Agent SPI
 
 The SpecStory CLI's Agent SPI (Service Provider Interface) allows developers to extend the SpecStory CLI by implementing support for new AI coding agents.
@@ -4855,7 +4855,7 @@ dispatchSession:        5
 classifyCheckError:        5
 trackCheckSuccess:        3
 trackCheckFailure:        6
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-5 2026-08-13 13:47:42Z)**_
@@ -5745,7 +5745,7 @@ Find all call sites of renderJSONValue, renderGenericJSON, codeFence
 
 `grep -rn 'renderJSONValue\|renderGenericJSON\|codeFence(' --include='*.go' pkg/providers/ | grep -v .specstory`
 
-```text
+````text
 pkg/providers/droidcli/markdown_tools.go:63:		return renderGenericJSON(args)
 pkg/providers/droidcli/markdown_tools.go:177:// Falls back to renderGenericJSON if no fields are found.
 pkg/providers/droidcli/markdown_tools.go:194:		return renderGenericJSON(args)
@@ -5810,7 +5810,7 @@ pkg/providers/antigravitycli/markdown_tools_test.go:148:	if got := renderGeneric
 pkg/providers/antigravitycli/markdown_tools_test.go:151:	got := renderGenericJSON(map[string]any{"toolAction": "x", "Real": "keep"})
 pkg/providers/antigravitycli/markdown_tools_test.go:204:	got := codeFence("markdown", "# Doc\n```go\nx := 1\n```")
 pkg/providers/antigravitycli/markdown_tools_test.go:213:	if got := codeFence("diff", "-a\n+b"); !strings.HasPrefix(got, "```diff\n") || !strings.HasSuffix(got, "\n```") {
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-13 16:47:47Z)**_
@@ -6155,7 +6155,7 @@ _**Agent (claude-opus-5 2026-08-13 16:48:06Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/antigravitycli/markdown_tools.go`
 
-```text
+````text
 725			return renderGenericJSON(args)
 726		}
 727		return out
@@ -6311,7 +6311,7 @@ _**Agent (claude-opus-5 2026-08-13 16:48:06Z)**_
 877		return cleaned
 878	}
 879
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-13 16:48:10Z)**_
@@ -7184,7 +7184,7 @@ _**Agent (claude-opus-5 2026-08-13 16:50:56Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/antigravitycli/markdown_tools_test.go`
 
-```text
+`````text
 140		if got := formatToolInput(&ToolInfo{Name: "list_permissions", Input: map[string]any{"toolAction": "x", "toolSummary": "y"}}); got != "" {
 141			t.Errorf("list_permissions input should be empty, got %q", got)
 142		}
@@ -7265,7 +7265,7 @@ _**Agent (claude-opus-5 2026-08-13 16:50:56Z)**_
 217	
 218	func TestFormatSubagentOutputs(t *testing.T) {
 219		// invoke_subagent: summarize to the conversation id, drop log URI / workspace.
-```
+`````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-13 16:51:00Z)**_
@@ -8766,7 +8766,7 @@ Verify test file rewrite and unused imports
 
 `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; grep -n 'renderGenericJSON\|codeFence\|spi\.CodeFence\|spi\.RenderGenericJSON' pkg/providers/antigravitycli/markdown_tools_test.go; echo "--- filepath/strconv/os usage ---"; grep -c 'filepath\.' pkg/providers/antigravitycli/markdown_tools.go; grep -c 'strconv\.' pkg/providers/antigravitycli/markdown_tools.go; grep -c 'os\.' pkg/providers/antigravitycli/provider.go`
 
-```text
+````text
 148:	if got := spi.RenderGenericJSON(map[string]any{"toolAction": "x", "toolSummary": "y"}); got != "" {
 151:	got := spi.RenderGenericJSON(map[string]any{"toolAction": "x", "Real": "keep"})
 204:	got := spi.CodeFence("markdown", "# Doc\n```go\nx := 1\n```")
@@ -8775,7 +8775,7 @@ Verify test file rewrite and unused imports
 0
 0
 0
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-13 16:55:50Z)**_
@@ -8784,7 +8784,7 @@ _**Agent (claude-opus-5 2026-08-13 16:55:50Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/spi/fence_test.go`
 
-```text
+``````text
 1	package spi
 2	
 3	import (
@@ -8839,7 +8839,7 @@ _**Agent (claude-opus-5 2026-08-13 16:55:50Z)**_
 52		}
 53	}
 54
-```
+``````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-13 16:55:55Z)**_
@@ -9379,7 +9379,7 @@ _**Agent (claude-opus-5 2026-08-13 16:58:04Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/PROVIDER-REFACTOR.md`
 
-```text
+````text
 96	
 97	Every item here consolidates byte-identical (or label-only-different) code. Rendered markdown and emitted analytics are unchanged.
 98	
@@ -9455,7 +9455,7 @@ _**Agent (claude-opus-5 2026-08-13 16:58:04Z)**_
 168	4. If Phase 3 item 1 is taken: empty-extension fallback `""` vs `"text"`.
 169	5. If Phase 3 item 4 is taken: sign-off on the PostHog property-schema change and the `docs/POSTHOG.md` update.
 170
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-13 16:58:06Z)**_
@@ -9693,7 +9693,7 @@ _**Agent (claude-opus-5 2026-08-14 01:01:37Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/geminicli/markdown_tools.go`
 
-```text
+````text
 196			return ""
 197		}
 198	
@@ -9714,7 +9714,7 @@ _**Agent (claude-opus-5 2026-08-14 01:01:37Z)**_
 213	func formatReplaceBodyFromInput(input map[string]interface{}) string {
 214		path := inputAsString(input, "file_path")
 215		newString := inputAsString(input, "new_string")
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-14 01:01:39Z)**_
@@ -11306,3 +11306,9738 @@ Cumulative with the earlier phases: **−953 lines** (307 added, 1,260 deleted).
 Also folded in: claudecode's and cursorcli's duplicate `TestGetLanguageFromExtension` pair was removed after moving their one unique case (multi-dot filenames like `file.test.spec.ts`) into the shared test, and stale `"version_failed"` inputs in the deepseektui and antigravitycli message tests now reference `spi.CheckErrorUnknown`.
 
 `docs/PROVIDER-REFACTOR.md` has a new section 9 recording all of this. Still open: Phase 3 items 2 (todo checkboxes), 4 (analytics property schema, pending PostHog sign-off) and 5 (dispatch variants), plus the geminicli hardcoded-fence bug in §2.2 — that one is a genuine document-corruption risk whenever tool output contains a triple-backtick run, and it's a small fix if you want it next.
+
+---
+
+_**User (2026-08-14 14:29:35Z)**_
+
+OK, we're now looking at a new prodiver for `muse` on this branch
+
+The branch has all the cleanup we just did, plus the new provider. Review the new provider and see if it needs any of the same or similar adjustments.
+
+---
+
+_**Agent (claude-opus-5 2026-08-14 14:29:42Z)**_
+
+Let me look at the current branch state and find the muse provider.
+
+_**Agent (claude-opus-5 2026-08-14 14:29:44Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check branch and working tree state
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; git branch --show-current; echo "--- status ---"; git status --short | head -30; echo "--- recent commits ---"; git log --oneline -8`
+
+```text
+muse-provider
+--- status ---
+?? ../specstory-mac/
+--- recent commits ---
+4ab9c25 Merge branch 'dev' into muse-provider
+b0a34ce SpecStory histories.
+89a254e Provider refactor to remove duplicate code.
+6583e18 SpecStory history.
+733dead Fix relative path on case insensitive file system issue.
+566d0bf Merge branch 'dev' of github.com:specstoryai/getspecstory into dev
+3fd6f6a SpecStory history.
+3b62e20 Merge pull request #260 from specstoryai/dependabot/github_actions/actions/setup-node-7
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:29:45Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Locate the muse provider
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; ls pkg/providers/; echo "--- muse files ---"; ls -la pkg/providers/muse* 2>/dev/null || find . -path ./.specstory -prune -o -iname '*muse*' -print 2>/dev/null | head -20`
+
+```text
+antigravitycli
+claudecode
+codexcli
+copilotide
+cursorcli
+cursoride
+deepseektui
+droidcli
+geminicli
+musecode
+vscode
+--- muse files ---
+total 352
+drwxr-xr-x  19 sean  staff    608 Aug 14 09:56 .
+drwxr-xr-x  13 sean  staff    416 Aug 14 09:56 ..
+-rw-r--r--   1 sean  staff  13270 Aug 14 09:56 agent_session_test.go
+-rw-r--r--   1 sean  staff  10990 Aug 14 09:56 agent_session.go
+-rw-r--r--   1 sean  staff   9522 Aug 14 09:56 jsonl_parser_test.go
+-rw-r--r--   1 sean  staff  15664 Aug 14 09:56 jsonl_parser.go
+-rw-r--r--   1 sean  staff  11365 Aug 14 09:56 markdown_tools_test.go
+-rw-r--r--   1 sean  staff  10949 Aug 14 09:56 markdown_tools.go
+-rw-r--r--   1 sean  staff   3844 Aug 14 09:56 muse_exec_test.go
+-rw-r--r--   1 sean  staff   3222 Aug 14 09:56 muse_exec.go
+-rw-r--r--   1 sean  staff   8830 Aug 14 09:56 path_utils_test.go
+-rw-r--r--   1 sean  staff   8115 Aug 14 09:56 path_utils.go
+-rw-r--r--   1 sean  staff   7663 Aug 14 09:56 provider_test.go
+-rw-r--r--   1 sean  staff  15364 Aug 14 09:56 provider.go
+-rw-r--r--   1 sean  staff   9233 Aug 14 09:56 reconstruct_test.go
+-rw-r--r--   1 sean  staff   5898 Aug 14 09:56 reconstruct.go
+drwxr-xr-x   8 sean  staff    256 Aug 14 09:56 testdata
+-rw-r--r--   1 sean  staff   7132 Aug 14 09:56 watcher_test.go
+-rw-r--r--   1 sean  staff  12318 Aug 14 09:56 watcher.go
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:29:54Z)**_
+
+The provider is `musecode` on branch `muse-provider`, which has merged in the refactor commit. Let me check it against every pattern we just consolidated.
+
+_**Agent (claude-opus-5 2026-08-14 14:29:56Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+List all functions defined in musecode
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== local funcs defined in musecode ==="; grep -n '^func ' pkg/providers/musecode/*.go | grep -v _test.go
+```
+
+```text
+=== local funcs defined in musecode ===
+pkg/providers/musecode/jsonl_parser.go:157:func (e *MuseConversationEvent) Kind() string {
+pkg/providers/musecode/jsonl_parser.go:185:func museTimeToISO(microseconds int64) string {
+pkg/providers/musecode/jsonl_parser.go:200:func ParseSessionFile(filePath string) (*MuseSession, error) {
+pkg/providers/musecode/jsonl_parser.go:334:func storeSessionIDFromPath(filePath string) string {
+pkg/providers/musecode/jsonl_parser.go:344:func isSessionID(s string) bool {
+pkg/providers/musecode/jsonl_parser.go:366:func flushPending(session *MuseSession, pending []MuseRecord) []MuseRecord {
+pkg/providers/musecode/jsonl_parser.go:381:func sessionIDFromPath(filePath string) string {
+pkg/providers/musecode/jsonl_parser.go:391:func accumulateRecord(session *MuseSession, record *MuseRecord) {
+pkg/providers/musecode/jsonl_parser.go:413:func accumulateMetadata(session *MuseSession, record *MuseRecord) {
+pkg/providers/musecode/jsonl_parser.go:439:func accumulateRunEvent(session *MuseSession, record *MuseRecord, timestamp string) {
+pkg/providers/musecode/jsonl_parser.go:472:func (s *MuseSession) FirstUserPrompt() string {
+pkg/providers/musecode/agent_session.go:26:func GenerateAgentSession(session *MuseSession, workspaceRoot string) (*SessionData, error) {
+pkg/providers/musecode/agent_session.go:83:func collectToolOutcomes(events []MuseConversationEvent) map[string]string {
+pkg/providers/musecode/agent_session.go:102:func buildExchanges(events []MuseConversationEvent, defaultModel, workspaceRoot string) []Exchange {
+pkg/providers/musecode/agent_session.go:230:func messageID(event *MuseConversationEvent) string {
+pkg/providers/musecode/agent_session.go:239:func buildToolMessage(event *MuseConversationEvent, call *MuseToolCall, outcomes map[string]string, model, workspaceRoot string) Message {
+pkg/providers/musecode/agent_session.go:271:func decodeToolArgs(args string) map[string]any {
+pkg/providers/musecode/agent_session.go:287:func buildToolOutput(text string) map[string]any {
+pkg/providers/musecode/agent_session.go:298:func isToolFailure(text string) bool {
+pkg/providers/musecode/agent_session.go:306:func convertUsage(usage *MuseUsage) *Usage {
+pkg/providers/musecode/agent_session.go:325:func classifyMuseToolType(toolName string) string {
+pkg/providers/musecode/agent_session.go:350:func extractPathHints(input map[string]any, workspaceRoot string) []string {
+pkg/providers/musecode/muse_exec.go:23:func getDefaultMuseCommand() string {
+pkg/providers/musecode/muse_exec.go:33:func parseMuseCommand(customCommand string) (string, []string) {
+pkg/providers/musecode/muse_exec.go:48:func ensureResumeArgs(args []string, resumeSessionID string) []string {
+pkg/providers/musecode/muse_exec.go:70:func ExecuteMuse(customCommand string, resumeSessionID string) error {
+pkg/providers/musecode/provider.go:29:func NewProvider() *Provider {
+pkg/providers/musecode/provider.go:33:func (p *Provider) Name() string {
+pkg/providers/musecode/provider.go:37:func (p *Provider) Check(customCommand string) spi.CheckResult {
+pkg/providers/musecode/provider.go:97:func classifyMuseCheckError(err error) string {
+pkg/providers/musecode/provider.go:114:func buildMuseCheckErrorMessage(errorType string, museCmd string, isCustom bool, stderr string) string {
+pkg/providers/musecode/provider.go:147:func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
+pkg/providers/musecode/provider.go:178:func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
+pkg/providers/musecode/provider.go:203:func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
+pkg/providers/musecode/provider.go:239:func (p *Provider) GetAgentChatSessionByPath(nativePath string, originCwd string, debugRaw bool) (*spi.AgentChatSession, error) {
+pkg/providers/musecode/provider.go:252:func parseAndConvert(filePath string, workspaceRoot string, debugRaw bool) *spi.AgentChatSession {
+pkg/providers/musecode/provider.go:268:func convertToAgentChatSession(session *MuseSession, workspaceRoot string, debugRaw bool) *spi.AgentChatSession {
+pkg/providers/musecode/provider.go:307:func museSessionSlug(session *MuseSession) string {
+pkg/providers/musecode/provider.go:321:func writeDebugRawFiles(session *MuseSession) error {
+pkg/providers/musecode/provider.go:345:func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+pkg/providers/musecode/provider.go:378:func extractMuseSessionMetadata(session *MuseSession) *spi.SessionMetadata {
+pkg/providers/musecode/provider.go:403:func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
+pkg/providers/musecode/provider.go:409:func (p *Provider) ListAllAgentChatSessionsProgress(r *spi.ScanReporter) ([]spi.GlobalSessionRef, error) {
+pkg/providers/musecode/provider.go:448:func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+pkg/providers/musecode/provider.go:467:func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+pkg/providers/musecode/markdown_tools.go:20:func formatToolAsMarkdown(tool *ToolInfo) string {
+pkg/providers/musecode/markdown_tools.go:74:func formatToolBodyFromInput(tool *ToolInfo) string {
+pkg/providers/musecode/markdown_tools.go:95:func formatToolResultFromOutput(tool *ToolInfo) string {
+pkg/providers/musecode/markdown_tools.go:120:func formatShellBodyFromInput(input map[string]interface{}) string {
+pkg/providers/musecode/markdown_tools.go:144:func formatShellResultFromOutput(output map[string]interface{}) string {
+pkg/providers/musecode/markdown_tools.go:175:func formatWriteFileBodyFromInput(input map[string]interface{}) string {
+pkg/providers/musecode/markdown_tools.go:195:func formatEditBodyFromInput(input map[string]interface{}) string {
+pkg/providers/musecode/markdown_tools.go:211:func diffFromFindReplace(find, replace string) string {
+pkg/providers/musecode/markdown_tools.go:233:func formatTodoBodyFromInput(input map[string]interface{}) string {
+pkg/providers/musecode/markdown_tools.go:253:func todoStatusSymbol(status string) string {
+pkg/providers/musecode/markdown_tools.go:267:func formatSubagentBodyFromInput(input map[string]interface{}) string {
+pkg/providers/musecode/markdown_tools.go:281:func formatGenericBodyFromInput(input map[string]interface{}) string {
+pkg/providers/musecode/markdown_tools.go:293:func formatDefaultResultFromOutput(output map[string]interface{}) string {
+pkg/providers/musecode/markdown_tools.go:302:func formatOutputText(output string) string {
+pkg/providers/musecode/markdown_tools.go:310:func addResultPrefix(content string) string {
+pkg/providers/musecode/markdown_tools.go:320:func inputAsString(input map[string]interface{}, key string) string {
+pkg/providers/musecode/markdown_tools.go:345:func outputAsString(output map[string]interface{}) string {
+pkg/providers/musecode/markdown_tools.go:359:func outputErrorString(output map[string]interface{}) string {
+pkg/providers/musecode/markdown_tools.go:369:func languageFromPath(path string) string {
+pkg/providers/musecode/markdown_tools.go:380:func truncate(text string, limit int) string {
+pkg/providers/musecode/watcher.go:28:func init() {
+pkg/providers/musecode/watcher.go:57:func SetWatcherCallback(callback func(*spi.AgentChatSession)) {
+pkg/providers/musecode/watcher.go:63:func SetWatcherDebugRaw(debugRaw bool) {
+pkg/providers/musecode/watcher.go:69:func SetWatcherWorkspaceRoot(workspaceRoot string) {
+pkg/providers/musecode/watcher.go:75:func getWatcherWorkspaceRoot() string {
+pkg/providers/musecode/watcher.go:81:func getWatcherDebugRaw() bool {
+pkg/providers/musecode/watcher.go:88:func StopWatcher() {
+pkg/providers/musecode/watcher.go:98:func WatchMuseProject(projectPath string, callback func(*spi.AgentChatSession)) error {
+pkg/providers/musecode/watcher.go:175:func (s *watchSet) refreshInterval() time.Duration {
+pkg/providers/musecode/watcher.go:186:func (s *watchSet) refresh() {
+pkg/providers/musecode/watcher.go:208:func desiredWatchDirs(sessionsRoot string, now time.Time) map[string]bool {
+pkg/providers/musecode/watcher.go:241:func (s *watchSet) addWatch(dir string) {
+pkg/providers/musecode/watcher.go:253:func (s *watchSet) removeWatch(dir string) {
+pkg/providers/musecode/watcher.go:270:func (s *watchSet) handleEvent(event fsnotify.Event) {
+pkg/providers/musecode/watcher.go:302:func watchWindowCutoff(now time.Time) time.Time {
+pkg/providers/musecode/watcher.go:311:func museDirDepth(path string, sessionsRoot string) int {
+pkg/providers/musecode/watcher.go:326:func dirWithinWatchWindow(path string, sessionsRoot string, cutoff time.Time) bool {
+pkg/providers/musecode/watcher.go:370:func processSessionChange(filePath string) {
+pkg/providers/musecode/watcher.go:395:func triggerCallback(agentSession *spi.AgentChatSession) {
+pkg/providers/musecode/reconstruct.go:40:func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.ReconstructOptions) (*spi.ReconstructedSession, error) {
+pkg/providers/musecode/reconstruct.go:150:func museRunRecord(runID string, event map[string]any) map[string]any {
+pkg/providers/musecode/reconstruct.go:163:func (p *Provider) NativeSessionPath(projectPath string, filename string) (string, error) {
+pkg/providers/musecode/reconstruct.go:181:func (p *Provider) SupportsReconstruction() bool {
+pkg/providers/musecode/path_utils.go:50:func GetMuseSessionsDir() (string, error) {
+pkg/providers/musecode/path_utils.go:67:func defaultProjectPath(projectPath string) (string, error) {
+pkg/providers/musecode/path_utils.go:82:func walkMuseSessionFiles(sessionsRoot string, visit func(path string)) error {
+pkg/providers/musecode/path_utils.go:104:func IsSubagentTranscript(path string) bool {
+pkg/providers/musecode/path_utils.go:112:func readSessionWorkspaceRoot(filePath string) (string, error) {
+pkg/providers/musecode/path_utils.go:157:func findMuseSessions(projectPath string) ([]museSessionFile, error) {
+pkg/providers/musecode/path_utils.go:219:func findMuseSessionPathByID(sessionID string) (string, error) {
+pkg/providers/musecode/path_utils.go:248:func canonicalPath(path string) string {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:29:57Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check spi usage, hardcoded fences, analytics in musecode
+
+````bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== spi.* usage in musecode ==="; grep -rho 'spi\.[A-Za-z]*' pkg/providers/musecode/*.go | grep -v _test.go | sort | uniq -c | sort -rn
+echo; echo "=== hardcoded fences ==="; grep -n '```' pkg/providers/musecode/*.go | grep -v _test.go
+echo; echo "=== analytics usage ==="; grep -n 'analytics\.' pkg/providers/musecode/*.go | grep -v _test.go
+````
+
+```text
+=== spi.* usage in musecode ===
+  16 spi.AgentChatSession
+   7 spi.CodeFence
+   6 spi.GlobalSessionRef
+   5 spi.ReconstructOptions
+   4 spi.SessionMetadata
+   4 spi.CheckResult
+   3 spi.ReconstructedSession
+   3 spi.GenerateFilenameFromUserMessage
+   2 spi.Provider
+   1 spi.SplitCommandLine
+   1 spi.ScanSessionsInParallel
+   1 spi.ScanReporter
+   1 spi.ResolveWorkspaceRoot
+   1 spi.ProgressEnumerator
+   1 spi.ProgressCallback
+   1 spi.PrepareTurns
+   1 spi.PathSessionReader
+   1 spi.NormalizePath
+   1 spi.GetDebugDir
+   1 spi.GetCanonicalPath
+   1 spi.GenerateReadableName
+   1 spi.ExtractShellPathHints
+
+=== hardcoded fences ===
+
+=== analytics usage ===
+pkg/providers/musecode/provider.go:44:		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+pkg/providers/musecode/provider.go:67:		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+pkg/providers/musecode/provider.go:83:	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:30:11Z)**_
+
+Good sign already: musecode uses `spi.CodeFence` throughout with no hardcoded fences. Let me read the candidate duplicates in detail.
+
+_**Agent (claude-opus-5 2026-08-14 14:30:12Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/markdown_tools.go`
+
+```text
+190	}
+191	
+192	// formatEditBodyFromInput renders an edit as a diff of its find/replace pair.
+193	// Muse's own result text carries a mini diff too, but the inputs are what the
+194	// model asked for and are present even when the edit failed.
+195	func formatEditBodyFromInput(input map[string]interface{}) string {
+196		path := inputAsString(input, "path")
+197		find := inputAsString(input, "find")
+198		replace := inputAsString(input, "replace")
+199	
+200		var builder strings.Builder
+201		if path != "" {
+202			fmt.Fprintf(&builder, "Path: `%s`\n\n", path)
+203		}
+204		if diff := diffFromFindReplace(find, replace); diff != "" {
+205			builder.WriteString(spi.CodeFence("diff", truncate(diff, maxDiffRunes)))
+206		}
+207		return builder.String()
+208	}
+209	
+210	// diffFromFindReplace renders a find/replace pair as diff-flavoured lines.
+211	func diffFromFindReplace(find, replace string) string {
+212		var builder strings.Builder
+213	
+214		writePrefixed := func(prefix, text string) {
+215			if text == "" {
+216				return
+217			}
+218			for _, line := range strings.Split(text, "\n") {
+219				builder.WriteString(prefix)
+220				builder.WriteString(line)
+221				builder.WriteString("\n")
+222			}
+223		}
+224	
+225		writePrefixed("-", find)
+226		writePrefixed("+", replace)
+227	
+228		return strings.TrimSuffix(builder.String(), "\n")
+229	}
+230	
+231	// formatTodoBodyFromInput renders the todo list as a checklist. Muse todo items
+232	// use "text" (Qwen uses "content", Gemini "description").
+233	func formatTodoBodyFromInput(input map[string]interface{}) string {
+234		todos, ok := input["todos"].([]interface{})
+235		if !ok || len(todos) == 0 {
+236			return ""
+237		}
+238	
+239		var builder strings.Builder
+240		builder.WriteString("Todo List:\n")
+241		for _, raw := range todos {
+242			todo, ok := raw.(map[string]interface{})
+243			if !ok {
+244				continue
+245			}
+246			text, _ := todo["text"].(string)
+247			status, _ := todo["status"].(string)
+248			fmt.Fprintf(&builder, "- [%s] %s\n", todoStatusSymbol(status), strings.TrimSpace(text))
+249		}
+250		return builder.String()
+251	}
+252	
+253	func todoStatusSymbol(status string) string {
+254		switch status {
+255		case "completed":
+256			return "x"
+257		case "in_progress":
+258			return "⚡"
+259		default:
+260			return " "
+261		}
+262	}
+263	
+264	// formatSubagentBodyFromInput shows what a spawned subagent was asked to do.
+265	// The subagent's own transcript lives in a separate file, so the objective plus
+266	// the spawn result is all the parent session records about it.
+267	func formatSubagentBodyFromInput(input map[string]interface{}) string {
+268		role := inputAsString(input, "role")
+269		objective := inputAsString(input, "objective")
+270	
+271		var builder strings.Builder
+272		if role != "" {
+273			fmt.Fprintf(&builder, "Role: `%s`\n\n", role)
+274		}
+275		if objective != "" {
+276			builder.WriteString(objective)
+277		}
+278		return builder.String()
+279	}
+280	
+281	func formatGenericBodyFromInput(input map[string]interface{}) string {
+282		if len(input) == 0 {
+283			return ""
+284		}
+285		bytes, err := json.MarshalIndent(input, "", "  ")
+286		if err != nil {
+287			return ""
+288		}
+289		return spi.CodeFence("json", string(bytes))
+290	}
+291	
+292	// formatDefaultResultFromOutput builds result with "Result:" prefix
+293	func formatDefaultResultFromOutput(output map[string]interface{}) string {
+294		content := outputAsString(output)
+295		if content == "" {
+296			return ""
+297		}
+298		return addResultPrefix(formatOutputText(content))
+299	}
+300	
+301	// formatOutputText wraps multi-line output in a code fence, leaves single-line as-is
+302	func formatOutputText(output string) string {
+303		if strings.Contains(output, "\n") {
+304			return spi.CodeFence("text", output)
+305		}
+306		return output
+307	}
+308	
+309	// addResultPrefix adds "Result:" or "Result:\n" depending on content format
+310	func addResultPrefix(content string) string {
+311		if strings.Contains(content, "\n") {
+312			return fmt.Sprintf("Result:\n%s", content)
+313		}
+314		return fmt.Sprintf("Result: %s", content)
+315	}
+316	
+317	// inputAsString extracts a string value from tool input. Muse serialises
+318	// unset optional arguments as JSON null, which must read as absent rather
+319	// than as the literal "null".
+320	func inputAsString(input map[string]interface{}, key string) string {
+321		if input == nil {
+322			return ""
+323		}
+324		val, ok := input[key]
+325		if !ok || val == nil {
+326			return ""
+327		}
+328		switch v := val.(type) {
+329		case string:
+330			return v
+331		case fmt.Stringer:
+332			return v.String()
+333		case []byte:
+334			return string(v)
+335		default:
+336			bytes, err := json.Marshal(v)
+337			if err != nil {
+338				return fmt.Sprint(v)
+339			}
+340			return string(bytes)
+341		}
+342	}
+343	
+344	// outputAsString extracts the primary output string from tool output
+345	func outputAsString(output map[string]interface{}) string {
+346		if output == nil {
+347			return ""
+348		}
+349		if out, ok := output["output"].(string); ok && strings.TrimSpace(out) != "" {
+350			return strings.TrimSpace(out)
+351		}
+352		if errStr, ok := output["error"].(string); ok && strings.TrimSpace(errStr) != "" {
+353			return strings.TrimSpace(errStr)
+354		}
+355		return ""
+356	}
+357	
+358	// outputErrorString returns the failure text when the tool failed, empty otherwise.
+359	func outputErrorString(output map[string]interface{}) string {
+360		if output == nil {
+361			return ""
+362		}
+363		if errStr, ok := output["error"].(string); ok && strings.TrimSpace(errStr) != "" {
+364			return strings.TrimSpace(errStr)
+365		}
+366		return ""
+367	}
+368	
+369	func languageFromPath(path string) string {
+370		if path == "" {
+371			return "text"
+372		}
+373		ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
+374		if ext == "" {
+375			return "text"
+376		}
+377		return ext
+378	}
+379	
+380	func truncate(text string, limit int) string {
+381		if limit <= 0 {
+382			return text
+383		}
+384		runes := []rune(text)
+385		if len(runes) <= limit {
+386			return text
+387		}
+388		return string(runes[:limit]) + "\n... (truncated)"
+389	}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:30:40Z)**_
+
+Several clear findings already. Let me check the provider, path, and watcher helpers.
+
+_**Agent (claude-opus-5 2026-08-14 14:30:41Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/provider.go`
+
+```text
+36	
+37	func (p *Provider) Check(customCommand string) spi.CheckResult {
+38		cmdName, _ := parseMuseCommand(customCommand)
+39		isCustom := customCommand != ""
+40	
+41		resolvedPath, err := exec.LookPath(cmdName)
+42		if err != nil {
+43			errorMessage := buildMuseCheckErrorMessage("not_found", cmdName, isCustom, "")
+44			analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+45				"provider":       "muse",
+46				"custom_command": isCustom,
+47				"command_path":   cmdName,
+48				"error_type":     "not_found",
+49				"error_message":  err.Error(),
+50			})
+51			return spi.CheckResult{
+52				Success:      false,
+53				Location:     "",
+54				ErrorMessage: errorMessage,
+55			}
+56		}
+57	
+58		cmd := exec.Command(cmdName, "--version")
+59		var stdout bytes.Buffer
+60		var stderr bytes.Buffer
+61		cmd.Stdout = &stdout
+62		cmd.Stderr = &stderr
+63	
+64		if err := cmd.Run(); err != nil {
+65			errorType := classifyMuseCheckError(err)
+66			errorMessage := buildMuseCheckErrorMessage(errorType, resolvedPath, isCustom, strings.TrimSpace(stderr.String()))
+67			analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+68				"provider":       "muse",
+69				"custom_command": isCustom,
+70				"command_path":   resolvedPath,
+71				"error_type":     errorType,
+72				"error_message":  err.Error(),
+73			})
+74	
+75			return spi.CheckResult{
+76				Success:      false,
+77				Location:     resolvedPath,
+78				ErrorMessage: errorMessage,
+79			}
+80		}
+81	
+82		version := strings.TrimSpace(stdout.String())
+83		analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
+84			"provider":       "muse",
+85			"custom_command": isCustom,
+86			"command_path":   resolvedPath,
+87			"version":        version,
+88		})
+89	
+90		return spi.CheckResult{
+91			Success:  true,
+92			Version:  version,
+93			Location: resolvedPath,
+94		}
+95	}
+96	
+97	func classifyMuseCheckError(err error) string {
+98		var execErr *exec.Error
+99		var pathErr *os.PathError
+100	
+101		switch {
+102		case errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound:
+103			return "not_found"
+104		case errors.As(err, &pathErr):
+105			if errors.Is(pathErr.Err, os.ErrPermission) {
+106				return "permission_denied"
+107			}
+108		case errors.Is(err, os.ErrPermission):
+109			return "permission_denied"
+110		}
+111		return "version_failed"
+112	}
+113	
+114	func buildMuseCheckErrorMessage(errorType string, museCmd string, isCustom bool, stderr string) string {
+115		var b strings.Builder
+116	
+117		switch errorType {
+118		case "not_found":
+119			b.WriteString("Muse Code could not be found.\n\n")
+120			if isCustom {
+121				b.WriteString("• Verify the path you supplied actually points to the `muse` executable.\n")
+122				fmt.Fprintf(&b, "• Provided command: %s\n", museCmd)
+123			} else {
+124				b.WriteString("• Install Muse Code and ensure `muse` is on your PATH.\n")
+125				b.WriteString("• Or pass a custom command via `specstory check muse -c \"path/to/muse\"`.\n")
+126			}
+127		case "permission_denied":
+128			b.WriteString("Muse Code exists but isn't executable.\n\n")
+129			fmt.Fprintf(&b, "• Fix permissions: `chmod +x %s`\n", museCmd)
+130			b.WriteString("• Some package managers install the binary as root; run SpecStory with a path you can execute.\n")
+131		default:
+132			b.WriteString("`muse --version` failed.\n\n")
+133			if stderr != "" {
+134				fmt.Fprintf(&b, "Error output:\n%s\n\n", stderr)
+135			}
+136			b.WriteString("• Try running `muse --version` directly in your terminal.\n")
+137			b.WriteString("• If you upgraded recently, reinstall the CLI to refresh dependencies.\n")
+138		}
+139	
+140		return b.String()
+141	}
+142	
+143	// DetectAgent reports whether Muse Code has recorded any session for this
+144	// project. The store is global, so this is a content question (does any
+145	// transcript name this workspace root?) rather than a "does a directory exist"
+146	// question.
+147	func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
+148		sessionsRoot, rootErr := GetMuseSessionsDir()
+149	
+150		sessions, err := findMuseSessions(projectPath)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:30:54Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/path_utils.go`
+
+```text
+240		// re-shared across days, so take the most recent.
+241		sort.Sort(sort.Reverse(sort.StringSlice(matches)))
+242		return matches[0], nil
+243	}
+244	
+245	// canonicalPath normalizes a path for comparison, falling back to the cleaned
+246	// input when canonicalization fails (a store entry may name a directory that no
+247	// longer exists).
+248	func canonicalPath(path string) string {
+249		if strings.TrimSpace(path) == "" {
+250			return ""
+251		}
+252		canonical, err := spi.GetCanonicalPath(path)
+253		if err != nil {
+254			return filepath.Clean(path)
+255		}
+256		return canonical
+257	}
+258
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:30:55Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/watcher.go`
+
+```text
+365	}
+366	
+367	// processSessionChange parses a changed transcript and publishes it, but only
+368	// when it belongs to the project being watched: Muse's store is global, so a
+369	// session for an unrelated project can land in the same directory.
+370	func processSessionChange(filePath string) {
+371		slog.Debug("processSessionChange: Detected Muse session file change", "file", filePath)
+372	
+373		session, err := ParseSessionFile(filePath)
+374		if err != nil {
+375			slog.Error("processSessionChange: Failed to parse session file", "file", filePath, "error", err)
+376			return
+377		}
+378		if len(session.Events) == 0 {
+379			slog.Debug("processSessionChange: Session file has no conversation events yet", "file", filePath)
+380			return
+381		}
+382	
+383		workspaceRoot := getWatcherWorkspaceRoot()
+384		if session.WorkspaceRoot == "" || canonicalPath(session.WorkspaceRoot) != canonicalPath(workspaceRoot) {
+385			slog.Debug("processSessionChange: Session belongs to another project, skipping",
+386				"file", filePath, "sessionRoot", session.WorkspaceRoot, "watchedRoot", workspaceRoot)
+387			return
+388		}
+389	
+390		agentSession := convertToAgentChatSession(session, workspaceRoot, getWatcherDebugRaw())
+391		triggerCallback(agentSession)
+392	}
+393	
+394	// triggerCallback is a helper to call the watcher callback with proper locking.
+395	func triggerCallback(agentSession *spi.AgentChatSession) {
+396		watcherMutex.RLock()
+397		cb := watcherCallback
+398		watcherMutex.RUnlock()
+399	
+400		if cb != nil && agentSession != nil {
+401			cb(agentSession)
+402		}
+403	}
+404
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:31:15Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check panic recovery in musecode watcher vs geminicli
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== recover() in musecode ==="; grep -rn 'recover()' pkg/providers/musecode/*.go
+echo "=== recover() in geminicli (comparison, same singleton pattern) ==="; grep -rn 'recover()' pkg/providers/geminicli/*.go
+echo; echo "=== musecode watcher event goroutine ==="; sed -n '262,305p' pkg/providers/musecode/watcher.go
+```
+
+```text
+=== recover() in musecode ===
+=== recover() in geminicli (comparison, same singleton pattern) ===
+
+=== musecode watcher event goroutine ===
+	delete(s.watched, dir)
+	slog.Debug("Muse watcher: removed watch", "directory", dir)
+}
+
+// handleEvent reacts to one fsnotify event: a new directory inside the window
+// starts being watched immediately (so a session created seconds from now is
+// live, not waiting for the next refresh), and a transcript write is converted
+// and published.
+func (s *watchSet) handleEvent(event fsnotify.Event) {
+	if !event.Has(fsnotify.Create) && !event.Has(fsnotify.Write) {
+		return
+	}
+
+	if filepath.Base(event.Name) == sessionFileName {
+		if IsSubagentTranscript(event.Name) {
+			return
+		}
+		processSessionChange(event.Name)
+		return
+	}
+
+	// Anything else is only interesting when it is a directory that belongs in
+	// the window: a new day directory, or a new session directory inside one.
+	if !event.Has(fsnotify.Create) {
+		return
+	}
+	if info, err := os.Stat(event.Name); err != nil || !info.IsDir() {
+		return
+	}
+	if filepath.Base(event.Name) == subagentDirName {
+		return
+	}
+	if !dirWithinWatchWindow(event.Name, s.sessionsRoot, watchWindowCutoff(time.Now())) {
+		return
+	}
+	s.addWatch(event.Name)
+}
+
+// watchWindowCutoff returns the earliest date (local midnight) whose directory
+// is still watched.
+func watchWindowCutoff(now time.Time) time.Time {
+	year, month, day := now.AddDate(0, 0, -watchWindowDays).Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, now.Location())
+}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:31:25Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/agent_session.go`
+
+```text
+265		}
+266	}
+267	
+268	// decodeToolArgs turns a tool call's args - a JSON *string* on the wire - into
+269	// the input map the schema expects. Anything that will not decode as an object
+270	// is preserved verbatim so the markdown still shows what was requested.
+271	func decodeToolArgs(args string) map[string]any {
+272		if strings.TrimSpace(args) == "" {
+273			return nil
+274		}
+275	
+276		var input map[string]any
+277		if err := json.Unmarshal([]byte(args), &input); err != nil {
+278			slog.Warn("decodeToolArgs: Tool args are not a JSON object, preserving raw", "error", err)
+279			return map[string]any{"raw": args}
+280		}
+281		return input
+282	}
+283	
+284	// buildToolOutput wraps a tool result text as the schema's output map. Muse
+285	// reports failures as a "tool failed: <reason>" text rather than a status
+286	// field, so the prefix is what separates an error from output.
+287	func buildToolOutput(text string) map[string]any {
+288		if strings.TrimSpace(text) == "" {
+289			return nil
+290		}
+291		if isToolFailure(text) {
+292			return map[string]any{"error": text}
+293		}
+294		return map[string]any{"output": text}
+295	}
+296	
+297	// isToolFailure reports whether a tool result text is Muse's failure form.
+298	func isToolFailure(text string) bool {
+299		return strings.HasPrefix(strings.ToLower(strings.TrimSpace(text)), "tool failed")
+300	}
+301	
+302	// convertUsage converts one model step's token accounting to the shared Usage
+303	// type. Muse splits cached input across cached_tokens and cache_read_tokens;
+304	// both are input the model did not have to re-read, so they sum into
+305	// CachedTokens. Returns nil when the step reported nothing.
+306	func convertUsage(usage *MuseUsage) *Usage {
+307		if usage == nil {
+308			return nil
+309		}
+310	
+311		converted := Usage{
+312			InputTokens:   usage.InputTokens,
+313			OutputTokens:  usage.OutputTokens,
+314			CachedTokens:  usage.CachedTokens + usage.CacheReadTokens,
+315			ThoughtTokens: usage.ReasoningTokens,
+316		}
+317		if converted == (Usage{}) {
+318			return nil
+319		}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:31:32Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Compare musecode extractPathHints with deepseektui's
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+S=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad
+echo "=== musecode extractPathHints vs deepseektui ==="
+python3 $S/extract_func.py pkg/providers/musecode/agent_session.go extractPathHints > $S/eph.muse.txt
+python3 $S/extract_func.py pkg/providers/deepseektui/markdown_tools.go extractPathHints > $S/eph.ds.txt
+diff $S/eph.ds.txt $S/eph.muse.txt && echo "IDENTICAL"
+```
+
+```text
+Exit code 1
+=== musecode extractPathHints vs deepseektui ===
+2,4c2
+< 	if input == nil {
+< 		return nil
+< 	}
+---
+> 	var paths []string
+6,9c4,5
+< 	pathFields := []string{
+< 		"path", "file_path", "filePath", "file",
+< 		"dir", "directory", "directory_path", "target_directory",
+< 		"workdir", "cwd", "target",
+---
+> 	if value := inputAsString(input, "path"); value != "" {
+> 		paths = append(paths, spi.NormalizePath(value, workspaceRoot))
+11,27d6
+< 	var hints []string
+< 	for _, field := range pathFields {
+< 		val, ok := input[field]
+< 		if !ok {
+< 			continue
+< 		}
+< 		switch v := val.(type) {
+< 		case string:
+< 			addPathHint(&hints, v, workspaceRoot)
+< 		case []any:
+< 			for _, entry := range v {
+< 				if s, ok := entry.(string); ok {
+< 					addPathHint(&hints, s, workspaceRoot)
+< 				}
+< 			}
+< 		}
+< 	}
+29,34c8,9
+< 	command, _ := input["command"].(string)
+< 	if command == "" {
+< 		command, _ = input["cmd"].(string)
+< 	}
+< 	if command != "" {
+< 		cwd, _ := input["workdir"].(string)
+---
+> 	if command := inputAsString(input, "command"); command != "" {
+> 		cwd := inputAsString(input, "workdir")
+36,38d10
+< 			cwd, _ = input["cwd"].(string)
+< 		}
+< 		if cwd == "" {
+41,42c13,16
+< 		for _, sp := range spi.ExtractShellPathHints(command, cwd, workspaceRoot) {
+< 			addPathHint(&hints, sp, workspaceRoot)
+---
+> 		for _, shellPath := range spi.ExtractShellPathHints(command, cwd, workspaceRoot) {
+> 			if !slices.Contains(paths, shellPath) {
+> 				paths = append(paths, shellPath)
+> 			}
+46c20
+< 	return hints
+---
+> 	return paths
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:31:47Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/markdown_tools.go`
+
+```text
+1	package musecode
+2	
+3	import (
+4		"encoding/json"
+5		"fmt"
+6		"path/filepath"
+7		"strings"
+8	
+9		"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+10		"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+11	)
+12	
+13	// maxDiffRunes caps a rendered edit diff; find/replace payloads can be whole
+14	// files and the diff is a preview, not the source of truth.
+15	const maxDiffRunes = 2000
+16	
+17	// formatToolAsMarkdown generates formatted markdown for a ToolInfo (input + output).
+18	// Returns the inner content only (no <tool-use> tags - those are added by pkg/session).
+19	// Also sets tool.Summary if a custom summary is needed.
+20	func formatToolAsMarkdown(tool *ToolInfo) string {
+21		if tool == nil {
+22			return ""
+23		}
+24	
+25		// Build custom summary for certain tools (appending key parameters)
+26		var customSummary string
+27		switch tool.Name {
+28		case "read_file", "write_file", "edit_file":
+29			if path := inputAsString(tool.Input, "path"); path != "" {
+30				customSummary = fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, path)
+31			}
+32		case "search":
+33			if pattern := inputAsString(tool.Input, "pattern"); pattern != "" {
+34				customSummary = fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, pattern)
+35			}
+36		case "web_search":
+37			if query := inputAsString(tool.Input, "query"); query != "" {
+38				customSummary = fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, query)
+39			}
+40		}
+41	
+42		// Set custom summary on tool if we built one
+43		if customSummary != "" {
+44			tool.Summary = &customSummary
+45		}
+46	
+47		// Build body content only (no wrapper tags)
+48		body := strings.TrimSpace(formatToolBodyFromInput(tool))
+49		result := strings.TrimSpace(formatToolResultFromOutput(tool))
+50	
+51		var builder strings.Builder
+52		if body != "" {
+53			builder.WriteString("\n")
+54			builder.WriteString(body)
+55		}
+56		if result != "" {
+57			// A single leading newline when there is no body: the wrapper already
+58			// ends the <summary> line, so doubling here would stack blank lines.
+59			if body != "" {
+60				builder.WriteString("\n\n")
+61			} else {
+62				builder.WriteString("\n")
+63			}
+64			builder.WriteString(result)
+65		}
+66		if builder.Len() > 0 {
+67			builder.WriteString("\n")
+68		}
+69	
+70		return builder.String()
+71	}
+72	
+73	// formatToolBodyFromInput formats the tool input/body section
+74	func formatToolBodyFromInput(tool *ToolInfo) string {
+75		switch tool.Name {
+76		case "bash", "bash_input":
+77			return formatShellBodyFromInput(tool.Input)
+78		case "write_file":
+79			return formatWriteFileBodyFromInput(tool.Input)
+80		case "edit_file":
+81			return formatEditBodyFromInput(tool.Input)
+82		case "write_todos":
+83			return formatTodoBodyFromInput(tool.Input)
+84		case "subagent_spawn":
+85			return formatSubagentBodyFromInput(tool.Input)
+86		case "read_file", "search", "web_search":
+87			// Don't show input args - parameters are in the summary
+88			return ""
+89		default:
+90			return formatGenericBodyFromInput(tool.Input)
+91		}
+92	}
+93	
+94	// formatToolResultFromOutput formats the tool result/output section
+95	func formatToolResultFromOutput(tool *ToolInfo) string {
+96		// Errors take priority: render the failure message for any tool.
+97		if errText := outputErrorString(tool.Output); errText != "" {
+98			return addResultPrefix(formatOutputText(errText))
+99		}
+100	
+101		switch tool.Name {
+102		case "write_todos":
+103			// The body already shows the checklist
+104			return ""
+105		case "edit_file":
+106			// The body already shows the diff
+107			return ""
+108		case "bash", "bash_input":
+109			return formatShellResultFromOutput(tool.Output)
+110		case "search":
+111			// ripgrep output is already file:line:text; fencing it adds nothing
+112			return outputAsString(tool.Output)
+113		default:
+114			return formatDefaultResultFromOutput(tool.Output)
+115		}
+116	}
+117	
+118	// formatShellBodyFromInput renders a shell invocation. bash carries a command,
+119	// bash_input carries the characters typed into an already-running PTY.
+120	func formatShellBodyFromInput(input map[string]interface{}) string {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:31:57Z)**_
+
+Muse dispatches on exact tool names, consistent with most providers — no normalization needed. Let me verify the current state builds and prove the classifier bug concretely rather than asserting it.
+
+_**Agent (claude-opus-5 2026-08-14 14:32:07Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Verify musecode currently builds, tests and lints
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; go build ./... 2>&1|head -5; go test ./pkg/providers/musecode/ 2>&1 | tail -5; golangci-lint run 2>&1 | tail -3`
+
+```text
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode	0.062s
+0 issues.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:32:11Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Prove the muse classifier misclassification cases
+
+```bash
+mkdir -p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/museclassify && cat > /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/museclassify/main.go << 'EOF'
+package main
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+)
+
+// museClassify is musecode/provider.go:97 verbatim.
+func museClassify(err error) string {
+	var execErr *exec.Error
+	var pathErr *os.PathError
+	switch {
+	case errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound:
+		return "not_found"
+	case errors.As(err, &pathErr):
+		if errors.Is(pathErr.Err, os.ErrPermission) {
+			return "permission_denied"
+		}
+	case errors.Is(err, os.ErrPermission):
+		return "permission_denied"
+	}
+	return "version_failed"
+}
+
+func main() {
+	cases := []struct {
+		name string
+		err  error
+	}{
+		{"PathError wrapping ErrNotExist", &os.PathError{Op: "exec", Path: "/x", Err: os.ErrNotExist}},
+		{"PathError wrapping ErrPermission", &os.PathError{Op: "exec", Path: "/x", Err: os.ErrPermission}},
+		{"wrapped PathError w/ permission", fmt.Errorf("probe: %w", &os.PathError{Op: "exec", Path: "/x", Err: os.ErrPermission})},
+		{"PathError wrapping i/o error", &os.PathError{Op: "exec", Path: "/x", Err: errors.New("i/o error")}},
+		{"bare ErrPermission", os.ErrPermission},
+		{"exec.ErrNotFound", &exec.Error{Name: "muse", Err: exec.ErrNotFound}},
+	}
+	for _, c := range cases {
+		fmt.Printf("%-34s muse=%-18s\n", c.name, museClassify(c.err))
+	}
+}
+EOF
+cd /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/museclassify && go mod init mc >/dev/null 2>&1; go run main.go
+```
+
+```text
+PathError wrapping ErrNotExist     muse=version_failed    
+PathError wrapping ErrPermission   muse=permission_denied 
+wrapped PathError w/ permission    muse=permission_denied 
+PathError wrapping i/o error       muse=version_failed    
+bare ErrPermission                 muse=permission_denied 
+exec.ErrNotFound                   muse=not_found
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:32:27Z)**_
+
+The wrapped-permission case resolves fine — so the unreachable arm is latent, not practical. Let me compare directly against the shared classifier to get the real delta.
+
+_**Agent (claude-opus-5 2026-08-14 14:32:37Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Compare muse classifier against spi classifier
+
+```bash
+mkdir -p /private/tmp/cmp && cat > pkg/spi/zz_cmp_test.go << 'EOF'
+package spi
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"testing"
+)
+
+func museClassify(err error) string {
+	var execErr *exec.Error
+	var pathErr *os.PathError
+	switch {
+	case errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound:
+		return "not_found"
+	case errors.As(err, &pathErr):
+		if errors.Is(pathErr.Err, os.ErrPermission) {
+			return "permission_denied"
+		}
+	case errors.Is(err, os.ErrPermission):
+		return "permission_denied"
+	}
+	return "version_failed"
+}
+
+func TestZZCompareMuse(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+	}{
+		{"PathError(ErrNotExist)", &os.PathError{Op: "exec", Path: "/x", Err: os.ErrNotExist}},
+		{"PathError(ErrPermission)", &os.PathError{Op: "exec", Path: "/x", Err: os.ErrPermission}},
+		{"PathError(i/o) + ErrPermission in chain", fmt.Errorf("%w and %w", &os.PathError{Op: "exec", Path: "/x", Err: errors.New("i/o")}, os.ErrPermission)},
+		{"PathError(i/o only)", &os.PathError{Op: "exec", Path: "/x", Err: errors.New("i/o")}},
+		{"bare ErrPermission", os.ErrPermission},
+		{"exec.ErrNotFound", &exec.Error{Name: "muse", Err: exec.ErrNotFound}},
+		{"plain error", errors.New("exit status 1")},
+		{"nil", nil},
+	}
+	for _, c := range cases {
+		m, s := museClassify(c.err), ClassifyCheckError(c.err)
+		flag := "  same"
+		if m != s {
+			flag = "DIFFER"
+		}
+		t.Logf("%s  %-42s muse=%-16s spi=%-16s", flag, c.name, m, s)
+	}
+}
+EOF
+go test ./pkg/spi/ -run TestZZCompareMuse -v 2>&1 | grep -E 'same|DIFFER'; rm pkg/spi/zz_cmp_test.go
+```
+
+```text
+    zz_cmp_test.go:47: DIFFER  PathError(ErrNotExist)                     muse=version_failed   spi=not_found       
+    zz_cmp_test.go:47:   same  PathError(ErrPermission)                   muse=permission_denied spi=permission_denied
+    zz_cmp_test.go:47: DIFFER  PathError(i/o) + ErrPermission in chain    muse=version_failed   spi=permission_denied
+    zz_cmp_test.go:47: DIFFER  PathError(i/o only)                        muse=version_failed   spi=unknown         
+    zz_cmp_test.go:47:   same  bare ErrPermission                         muse=permission_denied spi=permission_denied
+    zz_cmp_test.go:47:   same  exec.ErrNotFound                           muse=not_found        spi=not_found       
+    zz_cmp_test.go:47: DIFFER  plain error                                muse=version_failed   spi=unknown         
+    zz_cmp_test.go:47: DIFFER  nil                                        muse=version_failed   spi=
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:32:45Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check repo clean and find affected muse tests
+
+````bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; git status --short | head; echo "=== muse tests touching the candidates ==="
+grep -n 'languageFromPath\|todoStatusSymbol\|classifyMuseCheckError\|canonicalPath\|formatGenericBodyFromInput\|inputAsString\|truncate(\|diffFromFindReplace\|```text' pkg/providers/musecode/*_test.go
+````
+
+``````text
+?? ../specstory-mac/
+=== muse tests touching the candidates ===
+pkg/providers/musecode/markdown_tools_test.go:85:	if !strings.Contains(markdown, "```text\n42\n```") {
+pkg/providers/musecode/markdown_tools_test.go:110:	if !strings.Contains(markdown, "```text\nboom\n```") {
+pkg/providers/musecode/markdown_tools_test.go:258:			expect: "````text\n",
+pkg/providers/musecode/markdown_tools_test.go:277:			expect: "`````text\n",
+pkg/providers/musecode/markdown_tools_test.go:350:			if got := inputAsString(tt.input, tt.key); got != tt.expected {
+pkg/providers/musecode/markdown_tools_test.go:351:				t.Errorf("inputAsString() = %q, want %q", got, tt.expected)
+pkg/providers/musecode/markdown_tools_test.go:370:			if got := languageFromPath(tt.path); got != tt.expected {
+pkg/providers/musecode/markdown_tools_test.go:371:				t.Errorf("languageFromPath(%q) = %q, want %q", tt.path, got, tt.expected)
+``````
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:32:49Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/markdown_tools_test.go`
+
+```text
+354		}
+355	}
+356	
+357	func TestLanguageFromPath(t *testing.T) {
+358		tests := []struct {
+359			path     string
+360			expected string
+361		}{
+362			{path: "", expected: "text"},
+363			{path: "Makefile", expected: "text"},
+364			{path: "src/calc.py", expected: "py"},
+365			{path: "README.MD", expected: "md"},
+366		}
+367	
+368		for _, tt := range tests {
+369			t.Run(tt.path, func(t *testing.T) {
+370				if got := languageFromPath(tt.path); got != tt.expected {
+371					t.Errorf("languageFromPath(%q) = %q, want %q", tt.path, got, tt.expected)
+372				}
+373			})
+374		}
+375	}
+376
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:33:25Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check muse registration and docs coverage
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== registry ==="; grep -n 'musecode\|muse' pkg/spi/factory/registry.go | head
+echo "=== docs mentioning muse ==="; grep -rln 'muse\|Muse' docs/*.md 2>/dev/null | head
+echo "=== provider count in PROVIDER-SPI.md table ==="; grep -n '^| \`' docs/PROVIDER-SPI.md | head -12
+```
+
+```text
+=== registry ===
+22:	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode"
+120:	museProvider := musecode.NewProvider()
+121:	r.providers["muse"] = museProvider
+122:	slog.Debug("Registered provider", "id", "muse", "name", museProvider.Name())
+=== docs mentioning muse ===
+docs/MUSE-FORMAT.md
+docs/PROVIDER-SPI.md
+=== provider count in PROVIDER-SPI.md table ===
+13:| `claude` | Claude Code | `~/.claude/projects/<hash>/<session-id>.jsonl` |
+14:| `cursor` | Cursor CLI | `~/.cursor/chats/<project-hash>/<session-id>/store.db` |
+15:| `codex` | Codex CLI | `~/.codex/sessions/YYYY/MM/DD/<session-id>.jsonl` |
+16:| `gemini` | Gemini CLI | `~/.gemini/tmp/<hash>/chats/<session-id>.json` |
+17:| `muse` | Muse Code | `~/.local/share/muse/sessions/YYYY/MM/DD/<session-id>/session.jsonl` |
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:33:57Z)**_
+
+I've reviewed all 14 files against every pattern from the refactor. Verified: `go build`, `go test ./pkg/providers/musecode/` and `golangci-lint run` are all currently green, and muse is properly registered in the factory and documented in `PROVIDER-SPI.md` and `MUSE-FORMAT.md`.
+
+## Headline
+
+musecode was clearly written before the refactor landed. It reintroduces **five** of the helpers we just consolidated, carries **one classifier bug we just fixed elsewhere**, and has **one robustness gap** outside the refactor's scope. It's clean on the worst issue though — it uses `spi.CodeFence` at all seven fence sites, so it never had the geminicli hardcoded-fence problem.
+
+| musecode | Shared equivalent | Risk if switched |
+|---|---|---|
+| `formatGenericBodyFromInput` (markdown_tools.go:281) | `spi.RenderGenericJSON` | none — behaviorally identical |
+| `canonicalPath` (path_utils.go:248) | `spi.CanonicalizePathOrClean` | none — strictly more robust |
+| `classifyMuseCheckError` (provider.go:97) | `spi.ClassifyCheckError` | telemetry values change |
+| `languageFromPath` (markdown_tools.go:369) | `spi.LanguageFromPath` | fence tags change |
+| inline `TrackEvent` ×3 (provider.go:44/67/83) | `analytics.CheckAttempt` + helpers | adds 3 properties |
+
+## Drop-ins with no behavior change
+
+`formatGenericBodyFromInput` is `spi.RenderGenericJSON(input)` — same empty check, same `MarshalIndent`, same JSON fence. It's the version we standardized on, just re-typed.
+
+`canonicalPath` differs from `spi.CanonicalizePathOrClean` in two ways, and the shared one wins both: muse checks `TrimSpace(path) == ""` but then passes the **untrimmed** string to `GetCanonicalPath`, and it falls back to a bare `filepath.Clean` with no `filepath.Abs` step. Muse uses this only to compare a session's workspace root against the watched root (`watcher.go:384`), which is precisely the case where the `Abs` fallback matters — a relative path currently fails to match its own absolute form.
+
+## Behavior-changing, but the same calls you already made
+
+`classifyMuseCheckError` is the same shape as the three I fixed under item 3, including the latent unreachable arm. I compared it against the shared classifier directly rather than eyeballing it:
+
+| Input | muse today | shared |
+|---|---|---|
+| `PathError` wrapping `ErrNotExist` | `version_failed` | `not_found` |
+| `PathError`(i/o) with `ErrPermission` in the chain | `version_failed` | `permission_denied` |
+| `PathError` wrapping i/o error | `version_failed` | `unknown` |
+| plain error | `version_failed` | `unknown` |
+| `nil` | `version_failed` | `""` |
+
+The first row is the practical bug — a binary that vanishes between `LookPath` and `Run` reports as a version failure rather than "not found". The second is the unreachable arm, and I should be straight that it needs a contrived multi-`%w` chain to trigger; it's latent, not something users hit. `buildMuseCheckErrorMessage` has a `default:` arm, so no user-facing remediation text changes.
+
+`languageFromPath` is byte-identical to the geminicli variant I deleted — `"text"` fallback, `ToLower`, zero aliases. Switching changes fence tags: `Makefile` and `""` go from ```` ```text ```` to untagged, `.py` → `python`, `.MD` → `markdown`, `.yml` → `yaml`. `TestLanguageFromPath` (markdown_tools_test.go:357) asserts the old values and would move to `spi` like claudecode's and cursorcli's did.
+
+The three inline `TrackEvent` calls are the pre-refactor property shape: no `resolved_path`, no `version_flag`, and **no `stderr` even though muse captures it** and passes it to the message builder. This is Phase 3 item 4, which we deferred for the six existing providers pending PostHog sign-off — but muse is new and emitting nothing historical, so adopting the shared shape now costs no migration and means one fewer provider in that eventual sweep.
+
+## Judgment calls I'd leave to you
+
+`todoStatusSymbol` (markdown_tools.go:253) emits exactly the same symbols as `spi.TodoSymbol` but matches case-sensitively with no `done`/`active` aliases. We skipped item 2 for the other providers because their symbols disagree (`x` vs `X`) — muse's already match, so switching is free and pure widening. `diffFromFindReplace` (markdown_tools.go:211) is `spi.FormatDiffBlock`'s logic but returns *unfenced* text because muse truncates before fencing; deduping it would mean splitting `FormatDiffBlock` into a `DiffLines` core plus the fencing wrapper. `truncate` (markdown_tools.go:380) duplicates `spi.CapRunes` but with a different visible marker. And `inputAsString` (markdown_tools.go:320) overlaps `spi.StringValue` but deliberately differs — single key, explicit nil handling for muse's JSON nulls, and a `json.Marshal` fallback where `StringValue` returns `""`. I'd leave that one alone, same call I made for geminicli's.
+
+## Two things outside the refactor patterns
+
+`triggerCallback` (watcher.go:395) invokes the session callback with **no panic recovery**, so a panic in the consumer would propagate out of the fsnotify goroutine and take down the process. The trio get this free from `spi.DispatchSession`. This isn't muse-specific — geminicli has the identical gap with the same singleton-watcher pattern — and since muse's delivery is synchronous by design, the minimal fix is a local `defer recover()` rather than adopting `DispatchSession`, which would make delivery async.
+
+Separately, on a successful check with empty `--version` output, muse returns `Success: true` with `Version: ""`. deepseektui and antigravitycli substitute `"unknown"`; cursorcli and codexcli treat empty output as a `no_output` failure. Muse silently reports a successful check with a blank version.
+
+## What I'd recommend
+
+Take the five table rows — the first two are free, and the other three are exactly the decisions you already made, applied to a provider that simply hadn't merged yet. Add the `recover()` to `triggerCallback` as a small independent fix. Hold the four judgment calls unless you want them.
+
+Want me to apply that set?
+
+---
+
+_**User (2026-08-14 14:42:50Z)**_
+
+Yes, apply the five plus the recover()
+
+use "unknown" as the version
+
+---
+
+_**Agent (claude-opus-5 2026-08-14 14:43:01Z)**_
+
+Applying all six, plus `"unknown"` for the empty-version case. Starting with `provider.go`.
+
+_**Agent (claude-opus-5 2026-08-14 14:43:02Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/provider.go`
+
+```text
+1	package musecode
+2	
+3	import (
+4		"bytes"
+5		"context"
+6		"encoding/json"
+7		"errors"
+8		"fmt"
+9		"log/slog"
+10		"os"
+11		"os/exec"
+12		"path/filepath"
+13		"strings"
+14	
+15		"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+16		"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+17	)
+18	
+19	// Compile-time assertions that Provider satisfies the full spi.Provider
+20	// contract plus the optional reindex capabilities.
+21	var (
+22		_ spi.Provider           = (*Provider)(nil)
+23		_ spi.ProgressEnumerator = (*Provider)(nil)
+24		_ spi.PathSessionReader  = (*Provider)(nil)
+25	)
+26	
+27	type Provider struct{}
+28	
+29	func NewProvider() *Provider {
+30		return &Provider{}
+31	}
+32	
+33	func (p *Provider) Name() string {
+34		return "Muse Code"
+35	}
+36
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:43:20Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:43:25Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/provider.go`
+
+```text
+92	
+93	func buildMuseCheckErrorMessage(errorType string, museCmd string, isCustom bool, stderr string) string {
+94		var b strings.Builder
+95	
+96		switch errorType {
+97		case spi.CheckErrorNotFound:
+98			b.WriteString("Muse Code could not be found.\n\n")
+99			if isCustom {
+100				b.WriteString("• Verify the path you supplied actually points to the `muse` executable.\n")
+101				fmt.Fprintf(&b, "• Provided command: %s\n", museCmd)
+102			} else {
+103				b.WriteString("• Install Muse Code and ensure `muse` is on your PATH.\n")
+104				b.WriteString("• Or pass a custom command via `specstory check muse -c \"path/to/muse\"`.\n")
+105			}
+106		case "permission_denied":
+107			b.WriteString("Muse Code exists but isn't executable.\n\n")
+108			fmt.Fprintf(&b, "• Fix permissions: `chmod +x %s`\n", museCmd)
+109			b.WriteString("• Some package managers install the binary as root; run SpecStory with a path you can execute.\n")
+110		default:
+111			b.WriteString("`muse --version` failed.\n\n")
+112			if stderr != "" {
+113				fmt.Fprintf(&b, "Error output:\n%s\n\n", stderr)
+114			}
+115			b.WriteString("• Try running `muse --version` directly in your terminal.\n")
+116			b.WriteString("• If you upgraded recently, reinstall the CLI to refresh dependencies.\n")
+117		}
+118	
+119		return b.String()
+120	}
+121
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:43:26Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check for an existing versionFlag constant in musecode
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; grep -n 'versionFlag\|"--version"' pkg/providers/musecode/*.go | grep -v _test.go`
+
+```text
+pkg/providers/musecode/provider.go:44:		VersionFlag:   versionFlag,
+pkg/providers/musecode/provider.go:59:	cmd := exec.Command(cmdName, versionFlag)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:43:29Z)**_
+
+I need to declare `versionFlag`, and I'll use the shared constant for the permission arm too.
+
+_**Agent (claude-opus-5 2026-08-14 14:43:32Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:43:36Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:43:40Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build musecode and check import usage
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+go build ./pkg/providers/musecode/ 2>&1 | head -10; echo "--- errors/os still used? ---"; grep -c 'errors\.' pkg/providers/musecode/provider.go; grep -c 'os\.' pkg/providers/musecode/provider.go
+```
+
+```text
+# github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode
+pkg/providers/musecode/provider.go:7:2: "errors" imported and not used
+--- errors/os still used? ---
+0
+6
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:43:45Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:43:49Z)**_
+
+Now the markdown helpers, path canonicalization, and the watcher recover.
+
+_**Agent (claude-opus-5 2026-08-14 14:43:57Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Swap in shared markdown and path helpers
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+D=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/delfunc.py
+perl -pi -e 's/\blanguageFromPath\(/spi.LanguageFromPath(/g; s/\bformatGenericBodyFromInput\(/spi.RenderGenericJSON(/g;' pkg/providers/musecode/markdown_tools.go
+perl -pi -e 's/\bcanonicalPath\(/spi.CanonicalizePathOrClean(/g;' pkg/providers/musecode/path_utils.go pkg/providers/musecode/watcher.go
+python3 $D pkg/providers/musecode/markdown_tools.go 'spi.LanguageFromPath' 'spi.RenderGenericJSON'
+python3 $D pkg/providers/musecode/path_utils.go 'spi.CanonicalizePathOrClean'
+go build ./pkg/providers/musecode/ 2>&1 | head -10
+```
+
+```text
+  removed spi.LanguageFromPath from pkg/providers/musecode/markdown_tools.go
+  removed spi.RenderGenericJSON from pkg/providers/musecode/markdown_tools.go
+  removed spi.CanonicalizePathOrClean from pkg/providers/musecode/path_utils.go
+# github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode
+pkg/providers/musecode/markdown_tools.go:281:1: syntax error: non-declaration statement outside function body
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:44:04Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/markdown_tools.go`
+
+```text
+262	}
+263	
+264	// formatSubagentBodyFromInput shows what a spawned subagent was asked to do.
+265	// The subagent's own transcript lives in a separate file, so the objective plus
+266	// the spawn result is all the parent session records about it.
+267	func formatSubagentBodyFromInput(input map[string]interface{}) string {
+268		role := inputAsString(input, "role")
+269		objective := inputAsString(input, "objective")
+270	
+271		var builder strings.Builder
+272		if role != "" {
+273			fmt.Fprintf(&builder, "Role: `%s`\n\n", role)
+274		}
+275		if objective != "" {
+276			builder.WriteString(objective)
+277		}
+278		return builder.String()
+279	}
+280	
+281	) string {
+282		if len(input) == 0 {
+283			return ""
+284		}
+285		bytes, err := json.MarshalIndent(input, "", "  ")
+286		if err != nil {
+287			return ""
+288		}
+289		return spi.CodeFence("json", string(bytes))
+290	}
+291
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:44:19Z)**_
+
+My deletion script mis-parsed `map[string]interface{}` — it matched the brace in the *type* rather than the function body, leaving an orphan fragment. Let me remove it.
+
+_**Agent (claude-opus-5 2026-08-14 14:44:21Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/markdown_tools.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:44:26Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Rebuild and verify no other damage from the bad deletion
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+go build ./pkg/providers/musecode/ 2>&1 | head -10
+echo "=== sanity: no orphan fragments anywhere in musecode ==="
+gofmt -l pkg/providers/musecode/ ; echo "(gofmt clean above)"
+echo "=== confirm the removed funcs are gone and nothing else vanished ==="
+grep -n 'func ' pkg/providers/musecode/markdown_tools.go | sed -n '1,25p'
+```
+
+```text
+# github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode
+pkg/providers/musecode/markdown_tools.go:6:2: "path/filepath" imported and not used
+=== sanity: no orphan fragments anywhere in musecode ===
+pkg/providers/musecode/path_utils.go
+(gofmt clean above)
+=== confirm the removed funcs are gone and nothing else vanished ===
+20:func formatToolAsMarkdown(tool *ToolInfo) string {
+74:func formatToolBodyFromInput(tool *ToolInfo) string {
+95:func formatToolResultFromOutput(tool *ToolInfo) string {
+120:func formatShellBodyFromInput(input map[string]interface{}) string {
+144:func formatShellResultFromOutput(output map[string]interface{}) string {
+175:func formatWriteFileBodyFromInput(input map[string]interface{}) string {
+195:func formatEditBodyFromInput(input map[string]interface{}) string {
+211:func diffFromFindReplace(find, replace string) string {
+233:func formatTodoBodyFromInput(input map[string]interface{}) string {
+253:func todoStatusSymbol(status string) string {
+267:func formatSubagentBodyFromInput(input map[string]interface{}) string {
+282:func formatDefaultResultFromOutput(output map[string]interface{}) string {
+291:func formatOutputText(output string) string {
+299:func addResultPrefix(content string) string {
+309:func inputAsString(input map[string]interface{}, key string) string {
+334:func outputAsString(output map[string]interface{}) string {
+348:func outputErrorString(output map[string]interface{}) string {
+358:func truncate(text string, limit int) string {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:44:36Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Fix imports, format, inspect path_utils tail
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+perl -0pi -e 's/\t"path\/filepath"\n//' pkg/providers/musecode/markdown_tools.go
+gofmt -w pkg/providers/musecode/
+go build ./pkg/providers/musecode/ 2>&1 | head -5
+echo "=== path_utils tail (check deletion left it tidy) ==="; tail -14 pkg/providers/musecode/path_utils.go
+```
+
+```text
+=== path_utils tail (check deletion left it tidy) ===
+	pattern := filepath.Join(sessionsRoot, "*", "*", "*", sessionID, sessionFileName)
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return "", fmt.Errorf("failed to search Muse sessions for %q: %w", sessionID, err)
+	}
+	if len(matches) == 0 {
+		return "", nil
+	}
+
+	// A session id is unique; more than one match means the same id was
+	// re-shared across days, so take the most recent.
+	sort.Sort(sort.Reverse(sort.StringSlice(matches)))
+	return matches[0], nil
+}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:44:41Z)**_
+
+Now the watcher `recover()`, then the test updates.
+
+_**Agent (claude-opus-5 2026-08-14 14:44:46Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/watcher.go has been updated successfully. (note: the file had been modified on disk since you last read it — the edit applied cleanly, but the file contains other changes not in your context. Read it before edits that depend on surrounding content.)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:44:54Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build all and vet musecode
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; go build ./... 2>&1|head -5; echo "=== build ok ==="; go vet ./pkg/providers/musecode/ 2>&1 | head -10`
+
+```text
+=== build ok ===
+# github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode
+# [github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode]
+vet: pkg/providers/musecode/markdown_tools_test.go:370:14: undefined: languageFromPath
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:45:10Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Remove obsolete language test and find fence-tag assertions
+
+````bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+D=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/delfunc.py
+python3 $D pkg/providers/musecode/markdown_tools_test.go 'TestLanguageFromPath'
+echo "=== tests asserting language-tagged fences ==="; grep -n '```py\|```go\|```js\|```md\|```yaml\|```yml\|```python\|write_file' pkg/providers/musecode/*_test.go | head -20
+````
+
+`````text
+  removed TestLanguageFromPath from pkg/providers/musecode/markdown_tools_test.go
+=== tests asserting language-tagged fences ===
+pkg/providers/musecode/agent_session_test.go:272:		{toolName: "write_file", expected: schema.ToolTypeWrite},
+pkg/providers/musecode/markdown_tools_test.go:30:			name:     "write_file uses path",
+pkg/providers/musecode/markdown_tools_test.go:31:			tool:     &ToolInfo{Name: "write_file", Input: map[string]any{"path": "SUMMARY.md"}},
+pkg/providers/musecode/markdown_tools_test.go:32:			expected: "Tool use: **write_file** `SUMMARY.md`",
+pkg/providers/musecode/markdown_tools_test.go:256:				Output: map[string]any{"output": "{\"exit_code\":0,\"output\":\"```go\\nfmt.Println()\\n```\\n\"}"},
+pkg/providers/musecode/markdown_tools_test.go:261:			name: "write_file content with a fence",
+pkg/providers/musecode/markdown_tools_test.go:263:				Name: "write_file",
+pkg/providers/musecode/markdown_tools_test.go:269:			expect: "````md\n",
+`````
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:45:15Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/markdown_tools_test.go`
+
+``````text
+240		}
+241	}
+242	
+243	// A tool result containing its own fence must not be able to close the fence
+244	// wrapping it; spi.CodeFence sizes the wrapper to outrun the longest inner run.
+245	func TestFormatToolAsMarkdown_UsesCodeFenceForEmbeddedBackticks(t *testing.T) {
+246		tests := []struct {
+247			name   string
+248			tool   *ToolInfo
+249			expect string
+250		}{
+251			{
+252				name: "bash output with a fence",
+253				tool: &ToolInfo{
+254					Name:   "bash",
+255					Input:  map[string]any{"command": "cat README.md"},
+256					Output: map[string]any{"output": "{\"exit_code\":0,\"output\":\"```go\\nfmt.Println()\\n```\\n\"}"},
+257				},
+258				expect: "````text\n",
+259			},
+260			{
+261				name: "write_file content with a fence",
+262				tool: &ToolInfo{
+263					Name: "write_file",
+264					Input: map[string]any{
+265						"path":    "README.md",
+266						"content": "intro\n```zsh\nspecstory sync\n```\n",
+267					},
+268				},
+269				expect: "````md\n",
+270			},
+271			{
+272				name: "generic result with a long backtick run",
+273				tool: &ToolInfo{
+274					Name:   "get_goal",
+275					Output: map[string]any{"output": "line\n````\nnested\n````"},
+276				},
+277				expect: "`````text\n",
+278			},
+279		}
+280	
+281		for _, tt := range tests {
+282			t.Run(tt.name, func(t *testing.T) {
+283				markdown, _ := toolMarkdown(tt.tool)
+284				if !strings.Contains(markdown, tt.expect) {
+``````
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:45:19Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/markdown_tools_test.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:45:23Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run musecode tests
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; gofmt -w pkg/providers/musecode/; go test ./pkg/providers/musecode/ 2>&1 | tail -30`
+
+```text
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode	0.063s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:45:28Z)**_
+
+All musecode tests pass. Let me run the full verification.
+
+_**Agent (claude-opus-5 2026-08-14 14:45:38Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Full build, test, lint
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; go build ./... 2>&1|head -3; go test ./... 2>&1 | grep -v '^ok\|no test files' | head -20; echo "=== tests done ==="; golangci-lint run 2>&1 | tail -5`
+
+```text
+=== tests done ===
+0 issues.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:45:45Z)**_
+
+Let me review the complete musecode diff to confirm nothing else was disturbed by that script bug.
+
+_**Agent (claude-opus-5 2026-08-14 14:45:47Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Review musecode path_utils and watcher diffs
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; git diff --stat -- pkg/providers/musecode/; echo "=== full diff ==="; git diff -- pkg/providers/musecode/path_utils.go pkg/providers/musecode/watcher.go`
+
+```text
+ .../pkg/providers/musecode/markdown_tools.go       | 27 +--------
+ .../pkg/providers/musecode/markdown_tools_test.go  | 22 +------
+ specstory-cli/pkg/providers/musecode/path_utils.go | 18 +-----
+ specstory-cli/pkg/providers/musecode/provider.go   | 70 ++++++++--------------
+ specstory-cli/pkg/providers/musecode/watcher.go    | 18 +++++-
+ 5 files changed, 46 insertions(+), 109 deletions(-)
+=== full diff ===
+diff --git a/specstory-cli/pkg/providers/musecode/path_utils.go b/specstory-cli/pkg/providers/musecode/path_utils.go
+index 77fc006..ca48402 100644
+--- a/specstory-cli/pkg/providers/musecode/path_utils.go
++++ b/specstory-cli/pkg/providers/musecode/path_utils.go
+@@ -172,7 +172,7 @@ func findMuseSessions(projectPath string) ([]museSessionFile, error) {
+ 		return nil, fmt.Errorf("failed to read Muse sessions directory %q: %w", sessionsRoot, err)
+ 	}
+ 
+-	targetRoot := canonicalPath(projectPath)
++	targetRoot := spi.CanonicalizePathOrClean(projectPath)
+ 
+ 	var paths []string
+ 	if err := walkMuseSessionFiles(sessionsRoot, func(path string) {
+@@ -188,7 +188,7 @@ func findMuseSessions(projectPath string) ([]museSessionFile, error) {
+ 			slog.Debug("findMuseSessions: Skipping unreadable transcript", "path", path, "error", err)
+ 			continue
+ 		}
+-		if workspaceRoot == "" || canonicalPath(workspaceRoot) != targetRoot {
++		if workspaceRoot == "" || spi.CanonicalizePathOrClean(workspaceRoot) != targetRoot {
+ 			continue
+ 		}
+ 		matches = append(matches, museSessionFile{
+@@ -241,17 +241,3 @@ func findMuseSessionPathByID(sessionID string) (string, error) {
+ 	sort.Sort(sort.Reverse(sort.StringSlice(matches)))
+ 	return matches[0], nil
+ }
+-
+-// canonicalPath normalizes a path for comparison, falling back to the cleaned
+-// input when canonicalization fails (a store entry may name a directory that no
+-// longer exists).
+-func canonicalPath(path string) string {
+-	if strings.TrimSpace(path) == "" {
+-		return ""
+-	}
+-	canonical, err := spi.GetCanonicalPath(path)
+-	if err != nil {
+-		return filepath.Clean(path)
+-	}
+-	return canonical
+-}
+diff --git a/specstory-cli/pkg/providers/musecode/watcher.go b/specstory-cli/pkg/providers/musecode/watcher.go
+index 63c4b20..8695b96 100644
+--- a/specstory-cli/pkg/providers/musecode/watcher.go
++++ b/specstory-cli/pkg/providers/musecode/watcher.go
+@@ -381,7 +381,7 @@ func processSessionChange(filePath string) {
+ 	}
+ 
+ 	workspaceRoot := getWatcherWorkspaceRoot()
+-	if session.WorkspaceRoot == "" || canonicalPath(session.WorkspaceRoot) != canonicalPath(workspaceRoot) {
++	if session.WorkspaceRoot == "" || spi.CanonicalizePathOrClean(session.WorkspaceRoot) != spi.CanonicalizePathOrClean(workspaceRoot) {
+ 		slog.Debug("processSessionChange: Session belongs to another project, skipping",
+ 			"file", filePath, "sessionRoot", session.WorkspaceRoot, "watchedRoot", workspaceRoot)
+ 		return
+@@ -392,12 +392,24 @@ func processSessionChange(filePath string) {
+ }
+ 
+ // triggerCallback is a helper to call the watcher callback with proper locking.
++//
++// Delivery is synchronous so transcript changes reach the consumer in the order
++// fsnotify reported them, but a panic in the consumer is contained here: it
++// would otherwise unwind the fsnotify event goroutine and take down the whole
++// process over one malformed session.
+ func triggerCallback(agentSession *spi.AgentChatSession) {
+ 	watcherMutex.RLock()
+ 	cb := watcherCallback
+ 	watcherMutex.RUnlock()
+ 
+-	if cb != nil && agentSession != nil {
+-		cb(agentSession)
++	if cb == nil || agentSession == nil {
++		return
+ 	}
++
++	defer func() {
++		if r := recover(); r != nil {
++			slog.Error("muse: session callback panicked", "sessionId", agentSession.SessionID, "panic", r)
++		}
++	}()
++	cb(agentSession)
+ }
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:45:51Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Review musecode markdown and provider diffs
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; git diff -- pkg/providers/musecode/markdown_tools.go pkg/providers/musecode/provider.go`
+
+```text
+diff --git a/specstory-cli/pkg/providers/musecode/markdown_tools.go b/specstory-cli/pkg/providers/musecode/markdown_tools.go
+index a61ffa4..e4fdb75 100644
+--- a/specstory-cli/pkg/providers/musecode/markdown_tools.go
++++ b/specstory-cli/pkg/providers/musecode/markdown_tools.go
+@@ -3,7 +3,6 @@ package musecode
+ import (
+ 	"encoding/json"
+ 	"fmt"
+-	"path/filepath"
+ 	"strings"
+ 
+ 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+@@ -87,7 +86,7 @@ func formatToolBodyFromInput(tool *ToolInfo) string {
+ 		// Don't show input args - parameters are in the summary
+ 		return ""
+ 	default:
+-		return formatGenericBodyFromInput(tool.Input)
++		return spi.RenderGenericJSON(tool.Input)
+ 	}
+ }
+ 
+@@ -184,7 +183,7 @@ func formatWriteFileBodyFromInput(input map[string]interface{}) string {
+ 		fmt.Fprintf(&builder, "Path: `%s`\n\n", path)
+ 	}
+ 	if content != "" {
+-		builder.WriteString(spi.CodeFence(languageFromPath(path), content))
++		builder.WriteString(spi.CodeFence(spi.LanguageFromPath(path), content))
+ 	}
+ 	return builder.String()
+ }
+@@ -278,17 +277,6 @@ func formatSubagentBodyFromInput(input map[string]interface{}) string {
+ 	return builder.String()
+ }
+ 
+-func formatGenericBodyFromInput(input map[string]interface{}) string {
+-	if len(input) == 0 {
+-		return ""
+-	}
+-	bytes, err := json.MarshalIndent(input, "", "  ")
+-	if err != nil {
+-		return ""
+-	}
+-	return spi.CodeFence("json", string(bytes))
+-}
+-
+ // formatDefaultResultFromOutput builds result with "Result:" prefix
+ func formatDefaultResultFromOutput(output map[string]interface{}) string {
+ 	content := outputAsString(output)
+@@ -366,17 +354,6 @@ func outputErrorString(output map[string]interface{}) string {
+ 	return ""
+ }
+ 
+-func languageFromPath(path string) string {
+-	if path == "" {
+-		return "text"
+-	}
+-	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
+-	if ext == "" {
+-		return "text"
+-	}
+-	return ext
+-}
+-
+ func truncate(text string, limit int) string {
+ 	if limit <= 0 {
+ 		return text
+diff --git a/specstory-cli/pkg/providers/musecode/provider.go b/specstory-cli/pkg/providers/musecode/provider.go
+index 971a72e..4dc5df1 100644
+--- a/specstory-cli/pkg/providers/musecode/provider.go
++++ b/specstory-cli/pkg/providers/musecode/provider.go
+@@ -4,7 +4,6 @@ import (
+ 	"bytes"
+ 	"context"
+ 	"encoding/json"
+-	"errors"
+ 	"fmt"
+ 	"log/slog"
+ 	"os"
+@@ -24,6 +23,10 @@ var (
+ 	_ spi.PathSessionReader  = (*Provider)(nil)
+ )
+ 
++// versionFlag is the flag Check probes the binary with, reported alongside the
++// result so analytics can tell a flag change from a genuine failure.
++const versionFlag = "--version"
++
+ type Provider struct{}
+ 
+ func NewProvider() *Provider {
+@@ -37,40 +40,36 @@ func (p *Provider) Name() string {
+ func (p *Provider) Check(customCommand string) spi.CheckResult {
+ 	cmdName, _ := parseMuseCommand(customCommand)
+ 	isCustom := customCommand != ""
++	attempt := analytics.CheckAttempt{
++		Provider:      "muse",
++		CustomCommand: isCustom,
++		CommandPath:   cmdName,
++		VersionFlag:   versionFlag,
++	}
+ 
+ 	resolvedPath, err := exec.LookPath(cmdName)
+ 	if err != nil {
+-		errorMessage := buildMuseCheckErrorMessage("not_found", cmdName, isCustom, "")
+-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+-			"provider":       "muse",
+-			"custom_command": isCustom,
+-			"command_path":   cmdName,
+-			"error_type":     "not_found",
+-			"error_message":  err.Error(),
+-		})
++		errorMessage := buildMuseCheckErrorMessage(spi.CheckErrorNotFound, cmdName, isCustom, "")
++		analytics.TrackCheckFailure(attempt, spi.CheckErrorNotFound, err.Error(), "")
+ 		return spi.CheckResult{
+ 			Success:      false,
+ 			Location:     "",
+ 			ErrorMessage: errorMessage,
+ 		}
+ 	}
++	attempt.ResolvedPath = resolvedPath
+ 
+-	cmd := exec.Command(cmdName, "--version")
++	cmd := exec.Command(cmdName, versionFlag)
+ 	var stdout bytes.Buffer
+ 	var stderr bytes.Buffer
+ 	cmd.Stdout = &stdout
+ 	cmd.Stderr = &stderr
+ 
+ 	if err := cmd.Run(); err != nil {
+-		errorType := classifyMuseCheckError(err)
+-		errorMessage := buildMuseCheckErrorMessage(errorType, resolvedPath, isCustom, strings.TrimSpace(stderr.String()))
+-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+-			"provider":       "muse",
+-			"custom_command": isCustom,
+-			"command_path":   resolvedPath,
+-			"error_type":     errorType,
+-			"error_message":  err.Error(),
+-		})
++		errorType := spi.ClassifyCheckError(err)
++		stderrOutput := strings.TrimSpace(stderr.String())
++		errorMessage := buildMuseCheckErrorMessage(errorType, resolvedPath, isCustom, stderrOutput)
++		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
+ 
+ 		return spi.CheckResult{
+ 			Success:      false,
+@@ -79,13 +78,13 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
+ 		}
+ 	}
+ 
++	// A binary that runs but prints nothing still passes the check; report a
++	// placeholder rather than an empty version so the result reads unambiguously.
+ 	version := strings.TrimSpace(stdout.String())
+-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
+-		"provider":       "muse",
+-		"custom_command": isCustom,
+-		"command_path":   resolvedPath,
+-		"version":        version,
+-	})
++	if version == "" {
++		version = "unknown"
++	}
++	analytics.TrackCheckSuccess(attempt, version)
+ 
+ 	return spi.CheckResult{
+ 		Success:  true,
+@@ -94,28 +93,11 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
+ 	}
+ }
+ 
+-func classifyMuseCheckError(err error) string {
+-	var execErr *exec.Error
+-	var pathErr *os.PathError
+-
+-	switch {
+-	case errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound:
+-		return "not_found"
+-	case errors.As(err, &pathErr):
+-		if errors.Is(pathErr.Err, os.ErrPermission) {
+-			return "permission_denied"
+-		}
+-	case errors.Is(err, os.ErrPermission):
+-		return "permission_denied"
+-	}
+-	return "version_failed"
+-}
+-
+ func buildMuseCheckErrorMessage(errorType string, museCmd string, isCustom bool, stderr string) string {
+ 	var b strings.Builder
+ 
+ 	switch errorType {
+-	case "not_found":
++	case spi.CheckErrorNotFound:
+ 		b.WriteString("Muse Code could not be found.\n\n")
+ 		if isCustom {
+ 			b.WriteString("• Verify the path you supplied actually points to the `muse` executable.\n")
+@@ -124,7 +106,7 @@ func buildMuseCheckErrorMessage(errorType string, museCmd string, isCustom bool,
+ 			b.WriteString("• Install Muse Code and ensure `muse` is on your PATH.\n")
+ 			b.WriteString("• Or pass a custom command via `specstory check muse -c \"path/to/muse\"`.\n")
+ 		}
+-	case "permission_denied":
++	case spi.CheckErrorPermissionDenied:
+ 		b.WriteString("Muse Code exists but isn't executable.\n\n")
+ 		fmt.Fprintf(&b, "• Fix permissions: `chmod +x %s`\n", museCmd)
+ 		b.WriteString("• Some package managers install the binary as root; run SpecStory with a path you can execute.\n")
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:45:58Z)**_
+
+The diff is exactly as intended. Let me prove the `recover()` actually contains a panic rather than just assuming it.
+
+_**Agent (claude-opus-5 2026-08-14 14:46:06Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Prove the watcher recover contains a panic
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+cat > pkg/providers/musecode/zz_recover_test.go << 'EOF'
+package musecode
+
+import (
+	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+)
+
+func TestZZTriggerCallbackContainsPanic(t *testing.T) {
+	called := false
+	SetWatcherCallback(func(*spi.AgentChatSession) {
+		called = true
+		panic("consumer blew up")
+	})
+	defer SetWatcherCallback(nil)
+
+	// Must not propagate: the fsnotify goroutine has to survive a bad session.
+	triggerCallback(&spi.AgentChatSession{SessionID: "s-1"})
+
+	if !called {
+		t.Fatal("callback was never invoked")
+	}
+	t.Log("panic contained; watcher goroutine survived")
+}
+EOF
+go test ./pkg/providers/musecode/ -run TestZZTriggerCallbackContainsPanic -v 2>&1 | tail -12; rm pkg/providers/musecode/zz_recover_test.go
+```
+
+```text
+=== RUN   TestZZTriggerCallbackContainsPanic
+2026/08/14 10:46:06 ERROR muse: session callback panicked sessionId=s-1 panic="consumer blew up"
+    zz_recover_test.go:23: panic contained; watcher goroutine survived
+--- PASS: TestZZTriggerCallbackContainsPanic (0.00s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode	0.013s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:46:13Z)**_
+
+The recover works — panic contained, logged with the session id. That safety property is invisible and easy to delete later, so let me lock it in with a permanent test.
+
+_**Agent (claude-opus-5 2026-08-14 14:46:14Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check watcher_test.go style
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; sed -n '1,25p' pkg/providers/musecode/watcher_test.go; echo "..."; grep -n '^func Test' pkg/providers/musecode/watcher_test.go`
+
+```text
+package musecode
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+)
+
+func TestWatchWindowCutoff(t *testing.T) {
+	now := time.Date(2026, 8, 7, 15, 30, 0, 0, time.Local)
+
+	cutoff := watchWindowCutoff(now)
+
+	want := time.Date(2026, 7, 31, 0, 0, 0, 0, time.Local)
+	if !cutoff.Equal(want) {
+		t.Errorf("watchWindowCutoff(%v) = %v, want %v", now, cutoff, want)
+	}
+}
+
+func TestMuseDirDepth(t *testing.T) {
+...
+14:func TestWatchWindowCutoff(t *testing.T) {
+25:func TestMuseDirDepth(t *testing.T) {
+53:func TestDirWithinWatchWindow(t *testing.T) {
+87:func TestDesiredWatchDirs(t *testing.T) {
+129:func TestDesiredWatchDirs_EmptyStore(t *testing.T) {
+141:func TestProcessSessionChange_OnlyPublishesThisProject(t *testing.T) {
+178:func TestProcessSessionChange_IgnoresEmptyTranscript(t *testing.T) {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:46:18Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/watcher_test.go`
+
+```text
+178	func TestProcessSessionChange_IgnoresEmptyTranscript(t *testing.T) {
+179		sessionsRoot := seedStore(t)
+180		project := t.TempDir()
+181	
+182		// Metadata only: the session exists but has no conversation yet.
+183		path := writeSession(t, sessionsRoot, "2026/08/07", basicSessionID, "session-basic.jsonl", project)
+184		full, err := os.ReadFile(path)
+185		if err != nil {
+186			t.Fatal(err)
+187		}
+188		metadataLine := strings.SplitN(string(full), "\n", 2)[0] + "\n"
+189		if err := os.WriteFile(path, []byte(metadataLine), 0o644); err != nil {
+190			t.Fatal(err)
+191		}
+192	
+193		var published int
+194		SetWatcherCallback(func(*spi.AgentChatSession) { published++ })
+195		SetWatcherWorkspaceRoot(project)
+196		t.Cleanup(func() {
+197			SetWatcherCallback(nil)
+198			SetWatcherWorkspaceRoot("")
+199		})
+200	
+201		processSessionChange(path)
+202	
+203		if published != 0 {
+204			t.Errorf("published %d sessions for a conversation-less transcript, want 0", published)
+205		}
+206	}
+207
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:46:22Z)**_
+
+The existing tests already use this exact pattern. Let me add the regression test in matching style.
+
+_**Agent (claude-opus-5 2026-08-14 14:46:26Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/watcher_test.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:46:35Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Final full verification
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; gofmt -w . && go build ./... 2>&1|head -3; go test ./... 2>&1 | grep -v '^ok\|no test files' | head -20; echo "=== tests done ==="; golangci-lint run 2>&1 | tail -3; git status --short`
+
+```text
+=== tests done ===
+0 issues.
+ M pkg/providers/musecode/markdown_tools.go
+ M pkg/providers/musecode/markdown_tools_test.go
+ M pkg/providers/musecode/path_utils.go
+ M pkg/providers/musecode/provider.go
+ M pkg/providers/musecode/watcher.go
+ M pkg/providers/musecode/watcher_test.go
+?? ../specstory-mac/
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:46:46Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find the now-stale provider count in the doc
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; grep -n 'ten provider packages' docs/PROVIDER-REFACTOR.md`
+
+```text
+4:**Scope:** ~200 lines of helpers copied across `deepseektui`, `droidcli`, and `antigravitycli` (`stringValue`, `renderJSONValue`, `normalizeToolName`, `todoSymbol`, `languageFromPath`, `formatDiffBlock`, `renderGenericJSON`, `canonicalizePath`, `dispatchSession`, `classifyCheckError`, `trackCheckSuccess`/`trackCheckFailure`), researched against all ten provider packages and the shared packages (`pkg/spi`, `pkg/utils`, `pkg/session`).
+208:Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. All ten provider packages now share one language map and one check-error classifier.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:46:49Z)**_
+
+A sentence I wrote in the doc is now stale (musecode makes eleven providers). Let me correct it and record the follow-on.
+
+_**Agent (claude-opus-5 2026-08-14 14:46:51Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/PROVIDER-REFACTOR.md has been updated successfully. (note: the file had been modified on disk since you last read it — the edit applied cleanly, but the file contains other changes not in your context. Read it before edits that depend on surrounding content.)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:47:20Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Record the musecode follow-on and final verification
+
+`````bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; cat >> docs/PROVIDER-REFACTOR.md << 'EOF'
+
+---
+
+## 10. Follow-on: bringing `musecode` in line
+
+`musecode` was written in parallel with this refactor and merged after it, so it reintroduced five of the consolidated helpers. It was already clean on the worst issue — it used `spi.CodeFence` at all seven fence sites, so it never had the §2.2 hardcoded-fence bug — and its exact-match tool dispatch needs no name normalization.
+
+Applied, using the same decisions recorded in §7:
+
+| Removed from `musecode` | Replaced with | Effect |
+|---|---|---|
+| `formatGenericBodyFromInput` | `spi.RenderGenericJSON` | none — was behaviorally identical |
+| `canonicalPath` | `spi.CanonicalizePathOrClean` | trims before canonicalizing and falls back through `filepath.Abs`, so a relative workspace root now compares equal to its absolute form |
+| `classifyMuseCheckError` | `spi.ClassifyCheckError` | `error_type` values change (below) |
+| `languageFromPath` | `spi.LanguageFromPath` | fence tags change (below) |
+| three inline `analytics.TrackEvent` calls | `analytics.CheckAttempt` + `TrackCheckSuccess`/`TrackCheckFailure` | adds `resolved_path`, `version_flag`, and `stderr` (which muse captured but never reported) |
+
+`classifyMuseCheckError` was the pre-fix shape, carrying both §2.3 and §2.4. Verified deltas against the shared classifier: a `PathError` wrapping `ErrNotExist` was `version_failed`, now `not_found` (the practical bug — a binary that vanishes between `LookPath` and `Run`); a plain error and an unrelated `PathError` were `version_failed`, now `unknown`; `nil` was `version_failed`, now `""`. The §2.3 arm needs a contrived multi-`%w` chain to trigger, so it was latent rather than user-visible. `buildMuseCheckErrorMessage` has a `default:` arm, so no remediation text changed.
+
+`languageFromPath` was byte-identical to the geminicli variant deleted in item 1, so muse picks up the same changes: `Makefile` and `""` go from ` ```text ` to an untagged fence, and the aliases apply (`.md` → markdown, `.py` → python, `.yml` → yaml). `TestLanguageFromPath` moved to `pkg/spi`; one fence assertion in `markdown_tools_test.go` moved from ` ````md ` to ` ````markdown `.
+
+Two fixes outside the dedup:
+
+- **`triggerCallback` had no panic recovery** (`watcher.go`). A panic in the consumer's callback would unwind the fsnotify event goroutine and take the process down over one bad session. Delivery stays synchronous — ordering matters and `spi.DispatchSession` would have made it async — so the fix is a local `defer recover()`, locked in by `TestTriggerCallback_ContainsConsumerPanic`. **geminicli still has this gap**, with the same singleton-watcher shape; it is not muse-specific and remains open.
+- **An empty `--version` reported success with a blank version.** Now substitutes `"unknown"`, matching deepseektui and antigravitycli. (cursorcli and codexcli instead treat empty output as a `no_output` failure; muse follows the former.)
+
+Left alone deliberately: `inputAsString` (single-key, with nil handling for muse's JSON nulls and a `json.Marshal` fallback where `spi.StringValue` returns `""`), `diffFromFindReplace` (same logic as `spi.FormatDiffBlock` but unfenced, because muse truncates before fencing — deduping needs `FormatDiffBlock` split into a `DiffLines` core), `truncate` (duplicates `spi.CapRunes` with a different visible marker), and `todoStatusSymbol` (symbols already match `spi.TodoSymbol`; switching is free but belongs with the skipped item 2).
+EOF
+golangci-lint run 2>&1|tail -3; go test ./... 2>&1 | grep -v '^ok\|no test files' | head; echo "=== FINAL ==="; go build -o specstory . && echo "binary builds"
+`````
+
+```text
+0 issues.
+=== FINAL ===
+binary builds
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 14:47:37Z)**_
+
+All six changes are applied and verified: `go build ./...`, `go test ./...` and `golangci-lint run` are clean, and the binary builds.
+
+## What changed in musecode
+
+**The five duplicates are gone.** `formatGenericBodyFromInput` → `spi.RenderGenericJSON`, `canonicalPath` → `spi.CanonicalizePathOrClean`, `languageFromPath` → `spi.LanguageFromPath`, `classifyMuseCheckError` → `spi.ClassifyCheckError`, and the three inline `TrackEvent` calls → `analytics.CheckAttempt` with `TrackCheckSuccess`/`TrackCheckFailure`. I also pointed `buildMuseCheckErrorMessage`'s switch arms at the shared constants and introduced a `versionFlag` const, since the analytics shape reports it.
+
+**The `recover()` is in and proven.** I wrote a throwaway test first to confirm the panic is actually contained rather than assuming it, then kept it as a permanent regression test (`TestTriggerCallback_ContainsConsumerPanic`) — the guard is invisible and easy to delete later. Delivery stays synchronous, since ordering matters here and `spi.DispatchSession` would have made it async.
+
+**Empty `--version` now reports `"unknown"`**, matching deepseektui and antigravitycli.
+
+## One thing to know about the process
+
+My deletion script mis-parsed `map[string]interface{}` — it matched the brace in the *type* rather than the function body and left an orphan code fragment. The build caught it immediately and I removed the fragment, then verified every other function in the file survived intact and re-ran the suite. The earlier providers used `map[string]any`, which is why this only surfaced now. Worth mentioning because it means the musecode diff got a closer manual read than the others did; I've reviewed it line by line and it's clean.
+
+## Behavior deltas
+
+Muse's telemetry now carries `resolved_path`, `version_flag`, and `stderr` (which it captured but never reported), and `command_path` becomes the unresolved command with the resolved path in its own field — the normalized shape. Error types shift: a `PathError` wrapping `ErrNotExist` was `version_failed` and is now `not_found`, which is the practical bug fixed; plain errors move from `version_failed` to `unknown`. Fence tags pick up the aliases, so `.md` renders as `markdown` and extensionless files get an untagged fence instead of ```` ```text ````. No user-facing remediation text changed, since `buildMuseCheckErrorMessage` routes everything unmatched through its `default:` arm.
+
+I recorded all of this as section 10 in `docs/PROVIDER-REFACTOR.md`, and corrected a sentence I'd written there that said "all ten provider packages" — musecode makes eleven.
+
+**Still open, unchanged from before:** geminicli has the identical missing-`recover()` gap in its singleton watcher, so that one is a pattern issue rather than something muse introduced, and the geminicli hardcoded-fence bug (§2.2) is still there. The four judgment calls on muse — `inputAsString`, `diffFromFindReplace`, `truncate`, `todoStatusSymbol` — I left alone as discussed.
+
+---
+
+_**User (2026-08-14 15:05:02Z)**_
+
+OK, same exact thing. We are now on a new branch for the new qwen provider thet predates our recent cleanup work.
+
+---
+
+_**Agent (claude-opus-5 2026-08-14 15:05:28Z)**_
+
+Same drill for qwen. Let me orient first.
+
+_**Agent (claude-opus-5 2026-08-14 15:05:30Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check branch and working tree state
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; git branch --show-current; echo "--- status ---"; git status --short | head -20; echo "--- recent commits ---"; git log --oneline -6`
+
+```text
+qwen-provider-support
+--- status ---
+?? ../specstory-mac/
+--- recent commits ---
+3f59dbd Merge branch 'dev' into qwen-provider-support
+b0a34ce SpecStory histories.
+89a254e Provider refactor to remove duplicate code.
+6583e18 SpecStory history.
+733dead Fix relative path on case insensitive file system issue.
+566d0bf Merge branch 'dev' of github.com:specstoryai/getspecstory into dev
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:05:31Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Locate the qwen provider
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; ls pkg/providers/; echo "--- qwen files ---"; ls -la pkg/providers/qwen* 2>/dev/null`
+
+```text
+antigravitycli
+claudecode
+codexcli
+copilotide
+cursorcli
+cursoride
+deepseektui
+droidcli
+geminicli
+qwencode
+vscode
+--- qwen files ---
+total 264
+drwxr-xr-x  18 sean  staff    576 Aug 14 11:04 .
+drwxr-xr-x  13 sean  staff    416 Aug 14 11:04 ..
+-rw-r--r--   1 sean  staff   7670 Aug 14 11:04 agent_session_test.go
+-rw-r--r--   1 sean  staff  10484 Aug 14 11:04 agent_session.go
+-rw-r--r--   1 sean  staff   5760 Aug 14 11:04 jsonl_parser_test.go
+-rw-r--r--   1 sean  staff  12119 Aug 14 11:04 jsonl_parser.go
+-rw-r--r--   1 sean  staff   9400 Aug 14 11:04 markdown_tools_test.go
+-rw-r--r--   1 sean  staff  12838 Aug 14 11:04 markdown_tools.go
+-rw-r--r--   1 sean  staff   2744 Aug 14 11:04 path_utils_test.go
+-rw-r--r--   1 sean  staff   5626 Aug 14 11:04 path_utils.go
+-rw-r--r--   1 sean  staff   6756 Aug 14 11:04 provider_test.go
+-rw-r--r--   1 sean  staff  14714 Aug 14 11:04 provider.go
+-rw-r--r--   1 sean  staff   2618 Aug 14 11:04 qwen_exec_test.go
+-rw-r--r--   1 sean  staff   3209 Aug 14 11:04 qwen_exec.go
+-rw-r--r--   1 sean  staff   3657 Aug 14 11:04 reconstruct_test.go
+-rw-r--r--   1 sean  staff   3796 Aug 14 11:04 reconstruct.go
+drwxr-xr-x   7 sean  staff    224 Aug 14 11:04 testdata
+-rw-r--r--   1 sean  staff   8639 Aug 14 11:04 watcher.go
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:05:36Z)**_
+
+`qwencode` on a branch off dev — parallel to the muse branch, so muse isn't here. Let me run the same systematic sweep.
+
+_**Agent (claude-opus-5 2026-08-14 15:05:38Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+List all functions defined in qwencode
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== funcs defined in qwencode ==="; grep -n '^func ' pkg/providers/qwencode/*.go | grep -v _test.go
+```
+
+```text
+=== funcs defined in qwencode ===
+pkg/providers/qwencode/agent_session.go:35:func convertUsage(usage *QwenUsageMetadata) *Usage {
+pkg/providers/qwencode/agent_session.go:48:func GenerateAgentSession(session *QwenSession, workspaceRoot string) (*SessionData, error) {
+pkg/providers/qwencode/agent_session.go:106:func collectToolOutcomes(records []QwenRecord) map[string]toolOutcome {
+pkg/providers/qwencode/agent_session.go:138:func buildExchangesFromRecords(records []QwenRecord, workspaceRoot string) []Exchange {
+pkg/providers/qwencode/agent_session.go:198:func buildAgentMessages(record *QwenRecord, outcomes map[string]toolOutcome, workspaceRoot string) []Message {
+pkg/providers/qwencode/agent_session.go:239:func buildToolMessage(record *QwenRecord, call *QwenFunctionCall, outcomes map[string]toolOutcome, workspaceRoot string) Message {
+pkg/providers/qwencode/agent_session.go:264:func buildToolOutput(outcome toolOutcome) map[string]any {
+pkg/providers/qwencode/agent_session.go:292:func classifyQwenToolType(toolName string) string {
+pkg/providers/qwencode/agent_session.go:318:func extractPathHints(call *QwenFunctionCall, workspaceRoot string) []string {
+pkg/providers/qwencode/jsonl_parser.go:130:func ParseSessionFile(filePath string) (*QwenSession, error) {
+pkg/providers/qwencode/jsonl_parser.go:207:func accumulateRecord(session *QwenSession, record QwenRecord) {
+pkg/providers/qwencode/jsonl_parser.go:229:func FindSessions(projectDir string) ([]*QwenSession, error) {
+pkg/providers/qwencode/jsonl_parser.go:283:func (s *QwenSession) FirstRealUserText() string {
+pkg/providers/qwencode/jsonl_parser.go:297:func (r *QwenRecord) IsRealUserTurn() bool {
+pkg/providers/qwencode/jsonl_parser.go:307:func (r *QwenRecord) TextContent() string {
+pkg/providers/qwencode/jsonl_parser.go:325:func (r *QwenRecord) ThoughtContent() string {
+pkg/providers/qwencode/jsonl_parser.go:345:func resultDisplayString(raw json.RawMessage) string {
+pkg/providers/qwencode/path_utils.go:31:func (e *QwenPathError) Error() string {
+pkg/providers/qwencode/path_utils.go:43:func defaultProjectPath(projectPath string) (string, error) {
+pkg/providers/qwencode/path_utils.go:59:func SanitizeQwenCwd(path string) string {
+pkg/providers/qwencode/path_utils.go:73:func GetQwenProjectsDir() (string, error) {
+pkg/providers/qwencode/path_utils.go:86:func candidateProjectDirNames(projectPath string) []string {
+pkg/providers/qwencode/path_utils.go:105:func ResolveQwenProjectDir(projectPath string) (string, error) {
+pkg/providers/qwencode/path_utils.go:165:func ListQwenProjectDirs() ([]string, error) {
+pkg/providers/qwencode/markdown_tools.go:15:func formatToolAsMarkdown(tool *ToolInfo) string {
+pkg/providers/qwencode/markdown_tools.go:85:func formatToolBodyFromInput(tool *ToolInfo) string {
+pkg/providers/qwencode/markdown_tools.go:116:func formatToolResultFromOutput(tool *ToolInfo) string {
+pkg/providers/qwencode/markdown_tools.go:142:func formatReadFileResultFromOutput(tool *ToolInfo) string {
+pkg/providers/qwencode/markdown_tools.go:156:func formatShellResultFromOutput(output map[string]interface{}) string {
+pkg/providers/qwencode/markdown_tools.go:173:func formatSearchListResultFromOutput(output map[string]interface{}) string {
+pkg/providers/qwencode/markdown_tools.go:182:func formatDefaultResultFromOutput(output map[string]interface{}) string {
+pkg/providers/qwencode/markdown_tools.go:196:func formatOutputText(output string) string {
+pkg/providers/qwencode/markdown_tools.go:204:func addResultPrefix(content string) string {
+pkg/providers/qwencode/markdown_tools.go:211:func formatShellBodyFromInput(input map[string]interface{}) string {
+pkg/providers/qwencode/markdown_tools.go:231:func formatWriteFileBodyFromInput(input map[string]interface{}) string {
+pkg/providers/qwencode/markdown_tools.go:251:func formatEditBodyFromInput(tool *ToolInfo) string {
+pkg/providers/qwencode/markdown_tools.go:276:func formatWebFetchBodyFromInput(input map[string]interface{}) string {
+pkg/providers/qwencode/markdown_tools.go:300:func formatAgentBodyFromInput(input map[string]interface{}) string {
+pkg/providers/qwencode/markdown_tools.go:314:func formatTodoBodyFromInput(input map[string]interface{}) string {
+pkg/providers/qwencode/markdown_tools.go:337:func todoStatusSymbol(status string) string {
+pkg/providers/qwencode/markdown_tools.go:348:func formatGenericBodyFromInput(input map[string]interface{}) string {
+pkg/providers/qwencode/markdown_tools.go:360:func inputAsString(input map[string]interface{}, key string) string {
+pkg/providers/qwencode/markdown_tools.go:385:func outputAsString(output map[string]interface{}) string {
+pkg/providers/qwencode/markdown_tools.go:414:func outputErrorString(output map[string]interface{}) string {
+pkg/providers/qwencode/markdown_tools.go:430:func languageFromPath(path string) string {
+pkg/providers/qwencode/markdown_tools.go:441:func truncate(text string, limit int) string {
+pkg/providers/qwencode/qwen_exec.go:19:func getDefaultQwenCommand() string {
+pkg/providers/qwencode/qwen_exec.go:29:func parseQwenCommand(customCommand string) (string, []string) {
+pkg/providers/qwencode/qwen_exec.go:44:func ensureResumeArgs(args []string, resumeSessionID string) []string {
+pkg/providers/qwencode/qwen_exec.go:72:func ExecuteQwen(customCommand string, resumeSessionID string) error {
+pkg/providers/qwencode/provider.go:30:func NewProvider() *Provider {
+pkg/providers/qwencode/provider.go:34:func (p *Provider) Name() string {
+pkg/providers/qwencode/provider.go:38:func (p *Provider) Check(customCommand string) spi.CheckResult {
+pkg/providers/qwencode/provider.go:98:func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
+pkg/providers/qwencode/provider.go:119:func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
+pkg/providers/qwencode/provider.go:151:func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
+pkg/providers/qwencode/provider.go:190:func (p *Provider) GetAgentChatSessionByPath(nativePath string, originCwd string, debugRaw bool) (*spi.AgentChatSession, error) {
+pkg/providers/qwencode/provider.go:201:func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+pkg/providers/qwencode/provider.go:221:func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+pkg/providers/qwencode/provider.go:243:func classifyQwenCheckError(err error) string {
+pkg/providers/qwencode/provider.go:260:func buildQwenCheckErrorMessage(errorType string, qwenCmd string, isCustom bool, stderr string) string {
+pkg/providers/qwencode/provider.go:289:func printQwenDetectionHelp(err error) {
+pkg/providers/qwencode/provider.go:315:func convertToAgentChatSession(session *QwenSession, workspaceRoot string, debugRaw bool) *spi.AgentChatSession {
+pkg/providers/qwencode/provider.go:361:func writeDebugRawFiles(session *QwenSession) error {
+pkg/providers/qwencode/provider.go:385:func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+pkg/providers/qwencode/provider.go:411:func extractQwenSessionMetadata(session *QwenSession) *spi.SessionMetadata {
+pkg/providers/qwencode/provider.go:436:func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
+pkg/providers/qwencode/provider.go:442:func (p *Provider) ListAllAgentChatSessionsProgress(r *spi.ScanReporter) ([]spi.GlobalSessionRef, error) {
+pkg/providers/qwencode/reconstruct.go:26:func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.ReconstructOptions) (*spi.ReconstructedSession, error) {
+pkg/providers/qwencode/reconstruct.go:87:func (p *Provider) NativeSessionPath(projectPath string, filename string) (string, error) {
+pkg/providers/qwencode/reconstruct.go:116:func (p *Provider) SupportsReconstruction() bool {
+pkg/providers/qwencode/watcher.go:26:func init() {
+pkg/providers/qwencode/watcher.go:30:func SetWatcherCallback(callback func(*spi.AgentChatSession)) {
+pkg/providers/qwencode/watcher.go:36:func SetWatcherDebugRaw(debugRaw bool) {
+pkg/providers/qwencode/watcher.go:42:func SetWatcherWorkspaceRoot(workspaceRoot string) {
+pkg/providers/qwencode/watcher.go:48:func getWatcherWorkspaceRoot() string {
+pkg/providers/qwencode/watcher.go:54:func getWatcherDebugRaw() bool {
+pkg/providers/qwencode/watcher.go:60:func StopWatcher() {
+pkg/providers/qwencode/watcher.go:69:func WatchQwenProject(projectPath string, callback func(*spi.AgentChatSession)) error {
+pkg/providers/qwencode/watcher.go:123:func waitForProjectDir(ctx context.Context, projectsDir, projectPath string) (string, error) {
+pkg/providers/qwencode/watcher.go:181:func startChatsWatcher(chatsDir string) error {
+pkg/providers/qwencode/watcher.go:224:func processSessionChange(filePath string) {
+pkg/providers/qwencode/watcher.go:242:func triggerCallback(agentSession *spi.AgentChatSession) {
+pkg/providers/qwencode/watcher.go:255:func waitForDirectoryFsnotify(ctx context.Context, dir string, label string) error {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:05:40Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check spi usage, fences, analytics, recover in qwencode
+
+````bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== spi.* usage ==="; grep -rho 'spi\.[A-Za-z]*' pkg/providers/qwencode/*.go | grep -v _test.go | sort | uniq -c | sort -rn | head -30
+echo; echo "=== hardcoded fences ==="; grep -n '```' pkg/providers/qwencode/*.go | grep -v _test.go
+echo; echo "=== analytics ==="; grep -n 'analytics\.' pkg/providers/qwencode/*.go | grep -v _test.go
+echo; echo "=== recover() ==="; grep -n 'recover()' pkg/providers/qwencode/*.go
+````
+
+```text
+=== spi.* usage ===
+  12 spi.AgentChatSession
+   8 spi.CodeFence
+   5 spi.GlobalSessionRef
+   4 spi.SessionMetadata
+   4 spi.CheckResult
+   2 spi.ReconstructOptions
+   2 spi.ReconstructedSession
+   2 spi.Provider
+   2 spi.GenerateFilenameFromUserMessage
+   1 spi.SplitCommandLine
+   1 spi.ScanSessionsInParallel
+   1 spi.ScanReporter
+   1 spi.RFC
+   1 spi.ResolveWorkspaceRoot
+   1 spi.ProgressEnumerator
+   1 spi.ProgressCallback
+   1 spi.PrepareTurns
+   1 spi.PathSessionReader
+   1 spi.NormalizePath
+   1 spi.GetDebugDir
+   1 spi.GetCanonicalPath
+   1 spi.GenerateReadableName
+   1 spi.ExtractShellPathHints
+
+=== hardcoded fences ===
+
+=== analytics ===
+pkg/providers/qwencode/provider.go:45:		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+pkg/providers/qwencode/provider.go:68:		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+pkg/providers/qwencode/provider.go:84:	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
+
+=== recover() ===
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:05:46Z)**_
+
+Same shape as muse. Let me read the specific implementations.
+
+_**Agent (claude-opus-5 2026-08-14 15:05:47Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/qwencode/markdown_tools.go`
+
+```text
+330				status, _ := todo["status"].(string)
+331				fmt.Fprintf(&builder, "- [%s] %s\n", todoStatusSymbol(status), strings.TrimSpace(desc))
+332			}
+333		}
+334		return builder.String()
+335	}
+336	
+337	func todoStatusSymbol(status string) string {
+338		switch status {
+339		case "completed":
+340			return "x"
+341		case "in_progress":
+342			return "⚡"
+343		default:
+344			return " "
+345		}
+346	}
+347	
+348	func formatGenericBodyFromInput(input map[string]interface{}) string {
+349		if len(input) == 0 {
+350			return ""
+351		}
+352		bytes, err := json.MarshalIndent(input, "", "  ")
+353		if err != nil {
+354			return ""
+355		}
+356		return spi.CodeFence("json", string(bytes))
+357	}
+358	
+359	// inputAsString extracts a string value from tool input
+360	func inputAsString(input map[string]interface{}, key string) string {
+361		if input == nil {
+362			return ""
+363		}
+364		val, ok := input[key]
+365		if !ok {
+366			return ""
+367		}
+368		switch v := val.(type) {
+369		case string:
+370			return v
+371		case fmt.Stringer:
+372			return v.String()
+373		case []byte:
+374			return string(v)
+375		default:
+376			bytes, err := json.Marshal(v)
+377			if err != nil {
+378				return fmt.Sprint(v)
+379			}
+380			return string(bytes)
+381		}
+382	}
+383	
+384	// outputAsString extracts the primary output string from tool output
+385	func outputAsString(output map[string]interface{}) string {
+386		if output == nil {
+387			return ""
+388		}
+389	
+390		// Try "output" field first (Qwen's functionResponse success payload)
+391		if out, ok := output["output"].(string); ok && strings.TrimSpace(out) != "" {
+392			return strings.TrimSpace(out)
+393		}
+394	
+395		// Try "content" field
+396		if content, ok := output["content"].(string); ok && strings.TrimSpace(content) != "" {
+397			return strings.TrimSpace(content)
+398		}
+399	
+400		// Try "resultDisplay" (envelope display form)
+401		if display, ok := output["resultDisplay"].(string); ok && strings.TrimSpace(display) != "" {
+402			return strings.TrimSpace(display)
+403		}
+404	
+405		// Try "error" field
+406		if errStr, ok := output["error"].(string); ok && strings.TrimSpace(errStr) != "" {
+407			return strings.TrimSpace(errStr)
+408		}
+409	
+410		return ""
+411	}
+412	
+413	// outputErrorString returns the error text when the tool outcome failed, empty otherwise.
+414	func outputErrorString(output map[string]interface{}) string {
+415		if output == nil {
+416			return ""
+417		}
+418		if errStr, ok := output["error"].(string); ok && strings.TrimSpace(errStr) != "" {
+419			return strings.TrimSpace(errStr)
+420		}
+421		// Status "error" without an error string: fall back to the display form.
+422		if status, ok := output["status"].(string); ok && status == "error" {
+423			if display, ok := output["resultDisplay"].(string); ok && strings.TrimSpace(display) != "" {
+424				return strings.TrimSpace(display)
+425			}
+426		}
+427		return ""
+428	}
+429	
+430	func languageFromPath(path string) string {
+431		if path == "" {
+432			return "text"
+433		}
+434		ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
+435		if ext == "" {
+436			return "text"
+437		}
+438		return ext
+439	}
+440	
+441	func truncate(text string, limit int) string {
+442		if limit <= 0 {
+443			return text
+444		}
+445		runes := []rune(text)
+446		if len(runes) <= limit {
+447			return text
+448		}
+449		return string(runes[:limit]) + "\n... (truncated)"
+450	}
+451
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:05:55Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/qwencode/provider.go`
+
+```text
+36	}
+37	
+38	func (p *Provider) Check(customCommand string) spi.CheckResult {
+39		cmdName, _ := parseQwenCommand(customCommand)
+40		isCustom := customCommand != ""
+41	
+42		resolvedPath, err := exec.LookPath(cmdName)
+43		if err != nil {
+44			errorMessage := buildQwenCheckErrorMessage("not_found", cmdName, isCustom, "")
+45			analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+46				"provider":       "qwen",
+47				"custom_command": isCustom,
+48				"command_path":   cmdName,
+49				"error_type":     "not_found",
+50				"error_message":  err.Error(),
+51			})
+52			return spi.CheckResult{
+53				Success:      false,
+54				Location:     "",
+55				ErrorMessage: errorMessage,
+56			}
+57		}
+58	
+59		cmd := exec.Command(cmdName, "--version")
+60		var stdout bytes.Buffer
+61		var stderr bytes.Buffer
+62		cmd.Stdout = &stdout
+63		cmd.Stderr = &stderr
+64	
+65		if err := cmd.Run(); err != nil {
+66			errorType := classifyQwenCheckError(err)
+67			errorMessage := buildQwenCheckErrorMessage(errorType, resolvedPath, isCustom, strings.TrimSpace(stderr.String()))
+68			analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+69				"provider":       "qwen",
+70				"custom_command": isCustom,
+71				"command_path":   resolvedPath,
+72				"error_type":     errorType,
+73				"error_message":  err.Error(),
+74			})
+75	
+76			return spi.CheckResult{
+77				Success:      false,
+78				Location:     resolvedPath,
+79				ErrorMessage: errorMessage,
+80			}
+81		}
+82	
+83		version := strings.TrimSpace(stdout.String())
+84		analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
+85			"provider":       "qwen",
+86			"custom_command": isCustom,
+87			"command_path":   resolvedPath,
+88			"version":        version,
+89		})
+90	
+91		return spi.CheckResult{
+92			Success:  true,
+93			Version:  version,
+94			Location: resolvedPath,
+95		}
+96	}
+97
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:05:56Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/qwencode/provider.go`
+
+```text
+240		return ctx.Err()
+241	}
+242	
+243	func classifyQwenCheckError(err error) string {
+244		var execErr *exec.Error
+245		var pathErr *os.PathError
+246	
+247		switch {
+248		case errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound:
+249			return "not_found"
+250		case errors.As(err, &pathErr):
+251			if errors.Is(pathErr.Err, os.ErrPermission) {
+252				return "permission_denied"
+253			}
+254		case errors.Is(err, os.ErrPermission):
+255			return "permission_denied"
+256		}
+257		return "version_failed"
+258	}
+259	
+260	func buildQwenCheckErrorMessage(errorType string, qwenCmd string, isCustom bool, stderr string) string {
+261		var b strings.Builder
+262	
+263		switch errorType {
+264		case "not_found":
+265			b.WriteString("Qwen Code could not be found.\n\n")
+266			if isCustom {
+267				b.WriteString("• Verify the path you supplied actually points to the `qwen` executable.\n")
+268				fmt.Fprintf(&b, "• Provided command: %s\n", qwenCmd)
+269			} else {
+270				b.WriteString("• Install Qwen Code with `npm install -g @qwen-code/qwen-code` or see https://github.com/QwenLM/qwen-code\n")
+271				b.WriteString("• Ensure `qwen` is on your PATH or pass a custom command via `specstory check qwen -c \"path/to/qwen\"`.\n")
+272			}
+273		case "permission_denied":
+274			b.WriteString("Qwen Code exists but isn't executable.\n\n")
+275			fmt.Fprintf(&b, "• Fix permissions: `chmod +x %s`\n", qwenCmd)
+276			b.WriteString("• Some package managers install the binary as root; run SpecStory with a path you can execute.\n")
+277		default:
+278			b.WriteString("`qwen --version` failed.\n\n")
+279			if stderr != "" {
+280				fmt.Fprintf(&b, "Error output:\n%s\n\n", stderr)
+281			}
+282			b.WriteString("• Try running `qwen --version` directly in your terminal.\n")
+283			b.WriteString("• If you upgraded recently, reinstall the CLI to refresh dependencies.\n")
+284		}
+285	
+286		return b.String()
+287	}
+288	
+289	func printQwenDetectionHelp(err error) {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:06:02Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/qwencode/watcher.go`
+
+```text
+222	}
+223	
+224	func processSessionChange(filePath string) {
+225		slog.Debug("processSessionChange: Detected Qwen session file change", "file", filePath)
+226	
+227		session, err := ParseSessionFile(filePath)
+228		if err != nil {
+229			slog.Error("processSessionChange: Failed to parse session file", "file", filePath, "error", err)
+230			return
+231		}
+232		if len(session.Records) == 0 {
+233			slog.Debug("processSessionChange: Session file has no records yet", "file", filePath)
+234			return
+235		}
+236	
+237		agentSession := convertToAgentChatSession(session, getWatcherWorkspaceRoot(), getWatcherDebugRaw())
+238		triggerCallback(agentSession)
+239	}
+240	
+241	// triggerCallback is a helper to call the watcher callback with proper locking
+242	func triggerCallback(agentSession *spi.AgentChatSession) {
+243		watcherMutex.RLock()
+244		cb := watcherCallback
+245		watcherMutex.RUnlock()
+246	
+247		if cb != nil && agentSession != nil {
+248			cb(agentSession)
+249		}
+250	}
+251	
+252	// waitForDirectoryFsnotify waits for a directory to exist using fsnotify on its parent.
+253	// The parent directory must already exist; if it doesn't, the function returns an error.
+254	// label is a human-readable name used in log messages (e.g., "Qwen projects directory").
+255	func waitForDirectoryFsnotify(ctx context.Context, dir string, label string) error {
+256		info, err := os.Stat(dir)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:06:03Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check qwencode canonical path usage
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; grep -n 'GetCanonicalPath' pkg/providers/qwencode/*.go; echo "--- context ---"; sed -n '55,75p' pkg/providers/qwencode/path_utils.go`
+
+```text
+pkg/providers/qwencode/path_utils.go:93:	if canonical, err := spi.GetCanonicalPath(absPath); err == nil {
+--- context ---
+// directory name: every character outside [a-zA-Z0-9] becomes '-'.
+// Example: /Users/alice/my app -> -Users-alice-my-app
+// This mirrors Qwen Code's own sanitizeCwd, which applies the replacement to
+// the process cwd verbatim (no symlink resolution).
+func SanitizeQwenCwd(path string) string {
+	var b strings.Builder
+	b.Grow(len(path))
+	for _, r := range path {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('-')
+		}
+	}
+	return b.String()
+}
+
+// GetQwenProjectsDir returns the path to the Qwen Code projects directory (~/.qwen/projects)
+func GetQwenProjectsDir() (string, error) {
+	homeDir, err := osUserHomeDir()
+	if err != nil {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:06:07Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/qwencode/path_utils.go`
+
+```text
+84	// raw absolute path is kept as a fallback in case the session was started from
+85	// a differently-spelled path to the same directory.
+86	func candidateProjectDirNames(projectPath string) []string {
+87		absPath, err := filepath.Abs(projectPath)
+88		if err != nil {
+89			absPath = projectPath
+90		}
+91	
+92		var names []string
+93		if canonical, err := spi.GetCanonicalPath(absPath); err == nil {
+94			names = append(names, SanitizeQwenCwd(canonical))
+95		}
+96		sanitizedAbs := SanitizeQwenCwd(absPath)
+97		if len(names) == 0 || names[0] != sanitizedAbs {
+98			names = append(names, sanitizedAbs)
+99		}
+100		return names
+101	}
+102	
+103	// ResolveQwenProjectDir locates the Qwen Code project directory
+104	// (~/.qwen/projects/<sanitized-cwd>) for the given project path.
+105	func ResolveQwenProjectDir(projectPath string) (string, error) {
+106		projectPath, err := defaultProjectPath(projectPath)
+107		if err != nil {
+108			return "", err
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:06:32Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/qwencode/markdown_tools.go`
+
+```text
+247	
+248	// formatEditBodyFromInput shows an edit as its unified diff when the tool
+249	// outcome carries one (resultDisplay.fileDiff), falling back to the new_string
+250	// input when it doesn't (e.g. the edit was denied or errored).
+251	func formatEditBodyFromInput(tool *ToolInfo) string {
+252		path := inputAsString(tool.Input, "file_path")
+253	
+254		var builder strings.Builder
+255		if path != "" {
+256			fmt.Fprintf(&builder, "Path: `%s`\n\n", path)
+257		}
+258	
+259		if tool.Output != nil {
+260			if diff, ok := tool.Output["resultDisplay"].(string); ok && strings.Contains(diff, "@@") {
+261				builder.WriteString(spi.CodeFence("diff", truncate(strings.TrimSpace(diff), 2000)))
+262				return builder.String()
+263			}
+264		}
+265	
+266		if newString := inputAsString(tool.Input, "new_string"); newString != "" {
+267			builder.WriteString(spi.CodeFence("diff", truncate(newString, 2000)))
+268		}
+269	
+270		if builder.Len() == 0 {
+271			return ""
+272		}
+273		return builder.String()
+274	}
+275	
+276	func formatWebFetchBodyFromInput(input map[string]interface{}) string {
+277		url := inputAsString(input, "url")
+278		prompt := inputAsString(input, "prompt")
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:06:38Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Baseline verification of qwencode
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; go build ./... 2>&1|head -3; go test ./pkg/providers/qwencode/ 2>&1|tail -3; golangci-lint run 2>&1|tail -3; echo "--- qwen test files ---"; ls pkg/providers/qwencode/*_test.go`
+
+```text
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/qwencode	0.033s
+0 issues.
+--- qwen test files ---
+pkg/providers/qwencode/agent_session_test.go
+pkg/providers/qwencode/jsonl_parser_test.go
+pkg/providers/qwencode/markdown_tools_test.go
+pkg/providers/qwencode/path_utils_test.go
+pkg/providers/qwencode/provider_test.go
+pkg/providers/qwencode/qwen_exec_test.go
+pkg/providers/qwencode/reconstruct_test.go
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:06:48Z)**_
+
+Baseline is green. qwen's edit rendering uses the pre-formed diff, so there's no `FormatDiffBlock` overlap, and its `GetCanonicalPath` use in `candidateProjectDirNames` is deliberate — it builds *both* canonical and raw-abs spellings as directory candidates, so it must not become `CanonicalizePathOrClean`. That leaves the same set as muse minus the path helper. Applying now.
+
+_**Agent (claude-opus-5 2026-08-14 15:06:48Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/qwencode/provider.go`
+
+```text
+1	package qwencode
+2	
+3	import (
+4		"bytes"
+5		"context"
+6		"encoding/json"
+7		"errors"
+8		"fmt"
+9		"log/slog"
+10		"os"
+11		"os/exec"
+12		"path/filepath"
+13		"strings"
+14	
+15		"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+16		"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
+17		"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+18	)
+19	
+20	// Compile-time assertions that Provider satisfies the full spi.Provider
+21	// contract plus the optional reindex capabilities.
+22	var (
+23		_ spi.Provider           = (*Provider)(nil)
+24		_ spi.ProgressEnumerator = (*Provider)(nil)
+25		_ spi.PathSessionReader  = (*Provider)(nil)
+26	)
+27	
+28	type Provider struct{}
+29	
+30	func NewProvider() *Provider {
+31		return &Provider{}
+32	}
+33	
+34	func (p *Provider) Name() string {
+35		return "Qwen Code"
+36	}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:06:53Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:07:07Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:07:13Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:07:18Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:07:21Z)**_
+
+Now the markdown helpers and the watcher recover.
+
+_**Agent (claude-opus-5 2026-08-14 15:07:29Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Rewrite qwencode markdown call sites
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+perl -pi -e 's/\blanguageFromPath\(/spi.LanguageFromPath(/g; s/\bformatGenericBodyFromInput\(/spi.RenderGenericJSON(/g;' pkg/providers/qwencode/markdown_tools.go
+grep -n 'func spi\.' pkg/providers/qwencode/markdown_tools.go
+```
+
+```text
+348:func spi.RenderGenericJSON(input map[string]interface{}) string {
+430:func spi.LanguageFromPath(path string) string {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:07:37Z)**_
+
+Deleting these by hand rather than with the script, since `map[string]interface{}` is exactly what it mis-parsed on muse.
+
+_**Agent (claude-opus-5 2026-08-14 15:07:39Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/markdown_tools.go has been updated successfully. (note: the file had been modified on disk since you last read it — the edit applied cleanly, but the file contains other changes not in your context. Read it before edits that depend on surrounding content.)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:07:43Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/markdown_tools.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:07:51Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build qwencode and check for leftover invalid declarations
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; go build ./pkg/providers/qwencode/ 2>&1 | head -10; echo "--- any remaining func spi. ---"; grep -rn 'func spi\.' pkg/providers/qwencode/ || echo "none"`
+
+```text
+# github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/qwencode
+pkg/providers/qwencode/markdown_tools.go:6:2: "path/filepath" imported and not used
+--- any remaining func spi. ---
+none
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:07:54Z)**_
+
+Those were stale cascading diagnostics — only the unused import is real.
+
+_**Agent (claude-opus-5 2026-08-14 15:07:58Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Drop unused import and verify markdown_tools intact
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+perl -0pi -e 's/\t"path\/filepath"\n//' pkg/providers/qwencode/markdown_tools.go
+go build ./pkg/providers/qwencode/ 2>&1 | head -5; echo "=== build ok ==="
+echo "--- verify all other funcs survived ---"; grep -c '^func ' pkg/providers/qwencode/markdown_tools.go
+```
+
+```text
+=== build ok ===
+--- verify all other funcs survived ---
+20
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:08:02Z)**_
+
+Now the watcher `recover()`.
+
+_**Agent (claude-opus-5 2026-08-14 15:08:06Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/watcher.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:08:13Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build and vet qwencode
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; gofmt -w pkg/providers/qwencode/; go build ./... 2>&1|head -5; echo "=== build ok ==="; go vet ./pkg/providers/qwencode/ 2>&1|head -10`
+
+```text
+=== build ok ===
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:08:18Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run qwencode tests
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; go test ./pkg/providers/qwencode/ 2>&1 | tail -25`
+
+```text
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/qwencode	0.034s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:08:25Z)**_
+
+Tests pass unmodified — let me confirm that's because nothing asserted the old behavior, not because the change isn't covered.
+
+_**Agent (claude-opus-5 2026-08-14 15:08:27Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check qwen test coverage of changed behavior
+
+````bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== qwen tests referencing language/fence tags ==="; grep -n 'languageFromPath\|```py\|```md\|```text\|```go\|```yaml\|read_file' pkg/providers/qwencode/markdown_tools_test.go | head -20
+echo; echo "=== qwen tests referencing check classification ==="; grep -n 'classifyQwen\|version_failed\|not_found\|permission_denied' pkg/providers/qwencode/provider_test.go | head
+````
+
+````text
+=== qwen tests referencing language/fence tags ===
+10:		Name:   "read_file",
+19:		t.Errorf("read_file summary missing path: %v", tool.Summary)
+21:	if !strings.Contains(md, "```go\npackage main") {
+22:		t.Errorf("read_file output not fenced with language:\n%s", md)
+50:	if !strings.Contains(md, "Result:\n```text\nfile.txt\n```") {
+103:		Name:  "read_file",
+
+=== qwen tests referencing check classification ===
+````
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:08:47Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Verify language wiring and recover behavior end to end
+
+````bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+cat > pkg/providers/qwencode/zz_verify_test.go << 'EOF'
+package qwencode
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+)
+
+func TestZZLanguageWiring(t *testing.T) {
+	for _, tc := range []struct{ path, want string }{
+		{"README.md", "```markdown\n"},
+		{"src/calc.py", "```python\n"},
+		{"Makefile", "```\n"}, // extensionless: untagged, was ```text
+	} {
+		tool := &ToolInfo{
+			Name:   "read_file",
+			Input:  map[string]interface{}{"file_path": tc.path},
+			Output: map[string]interface{}{"output": "body"},
+		}
+		md := formatToolAsMarkdown(tool)
+		if !strings.Contains(md, tc.want) {
+			t.Errorf("%s: want fence %q, got:\n%s", tc.path, tc.want, md)
+		} else {
+			t.Logf("%-14s -> %q OK", tc.path, strings.TrimSuffix(tc.want, "\n"))
+		}
+	}
+}
+
+func TestZZRecoverWiring(t *testing.T) {
+	called := false
+	SetWatcherCallback(func(*spi.AgentChatSession) { called = true; panic("boom") })
+	defer SetWatcherCallback(nil)
+	triggerCallback(&spi.AgentChatSession{SessionID: "s-1"})
+	if !called {
+		t.Fatal("callback never ran")
+	}
+	t.Log("panic contained")
+}
+EOF
+go test ./pkg/providers/qwencode/ -run 'TestZZ' -v 2>&1 | grep -E 'OK|contained|PASS|FAIL|Error'; rm pkg/providers/qwencode/zz_verify_test.go
+````
+
+````text
+    zz_verify_test.go:25: README.md      -> "```markdown" OK
+    zz_verify_test.go:25: src/calc.py    -> "```python" OK
+    zz_verify_test.go:25: Makefile       -> "```" OK
+--- PASS: TestZZLanguageWiring (0.00s)
+    zz_verify_test.go:38: panic contained
+--- PASS: TestZZRecoverWiring (0.00s)
+PASS
+````
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:09:07Z)**_
+
+Both changes verified end-to-end through the real code path. Let me run the final full check.
+
+_**Agent (claude-opus-5 2026-08-14 15:09:17Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Final full verification
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; gofmt -l . | grep -v '^$' | head; go build ./... 2>&1|head -3; go test ./... 2>&1 | grep -v '^ok\|no test files' | head -10; echo "=== tests done ==="; golangci-lint run 2>&1|tail -3; go build -o specstory . && echo "binary builds"; echo "--- changed files ---"; git status --short`
+
+```text
+=== tests done ===
+0 issues.
+binary builds
+--- changed files ---
+ M pkg/providers/qwencode/markdown_tools.go
+ M pkg/providers/qwencode/provider.go
+ M pkg/providers/qwencode/watcher.go
+?? ../specstory-mac/
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:09:17Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check doc state on this branch
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; grep -n '^## ' docs/PROVIDER-REFACTOR.md | tail -5; echo "--- does this branch have the muse section? ---"; grep -c 'musecode' docs/PROVIDER-REFACTOR.md`
+
+```text
+141:## 5. What deliberately stays provider-local
+150:## 6. Verification
+163:## 7. Decisions taken
+176:## 8. What actually landed (Phases 1 and 2)
+206:## 9. What actually landed (Phase 3, items 1 and 3)
+--- does this branch have the muse section? ---
+0
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:09:23Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Review the qwencode diff
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; git diff -- pkg/providers/qwencode/ | head -160`
+
+```text
+diff --git a/specstory-cli/pkg/providers/qwencode/markdown_tools.go b/specstory-cli/pkg/providers/qwencode/markdown_tools.go
+index a5a9f27..868e6ed 100644
+--- a/specstory-cli/pkg/providers/qwencode/markdown_tools.go
++++ b/specstory-cli/pkg/providers/qwencode/markdown_tools.go
+@@ -3,7 +3,6 @@ package qwencode
+ import (
+ 	"encoding/json"
+ 	"fmt"
+-	"path/filepath"
+ 	"strings"
+ 
+ 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+@@ -108,7 +107,7 @@ func formatToolBodyFromInput(tool *ToolInfo) string {
+ 		// Don't show input args - parameters are in the summary
+ 		return ""
+ 	default:
+-		return formatGenericBodyFromInput(tool.Input)
++		return spi.RenderGenericJSON(tool.Input)
+ 	}
+ }
+ 
+@@ -146,7 +145,7 @@ func formatReadFileResultFromOutput(tool *ToolInfo) string {
+ 	}
+ 
+ 	filePath := inputAsString(tool.Input, "file_path")
+-	lang := languageFromPath(filePath)
++	lang := spi.LanguageFromPath(filePath)
+ 	return spi.CodeFence(lang, output)
+ }
+ 
+@@ -240,7 +239,7 @@ func formatWriteFileBodyFromInput(input map[string]interface{}) string {
+ 		fmt.Fprintf(&builder, "Path: `%s`\n\n", path)
+ 	}
+ 	if content != "" {
+-		builder.WriteString(spi.CodeFence(languageFromPath(path), content))
++		builder.WriteString(spi.CodeFence(spi.LanguageFromPath(path), content))
+ 	}
+ 	return builder.String()
+ }
+@@ -345,17 +344,6 @@ func todoStatusSymbol(status string) string {
+ 	}
+ }
+ 
+-func formatGenericBodyFromInput(input map[string]interface{}) string {
+-	if len(input) == 0 {
+-		return ""
+-	}
+-	bytes, err := json.MarshalIndent(input, "", "  ")
+-	if err != nil {
+-		return ""
+-	}
+-	return spi.CodeFence("json", string(bytes))
+-}
+-
+ // inputAsString extracts a string value from tool input
+ func inputAsString(input map[string]interface{}, key string) string {
+ 	if input == nil {
+@@ -427,17 +415,6 @@ func outputErrorString(output map[string]interface{}) string {
+ 	return ""
+ }
+ 
+-func languageFromPath(path string) string {
+-	if path == "" {
+-		return "text"
+-	}
+-	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
+-	if ext == "" {
+-		return "text"
+-	}
+-	return ext
+-}
+-
+ func truncate(text string, limit int) string {
+ 	if limit <= 0 {
+ 		return text
+diff --git a/specstory-cli/pkg/providers/qwencode/provider.go b/specstory-cli/pkg/providers/qwencode/provider.go
+index 945c42c..6b250f4 100644
+--- a/specstory-cli/pkg/providers/qwencode/provider.go
++++ b/specstory-cli/pkg/providers/qwencode/provider.go
+@@ -25,6 +25,10 @@ var (
+ 	_ spi.PathSessionReader  = (*Provider)(nil)
+ )
+ 
++// versionFlag is the flag Check probes the binary with, reported alongside the
++// result so analytics can tell a flag change from a genuine failure.
++const versionFlag = "--version"
++
+ type Provider struct{}
+ 
+ func NewProvider() *Provider {
+@@ -38,40 +42,36 @@ func (p *Provider) Name() string {
+ func (p *Provider) Check(customCommand string) spi.CheckResult {
+ 	cmdName, _ := parseQwenCommand(customCommand)
+ 	isCustom := customCommand != ""
++	attempt := analytics.CheckAttempt{
++		Provider:      "qwen",
++		CustomCommand: isCustom,
++		CommandPath:   cmdName,
++		VersionFlag:   versionFlag,
++	}
+ 
+ 	resolvedPath, err := exec.LookPath(cmdName)
+ 	if err != nil {
+-		errorMessage := buildQwenCheckErrorMessage("not_found", cmdName, isCustom, "")
+-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+-			"provider":       "qwen",
+-			"custom_command": isCustom,
+-			"command_path":   cmdName,
+-			"error_type":     "not_found",
+-			"error_message":  err.Error(),
+-		})
++		errorMessage := buildQwenCheckErrorMessage(spi.CheckErrorNotFound, cmdName, isCustom, "")
++		analytics.TrackCheckFailure(attempt, spi.CheckErrorNotFound, err.Error(), "")
+ 		return spi.CheckResult{
+ 			Success:      false,
+ 			Location:     "",
+ 			ErrorMessage: errorMessage,
+ 		}
+ 	}
++	attempt.ResolvedPath = resolvedPath
+ 
+-	cmd := exec.Command(cmdName, "--version")
++	cmd := exec.Command(cmdName, versionFlag)
+ 	var stdout bytes.Buffer
+ 	var stderr bytes.Buffer
+ 	cmd.Stdout = &stdout
+ 	cmd.Stderr = &stderr
+ 
+ 	if err := cmd.Run(); err != nil {
+-		errorType := classifyQwenCheckError(err)
+-		errorMessage := buildQwenCheckErrorMessage(errorType, resolvedPath, isCustom, strings.TrimSpace(stderr.String()))
+-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+-			"provider":       "qwen",
+-			"custom_command": isCustom,
+-			"command_path":   resolvedPath,
+-			"error_type":     errorType,
+-			"error_message":  err.Error(),
+-		})
++		errorType := spi.ClassifyCheckError(err)
++		stderrOutput := strings.TrimSpace(stderr.String())
++		errorMessage := buildQwenCheckErrorMessage(errorType, resolvedPath, isCustom, stderrOutput)
++		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
+ 
+ 		return spi.CheckResult{
+ 			Success:      false,
+@@ -80,13 +80,13 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
+ 		}
+ 	}
+ 
++	// A binary that runs but prints nothing still passes the check; report a
++	// placeholder rather than an empty version so the result reads unambiguously.
+ 	version := strings.TrimSpace(stdout.String())
+-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
+-		"provider":       "qwen",
+-		"custom_command": isCustom,
+-		"command_path":   resolvedPath,
+-		"version":        version,
+-	})
++	if version == "" {
++		version = "unknown"
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:09:51Z)**_
+
+Done. `go build ./...`, `go test ./...` and `golangci-lint run` are all clean, and the binary builds.
+
+## What I found and applied
+
+qwencode is nearly a carbon copy of musecode's situation — it predates the refactor and reintroduces the same helpers. Like muse, it was already clean on the worst issue, using `spi.CodeFence` at all eight fence sites.
+
+Applied, using the decisions you've already made:
+
+- `formatGenericBodyFromInput` → `spi.RenderGenericJSON` (was byte-identical)
+- `languageFromPath` → `spi.LanguageFromPath` (was byte-identical to the geminicli/muse variant)
+- `classifyQwenCheckError` → `spi.ClassifyCheckError` (was byte-identical to muse's pre-fix version, same §2.3 latent arm and §2.4 `ErrNotExist` gap)
+- three inline `TrackEvent` calls → `analytics.CheckAttempt` + `TrackCheckSuccess`/`TrackCheckFailure`, adding `resolved_path`, `version_flag`, and `stderr`
+- empty `--version` now reports `"unknown"`
+- `recover()` added to `triggerCallback`
+
+I verified both behavioral changes end-to-end through the real render path rather than assuming: `README.md` now fences as ```` ```markdown ````, `src/calc.py` as ```` ```python ````, and `Makefile` untagged (was ```` ```text ````); and a panicking callback is contained with the session id logged.
+
+## Two differences from muse worth knowing
+
+**There's no `canonicalPath` duplicate here.** qwencode calls `spi.GetCanonicalPath` in exactly one place, `candidateProjectDirNames`, and it's deliberate — it builds *both* the canonical and the raw-absolute sanitized directory names as candidates, because Qwen's own directory naming applies to the process cwd verbatim without symlink resolution. Replacing that with `CanonicalizePathOrClean` would have collapsed two candidate spellings into one and broken session discovery for symlinked project paths. So that item doesn't apply.
+
+**There's also no `diffFromFindReplace` equivalent** — qwen renders edits from the pre-formed `resultDisplay` diff, so no `FormatDiffBlock` overlap.
+
+The existing tests passed unmodified, and I checked why rather than taking it as a good sign: the only language-tagged fence assertion uses a `.go` path, which passes straight through both the old and new implementations. The changed cases weren't covered before either. qwencode also has no provider-level classifier test, so unlike deepseektui and antigravitycli there was nothing to relocate — `spi.ClassifyCheckError` is covered in `pkg/spi/check_test.go`.
+
+## Two things I deliberately did not do
+
+**I didn't add the permanent regression test for the `recover()`.** qwencode has no `watcher_test.go`, so it needs a new file, and this project's conventions say to ask first. I proved the behavior with a throwaway test and deleted it. Say the word and I'll add the ~20-line `watcher_test.go` with `TestTriggerCallback_ContainsConsumerPanic`, matching what muse got.
+
+**I didn't add a section to `docs/PROVIDER-REFACTOR.md`.** This branch's copy ends at §9 — the musecode write-up lives only on the muse branch. Both branches adding a "§10" for different providers would collide on merge. Better to write one combined section once the branches land; I can do that then.
+
+Held as judgment calls, same as muse: `todoStatusSymbol` (symbols already match `spi.TodoSymbol`, switching is free but belongs with the skipped item 2), `inputAsString` (single-key with a `json.Marshal` fallback where `StringValue` returns `""`), and `truncate` (duplicates `spi.CapRunes` with a different marker).
+
+Still open across both branches: geminicli has the identical missing-`recover()` gap in its singleton watcher, and its hardcoded-fence bug (§2.2) is unfixed.
+
+---
+
+_**User (2026-08-14 15:11:57Z)**_
+
+You can add the watcher test
+
+Go ahead and write to PROVIDER-REFACTOR... fine to let the merges collide
+
+---
+
+_**Agent (claude-opus-5 2026-08-14 15:12:06Z)**_
+
+Adding both. First the watcher test — let me match the existing test style in the package.
+
+_**Agent (claude-opus-5 2026-08-14 15:12:08Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check test style and watcher globals
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; sed -n '1,14p' pkg/providers/qwencode/provider_test.go; echo "=== watcher globals ==="; sed -n '14,60p' pkg/providers/qwencode/watcher.go`
+
+```text
+package qwencode
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestProviderName(t *testing.T) {
+	p := NewProvider()
+	if p.Name() != "Qwen Code" {
+		t.Errorf("Name() = %q, want Qwen Code", p.Name())
+	}
+=== watcher globals ===
+)
+
+var (
+	watcherCtx           context.Context
+	watcherCancel        context.CancelFunc
+	watcherWg            sync.WaitGroup
+	watcherCallback      func(*spi.AgentChatSession)
+	watcherMutex         sync.RWMutex
+	watcherDebugRaw      bool
+	watcherWorkspaceRoot string
+)
+
+func init() {
+	watcherCtx, watcherCancel = context.WithCancel(context.Background())
+}
+
+func SetWatcherCallback(callback func(*spi.AgentChatSession)) {
+	watcherMutex.Lock()
+	defer watcherMutex.Unlock()
+	watcherCallback = callback
+}
+
+func SetWatcherDebugRaw(debugRaw bool) {
+	watcherMutex.Lock()
+	defer watcherMutex.Unlock()
+	watcherDebugRaw = debugRaw
+}
+
+func SetWatcherWorkspaceRoot(workspaceRoot string) {
+	watcherMutex.Lock()
+	defer watcherMutex.Unlock()
+	watcherWorkspaceRoot = workspaceRoot
+}
+
+func getWatcherWorkspaceRoot() string {
+	watcherMutex.RLock()
+	defer watcherMutex.RUnlock()
+	return watcherWorkspaceRoot
+}
+
+func getWatcherDebugRaw() bool {
+	watcherMutex.RLock()
+	defer watcherMutex.RUnlock()
+	return watcherDebugRaw
+}
+
+func StopWatcher() {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:12:15Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Write"><details>
+<summary>Tool use: **Write**</summary>
+
+```go
+package qwencode
+
+import (
+	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+)
+
+// A panic in the consumer's callback must not escape delivery: it would unwind
+// the fsnotify event goroutine and take the process down over one bad session.
+func TestTriggerCallback_ContainsConsumerPanic(t *testing.T) {
+	var called bool
+	SetWatcherCallback(func(*spi.AgentChatSession) {
+		called = true
+		panic("consumer blew up")
+	})
+	t.Cleanup(func() { SetWatcherCallback(nil) })
+
+	triggerCallback(&spi.AgentChatSession{SessionID: "s-1"})
+
+	if !called {
+		t.Fatal("callback was never invoked")
+	}
+}
+
+// Delivery is skipped rather than panicking when either side is missing.
+func TestTriggerCallback_NilSafe(t *testing.T) {
+	SetWatcherCallback(nil)
+	triggerCallback(&spi.AgentChatSession{SessionID: "s-1"})
+
+	var called bool
+	SetWatcherCallback(func(*spi.AgentChatSession) { called = true })
+	t.Cleanup(func() { SetWatcherCallback(nil) })
+
+	triggerCallback(nil)
+
+	if called {
+		t.Error("callback invoked for a nil session")
+	}
+}
+
+```
+
+```text
+File created successfully at: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/watcher_test.go (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:12:20Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run the new watcher tests
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; gofmt -l pkg/providers/qwencode/; go test ./pkg/providers/qwencode/ -run 'TestTriggerCallback' -v 2>&1 | grep -E 'RUN|PASS|FAIL|ERROR|panicked'`
+
+```text
+=== RUN   TestTriggerCallback_ContainsConsumerPanic
+2026/08/14 11:12:20 ERROR qwen: session callback panicked sessionId=s-1 panic="consumer blew up"
+--- PASS: TestTriggerCallback_ContainsConsumerPanic (0.00s)
+=== RUN   TestTriggerCallback_NilSafe
+--- PASS: TestTriggerCallback_NilSafe (0.00s)
+PASS
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:12:24Z)**_
+
+Both pass. Now the doc section.
+
+_**Agent (claude-opus-5 2026-08-14 15:12:25Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check doc section 9 and tail
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; sed -n '204,212p' docs/PROVIDER-REFACTOR.md; echo "--- tail ---"; tail -4 docs/PROVIDER-REFACTOR.md`
+
+```text
+---
+
+## 9. What actually landed (Phase 3, items 1 and 3)
+
+Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. All ten provider packages now share one language map and one check-error classifier.
+
+### Item 1 — language maps
+
+`spi.LanguageFromPath` became the superset: cursorcli's rich table (`js`/`jsx`→javascript, `ts`/`tsx`→typescript, `py`→python, `rb`→ruby, `rs`→rust, `cs`→csharp, `h`/`c`→c, `hpp`/`cpp`/`cc`→cpp) plus `yml`→yaml and `md`→markdown, all behind `strings.ToLower`, with `""` for a path that has no usable extension. `claudecode.getLanguageFromExtension`, `cursorcli.getLanguageFromExtension` and `geminicli.languageFromPath` are gone.
+--- tail ---
+
+### The one thing that made item 3 risky
+
+`codexcli` was using the classifier's return value as **control flow**, not just telemetry. `codex_cli_exec.go` tries `--version` then `-V`, and `if classifyCheckError(err) != "unknown" || idx == len(flags)-1` decides whether to stop or try the next flag — an unclassified failure being the only kind another flag might fix. Renaming the residual bucket would have silently collapsed that retry to a single attempt. The literal is now `spi.CheckErrorUnknown`, so the coupling is explicit and a future rename moves both sides together.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:12:31Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/PROVIDER-REFACTOR.md has been updated successfully. (note: the file had been modified on disk since you last read it — the edit applied cleanly, but the file contains other changes not in your context. Read it before edits that depend on surrounding content.)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:12:58Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Append qwencode doc section and final verification
+
+````bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; cat >> docs/PROVIDER-REFACTOR.md << 'EOF'
+
+---
+
+## 10. Follow-on: bringing `qwencode` in line
+
+`qwencode` was developed on its own branch alongside this refactor and merged after it, so it reintroduced four of the consolidated helpers. It was already clean on the worst issue — it used `spi.CodeFence` at all eight fence sites, so it never had the §2.2 hardcoded-fence bug — and its exact-match tool dispatch needs no name normalization.
+
+> Other new-provider branches (e.g. `musecode`) carry their own version of this section. When those branches land, fold the per-provider sections into one.
+
+Applied, using the same decisions recorded in §7:
+
+| Removed from `qwencode` | Replaced with | Effect |
+|---|---|---|
+| `formatGenericBodyFromInput` | `spi.RenderGenericJSON` | none — was byte-identical |
+| `languageFromPath` | `spi.LanguageFromPath` | fence tags change (below) |
+| `classifyQwenCheckError` | `spi.ClassifyCheckError` | `error_type` values change (below) |
+| three inline `analytics.TrackEvent` calls | `analytics.CheckAttempt` + `TrackCheckSuccess`/`TrackCheckFailure` | adds `resolved_path`, `version_flag`, and `stderr` (which qwen captured but never reported) |
+
+`classifyQwenCheckError` was the pre-fix shape, carrying both §2.3 and §2.4: a `PathError` wrapping `ErrNotExist` was `version_failed` and is now `not_found` (the practical case — a binary that vanishes between `LookPath` and `Run`), and plain errors move from `version_failed` to `unknown`. `buildQwenCheckErrorMessage` has a `default:` arm, so no remediation text changed.
+
+`languageFromPath` was byte-identical to the geminicli variant deleted in item 1, so qwen picks up the same changes, verified through the real render path: `README.md` → ` ```markdown `, `src/calc.py` → ` ```python `, and an extensionless file → an untagged fence (was ` ```text `). The package's existing tests passed unmodified because its only language-tagged fence assertion uses a `.go` path, which passes through unchanged in both implementations — the changed cases were never covered.
+
+Two fixes outside the dedup:
+
+- **`triggerCallback` had no panic recovery** (`watcher.go`). A panic in the consumer's callback would unwind the fsnotify event goroutine and take the process down over one bad session. Delivery stays synchronous — ordering matters and `spi.DispatchSession` would have made it async — so the fix is a local `defer recover()`, locked in by the new `watcher_test.go`. **geminicli still has this gap**, with the same singleton-watcher shape; it is not qwen-specific and remains open.
+- **An empty `--version` reported success with a blank version.** Now substitutes `"unknown"`, matching deepseektui and antigravitycli. (cursorcli and codexcli instead treat empty output as a `no_output` failure; qwen follows the former.)
+
+### What does *not* apply to qwencode
+
+- **No `canonicalizePath` duplicate.** `qwencode` calls `spi.GetCanonicalPath` once, in `candidateProjectDirNames`, and deliberately keeps **both** the canonical and the raw-absolute sanitized directory names as lookup candidates — Qwen's own store naming sanitizes the process cwd verbatim, without symlink resolution. Collapsing that into `spi.CanonicalizePathOrClean` would drop one of the two spellings and break session discovery for symlinked project paths. This is the same reasoning that keeps `codexcli.normalizeCodexPath` and `vscode.NormalizePathForComparison` local (§5).
+- **No `FormatDiffBlock` overlap.** Edits render from the tool outcome's pre-formed unified diff (`resultDisplay`), not from a find/replace pair.
+
+Left alone deliberately: `inputAsString` (single-key, with a `json.Marshal` fallback where `spi.StringValue` returns `""`), `truncate` (duplicates `spi.CapRunes` with a different visible marker), and `todoStatusSymbol` (symbols already match `spi.TodoSymbol`; switching is free but belongs with the skipped item 2).
+EOF
+golangci-lint run 2>&1|tail -3; go test ./... 2>&1 | grep -v '^ok\|no test files' | head; echo "=== FINAL ==="; go build -o specstory . && echo "binary builds"; git status --short
+````
+
+```text
+0 issues.
+=== FINAL ===
+binary builds
+ M docs/PROVIDER-REFACTOR.md
+ M pkg/providers/qwencode/markdown_tools.go
+ M pkg/providers/qwencode/provider.go
+ M pkg/providers/qwencode/watcher.go
+?? pkg/providers/qwencode/watcher_test.go
+?? ../specstory-mac/
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:13:12Z)**_
+
+Both done. Everything is green: `go build ./...`, `go test ./...`, `golangci-lint run` all clean, binary builds.
+
+## Watcher test
+
+Created `pkg/providers/qwencode/watcher_test.go` with two tests. `TestTriggerCallback_ContainsConsumerPanic` is the regression guard for the `recover()` — it confirms the panic is contained and the callback still ran. I added a second, `TestTriggerCallback_NilSafe`, because my edit restructured the nil handling from `if cb != nil && agentSession != nil` into early returns, and that guard was previously untested; it's cheap to lock in while I'm there. Both pass, and the panic path logs `qwen: session callback panicked` with the session id.
+
+## Doc section
+
+`docs/PROVIDER-REFACTOR.md` now has a §10 for qwencode covering the four helper replacements, the two fixes outside the dedup, and the verified behavior deltas. I corrected the "all ten provider packages" line the same way as on the muse branch.
+
+Two things I made sure the section records, because they're the parts a future reader would otherwise re-derive:
+
+- **A short note at the top** saying other new-provider branches carry their own version of this section and they should be folded into one when the branches land. Since you're fine with the collision, that at least tells whoever resolves it what the intent was.
+- **A "what does *not* apply" subsection**, because the absence of a `canonicalizePath` change in qwen looks like an oversight next to muse's. It spells out that `candidateProjectDirNames` deliberately keeps both the canonical and raw-absolute sanitized names, that collapsing them into `spi.CanonicalizePathOrClean` would break session discovery for symlinked project paths, and that this is the same reasoning already recorded in §5 for `codexcli.normalizeCodexPath` and `vscode.NormalizePathForComparison`.
+
+I also noted why qwen's existing tests passed unmodified — its only language-tagged fence assertion uses a `.go` path, which is unchanged in both implementations, so the changed cases were never covered. That's the kind of thing that reads as reassuring in a diff and shouldn't.
+
+Changed on this branch: `provider.go`, `markdown_tools.go`, `watcher.go`, the new `watcher_test.go`, and the doc. Still open across branches: geminicli's identical missing-`recover()` gap and its hardcoded-fence bug (§2.2).
+
+---
+
+_**User (2026-08-14 15:15:11Z)**_
+
+Now fix the geminicli fence bug and missing recover
+
+---
+
+_**Agent (claude-opus-5 2026-08-14 15:15:18Z)**_
+
+Let me locate both precisely — the fence line numbers shifted when I removed geminicli's `languageFromPath` earlier.
+
+_**Agent (claude-opus-5 2026-08-14 15:15:21Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Locate geminicli hardcoded fences
+
+````bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== hardcoded fences in geminicli ==="; grep -n '```' pkg/providers/geminicli/*.go | grep -v _test.go
+echo; echo "=== spi.CodeFence already used ==="; grep -c 'spi.CodeFence' pkg/providers/geminicli/markdown_tools.go
+````
+
+````text
+=== hardcoded fences in geminicli ===
+pkg/providers/geminicli/markdown_tools.go:156:		return fmt.Sprintf("```text\n%s\n```", output)
+pkg/providers/geminicli/markdown_tools.go:183:		builder.WriteString("```bash\n")
+pkg/providers/geminicli/markdown_tools.go:185:		builder.WriteString("\n```")
+pkg/providers/geminicli/markdown_tools.go:203:		builder.WriteString("```")
+pkg/providers/geminicli/markdown_tools.go:207:		builder.WriteString("\n```")
+pkg/providers/geminicli/markdown_tools.go:224:		builder.WriteString("```diff\n")
+pkg/providers/geminicli/markdown_tools.go:226:		builder.WriteString("\n```")
+pkg/providers/geminicli/markdown_tools.go:285:	return fmt.Sprintf("```json\n%s\n```", string(bytes))
+
+=== spi.CodeFence already used ===
+1
+````
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:15:22Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find geminicli callback delivery
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== geminicli callback delivery ==="; grep -n 'triggerCallback\|watcherCallback\|cb(' pkg/providers/geminicli/watcher.go
+```
+
+```text
+=== geminicli callback delivery ===
+20:	watcherCallback      func(*spi.AgentChatSession)
+33:	watcherCallback = callback
+271:		triggerCallback(agentSession)
+299:		triggerCallback(agentSession)
+311:	triggerCallback(agentSession)
+314:// triggerCallback is a helper to call the watcher callback with proper locking
+315:func triggerCallback(agentSession *spi.AgentChatSession) {
+317:	cb := watcherCallback
+321:		cb(agentSession)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:15:28Z)**_
+
+More than the doc recorded — my original research flagged two sites, but there are actually five distinct hardcoded fence constructions. Let me read them all.
+
+_**Agent (claude-opus-5 2026-08-14 15:15:29Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/geminicli/markdown_tools.go`
+
+````text
+145	
+146		// Wrap multi-line output in code fence
+147		formatted := formatOutputText(content)
+148	
+149		// Add "Result:" prefix
+150		return addResultPrefix(formatted)
+151	}
+152	
+153	// formatOutputText wraps multi-line output in code fence, leaves single-line as-is
+154	func formatOutputText(output string) string {
+155		if strings.Contains(output, "\n") {
+156			return fmt.Sprintf("```text\n%s\n```", output)
+157		}
+158		return output
+159	}
+160	
+161	// addResultPrefix adds "Result:" or "Result:\n" depending on content format
+162	func addResultPrefix(content string) string {
+163		if strings.Contains(content, "\n") {
+164			return fmt.Sprintf("Result:\n%s", content)
+165		}
+166		return fmt.Sprintf("Result: %s", content)
+167	}
+168	
+169	func formatShellBodyFromInput(input map[string]interface{}) string {
+170		command := inputAsString(input, "command")
+171		dir := inputAsString(input, "dir_path")
+172	
+173		if command == "" && dir == "" {
+174			return ""
+175		}
+176	
+177		var builder strings.Builder
+178		if dir != "" {
+179			fmt.Fprintf(&builder, "Directory: `%s`\n\n", dir)
+180		}
+181	
+182		if command != "" {
+183			builder.WriteString("```bash\n")
+184			builder.WriteString(command)
+185			builder.WriteString("\n```")
+186		}
+187	
+188		return builder.String()
+189	}
+190	
+191	func formatWriteFileBodyFromInput(input map[string]interface{}) string {
+192		path := inputAsString(input, "file_path")
+193		content := inputAsString(input, "content")
+194		if path == "" && content == "" {
+195			return ""
+196		}
+197	
+198		var builder strings.Builder
+199		if path != "" {
+200			fmt.Fprintf(&builder, "Path: `%s`\n\n", path)
+201		}
+202		if content != "" {
+203			builder.WriteString("```")
+204			builder.WriteString(spi.LanguageFromPath(path))
+205			builder.WriteString("\n")
+206			builder.WriteString(content)
+207			builder.WriteString("\n```")
+208		}
+209		return builder.String()
+210	}
+211	
+212	func formatReplaceBodyFromInput(input map[string]interface{}) string {
+213		path := inputAsString(input, "file_path")
+214		newString := inputAsString(input, "new_string")
+215		if path == "" && newString == "" {
+216			return ""
+217		}
+218	
+219		var builder strings.Builder
+220		if path != "" {
+221			fmt.Fprintf(&builder, "Path: `%s`\n\n", path)
+222		}
+223		if newString != "" {
+224			builder.WriteString("```diff\n")
+225			builder.WriteString(truncate(newString, 2000))
+226			builder.WriteString("\n```")
+227		}
+228		return builder.String()
+229	}
+230	
+231	func formatSearchBodyFromInput(input map[string]interface{}) string {
+232		query := inputAsString(input, "query")
+233		if query == "" {
+234			return ""
+235		}
+236		return fmt.Sprintf("Query: %s", query)
+237	}
+238	
+239	func formatWebFetchBodyFromInput(input map[string]interface{}) string {
+240		prompt := inputAsString(input, "prompt")
+241		if prompt == "" {
+242			return ""
+243		}
+244		// Show the prompt directly without a "Query:" or "Prompt:" prefix
+245		return prompt
+246	}
+247	
+248	func formatTodoBodyFromInput(input map[string]interface{}) string {
+249		todos, ok := input["todos"].([]interface{})
+250		if !ok || len(todos) == 0 {
+251			return ""
+252		}
+253	
+254		var builder strings.Builder
+255		builder.WriteString("Todo List:\n")
+256		for _, raw := range todos {
+257			if todo, ok := raw.(map[string]interface{}); ok {
+258				desc, _ := todo["description"].(string)
+259				status, _ := todo["status"].(string)
+260				fmt.Fprintf(&builder, "- [%s] %s\n", todoStatusSymbol(status), strings.TrimSpace(desc))
+261			}
+262		}
+263		return builder.String()
+264	}
+265	
+266	func todoStatusSymbol(status string) string {
+267		switch status {
+268		case "completed":
+269			return "x"
+270		case "in_progress":
+271			return "⚡"
+272		default:
+273			return " "
+274		}
+275	}
+276	
+277	func formatGenericBodyFromInput(input map[string]interface{}) string {
+278		if len(input) == 0 {
+279			return ""
+280		}
+281		bytes, err := json.MarshalIndent(input, "", "  ")
+282		if err != nil {
+283			return ""
+284		}
+285		return fmt.Sprintf("```json\n%s\n```", string(bytes))
+286	}
+287	
+288	// inputAsString extracts a string value from tool input
+289	func inputAsString(input map[string]interface{}, key string) string {
+````
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:15:37Z)**_
+
+All five are mechanical conversions, and the `formatGenericBodyFromInput` one collapses into the shared helper — fixing the fence bug and the duplication together.
+
+_**Agent (claude-opus-5 2026-08-14 15:15:40Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/geminicli/markdown_tools.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:15:44Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/geminicli/markdown_tools.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:15:49Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/geminicli/markdown_tools.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:15:54Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/geminicli/markdown_tools.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:15:58Z)**_
+
+Now the last fence site, which collapses into the shared helper entirely.
+
+_**Agent (claude-opus-5 2026-08-14 15:16:05Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Rewrite geminicli generic-body call sites
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+perl -pi -e 's/\bformatGenericBodyFromInput\(/spi.RenderGenericJSON(/g;' pkg/providers/geminicli/markdown_tools.go
+grep -n 'func spi\.RenderGenericJSON\|spi.RenderGenericJSON' pkg/providers/geminicli/markdown_tools.go
+```
+
+```text
+98:		return spi.RenderGenericJSON(tool.Input)
+269:func spi.RenderGenericJSON(input map[string]interface{}) string {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:16:10Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/geminicli/markdown_tools.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:16:14Z)**_
+
+Now the missing `recover()` in geminicli's watcher.
+
+_**Agent (claude-opus-5 2026-08-14 15:16:14Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/geminicli/watcher.go`
+
+```text
+312	}
+313	
+314	// triggerCallback is a helper to call the watcher callback with proper locking
+315	func triggerCallback(agentSession *spi.AgentChatSession) {
+316		watcherMutex.RLock()
+317		cb := watcherCallback
+318		watcherMutex.RUnlock()
+319	
+320		if cb != nil && agentSession != nil {
+321			cb(agentSession)
+322		}
+323	}
+324	
+325	// waitForDirectoryFsnotify waits for a directory to exist using fsnotify on its parent.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:16:22Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/geminicli/watcher.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:16:29Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build, vet and test geminicli
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; gofmt -w pkg/providers/geminicli/; go build ./... 2>&1|head -5; echo "=== build ==="; go vet ./pkg/providers/geminicli/ 2>&1|head -5; echo "=== vet ==="; go test ./pkg/providers/geminicli/ 2>&1|tail -20`
+
+```text
+=== build ===
+=== vet ===
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli	0.030s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:16:35Z)**_
+
+All green. Let me prove the fence bug is actually fixed — that's the whole point of the change.
+
+_**Agent (claude-opus-5 2026-08-14 15:16:44Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Verify all five converted fence sites outrun embedded backticks
+
+`````bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; ls pkg/providers/geminicli/*_test.go
+cat > pkg/providers/geminicli/zz_fence_test.go << 'EOF'
+package geminicli
+
+import (
+	"strings"
+	"testing"
+)
+
+// Each converted site, fed content containing its own ``` fence.
+func TestZZFenceOutrun(t *testing.T) {
+	inner := "before\n```go\nx := 1\n```\nafter"
+
+	cases := []struct{ name, got string }{
+		{"shell body", formatShellBodyFromInput(map[string]interface{}{"command": inner})},
+		{"write_file body", formatWriteFileBodyFromInput(map[string]interface{}{"file_path": "a.md", "content": inner})},
+		{"replace body", formatReplaceBodyFromInput(map[string]interface{}{"file_path": "a.go", "new_string": inner})},
+		{"multi-line output", formatOutputText(inner)},
+		{"generic json", formatToolBodyFromInput(&ToolInfo{Name: "some_unmapped", Input: map[string]interface{}{"k": inner}})},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if !strings.Contains(c.got, "````") {
+				t.Errorf("fence was NOT widened past the embedded run:\n%s", c.got)
+				return
+			}
+			// The inner fence must survive untouched.
+			if !strings.Contains(c.got, "```go") {
+				t.Errorf("inner content was altered:\n%s", c.got)
+			}
+			t.Logf("OK widened")
+		})
+	}
+}
+EOF
+go test ./pkg/providers/geminicli/ -run TestZZFenceOutrun -v 2>&1 | grep -E 'RUN|PASS|FAIL|widened|NOT'; rm pkg/providers/geminicli/zz_fence_test.go
+`````
+
+```text
+pkg/providers/geminicli/agent_session_test.go
+pkg/providers/geminicli/json_parser_test.go
+pkg/providers/geminicli/markdown_tools_test.go
+pkg/providers/geminicli/path_utils_test.go
+pkg/providers/geminicli/provider_test.go
+pkg/providers/geminicli/reconstruct_test.go
+=== RUN   TestZZFenceOutrun
+=== RUN   TestZZFenceOutrun/shell_body
+    zz_fence_test.go:30: OK widened
+=== RUN   TestZZFenceOutrun/write_file_body
+    zz_fence_test.go:30: OK widened
+=== RUN   TestZZFenceOutrun/replace_body
+    zz_fence_test.go:30: OK widened
+=== RUN   TestZZFenceOutrun/multi-line_output
+    zz_fence_test.go:30: OK widened
+=== RUN   TestZZFenceOutrun/generic_json
+    zz_fence_test.go:30: OK widened
+--- PASS: TestZZFenceOutrun (0.00s)
+    --- PASS: TestZZFenceOutrun/shell_body (0.00s)
+    --- PASS: TestZZFenceOutrun/write_file_body (0.00s)
+    --- PASS: TestZZFenceOutrun/replace_body (0.00s)
+    --- PASS: TestZZFenceOutrun/multi-line_output (0.00s)
+    --- PASS: TestZZFenceOutrun/generic_json (0.00s)
+PASS
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:16:55Z)**_
+
+All five verified. geminicli has an existing `markdown_tools_test.go` for the fence regression; the recover test needs a new `watcher_test.go`, which I'm creating on the precedent you just set for qwen.
+
+_**Agent (claude-opus-5 2026-08-14 15:16:57Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check geminicli markdown test style
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; sed -n '1,12p' pkg/providers/geminicli/markdown_tools_test.go; echo "..."; tail -8 pkg/providers/geminicli/markdown_tools_test.go`
+
+```text
+package geminicli
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestFormatToolAsMarkdownShell(t *testing.T) {
+	tool := &ToolInfo{
+		Name:  "run_shell_command",
+		Type:  "shell",
+		UseID: "tool-1",
+...
+		t.Errorf("expected fetched content in output: %s", out)
+	}
+
+	// Should have Result: prefix for this tool
+	if !strings.Contains(out, "Result:") {
+		t.Errorf("expected 'Result:' prefix for web_fetch: %s", out)
+	}
+}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:17:11Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Add permanent fence regression test
+
+`````bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; cat >> pkg/providers/geminicli/markdown_tools_test.go << 'EOF'
+
+// Agent output routinely contains its own ``` fences (a written markdown file, a
+// command that cats one). Every fenced site must size its wrapper past the
+// longest inner run, or the inner fence closes the block early and the rest of
+// the rendered document is swallowed. These sites once hardcoded three backticks.
+func TestFencedSitesOutrunEmbeddedBackticks(t *testing.T) {
+	inner := "before\n```go\nx := 1\n```\nafter"
+
+	tests := []struct {
+		name string
+		got  string
+	}{
+		{"shell command", formatShellBodyFromInput(map[string]interface{}{"command": inner})},
+		{"write_file content", formatWriteFileBodyFromInput(map[string]interface{}{"file_path": "a.md", "content": inner})},
+		{"replace new_string", formatReplaceBodyFromInput(map[string]interface{}{"file_path": "a.go", "new_string": inner})},
+		{"multi-line result", formatOutputText(inner)},
+		{"generic JSON fallback", formatToolBodyFromInput(&ToolInfo{Name: "an_unmapped_tool", Input: map[string]interface{}{"k": inner}})},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !strings.Contains(tt.got, "````") {
+				t.Errorf("wrapper fence not widened past the embedded run:\n%s", tt.got)
+			}
+			if !strings.Contains(tt.got, "```go") {
+				t.Errorf("inner content must pass through unaltered:\n%s", tt.got)
+			}
+		})
+	}
+}
+EOF
+gofmt -w pkg/providers/geminicli/ && go test ./pkg/providers/geminicli/ -run TestFencedSites -v 2>&1 | grep -E 'PASS|FAIL|ok'
+`````
+
+```text
+--- PASS: TestFencedSitesOutrunEmbeddedBackticks (0.00s)
+    --- PASS: TestFencedSitesOutrunEmbeddedBackticks/shell_command (0.00s)
+    --- PASS: TestFencedSitesOutrunEmbeddedBackticks/write_file_content (0.00s)
+    --- PASS: TestFencedSitesOutrunEmbeddedBackticks/replace_new_string (0.00s)
+    --- PASS: TestFencedSitesOutrunEmbeddedBackticks/multi-line_result (0.00s)
+    --- PASS: TestFencedSitesOutrunEmbeddedBackticks/generic_JSON_fallback (0.00s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli	0.012s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:17:18Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Write"><details>
+<summary>Tool use: **Write**</summary>
+
+```go
+package geminicli
+
+import (
+	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+)
+
+// A panic in the consumer's callback must not escape delivery: it would unwind
+// the fsnotify event goroutine and take the process down over one bad session.
+func TestTriggerCallback_ContainsConsumerPanic(t *testing.T) {
+	var called bool
+	SetWatcherCallback(func(*spi.AgentChatSession) {
+		called = true
+		panic("consumer blew up")
+	})
+	t.Cleanup(func() { SetWatcherCallback(nil) })
+
+	triggerCallback(&spi.AgentChatSession{SessionID: "s-1"})
+
+	if !called {
+		t.Fatal("callback was never invoked")
+	}
+}
+
+// Delivery is skipped rather than panicking when either side is missing.
+func TestTriggerCallback_NilSafe(t *testing.T) {
+	SetWatcherCallback(nil)
+	triggerCallback(&spi.AgentChatSession{SessionID: "s-1"})
+
+	var called bool
+	SetWatcherCallback(func(*spi.AgentChatSession) { called = true })
+	t.Cleanup(func() { SetWatcherCallback(nil) })
+
+	triggerCallback(nil)
+
+	if called {
+		t.Error("callback invoked for a nil session")
+	}
+}
+
+```
+
+```text
+File created successfully at: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/geminicli/watcher_test.go (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:17:29Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Full verification
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; gofmt -w .; go build ./... 2>&1|head -3; go test ./... 2>&1 | grep -v '^ok\|no test files' | head -10; echo "=== tests done ==="; golangci-lint run 2>&1|tail -3; go build -o specstory . && echo "binary builds"`
+
+```text
+=== tests done ===
+0 issues.
+binary builds
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:17:32Z)**_
+
+Now updating the doc, since §2 recorded these as open and undercounted the fence sites.
+
+_**Agent (claude-opus-5 2026-08-14 15:17:37Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/PROVIDER-REFACTOR.md has been updated successfully. (note: the file had been modified on disk since you last read it — the edit applied cleanly, but the file contains other changes not in your context. Read it before edits that depend on surrounding content.)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:17:59Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Document the geminicli fixes and verify
+
+````bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; cat >> docs/PROVIDER-REFACTOR.md << 'EOF'
+
+---
+
+## 11. geminicli: fence bug and missing panic recovery
+
+The two loose ends carried since the original research (§2.2 and the watcher gap noted in §10) are now closed.
+
+### The fence bug was five sites, not two
+
+§2.2 recorded two hardcoded fences. Grepping the file for ``` turned up **five** distinct constructions, three of which the original sweep missed because they build the fence across several `WriteString` calls rather than in one `fmt.Sprintf`:
+
+| Site | Was | Now |
+|---|---|---|
+| `formatOutputText` | `fmt.Sprintf("```text\n%s\n```", …)` | `spi.CodeFence("text", …)` |
+| `formatShellBodyFromInput` | three `WriteString` calls around ` ```bash ` | `spi.CodeFence("bash", command)` |
+| `formatWriteFileBodyFromInput` | five `WriteString` calls around a dynamic tag | `spi.CodeFence(spi.LanguageFromPath(path), content)` |
+| `formatReplaceBodyFromInput` | three `WriteString` calls around ` ```diff ` | `spi.CodeFence("diff", truncate(newString, 2000))` |
+| `formatGenericBodyFromInput` | `fmt.Sprintf("```json\n%s\n```", …)` | deleted; callers use `spi.RenderGenericJSON` |
+
+The last one is the payoff case: with the fence fixed, that function was byte-identical to `spi.RenderGenericJSON`, so fixing the bug and removing the duplication were the same edit. geminicli was the last provider still carrying a private copy of it.
+
+Every site is exercised by `TestFencedSitesOutrunEmbeddedBackticks`, which feeds each one content containing its own ` ```go ` fence and asserts both that the wrapper widened to four backticks and that the inner content passed through unaltered. Before the fix, all five would emit a three-backtick wrapper that the embedded fence closes early, truncating the rendered document from that point on.
+
+**Lesson for future sweeps:** grepping for ``` catches `Sprintf`-style fences but not ones assembled across `WriteString` calls. The reliable check is "which call sites do *not* go through `spi.CodeFence`", not "which lines contain backticks".
+
+### Missing panic recovery
+
+`triggerCallback` invoked the consumer's callback with no recovery, so a panic would unwind the fsnotify event goroutine and take the process down over one malformed session. Fixed the same way as `musecode`/`qwencode`: delivery stays synchronous (ordering matters, and `spi.DispatchSession` would have made it async) with a local `defer recover()` that logs the session id. Locked in by a new `watcher_test.go` covering both the panic containment and the nil-argument guards, which the restructure touched.
+
+With this, no provider is known to deliver sessions without panic containment, and no provider hardcodes a code fence.
+EOF
+golangci-lint run 2>&1|tail -3; go test ./... 2>&1 | grep -v '^ok\|no test files' | head; echo "=== FINAL ==="; git status --short
+````
+
+```text
+0 issues.
+=== FINAL ===
+ M docs/PROVIDER-REFACTOR.md
+ M pkg/providers/geminicli/markdown_tools.go
+ M pkg/providers/geminicli/markdown_tools_test.go
+ M pkg/providers/geminicli/watcher.go
+?? pkg/providers/geminicli/watcher_test.go
+?? ../specstory-mac/
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:18:15Z)**_
+
+Both fixed and verified. `go build ./...`, `go test ./...`, `golangci-lint run` all clean.
+
+## The fence bug was five sites, not two
+
+My original research recorded two hardcoded fences. Grepping the file turned up **five** — three of which the first sweep missed because they assemble the fence across several `WriteString` calls rather than in a single `fmt.Sprintf`, so they don't look like a fence on any one line:
+
+| Site | Was |
+|---|---|
+| `formatOutputText` | `Sprintf` with ```` ```text ```` |
+| `formatShellBodyFromInput` | three `WriteString` calls around ```` ```bash ```` |
+| `formatWriteFileBodyFromInput` | five `WriteString` calls around a dynamic tag |
+| `formatReplaceBodyFromInput` | three `WriteString` calls around ```` ```diff ```` |
+| `formatGenericBodyFromInput` | `Sprintf` with ```` ```json ```` |
+
+All five now go through `spi.CodeFence`. The last one is the nice case: once the fence was fixed, that function was byte-identical to `spi.RenderGenericJSON`, so fixing the bug and deleting the duplication turned out to be the same edit — geminicli was the last provider still carrying a private copy.
+
+I proved the fix rather than assuming it: `TestFencedSitesOutrunEmbeddedBackticks` feeds each of the five sites content containing its own ```` ```go ```` fence and asserts the wrapper widens to four backticks *and* the inner content passes through unaltered. Before the fix all five emitted a three-backtick wrapper that the embedded fence closes early, truncating the rendered document from that point on.
+
+The takeaway I wrote into the doc: grepping for backticks catches `Sprintf`-style fences but not ones built across `WriteString` calls. The reliable check is "which call sites don't go through `spi.CodeFence`," not "which lines contain backticks."
+
+## Missing recover
+
+`triggerCallback` now contains consumer panics with a local `defer recover()` that logs the session id, matching musecode and qwencode. Delivery stays synchronous because ordering matters and `spi.DispatchSession` would have made it async.
+
+I created `pkg/providers/geminicli/watcher_test.go` for the regression test — a new file, which normally I'd ask about, but you approved exactly this for qwen a moment ago and the situation is identical. Tell me if you'd rather drop it. It covers both the panic containment and the nil-argument guards, since my restructure touched those.
+
+## Doc
+
+Added §11 covering both fixes, and annotated §2.2 to record that it was fixed and that the original count was wrong. With this, no provider is known to deliver sessions without panic containment, and none hardcodes a code fence.
+
+Note these geminicli changes are sitting on the `qwen-provider-support` branch alongside the qwen work, since that's where we were — they're independent of qwen and will collide with the muse branch's doc section as expected.
+
+---
+
+_**User (2026-08-14 15:24:36Z)**_
+
+no, we were on dev
+
+---
+
+_**Agent (claude-opus-5 2026-08-14 15:24:49Z)**_
+
+Let me check the actual state rather than assume — I may have mis-stated where these landed.
+
+_**Agent (claude-opus-5 2026-08-14 15:24:51Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check current branch and status
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; echo "current branch: $(git branch --show-current)"; echo "--- status ---"; git status --short; echo "--- recent commits ---"; git log --oneline -5`
+
+```text
+current branch: dev
+--- status ---
+ M docs/PROVIDER-REFACTOR.md
+ M pkg/providers/geminicli/markdown_tools.go
+ M pkg/providers/geminicli/markdown_tools_test.go
+ M pkg/providers/geminicli/watcher.go
+?? pkg/providers/geminicli/watcher_test.go
+?? ../specstory-mac/
+--- recent commits ---
+b0a34ce SpecStory histories.
+89a254e Provider refactor to remove duplicate code.
+6583e18 SpecStory history.
+733dead Fix relative path on case insensitive file system issue.
+566d0bf Merge branch 'dev' of github.com:specstoryai/getspecstory into dev
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:25:04Z)**_
+
+Confirmed — we're on `dev`, not `qwen-provider-support`. My closing note was wrong. Let me check what that means for the doc and make sure the qwen work is safe.
+
+_**Agent (claude-opus-5 2026-08-14 15:25:06Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check doc section numbering on dev
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; echo "=== sections in dev's doc ==="; grep -n '^## ' docs/PROVIDER-REFACTOR.md; echo; echo "=== does dev's doc mention qwencode/musecode? ==="; grep -c 'qwencode' docs/PROVIDER-REFACTOR.md; grep -c 'musecode' docs/PROVIDER-REFACTOR.md`
+
+```text
+=== sections in dev's doc ===
+8:## 1. Key findings
+39:## 2. Latent bugs surfaced by the research
+50:## 3. Where a shared home can live (import-graph constraints)
+93:## 4. The plan, phased by risk
+141:## 5. What deliberately stays provider-local
+150:## 6. Verification
+163:## 7. Decisions taken
+176:## 8. What actually landed (Phases 1 and 2)
+206:## 9. What actually landed (Phase 3, items 1 and 3)
+242:## 11. geminicli: fence bug and missing panic recovery
+
+=== does dev's doc mention qwencode/musecode? ===
+1
+1
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:25:08Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Verify the qwen work is preserved
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; echo "=== is the qwen work committed on its branch? ==="; git log --oneline qwen-provider-support -3 2>/dev/null; echo "--- qwencode diff between dev and qwen branch ---"; git diff --stat dev qwen-provider-support -- pkg/providers/qwencode/ 2>/dev/null | tail -6; echo "--- stashes ---"; git stash list`
+
+```text
+=== is the qwen work committed on its branch? ===
+114062c Code cleanup.
+3f59dbd Merge branch 'dev' into qwen-provider-support
+b0a34ce SpecStory histories.
+--- qwencode diff between dev and qwen branch ---
+ .../qwencode/testdata/session-malformed.jsonl      |   3 +
+ .../qwencode/testdata/session-system-only.jsonl    |   1 +
+ .../qwencode/testdata/session-tools.jsonl          |   7 +
+ specstory-cli/pkg/providers/qwencode/watcher.go    | 320 ++++++++++++++
+ .../pkg/providers/qwencode/watcher_test.go         |  40 ++
+ 21 files changed, 3669 insertions(+)
+--- stashes ---
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:25:25Z)**_
+
+The qwen work is safe — committed on its branch as `114062c` including the watcher test, nothing lost. But I introduced a real problem in the doc on dev.
+
+_**Agent (claude-opus-5 2026-08-14 15:25:27Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Confirm which providers exist on dev and find dangling references
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; echo "=== providers present on dev ==="; ls pkg/providers/; echo "=== the §10/musecode/qwencode references I left in dev's doc ==="; grep -n 'musecode\|qwencode\|§10' docs/PROVIDER-REFACTOR.md`
+
+```text
+=== providers present on dev ===
+antigravitycli
+claudecode
+codexcli
+copilotide
+cursorcli
+cursoride
+deepseektui
+droidcli
+geminicli
+vscode
+=== the §10/musecode/qwencode references I left in dev's doc ===
+244:The two loose ends carried since the original research (§2.2 and the watcher gap noted in §10) are now closed.
+266:`triggerCallback` invoked the consumer's callback with no recovery, so a panic would unwind the fsnotify event goroutine and take the process down over one malformed session. Fixed the same way as `musecode`/`qwencode`: delivery stays synchronous (ordering matters, and `spi.DispatchSession` would have made it async) with a local `defer recover()` that logs the session id. Locked in by a new `watcher_test.go` covering both the panic containment and the nil-argument guards, which the restructure touched.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:25:32Z)**_
+
+Three dangling references to fix — dev has neither of those provider packages, and there's no §10 here. Correcting them.
+
+_**Agent (claude-opus-5 2026-08-14 15:25:35Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/PROVIDER-REFACTOR.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:25:42Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/PROVIDER-REFACTOR.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:25:47Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/PROVIDER-REFACTOR.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:25:53Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Verify doc references are consistent
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== sections ==="; grep -n '^## ' docs/PROVIDER-REFACTOR.md | tail -4
+echo "=== dangling refs to unmerged providers / bad section numbers ==="; grep -n 'musecode\|qwencode\|§11' docs/PROVIDER-REFACTOR.md || echo "none"
+echo "=== final closing line ==="; tail -2 docs/PROVIDER-REFACTOR.md
+```
+
+```text
+=== sections ===
+163:## 7. Decisions taken
+176:## 8. What actually landed (Phases 1 and 2)
+206:## 9. What actually landed (Phase 3, items 1 and 3)
+242:## 10. geminicli: fence bug and missing panic recovery
+=== dangling refs to unmerged providers / bad section numbers ===
+none
+=== final closing line ===
+
+With this, no provider is known to deliver sessions without panic containment, and no provider hardcodes a code fence.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:26:08Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Verify section 9 line and run full checks
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== §9 opening line on dev ==="; sed -n '208p' docs/PROVIDER-REFACTOR.md
+echo; echo "=== final verification ==="; gofmt -l . | head -3; go build ./... 2>&1|head -3; go test ./... 2>&1 | grep -v '^ok\|no test files' | head -5; echo "tests ok"; golangci-lint run 2>&1|tail -3; go build -o specstory . && echo "binary builds"
+echo; echo "=== working tree on dev ==="; git status --short
+```
+
+```text
+=== §9 opening line on dev ===
+Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. All ten provider packages now share one language map and one check-error classifier.
+
+=== final verification ===
+tests ok
+0 issues.
+binary builds
+
+=== working tree on dev ===
+ M docs/PROVIDER-REFACTOR.md
+ M pkg/providers/geminicli/markdown_tools.go
+ M pkg/providers/geminicli/markdown_tools_test.go
+ M pkg/providers/geminicli/watcher.go
+?? pkg/providers/geminicli/watcher_test.go
+?? ../specstory-mac/
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:26:24Z)**_
+
+You're right, and my closing note was wrong — we're on `dev`. Thanks for catching it, because it had knock-on effects I'd otherwise have left behind.
+
+**The qwen work is safe.** It's committed on `qwen-provider-support` as `114062c "Code cleanup."`, including `watcher_test.go`. Nothing was lost when the branch changed, and there are no stashes outstanding.
+
+**The geminicli fixes are on dev, which is the right place** — they're independent of any new provider.
+
+**But my doc edits were broken by the branch difference, and I've fixed them.** I'd written the section while thinking I was on the qwen branch, so on dev it had three dangling references:
+
+- It was numbered **§11** when dev has no §10 — that section is the qwencode write-up, which lives only on the qwen branch. Renumbered to §10.
+- It said the watcher gap was "noted in §10," pointing at a section that doesn't exist here. Reworded to say it was found while reviewing a new provider on another branch.
+- It said the fix matched "`musecode`/`qwencode`," neither of which exists on dev — both are still on their own branches. Replaced with a self-contained explanation: the gap is inherent to the singleton-watcher shape (package-global callback behind a mutex, invoked straight from the fsnotify handler), and any provider written that way needs the explicit `recover()`, while providers using `spi.DispatchSession` get containment for free. That version is more useful anyway, since it tells the next person *when* the problem applies rather than pointing at two packages.
+
+I also checked §9's "all ten provider packages" line — on dev that's accurate as-is, since dev has exactly ten. It only needed the correction on the branches that add an eleventh.
+
+Everything still verifies clean: `go build ./...`, `go test ./...`, `golangci-lint run` (0 issues), binary builds. Working tree on dev holds the four modified files plus the new `pkg/providers/geminicli/watcher_test.go`.
+
+One consequence worth flagging: when the muse and qwen branches merge into dev, each carries its own "§10" for its provider, and dev now has a §10 for geminicli — so that's a three-way numbering collision rather than the two-way one I described earlier. The content doesn't conflict, just the numbering and placement; whoever merges should renumber and can fold the per-provider sections together.
+
+---
+
+_**User (2026-08-14 15:31:55Z)**_
+
+OK, 1 more new provider, grok, in the same state as the other 2. Pre-dates our cleanup work.
+
+---
+
+_**Agent (claude-opus-5 2026-08-14 15:32:03Z)**_
+
+Let me orient — checking the branch explicitly this time.
+
+_**Agent (claude-opus-5 2026-08-14 15:32:05Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check branch, status and providers
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; echo "branch: $(git branch --show-current)"; echo "--- status ---"; git status --short; echo "--- commits ---"; git log --oneline -4; echo "--- providers ---"; ls pkg/providers/`
+
+```text
+branch: grok-build-provider
+--- status ---
+?? pkg/providers/geminicli/watcher_test.go
+?? ../specstory-mac/
+--- commits ---
+c918212 Merge branch 'dev' into grok-build-provider
+d6fc154 Minor fixes for Gemini.
+46738e2 Merge branch 'dev' into grok-build-provider
+b0a34ce SpecStory histories.
+--- providers ---
+antigravitycli
+claudecode
+codexcli
+copilotide
+cursorcli
+cursoride
+deepseektui
+droidcli
+geminicli
+grokbuild
+vscode
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:32:13Z)**_
+
+Branch `grok-build-provider`, provider is `grokbuild`. One thing to check first — my geminicli `watcher_test.go` is still untracked and has followed me across the checkout.
+
+_**Agent (claude-opus-5 2026-08-14 15:32:16Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check whether the geminicli test file was committed
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== is the geminicli recover committed on this branch? ==="; grep -c 'recover()' pkg/providers/geminicli/watcher.go
+echo "=== is watcher_test.go tracked in any branch? ==="; git log --all --oneline -- pkg/providers/geminicli/watcher_test.go | head -3 || true
+echo "(empty above = never committed)"
+echo "=== d6fc154 contents ==="; git show --stat --oneline d6fc154 | head -10
+```
+
+```text
+=== is the geminicli recover committed on this branch? ===
+1
+=== is watcher_test.go tracked in any branch? ===
+(empty above = never committed)
+=== d6fc154 contents ===
+d6fc154 Minor fixes for Gemini.
+ specstory-cli/docs/PROVIDER-REFACTOR.md            | 34 +++++++++++++++++++++-
+ .../pkg/providers/geminicli/markdown_tools.go      | 29 ++++--------------
+ .../pkg/providers/geminicli/markdown_tools_test.go | 30 +++++++++++++++++++
+ specstory-cli/pkg/providers/geminicli/watcher.go   | 18 ++++++++++--
+ 4 files changed, 83 insertions(+), 28 deletions(-)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:32:17Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+List grokbuild files
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; ls -la pkg/providers/grokbuild/`
+
+```text
+total 352
+drwxr-xr-x  18 sean  staff    576 Aug 14 11:31 .
+drwxr-xr-x  13 sean  staff    416 Aug 14 11:31 ..
+-rw-r--r--   1 sean  staff   9981 Aug 14 11:31 agent_session_test.go
+-rw-r--r--   1 sean  staff  16700 Aug 14 11:31 agent_session.go
+-rw-r--r--   1 sean  staff   2911 Aug 14 11:31 grok_exec_test.go
+-rw-r--r--   1 sean  staff   3601 Aug 14 11:31 grok_exec.go
+-rw-r--r--   1 sean  staff   9589 Aug 14 11:31 jsonl_parser_test.go
+-rw-r--r--   1 sean  staff  21953 Aug 14 11:31 jsonl_parser.go
+-rw-r--r--   1 sean  staff  10935 Aug 14 11:31 markdown_tools_test.go
+-rw-r--r--   1 sean  staff  14296 Aug 14 11:31 markdown_tools.go
+-rw-r--r--   1 sean  staff   6740 Aug 14 11:31 path_utils.go
+-rw-r--r--   1 sean  staff   7788 Aug 14 11:31 provider_test.go
+-rw-r--r--   1 sean  staff  14918 Aug 14 11:31 provider.go
+-rw-r--r--   1 sean  staff   7948 Aug 14 11:31 reconstruct_test.go
+-rw-r--r--   1 sean  staff   6604 Aug 14 11:31 reconstruct.go
+drwxr-xr-x   7 sean  staff    224 Aug 14 11:31 testdata
+-rw-r--r--   1 sean  staff   7554 Aug 14 11:31 watcher_test.go
+-rw-r--r--   1 sean  staff  13109 Aug 14 11:31 watcher.go
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:32:24Z)**_
+
+Two things before the review. My geminicli `watcher_test.go` was **never committed** — commit `d6fc154` picked up the four tracked files but not the new untracked test, so the `recover()` fix landed on dev without its regression test. The file is still untracked and has followed the checkout here. I'll come back to that.
+
+Now the grokbuild sweep.
+
+_**Agent (claude-opus-5 2026-08-14 15:32:27Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+List grokbuild functions
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== funcs in grokbuild ==="; grep -n '^func ' pkg/providers/grokbuild/*.go | grep -v _test.go | sed -n '1,80p'
+```
+
+```text
+=== funcs in grokbuild ===
+pkg/providers/grokbuild/grok_exec.go:19:func getDefaultGrokCommand() string {
+pkg/providers/grokbuild/grok_exec.go:29:func parseGrokCommand(customCommand string) (string, []string) {
+pkg/providers/grokbuild/grok_exec.go:45:func ensureResumeArgs(args []string, resumeSessionID string) []string {
+pkg/providers/grokbuild/grok_exec.go:75:func ExecuteGrok(customCommand string, resumeSessionID string) error {
+pkg/providers/grokbuild/agent_session.go:27:func GenerateAgentSession(session *GrokSession, workspaceRoot string) (*SessionData, error) {
+pkg/providers/grokbuild/agent_session.go:77:func buildExchanges(session *GrokSession, workspaceRoot string) []Exchange {
+pkg/providers/grokbuild/agent_session.go:206:func ensureExchange(current *Exchange, fallbackTime string) *Exchange {
+pkg/providers/grokbuild/agent_session.go:215:func assistantModel(session *GrokSession) string {
+pkg/providers/grokbuild/agent_session.go:227:func backfillTodoText(input map[string]any, seen map[string]string) {
+pkg/providers/grokbuild/agent_session.go:252:func collectToolResults(records []GrokRecord) map[string]string {
+pkg/providers/grokbuild/agent_session.go:265:func buildToolMessage(session *GrokSession, record *GrokRecord, call *GrokToolCall, results map[string]string, workspaceRoot string) Message {
+pkg/providers/grokbuild/agent_session.go:310:func buildBackendToolMessage(session *GrokSession, record *GrokRecord) Message {
+pkg/providers/grokbuild/agent_session.go:394:func (s *GrokSession) subagentFor(args map[string]any) *GrokSubagentMeta {
+pkg/providers/grokbuild/agent_session.go:413:func attachUsage(exchanges []Exchange, usageByPrompt map[string]*GrokUsage, promptForExchange []string) {
+pkg/providers/grokbuild/agent_session.go:448:func classifyGrokTool(name, grokKind string) string {
+pkg/providers/grokbuild/agent_session.go:488:func extractPathHints(name string, args map[string]any, workspaceRoot string) []string {
+pkg/providers/grokbuild/agent_session.go:527:func (i *sessionIndex) userTimeForPrompt(promptIndex int) string {
+pkg/providers/grokbuild/agent_session.go:536:func (i *sessionIndex) userTimeAtOrdinal(n int) string {
+pkg/providers/grokbuild/agent_session.go:549:func (i *sessionIndex) agentTimeAt(n int) string {
+pkg/providers/grokbuild/agent_session.go:558:func (i *sessionIndex) agentPromptAt(n int) string {
+pkg/providers/grokbuild/agent_session.go:566:func (i *sessionIndex) thoughtTimeAt(n int) string {
+pkg/providers/grokbuild/markdown_tools.go:24:func formatToolAsMarkdown(tool *ToolInfo) string {
+pkg/providers/grokbuild/markdown_tools.go:54:func buildToolSummary(tool *ToolInfo) string {
+pkg/providers/grokbuild/markdown_tools.go:102:func formatToolBody(tool *ToolInfo) string {
+pkg/providers/grokbuild/markdown_tools.go:132:func formatToolResult(tool *ToolInfo) string {
+pkg/providers/grokbuild/markdown_tools.go:184:func formatWebSearchBody(input map[string]any) string {
+pkg/providers/grokbuild/markdown_tools.go:201:func formatOpenPageBody(input map[string]any) string {
+pkg/providers/grokbuild/markdown_tools.go:217:func formatXSearchBody(input map[string]any) string {
+pkg/providers/grokbuild/markdown_tools.go:239:func formatShellBody(input map[string]any) string {
+pkg/providers/grokbuild/markdown_tools.go:256:func formatWriteBody(input map[string]any) string {
+pkg/providers/grokbuild/markdown_tools.go:275:func formatSearchReplaceBody(input map[string]any) string {
+pkg/providers/grokbuild/markdown_tools.go:307:func formatTodoBody(input map[string]any) string {
+pkg/providers/grokbuild/markdown_tools.go:340:func todoStatusSymbol(status string) string {
+pkg/providers/grokbuild/markdown_tools.go:354:func formatSubagentBody(input map[string]any) string {
+pkg/providers/grokbuild/markdown_tools.go:368:func formatUseToolBody(input map[string]any) string {
+pkg/providers/grokbuild/markdown_tools.go:384:func formatPromptBody(input map[string]any) string {
+pkg/providers/grokbuild/markdown_tools.go:392:func formatGenericBody(input map[string]any) string {
+pkg/providers/grokbuild/markdown_tools.go:403:func fenceIfMultiline(text string) string {
+pkg/providers/grokbuild/markdown_tools.go:410:func addResultPrefix(content string) string {
+pkg/providers/grokbuild/markdown_tools.go:419:func isErrorOutput(output map[string]any) bool {
+pkg/providers/grokbuild/markdown_tools.go:428:func outputText(output map[string]any) string {
+pkg/providers/grokbuild/markdown_tools.go:440:func stringArg(args map[string]any, key string) string {
+pkg/providers/grokbuild/markdown_tools.go:462:func languageFromPath(path string) string {
+pkg/providers/grokbuild/markdown_tools.go:474:func truncate(text string, limit int) string {
+pkg/providers/grokbuild/markdown_tools.go:488:func looksLikeJSON(text string) bool {
+pkg/providers/grokbuild/jsonl_parser.go:184:func (s *GrokSession) IsSubagent() bool {
+pkg/providers/grokbuild/jsonl_parser.go:190:func ParseSessionDir(dir string) (*GrokSession, error) {
+pkg/providers/grokbuild/jsonl_parser.go:250:func readSummary(path string) (*GrokSummary, error) {
+pkg/providers/grokbuild/jsonl_parser.go:270:func readChatHistory(path string) ([]GrokRecord, error) {
+pkg/providers/grokbuild/jsonl_parser.go:280:func readChatHistoryCapped(path string, maxLine int) ([]GrokRecord, error) {
+pkg/providers/grokbuild/jsonl_parser.go:324:func newSessionIndex() *sessionIndex {
+pkg/providers/grokbuild/jsonl_parser.go:338:func buildSessionIndex(dir string) *sessionIndex {
+pkg/providers/grokbuild/jsonl_parser.go:463:func forEachJSONLine(path string, fn func(raw []byte)) {
+pkg/providers/grokbuild/jsonl_parser.go:471:func forEachJSONLineCapped(path string, maxLine int, fn func(raw []byte)) {
+pkg/providers/grokbuild/jsonl_parser.go:494:func readSubagentMeta(dir string) map[string]*GrokSubagentMeta {
+pkg/providers/grokbuild/jsonl_parser.go:524:func FindSessions(groupDir string) ([]*GrokSession, error) {
+pkg/providers/grokbuild/jsonl_parser.go:562:func (r *GrokRecord) UserQuery() (string, bool) {
+pkg/providers/grokbuild/jsonl_parser.go:579:func (r *GrokRecord) TextContent() string {
+pkg/providers/grokbuild/jsonl_parser.go:614:func (r *GrokRecord) ThoughtContent() string {
+pkg/providers/grokbuild/jsonl_parser.go:629:func (t *GrokToolCall) Args() map[string]any {
+pkg/providers/grokbuild/jsonl_parser.go:642:func (s *GrokSession) FirstUserQuery() string {
+pkg/providers/grokbuild/jsonl_parser.go:652:func isoFromMillis(millis, seconds int64) string {
+pkg/providers/grokbuild/jsonl_parser.go:665:func normalizeTime(value string) string {
+pkg/providers/grokbuild/jsonl_parser.go:677:func intFrom(v any) int {
+pkg/providers/grokbuild/path_utils.go:37:func (e *GrokPathError) Error() string {
+pkg/providers/grokbuild/path_utils.go:45:func GetGrokHome() (string, error) {
+pkg/providers/grokbuild/path_utils.go:57:func GetGrokSessionsDir() (string, error) {
+pkg/providers/grokbuild/path_utils.go:74:func DecodeCwdDirname(groupDir string) (string, bool) {
+pkg/providers/grokbuild/path_utils.go:96:func looksAbsolute(p string) bool {
+pkg/providers/grokbuild/path_utils.go:111:func ResolveGrokProjectDir(projectPath string) (string, error) {
+pkg/providers/grokbuild/path_utils.go:176:func defaultProjectPath(projectPath string) (string, error) {
+pkg/providers/grokbuild/path_utils.go:189:func canonical(p string) string {
+pkg/providers/grokbuild/path_utils.go:199:func ListGrokProjectCwds() ([]string, error) {
+pkg/providers/grokbuild/provider.go:32:func NewProvider() *Provider {
+pkg/providers/grokbuild/provider.go:36:func (p *Provider) Name() string {
+pkg/providers/grokbuild/provider.go:40:func (p *Provider) Check(customCommand string) spi.CheckResult {
+pkg/providers/grokbuild/provider.go:98:func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
+pkg/providers/grokbuild/provider.go:119:func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
+pkg/providers/grokbuild/provider.go:148:func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
+pkg/providers/grokbuild/provider.go:185:func (p *Provider) GetAgentChatSessionByPath(nativePath string, originCwd string, debugRaw bool) (*spi.AgentChatSession, error) {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:32:29Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check grokbuild against refactor patterns
+
+````bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== spi.* usage ==="; grep -rho 'spi\.[A-Za-z]*' pkg/providers/grokbuild/*.go | grep -v _test.go | sort | uniq -c | sort -rn | head -25
+echo; echo "=== hardcoded fences ==="; grep -n '```' pkg/providers/grokbuild/*.go | grep -v _test.go
+echo; echo "=== analytics ==="; grep -n 'analytics\.' pkg/providers/grokbuild/*.go | grep -v _test.go
+echo; echo "=== recover() ==="; grep -n 'recover()' pkg/providers/grokbuild/*.go
+````
+
+```text
+=== spi.* usage ===
+  13 spi.AgentChatSession
+  10 spi.CodeFence
+   5 spi.GlobalSessionRef
+   4 spi.SessionMetadata
+   4 spi.CheckResult
+   3 spi.ReconstructOptions
+   2 spi.ReconstructedSession
+   2 spi.GenerateFilenameFromUserMessage
+   1 spi.SplitCommandLine
+   1 spi.ScanSessionsInParallel
+   1 spi.ScanReporter
+   1 spi.ResumedSessionTitle
+   1 spi.Provider
+   1 spi.ProgressEnumerator
+   1 spi.ProgressCallback
+   1 spi.PrepareTurns
+   1 spi.PathSessionReader
+   1 spi.NormalizePath
+   1 spi.GetDebugDir
+   1 spi.GetCanonicalPath
+   1 spi.GenerateReadableName
+   1 spi.ExtractShellPathHints
+
+=== hardcoded fences ===
+
+=== analytics ===
+pkg/providers/grokbuild/provider.go:47:		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+pkg/providers/grokbuild/provider.go:69:		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+pkg/providers/grokbuild/provider.go:84:	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
+
+=== recover() ===
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:32:36Z)**_
+
+Same shape again. Let me see the rest of the function list and the key implementations.
+
+_**Agent (claude-opus-5 2026-08-14 15:32:39Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+List grokbuild provider and watcher functions
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+grep -n '^func ' pkg/providers/grokbuild/provider.go pkg/providers/grokbuild/watcher.go | grep -v _test.go | sed -n '1,40p'
+```
+
+```text
+pkg/providers/grokbuild/provider.go:32:func NewProvider() *Provider {
+pkg/providers/grokbuild/provider.go:36:func (p *Provider) Name() string {
+pkg/providers/grokbuild/provider.go:40:func (p *Provider) Check(customCommand string) spi.CheckResult {
+pkg/providers/grokbuild/provider.go:98:func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
+pkg/providers/grokbuild/provider.go:119:func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
+pkg/providers/grokbuild/provider.go:148:func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
+pkg/providers/grokbuild/provider.go:185:func (p *Provider) GetAgentChatSessionByPath(nativePath string, originCwd string, debugRaw bool) (*spi.AgentChatSession, error) {
+pkg/providers/grokbuild/provider.go:202:func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+pkg/providers/grokbuild/provider.go:218:func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+pkg/providers/grokbuild/provider.go:237:func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+pkg/providers/grokbuild/provider.go:266:func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
+pkg/providers/grokbuild/provider.go:276:func (p *Provider) ListAllAgentChatSessionsProgress(reporter *spi.ScanReporter) ([]spi.GlobalSessionRef, error) {
+pkg/providers/grokbuild/provider.go:335:func extractSessionMetadata(session *GrokSession) *spi.SessionMetadata {
+pkg/providers/grokbuild/provider.go:363:func convertToAgentChatSession(session *GrokSession, workspaceRoot string, debugRaw bool) *spi.AgentChatSession {
+pkg/providers/grokbuild/provider.go:407:func writeDebugRawFiles(session *GrokSession) error {
+pkg/providers/grokbuild/provider.go:426:func classifyGrokCheckError(err error) string {
+pkg/providers/grokbuild/provider.go:443:func buildGrokCheckErrorMessage(errorType string, grokCmd string, isCustom bool, stderr string) string {
+pkg/providers/grokbuild/provider.go:472:func printGrokDetectionHelp(err error) {
+pkg/providers/grokbuild/watcher.go:44:func init() {
+pkg/providers/grokbuild/watcher.go:48:func SetWatcherCallback(callback func(*spi.AgentChatSession)) {
+pkg/providers/grokbuild/watcher.go:54:func SetWatcherDebugRaw(debugRaw bool) {
+pkg/providers/grokbuild/watcher.go:60:func SetWatcherWorkspaceRoot(workspaceRoot string) {
+pkg/providers/grokbuild/watcher.go:66:func getWatcherWorkspaceRoot() string {
+pkg/providers/grokbuild/watcher.go:72:func getWatcherDebugRaw() bool {
+pkg/providers/grokbuild/watcher.go:78:func StopWatcher() {
+pkg/providers/grokbuild/watcher.go:88:func WatchGrokProject(projectPath string, callback func(*spi.AgentChatSession)) error {
+pkg/providers/grokbuild/watcher.go:131:func waitForProjectDir(ctx context.Context, sessionsDir, projectPath string) (string, error) {
+pkg/providers/grokbuild/watcher.go:178:func watchSessions(ctx context.Context, groupDir string) {
+pkg/providers/grokbuild/watcher.go:270:func isTranscriptChange(event fsnotify.Event) bool {
+pkg/providers/grokbuild/watcher.go:284:func sessionDirFor(groupDir, path string) string {
+pkg/providers/grokbuild/watcher.go:302:func syncWatches(watcher *fsnotify.Watcher, groupDir string, watched map[string]bool) {
+pkg/providers/grokbuild/watcher.go:325:func desiredWatchDirs(groupDir string) map[string]bool {
+pkg/providers/grokbuild/watcher.go:374:func processSessionChange(dir string) {
+pkg/providers/grokbuild/watcher.go:399:func triggerCallback(agentSession *spi.AgentChatSession) {
+pkg/providers/grokbuild/watcher.go:410:func waitForDirectory(ctx context.Context, dir string, label string) error {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:32:39Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/grokbuild/provider.go`
+
+```text
+38	}
+39	
+40	func (p *Provider) Check(customCommand string) spi.CheckResult {
+41		cmdName, _ := parseGrokCommand(customCommand)
+42		isCustom := customCommand != ""
+43	
+44		resolvedPath, err := exec.LookPath(cmdName)
+45		if err != nil {
+46			errorMessage := buildGrokCheckErrorMessage("not_found", cmdName, isCustom, "")
+47			analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+48				"provider":       "grok",
+49				"custom_command": isCustom,
+50				"command_path":   cmdName,
+51				"error_type":     "not_found",
+52				"error_message":  err.Error(),
+53			})
+54			return spi.CheckResult{
+55				Success:      false,
+56				Location:     "",
+57				ErrorMessage: errorMessage,
+58			}
+59		}
+60	
+61		cmd := exec.Command(cmdName, "--version")
+62		var stdout, stderr bytes.Buffer
+63		cmd.Stdout = &stdout
+64		cmd.Stderr = &stderr
+65	
+66		if err := cmd.Run(); err != nil {
+67			errorType := classifyGrokCheckError(err)
+68			errorMessage := buildGrokCheckErrorMessage(errorType, resolvedPath, isCustom, strings.TrimSpace(stderr.String()))
+69			analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+70				"provider":       "grok",
+71				"custom_command": isCustom,
+72				"command_path":   resolvedPath,
+73				"error_type":     errorType,
+74				"error_message":  err.Error(),
+75			})
+76			return spi.CheckResult{
+77				Success:      false,
+78				Location:     resolvedPath,
+79				ErrorMessage: errorMessage,
+80			}
+81		}
+82	
+83		version := strings.TrimSpace(stdout.String())
+84		analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
+85			"provider":       "grok",
+86			"custom_command": isCustom,
+87			"command_path":   resolvedPath,
+88			"version":        version,
+89		})
+90	
+91		return spi.CheckResult{
+92			Success:  true,
+93			Version:  version,
+94			Location: resolvedPath,
+95		}
+96	}
+97
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:32:44Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/grokbuild/provider.go`
+
+```text
+424	}
+425	
+426	func classifyGrokCheckError(err error) string {
+427		var execErr *exec.Error
+428		var pathErr *os.PathError
+429	
+430		switch {
+431		case errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound:
+432			return "not_found"
+433		case errors.As(err, &pathErr):
+434			if errors.Is(pathErr.Err, os.ErrPermission) {
+435				return "permission_denied"
+436			}
+437		case errors.Is(err, os.ErrPermission):
+438			return "permission_denied"
+439		}
+440		return "version_failed"
+441	}
+442	
+443	func buildGrokCheckErrorMessage(errorType string, grokCmd string, isCustom bool, stderr string) string {
+444		var b strings.Builder
+445	
+446		switch errorType {
+447		case "not_found":
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:32:45Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/grokbuild/markdown_tools.go`
+
+```text
+336		}
+337		return builder.String()
+338	}
+339	
+340	func todoStatusSymbol(status string) string {
+341		switch status {
+342		case "completed":
+343			return "x"
+344		case "in_progress":
+345			return "⚡"
+346		default:
+347			return " "
+348		}
+349	}
+350	
+351	// formatSubagentBody shows what the subagent was asked to do. The subagent's own
+352	// transcript is a separate session that the provider deliberately skips, so this
+353	// prompt plus the folded-in result is the only record of the delegated work.
+354	func formatSubagentBody(input map[string]any) string {
+355		var builder strings.Builder
+356		if subagentType := stringArg(input, "subagent_type"); subagentType != "" {
+357			fmt.Fprintf(&builder, "Subagent: `%s`\n\n", subagentType)
+358		}
+359		if prompt := stringArg(input, "prompt"); prompt != "" {
+360			builder.WriteString(prompt)
+361		}
+362		return builder.String()
+363	}
+364	
+365	// formatUseToolBody unwraps an MCP call. Grok dispatches every MCP tool through
+366	// use_tool, so without unwrapping, the most common tool in a session renders as
+367	// an opaque envelope.
+368	func formatUseToolBody(input map[string]any) string {
+369		var builder strings.Builder
+370		if name := stringArg(input, "tool_name"); name != "" {
+371			fmt.Fprintf(&builder, "MCP tool: `%s`", name)
+372		}
+373		if toolInput, ok := input["tool_input"]; ok {
+374			if encoded, err := json.MarshalIndent(toolInput, "", "  "); err == nil && string(encoded) != "{}" {
+375				if builder.Len() > 0 {
+376					builder.WriteString("\n\n")
+377				}
+378				builder.WriteString(spi.CodeFence("json", string(encoded)))
+379			}
+380		}
+381		return builder.String()
+382	}
+383	
+384	func formatPromptBody(input map[string]any) string {
+385		prompt := stringArg(input, "prompt")
+386		if prompt == "" {
+387			return formatGenericBody(input)
+388		}
+389		return prompt
+390	}
+391	
+392	func formatGenericBody(input map[string]any) string {
+393		if len(input) == 0 {
+394			return ""
+395		}
+396		encoded, err := json.MarshalIndent(input, "", "  ")
+397		if err != nil {
+398			return ""
+399		}
+400		return spi.CodeFence("json", string(encoded))
+401	}
+402	
+403	func fenceIfMultiline(text string) string {
+404		if strings.Contains(text, "\n") {
+405			return spi.CodeFence("text", text)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:32:52Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/grokbuild/markdown_tools.go`
+
+```text
+436	}
+437	
+438	// stringArg reads a string argument, encoding non-string values rather than
+439	// dropping them.
+440	func stringArg(args map[string]any, key string) string {
+441		if args == nil {
+442			return ""
+443		}
+444		value, ok := args[key]
+445		if !ok {
+446			return ""
+447		}
+448		switch typed := value.(type) {
+449		case string:
+450			return typed
+451		case nil:
+452			return ""
+453		default:
+454			encoded, err := json.Marshal(typed)
+455			if err != nil {
+456				return fmt.Sprint(typed)
+457			}
+458			return string(encoded)
+459		}
+460	}
+461	
+462	func languageFromPath(path string) string {
+463		if path == "" {
+464			return "text"
+465		}
+466		ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
+467		if ext == "" {
+468			return "text"
+469		}
+470		return ext
+471	}
+472	
+473	// truncate caps text at limit runes.
+474	func truncate(text string, limit int) string {
+475		if limit <= 0 {
+476			return text
+477		}
+478		runes := []rune(text)
+479		if len(runes) <= limit {
+480			return text
+481		}
+482		return string(runes[:limit]) + "\n... (truncated)"
+483	}
+484	
+485	// looksLikeJSON reports whether output should be fenced to stay readable. Some
+486	// Grok tools return a JSON document as their text result, which collapses into
+487	// an unreadable run-on if it is emitted bare.
+488	func looksLikeJSON(text string) bool {
+489		trimmed := strings.TrimSpace(text)
+490		return strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[")
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:32:53Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Read grokbuild canonical, its callers, and triggerCallback
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; sed -n '186,200p' pkg/providers/grokbuild/path_utils.go; echo "=== canonical callers ==="; grep -n 'canonical(' pkg/providers/grokbuild/*.go | grep -v 'func canonical'; echo "=== triggerCallback ==="; sed -n '396,410p' pkg/providers/grokbuild/watcher.go`
+
+```text
+// canonical resolves symlinks and filesystem casing so two spellings of the same
+// directory compare equal. Falls back to the input when the path cannot be resolved.
+func canonical(p string) string {
+	resolved, err := spi.GetCanonicalPath(p)
+	if err != nil {
+		return p
+	}
+	return resolved
+}
+
+// ListGrokProjectCwds returns the working directories of every project group in
+// the store, sorted. Used for the detection help text.
+func ListGrokProjectCwds() ([]string, error) {
+	sessionsDir, err := GetGrokSessionsDir()
+=== canonical callers ===
+pkg/providers/grokbuild/path_utils.go:133:	wanted := canonical(projectPath)
+pkg/providers/grokbuild/path_utils.go:151:		if canonical(cwd) == wanted {
+pkg/providers/grokbuild/provider_test.go:39:	groupDir := filepath.Join(home, "sessions", EncodeCwdDirname(canonical(projectPath)))
+pkg/providers/grokbuild/reconstruct_test.go:68:	sessionDir := filepath.Join(home, "sessions", EncodeCwdDirname(canonical(project)), result.SessionID)
+pkg/providers/grokbuild/reconstruct_test.go:182:	groupDir := filepath.Join(home, "sessions", EncodeCwdDirname(canonical(project)))
+=== triggerCallback ===
+	triggerCallback(agentSession)
+}
+
+func triggerCallback(agentSession *spi.AgentChatSession) {
+	watcherMutex.RLock()
+	callback := watcherCallback
+	watcherMutex.RUnlock()
+
+	if callback != nil && agentSession != nil {
+		callback(agentSession)
+	}
+}
+
+// waitForDirectory blocks until a directory exists, watching its parent.
+func waitForDirectory(ctx context.Context, dir string, label string) error {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:33:17Z)**_
+
+Full picture — this is the muse set exactly, including a `canonical` path helper. Let me establish the baseline first.
+
+_**Agent (claude-opus-5 2026-08-14 15:33:24Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Baseline verification of grokbuild
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; go build ./... 2>&1|head -3; go test ./pkg/providers/grokbuild/ 2>&1|tail -3; golangci-lint run 2>&1|tail -2`
+
+```text
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/grokbuild	0.084s
+0 issues.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:33:28Z)**_
+
+Baseline green. Applying the same set, starting with `provider.go`.
+
+_**Agent (claude-opus-5 2026-08-14 15:33:28Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/grokbuild/provider.go`
+
+```text
+1	package grokbuild
+2	
+3	import (
+4		"bytes"
+5		"context"
+6		"encoding/json"
+7		"errors"
+8		"fmt"
+9		"log/slog"
+10		"os"
+11		"os/exec"
+12		"path/filepath"
+13		"strings"
+14	
+15		"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+16		"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
+17		"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+18	)
+19	
+20	// Compile-time assertions that Provider satisfies the full SPI contract plus the
+21	// optional reindex capabilities. Interface conformance is otherwise only checked
+22	// at registration, which would report the gap in the factory package instead of
+23	// here.
+24	var (
+25		_ spi.Provider           = (*Provider)(nil)
+26		_ spi.ProgressEnumerator = (*Provider)(nil)
+27		_ spi.PathSessionReader  = (*Provider)(nil)
+28	)
+29	
+30	type Provider struct{}
+31	
+32	func NewProvider() *Provider {
+33		return &Provider{}
+34	}
+35	
+36	func (p *Provider) Name() string {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:33:34Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/grokbuild/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:33:50Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/grokbuild/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:33:59Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/grokbuild/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:34:03Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find remaining permission_denied literal
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; grep -n 'case "permission_denied"' pkg/providers/grokbuild/provider.go`
+
+```text
+439:	case "permission_denied":
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:34:09Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/grokbuild/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:34:14Z)**_
+
+Now the markdown helpers, the path helper, and the watcher.
+
+_**Agent (claude-opus-5 2026-08-14 15:34:18Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Rewrite grokbuild call sites
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+perl -pi -e 's/\blanguageFromPath\(/spi.LanguageFromPath(/g; s/\bformatGenericBody\(/spi.RenderGenericJSON(/g;' pkg/providers/grokbuild/markdown_tools.go
+perl -pi -e 's/\bcanonical\(/spi.CanonicalizePathOrClean(/g;' pkg/providers/grokbuild/path_utils.go
+grep -n 'func spi\.' pkg/providers/grokbuild/*.go
+```
+
+```text
+pkg/providers/grokbuild/markdown_tools.go:392:func spi.RenderGenericJSON(input map[string]any) string {
+pkg/providers/grokbuild/markdown_tools.go:462:func spi.LanguageFromPath(path string) string {
+pkg/providers/grokbuild/path_utils.go:189:func spi.CanonicalizePathOrClean(p string) string {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:34:24Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/grokbuild/markdown_tools.go has been updated successfully. (note: the file had been modified on disk since you last read it — the edit applied cleanly, but the file contains other changes not in your context. Read it before edits that depend on surrounding content.)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:34:30Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/grokbuild/markdown_tools.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:34:36Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/grokbuild/path_utils.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:34:44Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Drop unused import and build
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+perl -0pi -e 's/\t"path\/filepath"\n//' pkg/providers/grokbuild/markdown_tools.go
+go build ./pkg/providers/grokbuild/ 2>&1 | head -8
+```
+
+```text
+(Bash completed with no output)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:34:49Z)**_
+
+The tests reference `canonical` too. Let me update those call sites.
+
+_**Agent (claude-opus-5 2026-08-14 15:34:54Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Update test call sites and vet
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+perl -pi -e 's/\bcanonical\(/spi.CanonicalizePathOrClean(/g;' pkg/providers/grokbuild/provider_test.go pkg/providers/grokbuild/reconstruct_test.go
+echo "--- do those test files import spi? ---"
+grep -c 'pkg/spi"' pkg/providers/grokbuild/provider_test.go pkg/providers/grokbuild/reconstruct_test.go
+go vet ./pkg/providers/grokbuild/ 2>&1 | head -5
+```
+
+```text
+--- do those test files import spi? ---
+pkg/providers/grokbuild/provider_test.go:0
+pkg/providers/grokbuild/reconstruct_test.go:1
+# github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/grokbuild
+# [github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/grokbuild]
+vet: pkg/providers/grokbuild/provider_test.go:39:63: undefined: spi
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:34:58Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/grokbuild/provider_test.go`
+
+```text
+1	package grokbuild
+2	
+3	import (
+4		"encoding/json"
+5		"os"
+6		"path/filepath"
+7		"strings"
+8		"testing"
+9	)
+10	
+11	func TestProviderName(t *testing.T) {
+12		if got := NewProvider().Name(); got != "Grok Build" {
+13			t.Errorf("Name() = %q, want Grok Build", got)
+14		}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:35:03Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/grokbuild/provider_test.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:35:09Z)**_
+
+Now the watcher `recover()`.
+
+_**Agent (claude-opus-5 2026-08-14 15:35:13Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/grokbuild/watcher.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:35:21Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build, vet and test grokbuild
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; gofmt -w pkg/providers/grokbuild/; go build ./... 2>&1|head -5; echo "=== build ok ==="; go vet ./pkg/providers/grokbuild/ 2>&1|head -5; echo "=== vet ok ==="; go test ./pkg/providers/grokbuild/ 2>&1|tail -20`
+
+```text
+=== build ok ===
+=== vet ok ===
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/grokbuild	0.081s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:35:29Z)**_
+
+All green — including the tests that build directory names through the path helper, which was the one spot with real risk since grok's `canonical` feeds `EncodeCwdDirname`, not just comparisons. Let me verify the behavior changes and check test coverage.
+
+_**Agent (claude-opus-5 2026-08-14 15:35:31Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check grok test coverage and watcher test file
+
+````bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== grok tests asserting language tags ==="; grep -n '```py\|```md\|```text\|```go\|```json\|languageFromPath' pkg/providers/grokbuild/markdown_tools_test.go | head
+echo; echo "=== existing watcher_test.go tests ==="; grep -n '^func Test' pkg/providers/grokbuild/watcher_test.go
+````
+
+````text
+=== grok tests asserting language tags ===
+21:	if !strings.Contains(md, "```go\npackage main") {
+45:	if !strings.Contains(md, "Result:\n```text\n2 passed") {
+297:	if !strings.Contains(md, "```json") || !strings.Contains(md, `"cron": "0 9 * * *"`) {
+
+=== existing watcher_test.go tests ===
+31:func TestDesiredWatchDirs_BoundsTheWatchSet(t *testing.T) {
+62:func TestDesiredWatchDirs_IgnoresNonSessionEntries(t *testing.T) {
+98:func TestProcessSessionChange_PublishesARealSession(t *testing.T) {
+111:func TestProcessSessionChange_SkipsSubagents(t *testing.T) {
+124:func TestProcessSessionChange_WaitsForMetadata(t *testing.T) {
+144:func TestProcessSessionChange_IgnoresEmptyTranscript(t *testing.T) {
+159:func TestSessionDirFor(t *testing.T) {
+188:func TestIsTranscriptChange(t *testing.T) {
+````
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:35:38Z)**_
+
+Same as qwen — the only language assertion uses a `.go` path, which is unchanged either way. Let me verify the real behavior and then add the regression test to the existing `watcher_test.go`.
+
+_**Agent (claude-opus-5 2026-08-14 15:35:44Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Verify grok language wiring end to end
+
+````bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+cat > pkg/providers/grokbuild/zz_verify_test.go << 'EOF'
+package grokbuild
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestZZLanguageWiring(t *testing.T) {
+	for _, tc := range []struct{ path, want string }{
+		{"README.md", "```markdown\n"},
+		{"src/calc.py", "```python\n"},
+		{"Makefile", "```\n"},
+	} {
+		tool := &ToolInfo{
+			Name:   "read_file",
+			Input:  map[string]any{"target_file": tc.path},
+			Output: map[string]any{"output": "body"},
+		}
+		md := formatToolAsMarkdown(tool)
+		if !strings.Contains(md, tc.want) {
+			t.Errorf("%s: want %q, got:\n%s", tc.path, tc.want, md)
+		} else {
+			t.Logf("%-14s -> %q OK", tc.path, strings.TrimSuffix(tc.want, "\n"))
+		}
+	}
+}
+EOF
+go test ./pkg/providers/grokbuild/ -run TestZZLanguageWiring -v 2>&1 | grep -E 'OK|PASS|FAIL|want'; rm pkg/providers/grokbuild/zz_verify_test.go
+````
+
+````text
+    zz_verify_test.go:23: README.md      -> "```markdown" OK
+    zz_verify_test.go:23: src/calc.py    -> "```python" OK
+    zz_verify_test.go:23: Makefile       -> "```" OK
+--- PASS: TestZZLanguageWiring (0.00s)
+PASS
+````
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:35:49Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check watcher_test.go imports
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; sed -n '1,14p' pkg/providers/grokbuild/watcher_test.go`
+
+```text
+package grokbuild
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/fsnotify/fsnotify"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+)
+
+// makeSessionDir creates a session directory with a transcript whose mtime is
+// set, so the watcher's recency ordering can be tested.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:36:02Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Add and run the recover regression tests
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; cat >> pkg/providers/grokbuild/watcher_test.go << 'EOF'
+
+// A panic in the consumer's callback must not escape delivery: it would unwind
+// the fsnotify event goroutine and take the process down over one bad session.
+func TestTriggerCallback_ContainsConsumerPanic(t *testing.T) {
+	var called bool
+	SetWatcherCallback(func(*spi.AgentChatSession) {
+		called = true
+		panic("consumer blew up")
+	})
+	t.Cleanup(func() { SetWatcherCallback(nil) })
+
+	triggerCallback(&spi.AgentChatSession{SessionID: "s-1"})
+
+	if !called {
+		t.Fatal("callback was never invoked")
+	}
+}
+
+// Delivery is skipped rather than panicking when either side is missing.
+func TestTriggerCallback_NilSafe(t *testing.T) {
+	SetWatcherCallback(nil)
+	triggerCallback(&spi.AgentChatSession{SessionID: "s-1"})
+
+	var called bool
+	SetWatcherCallback(func(*spi.AgentChatSession) { called = true })
+	t.Cleanup(func() { SetWatcherCallback(nil) })
+
+	triggerCallback(nil)
+
+	if called {
+		t.Error("callback invoked for a nil session")
+	}
+}
+EOF
+gofmt -w pkg/providers/grokbuild/ && go test ./pkg/providers/grokbuild/ -run TestTriggerCallback -v 2>&1 | grep -E 'RUN|PASS|FAIL|panicked'
+```
+
+```text
+=== RUN   TestTriggerCallback_ContainsConsumerPanic
+2026/08/14 11:36:02 ERROR grok: session callback panicked sessionId=s-1 panic="consumer blew up"
+--- PASS: TestTriggerCallback_ContainsConsumerPanic (0.00s)
+=== RUN   TestTriggerCallback_NilSafe
+--- PASS: TestTriggerCallback_NilSafe (0.00s)
+PASS
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:36:06Z)**_
+
+Now the doc. Let me check what section numbers exist on this branch.
+
+_**Agent (claude-opus-5 2026-08-14 15:36:08Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check doc state on the grok branch
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; grep -n '^## ' docs/PROVIDER-REFACTOR.md | tail -4; echo "--- refs to other new providers ---"; grep -c 'musecode\|qwencode' docs/PROVIDER-REFACTOR.md; echo "--- §9 line ---"; grep -n 'provider packages now share' docs/PROVIDER-REFACTOR.md`
+
+```text
+163:## 7. Decisions taken
+176:## 8. What actually landed (Phases 1 and 2)
+206:## 9. What actually landed (Phase 3, items 1 and 3)
+242:## 10. geminicli: fence bug and missing panic recovery
+--- refs to other new providers ---
+0
+--- §9 line ---
+208:Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. All ten provider packages now share one language map and one check-error classifier.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:36:20Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/PROVIDER-REFACTOR.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:36:53Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Document grokbuild changes and run final verification
+
+````bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; cat >> docs/PROVIDER-REFACTOR.md << 'EOF'
+
+---
+
+## 11. Follow-on: bringing `grokbuild` in line
+
+`grokbuild` was developed on its own branch alongside this refactor and merged after it, so it reintroduced five of the consolidated helpers. It was already clean on the worst issue — it used `spi.CodeFence` at all ten fence sites, so it never had the §2.2 bug — and its exact-match tool dispatch needs no name normalization.
+
+> Other new-provider branches carry their own version of this section. When they land, fold the per-provider sections into one and renumber.
+
+Applied, using the same decisions recorded in §7:
+
+| Removed from `grokbuild` | Replaced with | Effect |
+|---|---|---|
+| `formatGenericBody` | `spi.RenderGenericJSON` | none — was byte-identical |
+| `canonical` | `spi.CanonicalizePathOrClean` | trims and falls back through `filepath.Abs` (below) |
+| `classifyGrokCheckError` | `spi.ClassifyCheckError` | `error_type` values change (below) |
+| `languageFromPath` | `spi.LanguageFromPath` | fence tags change (below) |
+| three inline `analytics.TrackEvent` calls | `analytics.CheckAttempt` + `TrackCheckSuccess`/`TrackCheckFailure` | adds `resolved_path`, `version_flag`, and `stderr` (which grok captured but never reported) |
+
+`classifyGrokCheckError` was the pre-fix shape carrying both §2.3 and §2.4: a `PathError` wrapping `ErrNotExist` was `version_failed` and is now `not_found`, and plain errors move from `version_failed` to `unknown`. `buildGrokCheckErrorMessage` has a `default:` arm, so no remediation text changed.
+
+`languageFromPath` was byte-identical to the geminicli variant deleted in item 1, so grok picks up the same changes, verified through the real render path: `README.md` → ` ```markdown `, `src/calc.py` → ` ```python `, extensionless → an untagged fence (was ` ```text `). As with the other new providers, the package's own tests did not cover this — its only language-tagged assertion uses a `.go` path, which is unchanged in both implementations.
+
+### The `canonical` swap needed more care here than elsewhere
+
+In the other providers this helper only ever fed a comparison. In `grokbuild` its result is also **encoded into an on-disk directory name** — `EncodeCwdDirname(canonical(projectPath))` — so a normalization change could in principle move the directory the provider looks for. It is safe because both sides of every comparison pass through the same helper (`path_utils.go` resolves with `canonical(DecodeCwdDirname(dir)) == canonical(projectPath)`), and `spi.CanonicalizePathOrClean` is idempotent for paths that exist. The package's own tests construct their fixture directories through the same call, so they exercise the encode/decode round trip and would have failed had it shifted; they pass unchanged.
+
+Two fixes outside the dedup:
+
+- **`triggerCallback` had no panic recovery** (`watcher.go`). Same singleton-watcher gap described in §10: a panic in the consumer would unwind the fsnotify event goroutine and take the process down. Delivery stays synchronous with a local `defer recover()` logging the session id, locked in by two new cases in the existing `watcher_test.go`.
+- **An empty `--version` reported success with a blank version.** Now substitutes `"unknown"`, matching deepseektui and antigravitycli.
+
+Left alone deliberately: `stringArg` (single-key, with explicit `nil` handling and a `json.Marshal` fallback where `spi.StringValue` returns `""`), `truncate` (duplicates `spi.CapRunes` with a different visible marker), and `todoStatusSymbol` (symbols already match `spi.TodoSymbol`; switching is free but belongs with the skipped item 2).
+EOF
+gofmt -l . | head -3; go build ./... 2>&1|head -3; go test ./... 2>&1 | grep -v '^ok\|no test files' | head -5; echo "tests ok"; golangci-lint run 2>&1|tail -2; go build -o specstory . && echo "binary builds"; echo "--- status ---"; git status --short
+````
+
+```text
+tests ok
+0 issues.
+binary builds
+--- status ---
+ M docs/PROVIDER-REFACTOR.md
+ M pkg/providers/grokbuild/markdown_tools.go
+ M pkg/providers/grokbuild/path_utils.go
+ M pkg/providers/grokbuild/provider.go
+ M pkg/providers/grokbuild/provider_test.go
+ M pkg/providers/grokbuild/reconstruct_test.go
+ M pkg/providers/grokbuild/watcher.go
+ M pkg/providers/grokbuild/watcher_test.go
+?? pkg/providers/geminicli/watcher_test.go
+?? ../specstory-mac/
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:37:08Z)**_
+
+Done on `grok-build-provider`. `go build ./...`, `go test ./...`, `golangci-lint run` all clean; binary builds.
+
+## Applied to grokbuild
+
+The full muse set — five replacements plus the two fixes:
+
+| Removed | Replaced with |
+|---|---|
+| `formatGenericBody` | `spi.RenderGenericJSON` (was byte-identical) |
+| `canonical` | `spi.CanonicalizePathOrClean` |
+| `classifyGrokCheckError` | `spi.ClassifyCheckError` |
+| `languageFromPath` | `spi.LanguageFromPath` |
+| three inline `TrackEvent` calls | `analytics.CheckAttempt` + the two helpers |
+
+Plus `recover()` in `triggerCallback` and `"unknown"` for an empty `--version`. grokbuild was already clean on fences — ten `spi.CodeFence` sites, no hardcoded ones. I verified the language change through the real render path: `README.md` → ```` ```markdown ````, `src/calc.py` → ```` ```python ````, extensionless → untagged.
+
+## The one place this differed from muse and qwen
+
+grok's `canonical` isn't only used for comparison — its result is **encoded into an on-disk directory name** via `EncodeCwdDirname(canonical(projectPath))`. A normalization change could in principle move the directory the provider searches, which is not true anywhere else this helper appears. It's safe because both sides of every comparison run through the same helper, and `CanonicalizePathOrClean` is idempotent for paths that exist. What made me confident rather than hopeful: grokbuild's own tests build their fixture directories through that same call, so they exercise the encode/decode round trip and would have failed if it shifted. They pass unchanged. I wrote that reasoning into the doc so nobody has to re-derive it.
+
+The swap also reached into two test files (`provider_test.go`, `reconstruct_test.go`) that call `canonical` directly to construct expected paths; `provider_test.go` needed the `spi` import added.
+
+The recover regression tests went into the existing `watcher_test.go`, so no new file was needed this time.
+
+## Something you should act on
+
+**My geminicli `watcher_test.go` never got committed.** Commit `d6fc154 "Minor fixes for Gemini."` on dev picked up the four tracked files — the doc, `markdown_tools.go`, `markdown_tools_test.go`, `watcher.go` — but not the new untracked test. So the `recover()` fix is on dev **without its regression test**, and the file is still untracked, currently riding along on this branch (`?? pkg/providers/geminicli/watcher_test.go`). It'll keep following you across checkouts until it's added or deleted. Worth a `git add` on dev.
+
+## Doc
+
+Added §11 for grokbuild, and corrected §9's "all ten provider packages" line. Section numbering across the branches now stands at: dev has §10 (geminicli), muse and qwen each add their own §10, and this branch adds §11 — so the merge will need renumbering, as expected. Each section carries a note saying to fold them together.
+
+---
+
+_**User (2026-08-14 15:48:52Z)**_
+
+OK, back on muse... can you resolve the doc conflict
+
+---
+
+_**Agent (claude-opus-5 2026-08-14 15:49:03Z)**_
+
+Let me look at the actual state before touching anything.
+
+_**Agent (claude-opus-5 2026-08-14 15:49:05Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check branch and merge state
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; echo "branch: $(git branch --show-current)"; echo "--- status ---"; git status --short | head -20; echo "--- merge in progress? ---"; ls -la .git/MERGE_HEAD 2>/dev/null && echo "MERGE IN PROGRESS" || echo "no merge head"; echo "--- commits ---"; git log --oneline -4`
+
+```text
+branch: muse-provider
+--- status ---
+UU docs/PROVIDER-REFACTOR.md
+M  pkg/providers/geminicli/markdown_tools.go
+M  pkg/providers/geminicli/markdown_tools_test.go
+M  pkg/providers/geminicli/watcher.go
+A  pkg/providers/geminicli/watcher_test.go
+?? ../specstory-mac/
+--- merge in progress? ---
+no merge head
+--- commits ---
+f5e2862 Code cleanup.
+4ab9c25 Merge branch 'dev' into muse-provider
+b0a34ce SpecStory histories.
+89a254e Provider refactor to remove duplicate code.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:49:13Z)**_
+
+Real conflict (`UU`). Let me see what operation is in progress and load the project's merge-conflict workflow.
+
+_**Agent (claude-opus-5 2026-08-14 15:49:16Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Identify in-progress git operation and conflict markers
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; for f in MERGE_HEAD REBASE_HEAD CHERRY_PICK_HEAD rebase-merge rebase-apply; do [ -e ".git/$f" ] && echo "PRESENT: $f"; done; echo "---"; git status | head -12; echo "--- conflict markers ---"; grep -c '^<<<<<<<\|^=======\|^>>>>>>>' docs/PROVIDER-REFACTOR.md`
+
+```text
+---
+On branch muse-provider
+Your branch is up to date with 'origin/muse-provider'.
+
+You have unmerged paths.
+  (fix conflicts and run "git commit")
+  (use "git merge --abort" to abort the merge)
+
+Changes to be committed:
+	modified:   pkg/providers/geminicli/markdown_tools.go
+	modified:   pkg/providers/geminicli/markdown_tools_test.go
+	modified:   pkg/providers/geminicli/watcher.go
+	new file:   pkg/providers/geminicli/watcher_test.go
+--- conflict markers ---
+3
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:49:20Z)**_
+
+<tool-use data-tool-type="generic" data-tool-name="Skill"><details>
+<summary>Tool use: **Skill**</summary>
+
+**Input:**
+
+- skill: `merge-conflict`
+
+</details></tool-use>
+
+---
+
+_**User (2026-08-14 15:49:22Z)**_
+
+## Context
+
+- Current git status: On branch muse-provider
+Your branch is up to date with 'origin/muse-provider'.
+
+You have unmerged paths.
+  (fix conflicts and run "git commit")
+  (use "git merge --abort" to abort the merge)
+
+Changes to be committed:
+	modified:   pkg/providers/geminicli/markdown_tools.go
+	modified:   pkg/providers/geminicli/markdown_tools_test.go
+	modified:   pkg/providers/geminicli/watcher.go
+	new file:   pkg/providers/geminicli/watcher_test.go
+
+Unmerged paths:
+  (use "git add <file>..." to mark resolution)
+	both modified:   docs/PROVIDER-REFACTOR.md
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	../specstory-mac/
+- Current git diff: diff --cc specstory-cli/docs/PROVIDER-REFACTOR.md
+index f87f7d5,a506d57..0000000
+--- a/specstory-cli/docs/PROVIDER-REFACTOR.md
++++ b/specstory-cli/docs/PROVIDER-REFACTOR.md
+@@@ -239,27 -239,32 +239,59 @@@ Telemetry changes: deepseektui, droidcl
+  
+  ---
+  
+++<<<<<<< HEAD
+ +## 10. Follow-on: bringing `musecode` in line
+ +
+ +`musecode` was written in parallel with this refactor and merged after it, so it reintroduced five of the consolidated helpers. It was already clean on the worst issue — it used `spi.CodeFence` at all seven fence sites, so it never had the §2.2 hardcoded-fence bug — and its exact-match tool dispatch needs no name normalization.
+ +
+ +Applied, using the same decisions recorded in §7:
+ +
+ +| Removed from `musecode` | Replaced with | Effect |
+ +|---|---|---|
+ +| `formatGenericBodyFromInput` | `spi.RenderGenericJSON` | none — was behaviorally identical |
+ +| `canonicalPath` | `spi.CanonicalizePathOrClean` | trims before canonicalizing and falls back through `filepath.Abs`, so a relative workspace root now compares equal to its absolute form |
+ +| `classifyMuseCheckError` | `spi.ClassifyCheckError` | `error_type` values change (below) |
+ +| `languageFromPath` | `spi.LanguageFromPath` | fence tags change (below) |
+ +| three inline `analytics.TrackEvent` calls | `analytics.CheckAttempt` + `TrackCheckSuccess`/`TrackCheckFailure` | adds `resolved_path`, `version_flag`, and `stderr` (which muse captured but never reported) |
+ +
+ +`classifyMuseCheckError` was the pre-fix shape, carrying both §2.3 and §2.4. Verified deltas against the shared classifier: a `PathError` wrapping `ErrNotExist` was `version_failed`, now `not_found` (the practical bug — a binary that vanishes between `LookPath` and `Run`); a plain error and an unrelated `PathError` were `version_failed`, now `unknown`; `nil` was `version_failed`, now `""`. The §2.3 arm needs a contrived multi-`%w` chain to trigger, so it was latent rather than user-visible. `buildMuseCheckErrorMessage` has a `default:` arm, so no remediation text changed.
+ +
+ +`languageFromPath` was byte-identical to the geminicli variant deleted in item 1, so muse picks up the same changes: `Makefile` and `""` go from ` ```text ` to an untagged fence, and the aliases apply (`.md` → markdown, `.py` → python, `.yml` → yaml). `TestLanguageFromPath` moved to `pkg/spi`; one fence assertion in `markdown_tools_test.go` moved from ` ````md ` to ` ````markdown `.
+ +
+ +Two fixes outside the dedup:
+ +
+ +- **`triggerCallback` had no panic recovery** (`watcher.go`). A panic in the consumer's callback would unwind the fsnotify event goroutine and take the process down over one bad session. Delivery stays synchronous — ordering matters and `spi.DispatchSession` would have made it async — so the fix is a local `defer recover()`, locked in by `TestTriggerCallback_ContainsConsumerPanic`. **geminicli still has this gap**, with the same singleton-watcher shape; it is not muse-specific and remains open.
+ +- **An empty `--version` reported success with a blank version.** Now substitutes `"unknown"`, matching deepseektui and antigravitycli. (cursorcli and codexcli instead treat empty output as a `no_output` failure; muse follows the former.)
+ +
+ +Left alone deliberately: `inputAsString` (single-key, with nil handling for muse's JSON nulls and a `json.Marshal` fallback where `spi.StringValue` returns `""`), `diffFromFindReplace` (same logic as `spi.FormatDiffBlock` but unfenced, because muse truncates before fencing — deduping needs `FormatDiffBlock` split into a `DiffLines` core), `truncate` (duplicates `spi.CapRunes` with a different visible marker), and `todoStatusSymbol` (symbols already match `spi.TodoSymbol`; switching is free but belongs with the skipped item 2).
+++=======
++ ## 10. geminicli: fence bug and missing panic recovery
++ 
++ Two loose ends are now closed: the hardcoded fences from §2.2, and a missing panic recovery in the watcher's session delivery — the latter found while reviewing a new provider against this refactor on another branch, not by the original sweep.
++ 
++ ### The fence bug was five sites, not two
++ 
++ §2.2 recorded two hardcoded fences. Grepping the file for ``` turned up **five** distinct constructions, three of which the original sweep missed because they build the fence across several `WriteString` calls rather than in one `fmt.Sprintf`:
++ 
++ | Site | Was | Now |
++ |---|---|---|
++ | `formatOutputText` | `fmt.Sprintf("```text\n%s\n```", …)` | `spi.CodeFence("text", …)` |
++ | `formatShellBodyFromInput` | three `WriteString` calls around ` ```bash ` | `spi.CodeFence("bash", command)` |
++ | `formatWriteFileBodyFromInput` | five `WriteString` calls around a dynamic tag | `spi.CodeFence(spi.LanguageFromPath(path), content)` |
++ | `formatReplaceBodyFromInput` | three `WriteString` calls around ` ```diff ` | `spi.CodeFence("diff", truncate(newString, 2000))` |
++ | `formatGenericBodyFromInput` | `fmt.Sprintf("```json\n%s\n```", …)` | deleted; callers use `spi.RenderGenericJSON` |
++ 
++ The last one is the payoff case: with the fence fixed, that function was byte-identical to `spi.RenderGenericJSON`, so fixing the bug and removing the duplication were the same edit. geminicli was the last provider still carrying a private copy of it.
++ 
++ Every site is exercised by `TestFencedSitesOutrunEmbeddedBackticks`, which feeds each one content containing its own ` ```go ` fence and asserts both that the wrapper widened to four backticks and that the inner content passed through unaltered. Before the fix, all five would emit a three-backtick wrapper that the embedded fence closes early, truncating the rendered document from that point on.
++ 
++ **Lesson for future sweeps:** grepping for ``` catches `Sprintf`-style fences but not ones assembled across `WriteString` calls. The reliable check is "which call sites do *not* go through `spi.CodeFence`", not "which lines contain backticks".
++ 
++ ### Missing panic recovery
++ 
++ `triggerCallback` invoked the consumer's callback with no recovery, so a panic would unwind the fsnotify event goroutine and take the process down over one malformed session. Delivery stays synchronous — ordering matters, and `spi.DispatchSession` would have made it async — so the fix is a local `defer recover()` that logs the session id. Locked in by a new `watcher_test.go` covering both the panic containment and the nil-argument guards, which the restructure touched.
++ 
++ This gap is inherent to the singleton-watcher shape (package-global callback behind a mutex, invoked straight from the fsnotify handler) rather than to geminicli specifically. Providers that deliver through `spi.DispatchSession` get containment for free; any provider written on the singleton pattern needs this `recover()` explicitly.
++ 
++ With this, no provider is known to deliver sessions without panic containment, and no provider hardcodes a code fence.
+++>>>>>>> dev
+
+## Your task
+
+Examine the current merge conflict using git commands.
+
+Review each issue conflict by conflict and explain what caused each conflict. Explain what each side of the conflict was attempting to accomplish with their change. 
+
+Importantly, make a suggestion for the best resolution for each conflict, but only resolve them in discussion with me.
+
+Use file names and line numbers to reference the changes, but also sequentially number every observation so we can easily reference them.
+
+
+---
+
+_**Agent (claude-opus-5 2026-08-14 15:49:37Z)**_
+
+Let me examine the auto-merged parts of the file too, since the interesting problems here are likely outside the marker region.
+
+_**Agent (claude-opus-5 2026-08-14 15:49:41Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Locate conflict region and auto-merged cross-references
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== conflict region line numbers ==="; grep -n '^<<<<<<<\|^=======\|^>>>>>>>' docs/PROVIDER-REFACTOR.md
+echo; echo "=== §2.2 line (auto-merged) ==="; grep -n 'Fixed — see §' docs/PROVIDER-REFACTOR.md
+echo; echo "=== §9 closing line (auto-merged) ==="; grep -n 'provider packages now share' docs/PROVIDER-REFACTOR.md
+echo; echo "=== all section headers ==="; grep -n '^## ' docs/PROVIDER-REFACTOR.md
+```
+
+````text
+=== conflict region line numbers ===
+242:<<<<<<< HEAD
+267:=======
+297:>>>>>>> dev
+
+=== §2.2 line (auto-merged) ===
+44:2. **geminicli hardcoded fences** (`pkg/providers/geminicli/markdown_tools.go:225` and `:278`): emits literal ` ```diff ` / ` ```json ` instead of `spi.CodeFence`, so content containing a triple-backtick run breaks out of the fence and swallows the rest of the document. Every other provider uses `spi.CodeFence` for exactly this reason. **(Fixed — see §10. The real count was five sites, not the two recorded here.)**
+
+=== §9 closing line (auto-merged) ===
+
+=== all section headers ===
+8:## 1. Key findings
+39:## 2. Latent bugs surfaced by the research
+50:## 3. Where a shared home can live (import-graph constraints)
+93:## 4. The plan, phased by risk
+141:## 5. What deliberately stays provider-local
+150:## 6. Verification
+163:## 7. Decisions taken
+176:## 8. What actually landed (Phases 1 and 2)
+206:## 9. What actually landed (Phase 3, items 1 and 3)
+243:## 10. Follow-on: bringing `musecode` in line
+268:## 10. geminicli: fence bug and missing panic recovery
+````
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:49:47Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Compare auto-merged lines against each side
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== §9 opening line, as auto-merged (line 208) ==="; sed -n '208p' docs/PROVIDER-REFACTOR.md
+echo; echo "=== what each side had for that line ==="
+echo "-- HEAD (muse-provider):"; git show HEAD:./docs/PROVIDER-REFACTOR.md | sed -n '208p'
+echo "-- dev:"; git show dev:./docs/PROVIDER-REFACTOR.md | sed -n '208p'
+echo; echo "=== §2.2 on each side ==="
+echo "-- HEAD:"; git show HEAD:./docs/PROVIDER-REFACTOR.md | sed -n '44p' | cut -c1-120
+echo "-- dev:"; git show dev:./docs/PROVIDER-REFACTOR.md | sed -n '44p' | cut -c1-120
+```
+
+````text
+=== §9 opening line, as auto-merged (line 208) ===
+Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. Every provider package now shares one language map and one check-error classifier — ten at the time of this phase, plus `musecode` (§10).
+
+=== what each side had for that line ===
+-- HEAD (muse-provider):
+Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. Every provider package now shares one language map and one check-error classifier — ten at the time of this phase, plus `musecode` (§10).
+-- dev:
+Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. All ten provider packages now share one language map and one check-error classifier.
+
+=== §2.2 on each side ===
+-- HEAD:
+2. **geminicli hardcoded fences** (`pkg/providers/geminicli/markdown_tools.go:225` and `:278`): emits literal ` ```diff 
+-- dev:
+2. **geminicli hardcoded fences** (`pkg/providers/geminicli/markdown_tools.go:225` and `:278`): emits literal ` ```diff
+````
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:50:10Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find stale cross-references and claims
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== stale claim inside the HEAD/muse block ==="; grep -n 'geminicli still has this gap' docs/PROVIDER-REFACTOR.md
+echo "=== dev block closing claim ==="; grep -n 'no provider is known to deliver' docs/PROVIDER-REFACTOR.md
+echo "=== other §-references anywhere in the file ==="; grep -n '§10\|§11' docs/PROVIDER-REFACTOR.md
+```
+
+````text
+=== stale claim inside the HEAD/muse block ===
+263:- **`triggerCallback` had no panic recovery** (`watcher.go`). A panic in the consumer's callback would unwind the fsnotify event goroutine and take the process down over one bad session. Delivery stays synchronous — ordering matters and `spi.DispatchSession` would have made it async — so the fix is a local `defer recover()`, locked in by `TestTriggerCallback_ContainsConsumerPanic`. **geminicli still has this gap**, with the same singleton-watcher shape; it is not muse-specific and remains open.
+=== dev block closing claim ===
+296:With this, no provider is known to deliver sessions without panic containment, and no provider hardcodes a code fence.
+=== other §-references anywhere in the file ===
+44:2. **geminicli hardcoded fences** (`pkg/providers/geminicli/markdown_tools.go:225` and `:278`): emits literal ` ```diff ` / ` ```json ` instead of `spi.CodeFence`, so content containing a triple-backtick run breaks out of the fence and swallows the rest of the document. Every other provider uses `spi.CodeFence` for exactly this reason. **(Fixed — see §10. The real count was five sites, not the two recorded here.)**
+208:Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. Every provider package now shares one language map and one check-error classifier — ten at the time of this phase, plus `musecode` (§10).
+````
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:50:35Z)**_
+
+I've analysed it. There's **one** textual conflict, but it comes with **three** silent problems that git merged cleanly and got wrong. Nothing is resolved yet — here's the picture.
+
+## The conflict itself
+
+**(1) `docs/PROVIDER-REFACTOR.md:242–297` — both sides appended a different `## 10.` at the same spot.**
+
+`HEAD` (muse-provider, lines 243–266) added *"§10. Follow-on: bringing `musecode` in line"*. `dev` (lines 268–296) added *"§10. geminicli: fence bug and missing panic recovery"*. Neither edited the other's text; they're independent sections that collided purely because both were appended to the end of the same file and claimed the same number. This is exactly the collision I predicted and you said was fine to let happen.
+
+**Recommendation:** keep both, in full. They document different work and neither supersedes the other. Order them **geminicli as §10, musecode as §11** — see (2) for why that ordering is worth more than it looks.
+
+## What git auto-merged and got wrong
+
+These produced no markers, so they'd ship silently if we only fixed the marker region.
+
+**(2) `docs/PROVIDER-REFACTOR.md:44` — the §2.2 back-reference now points at the wrong section.**
+
+dev's annotation reads *"(Fixed — see §10. The real count was five sites…)"*, meaning the geminicli section. In the merged file, §10 is currently musecode, so that pointer lands on the wrong content. If we adopt the ordering in (1), this line needs **no edit at all** — geminicli stays §10 and the reference stays true. That's the tiebreaker for the ordering.
+
+**(3) `docs/PROVIDER-REFACTOR.md:208` — §9's closing line silently took the muse side and dropped dev's.**
+
+HEAD's version won: *"…ten at the time of this phase, plus `musecode` (§10)."* dev's plainer *"All ten provider packages…"* was discarded. The sentence is right in substance — musecode is the eleventh provider — but its `(§10)` pointer breaks under the ordering in (1).
+
+**Recommendation:** keep the muse wording, change `(§10)` to `(§11)`.
+
+**(4) `docs/PROVIDER-REFACTOR.md:263` — the muse section asserts something the merge makes false.**
+
+It says: *"**geminicli still has this gap**, with the same singleton-watcher shape; it is not muse-specific and **remains open**."* That was true when I wrote it on the muse branch. dev then fixed it, and the fixing section now sits directly below in the same document — so as merged, the file contradicts itself on the same page. This is a semantic conflict git cannot detect, and to my mind it's the most damaging item here: a reader would take "remains open" at face value.
+
+**Recommendation:** rewrite that clause to point at the fix — something like *"geminicli had the same gap from the same singleton-watcher shape; it is not muse-specific, and was closed separately (§10)."*
+
+**(5) `docs/PROVIDER-REFACTOR.md:296` — dev's closing claim, worth re-checking rather than assuming.**
+
+*"With this, no provider is known to deliver sessions without panic containment, and no provider hardcodes a code fence."* I checked this against the merged state: musecode arrives with its own `recover()` and uses `spi.CodeFence` throughout, so the claim still holds. **No change needed** — flagging it only because a sentence like that goes stale the moment a new provider lands, and this merge was exactly such a moment.
+
+## Proposed resolution, in one piece
+
+Keep both sections; geminicli becomes §10 (unchanged), musecode becomes §11 (renumbered heading only); edit line 208's `(§10)` → `(§11)`; rewrite the stale clause at line 263. Net effect: no prose is lost from either side, one cross-reference is fixed, one false statement is corrected, and line 44 needs no touching.
+
+Two things I'd flag before you decide:
+
+- **Ordering is a real choice, not just bookkeeping.** I'm recommending geminicli-first because it keeps the §2.2 reference valid and because that section closes out a bug from the original research, which sits closer to the core narrative than a new-provider follow-on. If you'd rather keep chronological order (muse work happened first), that's defensible too — it just means editing line 44 as well.
+- **Two more of these are queued.** The qwen and grok branches each carry their own follow-on section, so this same collision will recur twice. Once we settle the ordering convention here, I can apply it consistently. It may be worth collapsing all the per-provider follow-ons into a single "§N. Follow-on: new providers brought in line" with a subsection each, which would end the collisions for good — but that's a bigger edit than resolving this merge, so I'd do it as a separate pass.
+
+Tell me which way you want it and I'll make the edits. I won't run any git commands to complete the merge — that's yours.
+
+---
+
+_**User (2026-08-14 15:52:07Z)**_
+
+your order is fine.
+
+---
+
+_**Agent (claude-opus-5 2026-08-14 15:52:17Z)**_
+
+Making the edits: geminicli §10 first (unchanged), musecode §11 after, plus the two fixes.
+
+_**Agent (claude-opus-5 2026-08-14 15:52:19Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./docs/PROVIDER-REFACTOR.md`
+
+`````text
+236	### The one thing that made item 3 risky
+237	
+238	`codexcli` was using the classifier's return value as **control flow**, not just telemetry. `codex_cli_exec.go` tries `--version` then `-V`, and `if classifyCheckError(err) != "unknown" || idx == len(flags)-1` decides whether to stop or try the next flag — an unclassified failure being the only kind another flag might fix. Renaming the residual bucket would have silently collapsed that retry to a single attempt. The literal is now `spi.CheckErrorUnknown`, so the coupling is explicit and a future rename moves both sides together.
+239	
+240	---
+241	
+242	<<<<<<< HEAD
+243	## 10. Follow-on: bringing `musecode` in line
+244	
+245	`musecode` was written in parallel with this refactor and merged after it, so it reintroduced five of the consolidated helpers. It was already clean on the worst issue — it used `spi.CodeFence` at all seven fence sites, so it never had the §2.2 hardcoded-fence bug — and its exact-match tool dispatch needs no name normalization.
+246	
+247	Applied, using the same decisions recorded in §7:
+248	
+249	| Removed from `musecode` | Replaced with | Effect |
+250	|---|---|---|
+251	| `formatGenericBodyFromInput` | `spi.RenderGenericJSON` | none — was behaviorally identical |
+252	| `canonicalPath` | `spi.CanonicalizePathOrClean` | trims before canonicalizing and falls back through `filepath.Abs`, so a relative workspace root now compares equal to its absolute form |
+253	| `classifyMuseCheckError` | `spi.ClassifyCheckError` | `error_type` values change (below) |
+254	| `languageFromPath` | `spi.LanguageFromPath` | fence tags change (below) |
+255	| three inline `analytics.TrackEvent` calls | `analytics.CheckAttempt` + `TrackCheckSuccess`/`TrackCheckFailure` | adds `resolved_path`, `version_flag`, and `stderr` (which muse captured but never reported) |
+256	
+257	`classifyMuseCheckError` was the pre-fix shape, carrying both §2.3 and §2.4. Verified deltas against the shared classifier: a `PathError` wrapping `ErrNotExist` was `version_failed`, now `not_found` (the practical bug — a binary that vanishes between `LookPath` and `Run`); a plain error and an unrelated `PathError` were `version_failed`, now `unknown`; `nil` was `version_failed`, now `""`. The §2.3 arm needs a contrived multi-`%w` chain to trigger, so it was latent rather than user-visible. `buildMuseCheckErrorMessage` has a `default:` arm, so no remediation text changed.
+258	
+259	`languageFromPath` was byte-identical to the geminicli variant deleted in item 1, so muse picks up the same changes: `Makefile` and `""` go from ` ```text ` to an untagged fence, and the aliases apply (`.md` → markdown, `.py` → python, `.yml` → yaml). `TestLanguageFromPath` moved to `pkg/spi`; one fence assertion in `markdown_tools_test.go` moved from ` ````md ` to ` ````markdown `.
+260	
+261	Two fixes outside the dedup:
+262	
+263	- **`triggerCallback` had no panic recovery** (`watcher.go`). A panic in the consumer's callback would unwind the fsnotify event goroutine and take the process down over one bad session. Delivery stays synchronous — ordering matters and `spi.DispatchSession` would have made it async — so the fix is a local `defer recover()`, locked in by `TestTriggerCallback_ContainsConsumerPanic`. **geminicli still has this gap**, with the same singleton-watcher shape; it is not muse-specific and remains open.
+264	- **An empty `--version` reported success with a blank version.** Now substitutes `"unknown"`, matching deepseektui and antigravitycli. (cursorcli and codexcli instead treat empty output as a `no_output` failure; muse follows the former.)
+265	
+266	Left alone deliberately: `inputAsString` (single-key, with nil handling for muse's JSON nulls and a `json.Marshal` fallback where `spi.StringValue` returns `""`), `diffFromFindReplace` (same logic as `spi.FormatDiffBlock` but unfenced, because muse truncates before fencing — deduping needs `FormatDiffBlock` split into a `DiffLines` core), `truncate` (duplicates `spi.CapRunes` with a different visible marker), and `todoStatusSymbol` (symbols already match `spi.TodoSymbol`; switching is free but belongs with the skipped item 2).
+267	=======
+268	## 10. geminicli: fence bug and missing panic recovery
+269	
+270	Two loose ends are now closed: the hardcoded fences from §2.2, and a missing panic recovery in the watcher's session delivery — the latter found while reviewing a new provider against this refactor on another branch, not by the original sweep.
+271
+`````
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:52:43Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Write"><details>
+<summary>Tool use: **Write**</summary>
+
+```python
+"""Resolve the PROVIDER-REFACTOR.md conflict: keep both sections, dev's first."""
+import re
+import sys
+
+path = sys.argv[1]
+src = open(path).read()
+
+m = re.search(
+    r'^<<<<<<< HEAD\n(?P<ours>.*?)^=======\n(?P<theirs>.*?)^>>>>>>> dev\n',
+    src, re.M | re.S)
+if not m:
+    sys.exit("conflict markers not found")
+
+ours = m.group('ours')     # muse-provider: the musecode section
+theirs = m.group('theirs')  # dev: the geminicli section
+
+# dev's geminicli section keeps §10 so the §2.2 back-reference stays valid;
+# musecode follows as §11.
+ours = ours.replace(
+    '## 10. Follow-on: bringing `musecode` in line',
+    '## 11. Follow-on: bringing `musecode` in line', 1)
+
+# dev closed the geminicli gap that this section recorded as still open.
+stale = ('**geminicli still has this gap**, with the same singleton-watcher '
+         'shape; it is not muse-specific and remains open.')
+fixed = ('geminicli had the same gap from the same singleton-watcher shape; '
+         'it is not muse-specific, and was closed separately (§10).')
+if stale not in ours:
+    sys.exit("stale geminicli claim not found — check by hand")
+ours = ours.replace(stale, fixed, 1)
+
+resolved = theirs.rstrip('\n') + '\n\n---\n\n' + ours.rstrip('\n') + '\n'
+src = src[:m.start()] + resolved + src[m.end():]
+
+# §9's pointer to the musecode section moves with it.
+src = src.replace('plus `musecode` (§10).', 'plus `musecode` (§11).', 1)
+
+open(path, 'w').write(src)
+print("resolved")
+
+```
+
+```text
+File created successfully at: /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/resolve.py (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:52:51Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Resolve the conflict and verify references
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+python3 /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/resolve.py docs/PROVIDER-REFACTOR.md
+echo "=== markers remaining ==="; grep -c '^<<<<<<<\|^=======\|^>>>>>>>' docs/PROVIDER-REFACTOR.md || echo 0
+echo "=== section headers ==="; grep -n '^## ' docs/PROVIDER-REFACTOR.md
+echo "=== all § cross-references ==="; grep -n '§10\|§11' docs/PROVIDER-REFACTOR.md | cut -c1-160
+```
+
+````text
+resolved
+=== markers remaining ===
+0
+0
+=== section headers ===
+8:## 1. Key findings
+39:## 2. Latent bugs surfaced by the research
+50:## 3. Where a shared home can live (import-graph constraints)
+93:## 4. The plan, phased by risk
+141:## 5. What deliberately stays provider-local
+150:## 6. Verification
+163:## 7. Decisions taken
+176:## 8. What actually landed (Phases 1 and 2)
+206:## 9. What actually landed (Phase 3, items 1 and 3)
+242:## 10. geminicli: fence bug and missing panic recovery
+274:## 11. Follow-on: bringing `musecode` in line
+=== all § cross-references ===
+44:2. **geminicli hardcoded fences** (`pkg/providers/geminicli/markdown_tools.go:225` and `:278`): emits literal ` ```diff ` / ` ```json ` instead of `spi.CodeF
+208:Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. Every provider package now shares on
+294:- **`triggerCallback` had no panic recovery** (`watcher.go`). A panic in the consumer's callback would unwind the fsnotify event goroutine and take the proc
+````
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:52:59Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Verify each of the five observations is correctly resolved
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== (2) line 44 back-ref target ==="; sed -n '44p' docs/PROVIDER-REFACTOR.md | grep -o 'Fixed — see §[0-9]*'
+echo "=== (3) line 208 pointer ==="; sed -n '208p' docs/PROVIDER-REFACTOR.md | grep -o 'plus `musecode` (§[0-9]*)'
+echo "=== (4) former stale claim ==="; sed -n '294p' docs/PROVIDER-REFACTOR.md | grep -o 'geminicli had the same gap.*(§[0-9]*)\.'
+echo "=== (5) dev closing claim intact ==="; grep -c 'no provider is known to deliver sessions without panic containment' docs/PROVIDER-REFACTOR.md
+echo "=== seam between the two sections ==="; sed -n '268,276p' docs/PROVIDER-REFACTOR.md
+```
+
+```text
+=== (2) line 44 back-ref target ===
+Fixed — see §10
+=== (3) line 208 pointer ===
+plus `musecode` (§11)
+=== (4) former stale claim ===
+geminicli had the same gap from the same singleton-watcher shape; it is not muse-specific, and was closed separately (§10).
+=== (5) dev closing claim intact ===
+1
+=== seam between the two sections ===
+This gap is inherent to the singleton-watcher shape (package-global callback behind a mutex, invoked straight from the fsnotify handler) rather than to geminicli specifically. Providers that deliver through `spi.DispatchSession` get containment for free; any provider written on the singleton pattern needs this `recover()` explicitly.
+
+With this, no provider is known to deliver sessions without panic containment, and no provider hardcodes a code fence.
+
+---
+
+## 11. Follow-on: bringing `musecode` in line
+
+`musecode` was written in parallel with this refactor and merged after it, so it reintroduced five of the consolidated helpers. It was already clean on the worst issue — it used `spi.CodeFence` at all seven fence sites, so it never had the §2.2 hardcoded-fence bug — and its exact-match tool dispatch needs no name normalization.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:53:06Z)**_
+
+All five items resolved. Now verifying nothing was lost and that the merged *code* from both sides actually works together.
+
+_**Agent (claude-opus-5 2026-08-14 15:53:14Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Confirm both sides' content survived
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== content preserved from both sides? ==="
+for phrase in "The fence bug was five sites, not two" "Lesson for future sweeps" "Left alone deliberately" "diffFromFindReplace" "TestFencedSitesOutrunEmbeddedBackticks" "musecode" ; do
+  printf "%-45s %s\n" "$phrase" "$(grep -c "$phrase" docs/PROVIDER-REFACTOR.md)"
+done
+echo; echo "=== line counts: resolved vs sum of both sides ==="
+git show HEAD:./docs/PROVIDER-REFACTOR.md | wc -l | xargs echo "HEAD:"
+git show dev:./docs/PROVIDER-REFACTOR.md  | wc -l | xargs echo "dev: "
+wc -l < docs/PROVIDER-REFACTOR.md | xargs echo "resolved:"
+```
+
+```text
+=== content preserved from both sides? ===
+The fence bug was five sites, not two         1
+Lesson for future sweeps                      1
+Left alone deliberately                       1
+diffFromFindReplace                           1
+TestFencedSitesOutrunEmbeddedBackticks        1
+musecode                                      4
+
+=== line counts: resolved vs sum of both sides ===
+HEAD: 265
+dev:  270
+resolved: 297
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:53:25Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Verify merged code from both sides builds and passes
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; go build ./... 2>&1|head -3; go test ./... 2>&1 | grep -v '^ok\|no test files' | head -8; echo "=== tests done ==="; golangci-lint run 2>&1|tail -2; go build -o specstory . && echo "binary builds"`
+
+```text
+=== tests done ===
+0 issues.
+binary builds
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:53:36Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run the recover and fence tests from both merged sides
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; go test ./pkg/providers/geminicli/ ./pkg/providers/musecode/ -run 'TestTriggerCallback|TestFencedSites|TestGenericFallback' -v 2>&1 | grep -E '^(=== RUN|--- PASS|--- FAIL|ok|FAIL)' | head -20; echo "--- git state (yours to complete) ---"; git status --short`
+
+```text
+=== RUN   TestFencedSitesOutrunEmbeddedBackticks
+=== RUN   TestFencedSitesOutrunEmbeddedBackticks/shell_command
+=== RUN   TestFencedSitesOutrunEmbeddedBackticks/write_file_content
+=== RUN   TestFencedSitesOutrunEmbeddedBackticks/replace_new_string
+=== RUN   TestFencedSitesOutrunEmbeddedBackticks/multi-line_result
+=== RUN   TestFencedSitesOutrunEmbeddedBackticks/generic_JSON_fallback
+--- PASS: TestFencedSitesOutrunEmbeddedBackticks (0.00s)
+=== RUN   TestTriggerCallback_ContainsConsumerPanic
+--- PASS: TestTriggerCallback_ContainsConsumerPanic (0.00s)
+=== RUN   TestTriggerCallback_NilSafe
+--- PASS: TestTriggerCallback_NilSafe (0.00s)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli	0.024s
+=== RUN   TestTriggerCallback_ContainsConsumerPanic
+--- PASS: TestTriggerCallback_ContainsConsumerPanic (0.00s)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode	0.025s
+--- git state (yours to complete) ---
+UU docs/PROVIDER-REFACTOR.md
+M  pkg/providers/geminicli/markdown_tools.go
+M  pkg/providers/geminicli/markdown_tools_test.go
+M  pkg/providers/geminicli/watcher.go
+A  pkg/providers/geminicli/watcher_test.go
+?? ../specstory-mac/
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 15:53:51Z)**_
+
+Conflict resolved. `docs/PROVIDER-REFACTOR.md` has no markers left, and both sides' content is fully intact.
+
+## What I changed
+
+**(1)** Kept both sections. geminicli is now **§10** (`:242`), musecode is **§11** (`:274`), with a `---` separator between them matching the rest of the document.
+
+**(2)** Line 44's back-reference needed no edit — it still reads *"Fixed — see §10"* and now correctly points at the geminicli section. That was the payoff of this ordering.
+
+**(3)** Line 208 now reads *"plus `musecode` (§11)"*, following the section to its new number. The muse-side wording survived; dev's plainer sentence was the one git had already discarded, and it was the less accurate of the two now that there's an eleventh provider.
+
+**(4)** The false claim is gone. Line 294 previously insisted *"**geminicli still has this gap** … remains open"* immediately above the section documenting its fix. It now reads: *"geminicli had the same gap from the same singleton-watcher shape; it is not muse-specific, and was closed separately (§10)."*
+
+**(5)** dev's closing claim needed no change — I re-verified it against the merged state rather than assuming, and musecode does ship with both panic containment and `spi.CodeFence` throughout, so *"no provider is known to deliver sessions without panic containment"* still holds.
+
+## Verification
+
+Line arithmetic confirms nothing was dropped: the common ancestor ran to ~239 lines, HEAD added 26 and dev added 31, and the resolved file is 297 — the sum plus the separator I inserted. Distinctive phrases from both sides are all present exactly once.
+
+More importantly, the merge brings both sides' *code* together for the first time, so I checked that too rather than just the document: `go build ./...`, `go test ./...` and `golangci-lint run` are clean, the binary builds, and the geminicli fence tests plus both providers' `triggerCallback` panic-containment tests pass side by side.
+
+## Left for you
+
+The file is resolved on disk but still shows as `UU` — staging and committing are yours. Note `pkg/providers/geminicli/watcher_test.go` is now staged as `A`, so the test that went missing from the dev commit is travelling with this merge and will land properly.
+
+The qwen and grok branches will hit this same collision. The convention is now set — geminicli stays §10, each new provider follow-on takes the next number — so qwen and grok become §12 and §13 as they land. If that starts feeling unwieldy, the tidier end state is folding all the per-provider follow-ons into one section with a subsection each, which I'd do as a separate pass rather than inside a merge.
+
+---
+
+_**User (2026-08-14 19:45:21Z)**_
+
+Windows tests are passing. Notes from Copilot (may or may not be something we should action):
+
+[Image #2]
+
+---
+
+_**User (2026-08-14 19:45:21Z)**_
+
+[Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-08-14-15.44.52.png]
+
+---
+
+_**Agent (claude-opus-5 2026-08-14 19:45:45Z)**_
+
+Let me read both code paths and check them against how the sibling providers handle the same situations.
+
+_**Agent (claude-opus-5 2026-08-14 19:45:47Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check branch and merge state
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; echo "branch: $(git branch --show-current)"; git status --short | head -5`
+
+```text
+branch: muse-provider
+?? ../specstory-mac/
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:45:47Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/provider.go`
+
+```text
+185	func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
+186		projectPath, err := defaultProjectPath(projectPath)
+187		if err != nil {
+188			return nil, err
+189		}
+190	
+191		// The store is keyed by session id (the id IS the directory name), so a
+192		// glob resolves the path without reading any transcript.
+193		directPath, err := findMuseSessionPathByID(sessionID)
+194		if err != nil {
+195			return nil, err
+196		}
+197		if directPath != "" {
+198			if chatSession := parseAndConvert(directPath, projectPath, debugRaw); chatSession != nil {
+199				return chatSession, nil
+200			}
+201		}
+202	
+203		// Fall back to a scan: the id may name a session recorded under a layout
+204		// the glob does not cover.
+205		files, err := findMuseSessions(projectPath)
+206		if err != nil {
+207			return nil, err
+208		}
+209		for _, file := range files {
+210			if file.SessionID == sessionID {
+211				return parseAndConvert(file.Path, projectPath, debugRaw), nil
+212			}
+213		}
+214	
+215		return nil, nil
+216	}
+217	
+218	// GetAgentChatSessionByPath parses a single session directly from its known
+219	// native file path, skipping by-id discovery. Used by reindex (which already
+220	// holds NativePath from enumeration) to keep resolving N sessions O(N).
+221	func (p *Provider) GetAgentChatSessionByPath(nativePath string, originCwd string, debugRaw bool) (*spi.AgentChatSession, error) {
+222		session, err := ParseSessionFile(nativePath)
+223		if err != nil {
+224			return nil, err
+225		}
+226		if len(session.Events) == 0 {
+227			return nil, nil
+228		}
+229		return convertToAgentChatSession(session, originCwd, debugRaw), nil
+230	}
+231	
+232	// parseAndConvert parses one transcript and converts it, logging and returning
+233	// nil for files that are unreadable or hold no conversation yet.
+234	func parseAndConvert(filePath string, workspaceRoot string, debugRaw bool) *spi.AgentChatSession {
+235		session, err := ParseSessionFile(filePath)
+236		if err != nil {
+237			slog.Warn("parseAndConvert: Failed to parse Muse session file, skipping",
+238				"file", filePath, "error", err)
+239			return nil
+240		}
+241		if len(session.Events) == 0 {
+242			slog.Debug("parseAndConvert: Session file has no conversation events", "file", filePath)
+243			return nil
+244		}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:45:57Z)**_
+
+The merge is committed. Finding #1 looks real — note the fallback path at `:205` *does* filter by project while the fast path at `:197` doesn't. Let me confirm what the conversion does with `projectPath`.
+
+_**Agent (claude-opus-5 2026-08-14 19:45:59Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/provider.go`
+
+```text
+244		}
+245		return convertToAgentChatSession(session, workspaceRoot, debugRaw)
+246	}
+247	
+248	// convertToAgentChatSession converts a MuseSession to the provider-agnostic
+249	// AgentChatSession format. Used by both sync mode and watch mode.
+250	func convertToAgentChatSession(session *MuseSession, workspaceRoot string, debugRaw bool) *spi.AgentChatSession {
+251		sessionData, err := GenerateAgentSession(session, workspaceRoot)
+252		if err != nil {
+253			slog.Error("convertToAgentChatSession: failed to generate session data",
+254				"sessionId", session.ID,
+255				"error", err)
+256			return nil
+257		}
+258	
+259		slug := museSessionSlug(session)
+260		sessionData.Slug = slug
+261	
+262		// Raw data: the original JSONL transcript
+263		rawData, err := os.ReadFile(session.FilePath)
+264		if err != nil {
+265			slog.Debug("convertToAgentChatSession: failed to read raw transcript",
+266				"path", session.FilePath, "error", err)
+267			rawData = nil
+268		}
+269	
+270		if debugRaw {
+271			if err := writeDebugRawFiles(session); err != nil {
+272				slog.Debug("convertToAgentChatSession: failed to write debug files",
+273					"sessionId", session.ID,
+274					"error", err)
+275			}
+276		}
+277	
+278		return &spi.AgentChatSession{
+279			SessionID:   session.ID,
+280			CreatedAt:   session.StartTime,
+281			Slug:        slug,
+282			SessionData: sessionData,
+283			RawData:     string(rawData),
+284		}
+285	}
+286	
+287	// museSessionSlug derives the filename-safe slug from the prompt that opened
+288	// the session.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:46:04Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Compare project scoping across providers
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== how siblings scope GetAgentChatSession by project ==="
+for p in deepseektui antigravitycli qwencode grokbuild geminicli; do
+  f=pkg/providers/$p/provider.go
+  [ -f "$f" ] || continue
+  echo "--- $p ---"
+  awk '/func \(p \*Provider\) GetAgentChatSession\(/,/^}/' "$f" | grep -n 'projectPath\|Match\|Mentions\|return nil, nil' | head -6
+done
+```
+
+```text
+=== how siblings scope GetAgentChatSession by project ===
+--- deepseektui ---
+1:func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
+6:	if strings.TrimSpace(projectPath) != "" && !sessionMentionsProject(path, projectPath) {
+7:		return nil, nil
+13:	return convertToAgentSession(session, projectPath, debugRaw), nil
+--- antigravitycli ---
+1:func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
+7:		return nil, nil // no transcript on disk — not found, not an error
+17:	if strings.TrimSpace(projectPath) != "" && sessionWorkspaceKnown(session) && !sessionMatchesProject(session, projectPath) {
+18:		return nil, nil
+20:	return convertToAgentSession(session, projectPath, debugRaw), nil
+--- geminicli ---
+1:func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
+2:	projectDir, err := ResolveGeminiProjectDir(projectPath)
+15:			return convertToAgentChatSession(s, projectPath, debugRaw), nil
+19:	return nil, nil
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:46:24Z)**_
+
+Finding #1 is confirmed and worse than it looks. Let me now examine the parser for finding #2.
+
+_**Agent (claude-opus-5 2026-08-14 19:46:24Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/jsonl_parser.go`
+
+```text
+196	// Records whose stream id differs from the session's own are dropped. The
+197	// session id is established by the first record carrying a stream id (the
+198	// metadata record written at session open) and falls back to the directory
+199	// name, which is the session id in Muse's store layout.
+200	func ParseSessionFile(filePath string) (*MuseSession, error) {
+201		slog.Debug("ParseSessionFile: Reading Muse session file", "path", filePath)
+202	
+203		file, err := os.Open(filePath)
+204		if err != nil {
+205			return nil, fmt.Errorf("failed to open file: %w", err)
+206		}
+207		defer func() { _ = file.Close() }() // Read-only file; close errors not actionable
+208	
+209		// Use bufio.Reader instead of Scanner to handle arbitrarily large lines
+210		reader := bufio.NewReader(file)
+211	
+212		// The store lays sessions out as <session-id>/session.jsonl, so the
+213		// directory name is the authoritative session id when it is present.
+214		// Settling the id up front makes parsing immune to record order, which
+215		// matters for a transcript truncated mid-subagent.
+216		session := &MuseSession{FilePath: filePath, ID: storeSessionIDFromPath(filePath)}
+217		lineNumber := 0
+218		foreignStreamRecords := 0
+219		// Records read before the session's own stream is known (only reachable
+220		// when the path did not settle the id).
+221		var pending []MuseRecord
+222	
+223		for {
+224			line, err := reader.ReadString('\n')
+225			line = strings.TrimSuffix(line, "\n")
+226	
+227			if err != nil && err != io.EOF {
+228				return nil, fmt.Errorf("error reading line %d: %w", lineNumber+1, err)
+229			}
+230	
+231			atEOF := err == io.EOF
+232			hasContent := len(strings.TrimSpace(line)) > 0
+233	
+234			if hasContent || !atEOF {
+235				lineNumber++
+236			}
+237	
+238			if !hasContent {
+239				if atEOF {
+240					break
+241				}
+242				continue
+243			}
+244	
+245			if len(line) > maxReasonableLineSize {
+246				return nil, fmt.Errorf("line %d exceeds reasonable size limit (%d MB): refusing to process potentially malformed file",
+247					lineNumber, maxReasonableLineSize/mb)
+248			}
+249	
+250			var record MuseRecord
+251			if err := json.Unmarshal([]byte(line), &record); err != nil {
+252				// Log and skip corrupted lines rather than failing the entire parse:
+253				// the file may be mid-write when the watcher fires.
+254				slog.Warn("ParseSessionFile: Skipping corrupted JSONL line",
+255					"file", filepath.Base(filePath),
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:46:35Z)**_
+
+Both confirmed. Let me see how the sibling parsers on this branch bound their reads, since that determines whether there's an established pattern to follow.
+
+_**Agent (claude-opus-5 2026-08-14 19:46:38Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Compare line-reading strategies across providers
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== providers on this branch ==="; ls pkg/providers/ | tr '\n' ' '; echo
+echo; echo "=== muse limit ==="; grep -n 'maxReasonableLineSize\|mb =\|mb  *=' pkg/providers/musecode/jsonl_parser.go | head -5
+echo; echo "=== how siblings bound line reads ==="
+grep -rn 'bufio.NewReader\|bufio.NewScanner\|Buffer(' --include='*.go' pkg/providers/ | grep -v _test.go | grep -v musecode
+```
+
+```text
+=== providers on this branch ===
+antigravitycli claudecode codexcli copilotide cursorcli cursoride deepseektui droidcli geminicli musecode vscode 
+
+=== muse limit ===
+16:	mb                    = 1024 * 1024
+17:	maxReasonableLineSize = 250 * mb // 250MB sanity limit to prevent OOM from malformed or malicious files
+245:		if len(line) > maxReasonableLineSize {
+247:				lineNumber, maxReasonableLineSize/mb)
+
+=== how siblings bound line reads ===
+pkg/providers/codexcli/provider.go:651:	reader := bufio.NewReader(file)
+pkg/providers/codexcli/provider.go:750:	scanner := bufio.NewScanner(file)
+pkg/providers/codexcli/provider.go:961:	reader := bufio.NewReader(file)
+pkg/providers/codexcli/provider.go:1050:	reader := bufio.NewReader(file)
+pkg/providers/copilotide/reconstruct.go:175:	reader := bufio.NewReader(os.Stdin)
+pkg/providers/claudecode/provider.go:666:	reader := bufio.NewReader(file)
+pkg/providers/claudecode/jsonl_parser.go:246:	reader := bufio.NewReader(file)
+pkg/providers/claudecode/jsonl_parser.go:311:	reader := bufio.NewReader(file)
+pkg/providers/droidcli/parser.go:415:	buf := bufio.NewReader(reader)
+pkg/providers/deepseektui/path_utils.go:137:	scanner := bufio.NewScanner(f)
+pkg/providers/deepseektui/path_utils.go:141:	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+pkg/providers/antigravitycli/project_mapping.go:299:	scanner := bufio.NewScanner(f)
+pkg/providers/antigravitycli/project_mapping.go:300:	scanner.Buffer(make([]byte, 0, 64*1024), maxScanLineSize)
+pkg/providers/antigravitycli/transcript_parser.go:150:	scanner := bufio.NewScanner(f)
+pkg/providers/antigravitycli/transcript_parser.go:151:	scanner.Buffer(make([]byte, 0, 64*1024), maxScanLineSize)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:46:42Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check claudecode's reader pattern and antigravity's bounded scanner
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== claudecode jsonl_parser.go:246 — same pattern? ==="; sed -n '243,275p' pkg/providers/claudecode/jsonl_parser.go
+echo; echo "=== antigravity maxScanLineSize ==="; grep -rn 'maxScanLineSize *=' pkg/providers/antigravitycli/
+```
+
+```text
+=== claudecode jsonl_parser.go:246 — same pattern? ===
+	}
+	defer func() { _ = file.Close() }()
+
+	reader := bufio.NewReader(file)
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil && err != io.EOF {
+			return "", fmt.Errorf("error reading file: %w", err)
+		}
+
+		// Try to find sessionId via regex (faster than JSON parsing)
+		if matches := sessionIDRegex.FindStringSubmatch(line); len(matches) > 1 {
+			return matches[1], nil
+		}
+
+		if err == io.EOF {
+			break
+		}
+	}
+
+	return "", nil
+}
+
+// ParseSingleSession parses sessions and filters to a specific UUID
+func (p *JSONLParser) ParseSingleSession(projectPath string, sessionUuid string) error {
+	// Parse only files matching this session (silent=true since this is for single session)
+	if err := p.ParseProjectSessionsForSession(projectPath, true, sessionUuid); err != nil {
+		return err
+	}
+
+	// Filter to just the requested session
+	filteredSessions := []Session{}
+
+=== antigravity maxScanLineSize ===
+pkg/providers/antigravitycli/transcript_parser.go:65:const maxScanLineSize = 16 * 1024 * 1024
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:47:26Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Trace parseAndConvert and GetAgentChatSession callers
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== parseAndConvert callers ==="; grep -n 'parseAndConvert(' pkg/providers/musecode/*.go | grep -v 'func parseAndConvert'
+echo; echo "=== GetAgentChatSession callers (who can pass a foreign id?) ==="; grep -rn 'GetAgentChatSession(' --include='*.go' pkg/ main.go 2>/dev/null | grep -v 'func (p \*Provider)' | grep -v _test.go | head
+echo; echo "=== muse: how findMuseSessions treats workspace ==="; sed -n '186,196p' pkg/providers/musecode/path_utils.go
+```
+
+```text
+=== parseAndConvert callers ===
+pkg/providers/musecode/provider.go:173:		if chatSession := parseAndConvert(file.Path, projectPath, debugRaw); chatSession != nil {
+pkg/providers/musecode/provider.go:198:		if chatSession := parseAndConvert(directPath, projectPath, debugRaw); chatSession != nil {
+pkg/providers/musecode/provider.go:211:			return parseAndConvert(file.Path, projectPath, debugRaw), nil
+
+=== GetAgentChatSession callers (who can pass a foreign id?) ===
+pkg/cmd/resume.go:351:	fromSession, err := plan.from.GetAgentChatSession(fromCwd, plan.sessionID, false)
+pkg/cmd/session_tui_view.go:513:			if full, err := prov.GetAgentChatSession(s.OriginCwd, s.SessionID, false); err == nil &&
+pkg/cmd/reindex.go:658:	return prov.GetAgentChatSession(ref.OriginCwd, ref.SessionID, false)
+pkg/spi/global.go:22:// full data per ref via GetAgentChatSession(OriginCwd, SessionID) when it needs the
+pkg/spi/provider.go:81:	GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*AgentChatSession, error)
+main.go:702:			session, err = specifiedProvider.GetAgentChatSession(effectiveProjectPath, sessionID, debugRaw)
+main.go:730:				session, err = provider.GetAgentChatSession(effectiveProjectPath, sessionID, debugRaw)
+
+=== muse: how findMuseSessions treats workspace ===
+
+	var matches []museSessionFile
+	for _, path := range paths {
+		workspaceRoot, err := readSessionWorkspaceRoot(path)
+		if err != nil {
+			slog.Debug("findMuseSessions: Skipping unreadable transcript", "path", path, "error", err)
+			continue
+		}
+		if workspaceRoot == "" || spi.CanonicalizePathOrClean(workspaceRoot) != targetRoot {
+			continue
+		}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:47:40Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check reindex path and OriginCwd provenance
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== does reindex prefer ByPath? ==="; sed -n '645,662p' pkg/cmd/reindex.go
+echo; echo "=== muse sets OriginCwd from what? ==="; grep -n 'OriginCwd' pkg/providers/musecode/provider.go
+```
+
+```text
+=== does reindex prefer ByPath? ===
+}
+
+// parseFullSession reads a session's full data for indexing. It prefers a provider's
+// path-keyed parse (spi.PathSessionReader) using the ref's already-known NativePath, which
+// avoids the provider's by-id discovery search — for Codex that search walks the entire
+// ~/.codex/sessions tree, so this is the difference between an O(N) and an O(N²) reindex.
+// Providers without the capability (or refs lacking a NativePath) fall back to the by-id
+// lookup. Parsing the known NativePath is also more consistent: the row's freshness
+// fingerprint is stat'd from NativePath, so the body now comes from that same file.
+func parseFullSession(prov spi.Provider, ref spi.GlobalSessionRef) (*spi.AgentChatSession, error) {
+	if pr, ok := prov.(spi.PathSessionReader); ok && ref.NativePath != "" {
+		return pr.GetAgentChatSessionByPath(ref.NativePath, ref.OriginCwd, false)
+	}
+	return prov.GetAgentChatSession(ref.OriginCwd, ref.SessionID, false)
+}
+
+// drainToStore writes parsed sessions to the index in batched transactions.
+func drainToStore(store *sessionindex.Store, ch <-chan sessionindex.Session) error {
+
+=== muse sets OriginCwd from what? ===
+425:			OriginCwd:  session.WorkspaceRoot,
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:48:19Z)**_
+
+Both are real, but I'd rate them differently from Copilot, and one of the suggested patches won't compile against our refactored code. Good news on Windows.
+
+## Finding 1 — by-ID lookup ignores the workspace: real, and worse than described
+
+Copilot is right, and I'd agree with **High**, though for a sharper reason than they gave. Three things convince me it's a bug rather than a deliberate choice:
+
+- **The same function contradicts itself.** The fallback path at `provider.go:205` goes through `findMuseSessions(projectPath)`, which explicitly rejects any transcript whose `workspaceRoot` doesn't match (`path_utils.go:194`). The fast path at `:197` skips that filter entirely. One function, two rules.
+- **Muse's own watcher does the check.** `processSessionChange` compares `session.WorkspaceRoot` against the watched root before publishing, precisely because the store is global.
+- **The other global-store provider checks.** antigravitycli gates on `sessionWorkspaceKnown(session) && !sessionMatchesProject(...)`. Providers with per-project stores (geminicli, claudecode) get scoping for free from the directory layout; muse doesn't.
+
+The consequence is worse than "returns the wrong session." `parseAndConvert(directPath, projectPath, …)` passes the **requested** `projectPath` into `GenerateAgentSession` as the workspace root, so the foreign session is *re-stamped* as belonging to the requesting project. Running `specstory sync -u <id>` from project A with an ID from project B writes B's conversation into A's history, labelled as A's. That's corrupted output, not just a bad lookup.
+
+Exposure is `main.go:702` and `:730` (the `-u` flag). I checked reindex specifically: it's unaffected, because `parseFullSession` prefers `GetAgentChatSessionByPath` for providers implementing `spi.PathSessionReader` (muse does), and even on the fallback it passes `ref.OriginCwd`, which muse sets from `session.WorkspaceRoot` — so the check would compare the session against itself and pass.
+
+**One caveat on their patch: it won't compile.** It calls `canonicalPath(...)`, which we deleted during the cleanup in favour of `spi.CanonicalizePathOrClean`. It also inlines parse-and-convert, duplicating the empty-events guard `parseAndConvert` already owns. My suggested fix keeps that helper and adds the workspace check on the fast path, treating an empty workspace root as non-matching so it agrees with `findMuseSessions` and the watcher.
+
+## Finding 2 — unbounded line read: real, but I'd downgrade it
+
+The mechanism is exactly as described: `reader.ReadString('\n')` at `jsonl_parser.go:224` materialises the whole line before the `maxReasonableLineSize` check at `:245`, so the guard can't prevent the allocation it's guarding against.
+
+But **High** overstates it. The file is Muse's own transcript under the user's home directory; a "malicious transcript" presupposes an attacker who can already write to your home. It's a robustness concern, not a security boundary. For calibration, `claudecode/jsonl_parser.go:246` uses the identical unbounded pattern with **no size check at all**, so muse is currently the better-behaved of the two.
+
+There is an established fix pattern here — antigravitycli and deepseektui both use `bufio.Scanner` with `Buffer(64KB, max)`, which bounds growth and returns `ErrTooLong` instead of allocating. Muse's accept/reject behaviour wouldn't change (both paths fail the parse on an oversized line), only the allocation.
+
+The part worth deciding: muse's cap is **250MB**, against antigravitycli's 16MB and deepseektui's 1MB. Switching readers turns "unbounded" into "bounded at 250MB", which is an improvement but still a large allocation. If peak memory is the actual worry, the constant matters more than the reader. Also worth noting the comment at `:209` — *"Use bufio.Reader instead of Scanner to handle arbitrarily large lines"* — is already contradicted by the 250MB check sitting 35 lines below it.
+
+## What I'd do
+
+**Action finding 1.** It silently writes one project's conversation into another's history, and the fix is small and provably safe for reindex.
+
+**Action finding 2, but as robustness rather than security**, and decide the cap at the same time. My inclination is Scanner with the cap left at 250MB — that preserves exactly which files are accepted while removing the unbounded allocation, and lowering the limit is a separate judgement about what Muse legitimately writes that I don't have data for. If you'd rather match antigravitycli's 16MB, that's a behaviour change that could start rejecting real transcripts, so I'd want to look at actual session sizes first.
+
+Want me to apply both? And if so, keep the 250MB cap or lower it?
+
+---
+
+_**User (2026-08-14 19:50:37Z)**_
+
+Ignore their patches... it's more about issue identification
+
+Do your own fix for #1
+
+For #2 let's do the same as anti/deepseek, at 16MB
+
+---
+
+_**Agent (claude-opus-5 2026-08-14 19:50:55Z)**_
+
+Clear. Let me read the full parse loop and the record type before rewriting it — if `MuseRecord` holds any `json.RawMessage`, reusing the scanner's buffer would alias it.
+
+_**Agent (claude-opus-5 2026-08-14 19:50:57Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/jsonl_parser.go`
+
+```text
+200	func ParseSessionFile(filePath string) (*MuseSession, error) {
+201		slog.Debug("ParseSessionFile: Reading Muse session file", "path", filePath)
+202	
+203		file, err := os.Open(filePath)
+204		if err != nil {
+205			return nil, fmt.Errorf("failed to open file: %w", err)
+206		}
+207		defer func() { _ = file.Close() }() // Read-only file; close errors not actionable
+208	
+209		// Use bufio.Reader instead of Scanner to handle arbitrarily large lines
+210		reader := bufio.NewReader(file)
+211	
+212		// The store lays sessions out as <session-id>/session.jsonl, so the
+213		// directory name is the authoritative session id when it is present.
+214		// Settling the id up front makes parsing immune to record order, which
+215		// matters for a transcript truncated mid-subagent.
+216		session := &MuseSession{FilePath: filePath, ID: storeSessionIDFromPath(filePath)}
+217		lineNumber := 0
+218		foreignStreamRecords := 0
+219		// Records read before the session's own stream is known (only reachable
+220		// when the path did not settle the id).
+221		var pending []MuseRecord
+222	
+223		for {
+224			line, err := reader.ReadString('\n')
+225			line = strings.TrimSuffix(line, "\n")
+226	
+227			if err != nil && err != io.EOF {
+228				return nil, fmt.Errorf("error reading line %d: %w", lineNumber+1, err)
+229			}
+230	
+231			atEOF := err == io.EOF
+232			hasContent := len(strings.TrimSpace(line)) > 0
+233	
+234			if hasContent || !atEOF {
+235				lineNumber++
+236			}
+237	
+238			if !hasContent {
+239				if atEOF {
+240					break
+241				}
+242				continue
+243			}
+244	
+245			if len(line) > maxReasonableLineSize {
+246				return nil, fmt.Errorf("line %d exceeds reasonable size limit (%d MB): refusing to process potentially malformed file",
+247					lineNumber, maxReasonableLineSize/mb)
+248			}
+249	
+250			var record MuseRecord
+251			if err := json.Unmarshal([]byte(line), &record); err != nil {
+252				// Log and skip corrupted lines rather than failing the entire parse:
+253				// the file may be mid-write when the watcher fires.
+254				slog.Warn("ParseSessionFile: Skipping corrupted JSONL line",
+255					"file", filepath.Base(filePath),
+256					"line", lineNumber,
+257					"error", err)
+258				if atEOF {
+259					break
+260				}
+261				continue
+262			}
+263	
+264			// The session's own stream is identified from the metadata record when
+265			// the path did not already settle it. Records that arrive before the
+266			// stream is known are held back rather than used to guess it: a
+267			// transcript truncated mid-subagent starts with task-stream records,
+268			// and adopting the first one would filter out the whole real
+269			// conversation that follows.
+270			if session.ID == "" {
+271				if record.PayloadType == payloadTypeMetadata && record.Stream.ID != "" {
+272					session.ID = record.Stream.ID
+273					foreignStreamRecords += len(flushPending(session, pending))
+274					pending = nil
+275				} else {
+276					pending = append(pending, record)
+277					if atEOF {
+278						break
+279					}
+280					continue
+281				}
+282			}
+283	
+284			// Only a record that positively names a different stream is foreign. A
+285			// record with no stream envelope cannot be attributed elsewhere, so it
+286			// stays with the session.
+287			if record.Stream.ID != "" && record.Stream.ID != session.ID {
+288				foreignStreamRecords++
+289				if atEOF {
+290					break
+291				}
+292				continue
+293			}
+294	
+295			accumulateRecord(session, &record)
+296	
+297			if atEOF {
+298				break
+299			}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:51:03Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check for RawMessage aliasing risk and read loop end
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== MuseRecord fields (RawMessage aliasing risk?) ==="; awk '/^type MuseRecord struct/,/^}/' pkg/providers/musecode/jsonl_parser.go
+echo "=== RawMessage anywhere in muse types? ==="; grep -n 'json.RawMessage' pkg/providers/musecode/*.go | grep -v _test.go
+echo "=== end of ParseSessionFile ==="; sed -n '299,330p' pkg/providers/musecode/jsonl_parser.go
+```
+
+```text
+=== MuseRecord fields (RawMessage aliasing risk?) ===
+type MuseRecord struct {
+	SchemaVersion int             `json:"schema_version"`
+	ID            string          `json:"id"`
+	Stream        MuseStream      `json:"stream"`
+	Sequence      int64           `json:"sequence"`
+	RecordedAt    int64           `json:"recorded_at"` // microseconds since the Unix epoch
+	RecordType    string          `json:"record_type"`
+	PayloadType   string          `json:"payload_type"`
+	Payload       json.RawMessage `json:"payload"`
+}
+=== RawMessage anywhere in muse types? ===
+pkg/providers/musecode/jsonl_parser.go:55:	Payload       json.RawMessage `json:"payload"`
+pkg/providers/musecode/jsonl_parser.go:85:	Event json.RawMessage `json:"event"`
+=== end of ParseSessionFile ===
+		}
+	}
+
+	// Nothing settled the stream: fall back to the first record's stream id
+	// (transcripts kept outside the store layout, e.g. test fixtures), then to
+	// the filename stem. Held-back records are replayed against that choice.
+	if session.ID == "" {
+		for _, held := range pending {
+			if held.Stream.ID != "" {
+				session.ID = held.Stream.ID
+				break
+			}
+		}
+		if session.ID == "" {
+			session.ID = sessionIDFromPath(filePath)
+		}
+	}
+	if len(pending) > 0 {
+		foreignStreamRecords += len(flushPending(session, pending))
+	}
+
+	slog.Debug("ParseSessionFile: Parsed Muse session",
+		"path", filePath,
+		"sessionId", session.ID,
+		"eventCount", len(session.Events),
+		"foreignStreamRecords", foreignStreamRecords)
+
+	return session, nil
+}
+
+// storeSessionIDFromPath returns the session id from the store layout
+// (<session-id>/session.jsonl) when the containing directory is named like a
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:51:30Z)**_
+
+Two things confirmed: `MuseRecord.Payload` is a `json.RawMessage` and records are retained, so I must keep unmarshalling from a copy rather than the scanner's reusable buffer. Let me check the constants and the existing workspace reader.
+
+_**Agent (claude-opus-5 2026-08-14 19:51:32Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check constants, io usage, and the workspace reader
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== constants ==="; sed -n '10,22p' pkg/providers/musecode/jsonl_parser.go
+echo; echo "=== io usage in jsonl_parser.go ==="; grep -n 'io\.' pkg/providers/musecode/jsonl_parser.go
+echo; echo "=== readSessionWorkspaceRoot ==="; sed -n '112,158p' pkg/providers/musecode/path_utils.go
+```
+
+```text
+=== constants ===
+	"path/filepath"
+	"strings"
+	"time"
+)
+
+const (
+	mb                    = 1024 * 1024
+	maxReasonableLineSize = 250 * mb // 250MB sanity limit to prevent OOM from malformed or malicious files
+)
+
+// Payload types carried by the record envelope. Everything not listed here is
+// telemetry, subagent control or cron/reminder machinery and is skipped.
+const (
+
+=== io usage in jsonl_parser.go ===
+209:	// Use bufio.Reader instead of Scanner to handle arbitrarily large lines
+210:	reader := bufio.NewReader(file)
+227:		if err != nil && err != io.EOF {
+231:		atEOF := err == io.EOF
+
+=== readSessionWorkspaceRoot ===
+// readSessionWorkspaceRoot reads just enough of a transcript to recover the
+// workspace root recorded in its metadata record. Returns "" when the file
+// carries no metadata (a transcript truncated before its first record).
+func readSessionWorkspaceRoot(filePath string) (string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open session file: %w", err)
+	}
+	defer func() { _ = file.Close() }() // Read-only file; close errors not actionable
+
+	header := make([]byte, maxHeaderBytes)
+	n, err := io.ReadFull(file, header)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		return "", fmt.Errorf("failed to read session header: %w", err)
+	}
+
+	// The final line of the prefix is usually cut mid-record; it fails to
+	// unmarshal and is skipped like any other unreadable line.
+	for _, line := range bytes.Split(header[:n], []byte("\n")) {
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+
+		var record MuseRecord
+		if err := json.Unmarshal(line, &record); err != nil {
+			continue
+		}
+		if record.PayloadType != payloadTypeMetadata {
+			continue
+		}
+
+		var payload museMetadataPayload
+		if err := json.Unmarshal(record.Payload, &payload); err != nil {
+			continue
+		}
+		if payload.Record.WorkspaceRoot != "" {
+			return payload.Record.WorkspaceRoot, nil
+		}
+	}
+
+	return "", nil
+}
+
+// findMuseSessions returns the transcripts whose recorded workspace root is the
+// given project. The store is global and date-sharded rather than project
+// scoped, so project association can only come from inside each file.
+// Results are ordered most recent first (the YYYY/MM/DD path sorts
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:51:44Z)**_
+
+Now implementing. Starting with the parser — `readSessionWorkspaceRoot` reads only a bounded header, which makes it ideal for fix #1's guard too.
+
+_**Agent (claude-opus-5 2026-08-14 19:51:48Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/jsonl_parser.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:52:03Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/jsonl_parser.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:52:06Z)**_
+
+Now the rest of the loop, where the `atEOF` juggling is no longer needed.
+
+_**Agent (claude-opus-5 2026-08-14 19:52:07Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/jsonl_parser.go`
+
+```text
+250					"error", err)
+251				continue
+252			}
+253	
+254			// The session's own stream is identified from the metadata record when
+255			// the path did not already settle it. Records that arrive before the
+256			// stream is known are held back rather than used to guess it: a
+257			// transcript truncated mid-subagent starts with task-stream records,
+258			// and adopting the first one would filter out the whole real
+259			// conversation that follows.
+260			if session.ID == "" {
+261				if record.PayloadType == payloadTypeMetadata && record.Stream.ID != "" {
+262					session.ID = record.Stream.ID
+263					foreignStreamRecords += len(flushPending(session, pending))
+264					pending = nil
+265				} else {
+266					pending = append(pending, record)
+267					if atEOF {
+268						break
+269					}
+270					continue
+271				}
+272			}
+273	
+274			// Only a record that positively names a different stream is foreign. A
+275			// record with no stream envelope cannot be attributed elsewhere, so it
+276			// stays with the session.
+277			if record.Stream.ID != "" && record.Stream.ID != session.ID {
+278				foreignStreamRecords++
+279				if atEOF {
+280					break
+281				}
+282				continue
+283			}
+284	
+285			accumulateRecord(session, &record)
+286	
+287			if atEOF {
+288				break
+289			}
+290		}
+291	
+292		// Nothing settled the stream: fall back to the first record's stream id
+293		// (transcripts kept outside the store layout, e.g. test fixtures), then to
+294		// the filename stem. Held-back records are replayed against that choice.
+295		if session.ID == "" {
+296			for _, held := range pending {
+297				if held.Stream.ID != "" {
+298					session.ID = held.Stream.ID
+299					break
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:52:14Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/jsonl_parser.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:52:21Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Add errors import and build
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+python3 - <<'PY'
+import re
+p='pkg/providers/musecode/jsonl_parser.go'
+s=open(p).read()
+s=s.replace('\t"io"\n','\t"errors"\n\t"io"\n',1) if '"errors"' not in s else s
+open(p,'w').write(s)
+PY
+head -14 pkg/providers/musecode/jsonl_parser.go; echo "--- build ---"; go build ./pkg/providers/musecode/ 2>&1|head -5
+```
+
+```text
+package musecode
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"errors"
+	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+)
+--- build ---
+# github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode
+pkg/providers/musecode/jsonl_parser.go:8:2: "io" imported and not used
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:52:29Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/jsonl_parser.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:52:33Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build and test the parser change
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; gofmt -w pkg/providers/musecode/; go build ./pkg/providers/musecode/ 2>&1|head -5; echo "=== build ok ==="; go test ./pkg/providers/musecode/ 2>&1|tail -20`
+
+```text
+=== build ok ===
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode	0.060s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:52:36Z)**_
+
+Parser done and tests still pass. Now fix #1 — the workspace guard, mirroring the filter the scan path already applies.
+
+_**Agent (claude-opus-5 2026-08-14 19:52:38Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/path_utils.go has been updated successfully. (note: the file had been modified on disk since you last read it — the edit applied cleanly, but the file contains other changes not in your context. Read it before edits that depend on surrounding content.)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:52:48Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/path_utils.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:52:57Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:53:05Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build and test both fixes
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; gofmt -w pkg/providers/musecode/; go build ./... 2>&1|head -5; echo "=== build ok ==="; go test ./pkg/providers/musecode/ 2>&1|tail -20`
+
+```text
+=== build ok ===
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode	0.063s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:53:14Z)**_
+
+Both build and existing tests pass — but the existing tests passed *before* the fixes too, which means neither bug was covered. Let me look at the test helpers so I can add real regression tests.
+
+_**Agent (claude-opus-5 2026-08-14 19:53:15Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find muse test helpers
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== muse test helpers ==="; grep -n '^func write\|^func seed\|^func make' pkg/providers/musecode/*_test.go
+echo; echo "=== writeSession helper ==="; awk '/^func writeSession\(/,/^}/' pkg/providers/musecode/watcher_test.go | head -30
+```
+
+```text
+=== muse test helpers ===
+pkg/providers/musecode/reconstruct_test.go:45:func writeReconstructed(t *testing.T, rec *spi.ReconstructedSession) string {
+pkg/providers/musecode/path_utils_test.go:27:func seedStore(t *testing.T) string {
+pkg/providers/musecode/path_utils_test.go:48:func writeSession(t *testing.T, sessionsRoot, datePath, sessionID, fixture, workspaceRoot string) string {
+pkg/providers/musecode/path_utils_test.go:78:func writeFileFrom(t *testing.T, src, dst string) {
+
+=== writeSession helper ===
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:53:20Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/path_utils_test.go`
+
+```text
+1	package musecode
+2	
+3	import (
+4		"encoding/json"
+5		"os"
+6		"path/filepath"
+7		"strings"
+8		"testing"
+9	)
+10	
+11	// Session ids baked into the testdata fixtures. The store keys a session
+12	// directory by its id, so fixtures must be seeded under their own id.
+13	const (
+14		basicSessionID     = "11111111-2222-3333-4444-555555555555"
+15		toolsSessionID     = "22222222-3333-4444-5555-666666666666"
+16		multiturnSessionID = "33333333-4444-5555-6666-777777777777"
+17		subagentSessionID  = "44444444-5555-6666-7777-888888888888"
+18	
+19		// fixtureWorkspaceRoot is the neutralized root inside every fixture; tests
+20		// rewrite it to a real temp directory so path canonicalization is exercised
+21		// against paths that actually exist.
+22		fixtureWorkspaceRoot = "/Users/dev/project"
+23	)
+24	
+25	// seedStore points the provider at a fresh fake Muse store and returns its
+26	// sessions root.
+27	func seedStore(t *testing.T) string {
+28		t.Helper()
+29		dataHome := t.TempDir()
+30		t.Setenv("XDG_DATA_HOME", dataHome)
+31		return filepath.Join(dataHome, "muse", "sessions")
+32	}
+33	
+34	// jsonEscape returns s as it must appear inside a JSON string literal, i.e.
+35	// without the surrounding quotes.
+36	func jsonEscape(t *testing.T, s string) string {
+37		t.Helper()
+38	
+39		encoded, err := json.Marshal(s)
+40		if err != nil {
+41			t.Fatalf("failed to escape %q: %v", s, err)
+42		}
+43		return string(encoded[1 : len(encoded)-1])
+44	}
+45	
+46	// writeSession copies a fixture into the store under datePath/sessionID,
+47	// rewriting its workspace root. Returns the transcript path.
+48	func writeSession(t *testing.T, sessionsRoot, datePath, sessionID, fixture, workspaceRoot string) string {
+49		t.Helper()
+50	
+51		data, err := os.ReadFile(filepath.Join("testdata", fixture))
+52		if err != nil {
+53			t.Fatalf("failed to read fixture %s: %v", fixture, err)
+54		}
+55	
+56		// The root is substituted into JSON string literals, where a Windows path's
+57		// backslashes would otherwise read as escape characters and leave the
+58		// fixture unparseable. Tool payloads carry a second layer of JSON encoding,
+59		// so occurrences nested inside an escaped string need escaping twice; they
+60		// are recognizable by their escaped surrounding quotes and rewritten first.
+61		escaped := jsonEscape(t, workspaceRoot)
+62		nested := jsonEscape(t, escaped)
+63		content := strings.ReplaceAll(string(data), `\"`+fixtureWorkspaceRoot+`\"`, `\"`+nested+`\"`)
+64		content = strings.ReplaceAll(content, fixtureWorkspaceRoot, escaped)
+65	
+66		dir := filepath.Join(sessionsRoot, filepath.FromSlash(datePath), sessionID)
+67		if err := os.MkdirAll(dir, 0o755); err != nil {
+68			t.Fatalf("failed to create session dir: %v", err)
+69		}
+70		path := filepath.Join(dir, sessionFileName)
+71		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+72			t.Fatalf("failed to write session file: %v", err)
+73		}
+74		return path
+75	}
+76	
+77	// writeFileFrom copies an existing file to dst, creating dst's parents.
+78	func writeFileFrom(t *testing.T, src, dst string) {
+79		t.Helper()
+80	
+81		content, err := os.ReadFile(src)
+82		if err != nil {
+83			t.Fatalf("failed to read %s: %v", src, err)
+84		}
+85		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+86			t.Fatalf("failed to create %s: %v", filepath.Dir(dst), err)
+87		}
+88		if err := os.WriteFile(dst, content, 0o644); err != nil {
+89			t.Fatalf("failed to write %s: %v", dst, err)
+90		}
+91	}
+92
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:53:37Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check fixtures and test file imports
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; ls pkg/providers/musecode/testdata/; echo "--- sessionFileName ---"; grep -rn 'sessionFileName *=' pkg/providers/musecode/; echo "--- existing provider_test imports ---"; sed -n '1,12p' pkg/providers/musecode/provider_test.go; echo "--- jsonl_parser_test imports ---"; sed -n '1,12p' pkg/providers/musecode/jsonl_parser_test.go`
+
+```text
+session-basic.jsonl
+session-malformed.jsonl
+session-multiturn.jsonl
+session-subagent-noise.jsonl
+session-tools.jsonl
+session-truncated-task-first.jsonl
+--- sessionFileName ---
+pkg/providers/musecode/path_utils.go:26:	sessionFileName = "session.jsonl"
+--- existing provider_test imports ---
+package musecode
+
+import (
+	"path/filepath"
+	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+)
+
+func TestProviderName(t *testing.T) {
+	if got := NewProvider().Name(); got != "Muse Code" {
+		t.Errorf("Name() = %q, want Muse Code", got)
+--- jsonl_parser_test imports ---
+package musecode
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestMuseTimeToISO(t *testing.T) {
+	tests := []struct {
+		name         string
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:53:54Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Add and run regression tests for both fixes
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; cat >> pkg/providers/musecode/provider_test.go << 'EOF'
+
+// The Muse store is global and keyed by session id alone, so a by-id lookup can
+// reach any project's transcript. Returning one would not merely answer the
+// wrong question: conversion stamps the requesting project onto the result, so
+// the session would be filed under a project that never ran it.
+func TestGetAgentChatSession_RejectsAnotherProjectsSession(t *testing.T) {
+	sessionsRoot := seedStore(t)
+	projectA := t.TempDir()
+	projectB := t.TempDir()
+
+	writeSession(t, sessionsRoot, "2026/08/07", basicSessionID, "session-basic.jsonl", projectB)
+
+	got, err := NewProvider().GetAgentChatSession(projectA, basicSessionID, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != nil {
+		t.Errorf("project A was handed project B's session %q", got.SessionID)
+	}
+
+	// The owning project must still resolve it, or the guard has simply broken
+	// by-id lookup instead of scoping it.
+	got, err = NewProvider().GetAgentChatSession(projectB, basicSessionID, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got == nil {
+		t.Fatal("owning project could not resolve its own session")
+	}
+	if got.SessionID != basicSessionID {
+		t.Errorf("SessionID = %q, want %q", got.SessionID, basicSessionID)
+	}
+}
+EOF
+cat >> pkg/providers/musecode/jsonl_parser_test.go << 'EOF'
+
+// A single oversized line must be refused by the reader's own bound, not read
+// into memory and measured afterwards: the check exists to prevent exactly the
+// allocation that reading-then-checking would already have made.
+func TestParseSessionFile_RefusesOversizedLine(t *testing.T) {
+	path := filepath.Join(t.TempDir(), sessionFileName)
+
+	var line strings.Builder
+	line.WriteString(`{"payload_type":"runtime.session","payload":"`)
+	line.WriteString(strings.Repeat("x", maxReasonableLineSize))
+	line.WriteString("\"}\n")
+	if err := os.WriteFile(path, []byte(line.String()), 0o644); err != nil {
+		t.Fatalf("failed to write oversized transcript: %v", err)
+	}
+
+	if _, err := ParseSessionFile(path); err == nil {
+		t.Fatal("expected an error for a line past the size limit")
+	} else if !strings.Contains(err.Error(), "exceeds") {
+		t.Errorf("error should name the size limit, got: %v", err)
+	}
+}
+EOF
+gofmt -w pkg/providers/musecode/ && go test ./pkg/providers/musecode/ -run 'TestGetAgentChatSession_RejectsAnotherProjects|TestParseSessionFile_RefusesOversized' -v 2>&1 | grep -E 'RUN|PASS|FAIL|Error|error'
+```
+
+```text
+=== RUN   TestParseSessionFile_RefusesOversizedLine
+--- PASS: TestParseSessionFile_RefusesOversizedLine (0.02s)
+=== RUN   TestGetAgentChatSession_RejectsAnotherProjectsSession
+--- PASS: TestGetAgentChatSession_RejectsAnotherProjectsSession (0.01s)
+PASS
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:54:04Z)**_
+
+Both pass — but a regression test that passes without the fix is worthless. Let me verify each one actually fails when I back the fix out.
+
+_**Agent (claude-opus-5 2026-08-14 19:54:11Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Confirm test 1 fails without the guard
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+cp pkg/providers/musecode/provider.go /tmp/prov.bak
+# Temporarily remove the guard.
+perl -pi -e 's/if directPath != "" \&\& sessionFileBelongsToProject\(directPath, projectPath\) \{/if directPath != "" {/' pkg/providers/musecode/provider.go
+grep -q 'sessionFileBelongsToProject' pkg/providers/musecode/provider.go && echo "GUARD STILL PRESENT (revert failed)" || echo "guard removed for the experiment"
+go test ./pkg/providers/musecode/ -run TestGetAgentChatSession_RejectsAnotherProjects 2>&1 | tail -8
+cp /tmp/prov.bak pkg/providers/musecode/provider.go && rm /tmp/prov.bak
+echo "--- restored; guard present? ---"; grep -c 'sessionFileBelongsToProject' pkg/providers/musecode/provider.go
+```
+
+```text
+guard removed for the experiment
+2026/08/14 15:54:11 INFO GenerateAgentSession: Built exchanges count=1
+2026/08/14 15:54:11 INFO GenerateAgentSession: Starting sessionID=11111111-2222-3333-4444-555555555555 eventCount=8
+2026/08/14 15:54:11 INFO GenerateAgentSession: Built exchanges count=1
+--- FAIL: TestGetAgentChatSession_RejectsAnotherProjectsSession (0.00s)
+    provider_test.go:261: project A was handed project B's session "11111111-2222-3333-4444-555555555555"
+FAIL
+FAIL	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode	0.015s
+FAIL
+--- restored; guard present? ---
+1
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:54:23Z)**_
+
+Test 1 confirmed — fails with exactly the right message without the guard, and it's restored. Now test 2's sensitivity.
+
+_**Agent (claude-opus-5 2026-08-14 19:54:29Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Confirm test 2 is sensitive to the cap
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+cp pkg/providers/musecode/jsonl_parser.go /tmp/parse.bak
+perl -pi -e 's/maxReasonableLineSize = 16 \* mb/maxReasonableLineSize = 250 * mb/' pkg/providers/musecode/jsonl_parser.go
+echo "cap now: $(grep -o 'maxReasonableLineSize = [0-9]* \* mb' pkg/providers/musecode/jsonl_parser.go)"
+go test ./pkg/providers/musecode/ -run TestParseSessionFile_RefusesOversized 2>&1 | tail -5
+cp /tmp/parse.bak pkg/providers/musecode/jsonl_parser.go && rm /tmp/parse.bak
+echo "--- restored cap: $(grep -o 'maxReasonableLineSize = [0-9]* \* mb' pkg/providers/musecode/jsonl_parser.go) ---"
+```
+
+```text
+cap now: maxReasonableLineSize = 250 * mb
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode	0.433s
+--- restored cap: maxReasonableLineSize = 16 * mb ---
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:54:44Z)**_
+
+That experiment taught me something I should be straight about: the test scales with the constant, so it passed at 250MB too — and more importantly, the **old** code would also have passed it, because the old code did error on oversized lines, it just allocated first. Let me run the full suite and then be precise about what each test does and doesn't prove.
+
+_**Agent (claude-opus-5 2026-08-14 19:54:54Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Full verification
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; gofmt -l . | head -3; go build ./... 2>&1|head -3; go test ./... 2>&1 | grep -v '^ok\|no test files' | head -8; echo "=== tests done ==="; golangci-lint run 2>&1|tail -3; go build -o specstory . && echo "binary builds"; echo "--- changed ---"; git status --short`
+
+```text
+=== tests done ===
+0 issues.
+binary builds
+--- changed ---
+ M changelog.md
+ M pkg/providers/musecode/jsonl_parser.go
+ M pkg/providers/musecode/jsonl_parser_test.go
+ M pkg/providers/musecode/path_utils.go
+ M pkg/providers/musecode/provider.go
+ M pkg/providers/musecode/provider_test.go
+?? ../specstory-mac/
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:55:00Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check unexpected changelog modification
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; git diff --stat changelog.md; git diff changelog.md | head -20`
+
+```text
+ specstory-cli/changelog.md | 7 +++++++
+ 1 file changed, 7 insertions(+)
+diff --git a/specstory-cli/changelog.md b/specstory-cli/changelog.md
+index 2724da2..65f6c7b 100644
+--- a/specstory-cli/changelog.md
++++ b/specstory-cli/changelog.md
+@@ -1,5 +1,12 @@
+ # Specstory CLI Changelog
+ 
++## v2.10.0 2026-08-14
++
++### 📢 Announcements
++
++- The SpecStory CLI now supports [Muse Code](https://developer.meta.com/ai/products/muse-code/) for agent sessions created from Muse Code `0.1.0` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), [Visual Studio Code Copilot](https://code.visualstudio.com/docs/setup/copilot), Google's [Antigravity CLI](https://antigravity.google/) and [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI).
++- You can use `specstory resume` to resume Muse Code sessions in other coding agents, and to resume any agent's session into Muse Code.
++
+ ## v2.9.0 2026-08-12
+ 
+ ### 📢 Announcements
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-14 19:55:21Z)**_
+
+Both fixes are in and verified. `go build ./...`, `go test ./...`, `golangci-lint run` clean, binary builds. (`changelog.md` in the status is your v2.10.0 Muse entry, not mine — I didn't touch it.)
+
+## Fix 1 — by-ID lookup now scoped
+
+`GetAgentChatSession` checks the transcript's own recorded workspace before converting it. The guard reuses `readSessionWorkspaceRoot`, which reads only a bounded header rather than parsing the file, and I factored the comparison into `workspaceMatchesProject` so the fast path and `findMuseSessions` now enforce the same rule from the same code instead of disagreeing.
+
+Empty workspace roots don't match, matching what `findMuseSessions` and the watcher already do — a session that can't name its project can't be claimed by one.
+
+**This one I proved.** `TestGetAgentChatSession_RejectsAnotherProjectsSession` writes a session owned by project B, asks for it by ID from project A, and requires nil — then asks from B and requires it back, so the guard scopes the lookup rather than breaking it. I backed the guard out and confirmed the test fails with *"project A was handed project B's session"*, then restored it.
+
+I also checked reindex isn't collateral damage: `parseFullSession` prefers `GetAgentChatSessionByPath` for providers implementing `spi.PathSessionReader` (muse does), and even on the fallback it passes `ref.OriginCwd`, which muse sets from `session.WorkspaceRoot` — so the comparison is the session against itself and passes.
+
+## Fix 2 — bounded reader at 16MB
+
+Switched to `bufio.Scanner` with `Buffer(64KB, 16MB)`, matching antigravitycli, and deleted the post-hoc length check. The `atEOF` bookkeeping went with it, since Scanner handles a final line without a trailing newline — the loop is about 20 lines shorter.
+
+One correctness detail worth flagging: I kept `scanner.Text()` and `json.Unmarshal([]byte(line), …)` rather than the more efficient `scanner.Bytes()`. `MuseRecord.Payload` is a `json.RawMessage`, which aliases its input, and records outlive the loop iteration via `pending` and `accumulateRecord`. Passing the scanner's reusable buffer would have corrupted payloads on the next line. That's commented at the call site.
+
+**Here I need to correct myself.** I added `TestParseSessionFile_RefusesOversizedLine`, and it passes — but when I tested its sensitivity I found it would have passed against the *old* code too, because the old code did error on oversized lines; it just allocated first. So it is **not** a regression test for the bug you asked me to fix. It locks in that the limit is enforced and that the error names it, which is worth having, but the actual bounded-allocation property rests on Scanner's contract plus the fact that I removed the post-hoc check entirely — the only remaining path to that error is `bufio.ErrTooLong`, which fires without growing past the cap. I could measure allocations with `runtime.MemStats`, but that tends to be flaky, so I didn't.
+
+## On the 16MB cap
+
+This is the one thing I'd keep an eye on. It's a real behaviour change: transcripts with a line between 16MB and 250MB parsed before and now fail the whole file. A single tool result dumping a large blob is the plausible way to hit it. If you see a Muse session start failing to parse, this is the first thing to check — antigravitycli has run at 16MB without trouble, which is why it's a reasonable bet, but muse's transcripts aren't the same shape.
+
+I haven't touched `docs/PROVIDER-REFACTOR.md` for these, since they're Muse provider bugs rather than part of the dedup refactor. Say the word if you'd like them recorded somewhere.
+
+---
+
+_**User (2026-08-15 12:50:13Z)**_
+
+`watch` doesn't work for Muse:
+
+[Image #3]
+
+---
+
+_**User (2026-08-15 12:50:13Z)**_
+
+[Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-08-15-08.49.15.png]
+
+---
+
+_**Agent (claude-opus-5 2026-08-15 12:50:42Z)**_
+
+Muse Code is in the watch list, so registration is fine — the failure is inside the watcher. Let me look at the code and the real store on disk.
+
+_**Agent (claude-opus-5 2026-08-15 12:50:43Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/watcher.go`
+
+```text
+88	func StopWatcher() {
+89		slog.Info("StopWatcher: Signaling Muse watcher to stop")
+90		watcherCancel()
+91		watcherWg.Wait()
+92		slog.Info("StopWatcher: Muse watcher stopped")
+93	}
+94	
+95	// WatchMuseProject watches Muse Code's session store for transcript changes
+96	// belonging to projectPath. The store is global rather than project-scoped, so
+97	// every change is attributed by reading the transcript's own workspace root.
+98	func WatchMuseProject(projectPath string, callback func(*spi.AgentChatSession)) error {
+99		// Default the path before recording it as the workspace root, so sessions
+100		// converted by the watcher never carry an empty root.
+101		projectPath, err := defaultProjectPath(projectPath)
+102		if err != nil {
+103			return err
+104		}
+105	
+106		SetWatcherCallback(callback)
+107		SetWatcherWorkspaceRoot(projectPath)
+108	
+109		sessionsRoot, err := GetMuseSessionsDir()
+110		if err != nil {
+111			return fmt.Errorf("failed to get muse sessions dir: %w", err)
+112		}
+113	
+114		watcher, err := fsnotify.NewWatcher()
+115		if err != nil {
+116			return fmt.Errorf("failed to create file watcher: %w", err)
+117		}
+118	
+119		set := &watchSet{watcher: watcher, sessionsRoot: sessionsRoot, watched: make(map[string]bool)}
+120	
+121		watcherWg.Add(1)
+122		go func() {
+123			defer watcherWg.Done()
+124			defer func() {
+125				if err := watcher.Close(); err != nil {
+126					slog.Debug("Muse watcher: error closing watcher", "error", err)
+127				}
+128			}()
+129	
+130			set.refresh()
+131	
+132			timer := time.NewTimer(set.refreshInterval())
+133			defer timer.Stop()
+134	
+135			slog.Info("Muse watcher: watching session store", "sessionsRoot", sessionsRoot)
+136	
+137			for {
+138				select {
+139				case <-watcherCtx.Done():
+140					slog.Info("Muse watcher: context cancelled, stopping")
+141					return
+142	
+143				case <-timer.C:
+144					set.refresh()
+145					timer.Reset(set.refreshInterval())
+146	
+147				case event, ok := <-watcher.Events:
+148					if !ok {
+149						return
+150					}
+151					set.handleEvent(event)
+152	
+153				case err, ok := <-watcher.Errors:
+154					if !ok {
+155						return
+156					}
+157					slog.Error("Muse watcher error", "error", err)
+158				}
+159			}
+160		}()
+161	
+162		return nil
+163	}
+164	
+165	// watchSet tracks the fsnotify watches currently held on the session store.
+166	// Not synchronized: it is owned by the single watcher goroutine.
+167	type watchSet struct {
+168		watcher      *fsnotify.Watcher
+169		sessionsRoot string
+170		watched      map[string]bool
+171	}
+172	
+173	// refreshInterval slows down once the store exists: the fast cadence only
+174	// exists to notice a first-ever `muse` run promptly.
+175	func (s *watchSet) refreshInterval() time.Duration {
+176		if info, err := os.Stat(s.sessionsRoot); err != nil || !info.IsDir() {
+177			return watchBootstrapInterval
+178		}
+179		return watchRefreshInterval
+180	}
+181	
+182	// refresh brings the watched set in line with the trailing window: adds the
+183	// directories that should be watched now, and releases the ones that aged out.
+184	// Called at startup and on every tick, which is what carries the watcher across
+185	// a day rollover.
+186	func (s *watchSet) refresh() {
+187		if info, err := os.Stat(s.sessionsRoot); err != nil || !info.IsDir() {
+188			slog.Debug("Muse watcher: sessions root not present yet", "sessionsRoot", s.sessionsRoot)
+189			return
+190		}
+191	
+192		desired := desiredWatchDirs(s.sessionsRoot, time.Now())
+193	
+194		for dir := range desired {
+195			s.addWatch(dir)
+196		}
+197		for dir := range s.watched {
+198			if !desired[dir] {
+199				s.removeWatch(dir)
+200			}
+201		}
+202	}
+203	
+204	// desiredWatchDirs returns every directory that should carry a watch right now:
+205	// the sessions root, the date directories inside the trailing window, and the
+206	// session directories inside those days. Only directories that exist are
+207	// returned, so the caller never tries to watch a day Muse has not created.
+208	func desiredWatchDirs(sessionsRoot string, now time.Time) map[string]bool {
+209		desired := map[string]bool{sessionsRoot: true}
+210	
+211		for offset := 0; offset <= watchWindowDays; offset++ {
+212			date := now.AddDate(0, 0, -offset)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 12:50:51Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/watcher.go`
+
+```text
+208	func desiredWatchDirs(sessionsRoot string, now time.Time) map[string]bool {
+209		desired := map[string]bool{sessionsRoot: true}
+210	
+211		for offset := 0; offset <= watchWindowDays; offset++ {
+212			date := now.AddDate(0, 0, -offset)
+213			yearDir := filepath.Join(sessionsRoot, fmt.Sprintf("%04d", date.Year()))
+214			monthDir := filepath.Join(yearDir, fmt.Sprintf("%02d", int(date.Month())))
+215			dayDir := filepath.Join(monthDir, fmt.Sprintf("%02d", date.Day()))
+216	
+217			// Ancestors are watched too, so the day directory's creation is seen
+218			// the moment Muse starts the first session of a new day/month/year.
+219			for _, dir := range []string{yearDir, monthDir, dayDir} {
+220				if info, err := os.Stat(dir); err == nil && info.IsDir() {
+221					desired[dir] = true
+222				}
+223			}
+224	
+225			entries, err := os.ReadDir(dayDir)
+226			if err != nil {
+227				continue
+228			}
+229			for _, entry := range entries {
+230				// Session directories only; subagent transcripts live one level
+231				// deeper and are never sessions of their own.
+232				if entry.IsDir() && entry.Name() != subagentDirName {
+233					desired[filepath.Join(dayDir, entry.Name())] = true
+234				}
+235			}
+236		}
+237	
+238		return desired
+239	}
+240	
+241	func (s *watchSet) addWatch(dir string) {
+242		if s.watched[dir] {
+243			return
+244		}
+245		if err := s.watcher.Add(dir); err != nil {
+246			slog.Debug("Muse watcher: failed to add watch", "directory", dir, "error", err)
+247			return
+248		}
+249		s.watched[dir] = true
+250		slog.Debug("Muse watcher: added watch", "directory", dir)
+251	}
+252	
+253	func (s *watchSet) removeWatch(dir string) {
+254		if !s.watched[dir] {
+255			return
+256		}
+257		// Removal can fail if the directory was deleted; the kernel already
+258		// released its fds in that case, so just drop our bookkeeping.
+259		if err := s.watcher.Remove(dir); err != nil {
+260			slog.Debug("Muse watcher: failed to remove watch", "directory", dir, "error", err)
+261		}
+262		delete(s.watched, dir)
+263		slog.Debug("Muse watcher: removed watch", "directory", dir)
+264	}
+265	
+266	// handleEvent reacts to one fsnotify event: a new directory inside the window
+267	// starts being watched immediately (so a session created seconds from now is
+268	// live, not waiting for the next refresh), and a transcript write is converted
+269	// and published.
+270	func (s *watchSet) handleEvent(event fsnotify.Event) {
+271		if !event.Has(fsnotify.Create) && !event.Has(fsnotify.Write) {
+272			return
+273		}
+274	
+275		if filepath.Base(event.Name) == sessionFileName {
+276			if IsSubagentTranscript(event.Name) {
+277				return
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 12:50:53Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Read desiredWatchDirs and store location
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+echo "=== GetMuseSessionsDir ==="; awk '/^func GetMuseSessionsDir/,/^}/' pkg/providers/musecode/path_utils.go
+echo "=== watch constants ==="; grep -n 'watchWindowDays\|watchRefreshInterval\|watchBootstrapInterval\|subagentDirName' pkg/providers/musecode/*.go | grep '=' | head
+```
+
+```text
+=== GetMuseSessionsDir ===
+func GetMuseSessionsDir() (string, error) {
+	if dataHome := strings.TrimSpace(os.Getenv("XDG_DATA_HOME")); dataHome != "" {
+		return filepath.Join(dataHome, "muse", "sessions"), nil
+	}
+
+	homeDir, err := osUserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %w", err)
+	}
+	return filepath.Join(homeDir, ".local", "share", "muse", "sessions"), nil
+}
+=== watch constants ===
+pkg/providers/musecode/provider_test.go:175:	subagentDir := filepath.Join(filepath.Dir(parentPath), subagentDirName, "child-id")
+pkg/providers/musecode/watcher.go:44:	watchWindowDays = 7
+pkg/providers/musecode/watcher.go:49:	watchRefreshInterval = 10 * time.Minute
+pkg/providers/musecode/watcher.go:54:	watchBootstrapInterval = 5 * time.Second
+pkg/providers/musecode/watcher.go:211:	for offset := 0; offset <= watchWindowDays; offset++ {
+pkg/providers/musecode/watcher.go:232:			if entry.IsDir() && entry.Name() != subagentDirName {
+pkg/providers/musecode/watcher.go:291:	if filepath.Base(event.Name) == subagentDirName {
+pkg/providers/musecode/watcher.go:303:	year, month, day := now.AddDate(0, 0, -watchWindowDays).Date()
+pkg/providers/musecode/path_utils.go:30:	subagentDirName = "subagent"
+pkg/providers/musecode/path_utils.go:88:			if d.Name() == subagentDirName {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 12:51:03Z)**_
+
+The logic looks sound in principle. Let me check the actual store on disk — the layout assumption is the thing most likely to be wrong.
+
+_**Agent (claude-opus-5 2026-08-15 12:51:08Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Inspect the real Muse store layout
+
+```bash
+ls -d ~/.local/share/muse/sessions 2>/dev/null && echo "--- top level ---" && ls ~/.local/share/muse/sessions | head
+echo "=== XDG_DATA_HOME set? ==="; echo "${XDG_DATA_HOME:-<unset>}"
+echo "=== find any muse session.jsonl (bounded) ==="; find ~/.local/share/muse -name 'session.jsonl' -maxdepth 6 2>/dev/null | head -5
+```
+
+```text
+/Users/sean/.local/share/muse/sessions
+--- top level ---
+2026
+=== XDG_DATA_HOME set? ===
+<unset>
+=== find any muse session.jsonl (bounded) ===
+/Users/sean/.local/share/muse/sessions/2026/08/15/14a4055e-41e1-44cc-8243-2c276b9b34b0/session.jsonl
+/Users/sean/.local/share/muse/sessions/2026/08/14/660d5938-52b4-401b-b1df-10927d497fb7/session.jsonl
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 12:51:18Z)**_
+
+Layout is exactly as expected and today's session is there. Let me check what workspace root it recorded.
+
+_**Agent (claude-opus-5 2026-08-15 12:51:20Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Inspect today's session metadata and workspace root
+
+```bash
+P=/Users/sean/.local/share/muse/sessions/2026/08/15/14a4055e-41e1-44cc-8243-2c276b9b34b0/session.jsonl
+echo "=== size / mtime ==="; ls -la "$P"
+echo "=== first line (metadata) ==="; head -c 600 "$P"; echo
+echo "=== workspace_root values ==="; grep -o '"workspace_root":"[^"]*"' "$P" | sort -u
+```
+
+```text
+=== size / mtime ===
+-rw-r--r--  1 sean  staff  161427 Aug 15 08:48 /Users/sean/.local/share/muse/sessions/2026/08/15/14a4055e-41e1-44cc-8243-2c276b9b34b0/session.jsonl
+=== first line (metadata) ===
+{"schema_version":1,"id":"814aa0ea-015d-496c-be8c-d725c3fc038a","stream":{"kind":"session","id":"14a4055e-41e1-44cc-8243-2c276b9b34b0"},"sequence":1,"recorded_at":1786798094744769,"record_type":"event","durability":"durable","causation_id":null,"payload_type":"runtime.session.metadata","payload_schema_version":1,"payload":{"kind":"metadata","record":{"workspace_root":"/Users/sean/Source/SpecStory/compositions/muse-1","provider_id":"meta","model_id":"muse-spark-1.2-contributor","web_search_mode":"client","build":{"sha":"427a430436","semver":"0.1.0"},"tool_surface_version":"2"}}}
+{"schema_versio
+=== workspace_root values ===
+"workspace_root":"/Users/sean/Source/SpecStory/compositions/muse-1"
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 12:51:56Z)**_
+
+Layout and workspace root both look right. Let me check whether the day directory already existed when watch started, then reproduce it in a sandbox rather than theorise.
+
+_**Agent (claude-opus-5 2026-08-15 12:52:00Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check whether the day directory was new
+
+```bash
+echo "=== sessions per day ==="; for d in /Users/sean/.local/share/muse/sessions/2026/08/*/; do printf "%s  %s dirs\n" "$(basename $d)" "$(ls -1 $d | wc -l | tr -d ' ')"; done
+echo "=== 08/15 dir ctime vs session dir ctime ==="; stat -f '%SB  %N' -t '%H:%M:%S' /Users/sean/.local/share/muse/sessions/2026/08/15 /Users/sean/.local/share/muse/sessions/2026/08/15/*/ 2>/dev/null
+```
+
+```text
+=== sessions per day ===
+14  1 dirs
+15  1 dirs
+=== 08/15 dir ctime vs session dir ctime ===
+08:48:14  /Users/sean/.local/share/muse/sessions/2026/08/15
+08:48:14  /Users/sean/.local/share/muse/sessions/2026/08/15/14a4055e-41e1-44cc-8243-2c276b9b34b0/
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 12:52:14Z)**_
+
+Decisive clue: the day directory `2026/08/15` and the session directory were both created at **08:48:14**, while watch started at 08:47. So the day directory did not exist when the watcher took its initial snapshot. Let me reproduce that exact sequence in a sandbox.
+
+_**Agent (claude-opus-5 2026-08-15 12:52:22Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build a sandbox fixture for the watch repro
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+S=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch
+rm -rf $S && mkdir -p $S/data $S/proj
+# Build a session fixture whose workspace_root is our sandbox project.
+python3 - "$S" <<'PY'
+import json, sys, pathlib
+S = pathlib.Path(sys.argv[1])
+src = pathlib.Path("/Users/sean/.local/share/muse/sessions/2026/08/15/14a4055e-41e1-44cc-8243-2c276b9b34b0/session.jsonl")
+proj = str((S / "proj").resolve())
+out = []
+for line in src.read_text().splitlines():
+    out.append(line.replace("/Users/sean/Source/SpecStory/compositions/muse-1", proj))
+(S / "fixture.jsonl").write_text("\n".join(out) + "\n")
+print("fixture project:", proj)
+PY
+ls -la $S
+```
+
+```text
+fixture project: /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch/proj
+total 320
+drwxr-xr-x   5 sean  wheel     160 Aug 15 08:52 .
+drwx------  56 sean  wheel    1792 Aug 15 08:52 ..
+drwxr-xr-x   2 sean  wheel      64 Aug 15 08:52 data
+-rw-r--r--   1 sean  wheel  162085 Aug 15 08:52 fixture.jsonl
+drwxr-xr-x   2 sean  wheel      64 Aug 15 08:52 proj
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 12:52:44Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Reproduce the watch failure in a sandbox
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+S=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch
+BIN=$PWD/specstory
+# Pre-create only the year/month, exactly as the real store looked at 08:47.
+mkdir -p $S/data/muse/sessions/2026/08
+cd $S/proj
+XDG_DATA_HOME=$S/data $BIN watch muse --console --debug > $S/watch.log 2>&1 &
+WPID=$!
+echo "watch pid $WPID; letting it settle..."
+for i in $(seq 1 20); do grep -q 'watching session store' $S/watch.log && break; sleep 0.5; done
+grep -c 'watching session store' $S/watch.log | xargs echo "started:"
+# Now simulate muse: create day dir + session dir + transcript in one go.
+SID=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+mkdir -p $S/data/muse/sessions/2026/08/15/$SID
+cp $S/fixture.jsonl $S/data/muse/sessions/2026/08/15/$SID/session.jsonl
+echo "wrote transcript; waiting 6s for the watcher to react..."
+sleep 6
+kill $WPID 2>/dev/null; wait $WPID 2>/dev/null
+echo "=== .specstory output in project? ==="; ls -R $S/proj 2>/dev/null | head
+echo "=== watcher log (muse lines) ==="; grep -i 'muse' $S/watch.log | tail -20
+```
+
+```text
+watch pid 39734; letting it settle...
+started: 1
+wrote transcript; waiting 6s for the watcher to react...
+=== .specstory output in project? ===
+=== watcher log (muse lines) ===
+time=2026-08-15T08:52:37.771-04:00 level=DEBUG msg="Retrieved provider" requested_id=muse matched_id=muse name="Muse Code"
+time=2026-08-15T08:52:37.777-04:00 level=INFO msg="Command line" args="/Users/sean/Source/SpecStory/getspecstory/specstory-cli/specstory watch muse --console --debug"
+time=2026-08-15T08:52:37.777-04:00 level=INFO msg="Current working directory" cwd=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch/proj
+time=2026-08-15T08:52:37.778-04:00 level=DEBUG msg="Created default project config file" path=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch/proj/.specstory/cli/config.toml
+time=2026-08-15T08:52:37.779-04:00 level=DEBUG msg="Ensuring project identity" projectRoot=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch/proj specstoryDir=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch/proj/.specstory
+time=2026-08-15T08:52:37.779-04:00 level=INFO msg="Project identity saved" path=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch/proj/.specstory/.project.json identity="{WorkspaceID:88ae-aaba-b057-4bfc WorkspaceIDAt:2026-08-15T12:52:37Z GitID: GitIDAt: ProjectName:proj}"
+time=2026-08-15T08:52:37.779-04:00 level=DEBUG msg="Retrieved provider" requested_id=muse matched_id=muse name="Muse Code"
+👀 Watching for activity from agent: Muse Code
+time=2026-08-15T08:52:37.780-04:00 level=INFO msg="WatchProviders: Starting multi-provider watch" projectPath=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch/proj providerCount=1 debugRaw=false
+time=2026-08-15T08:52:37.780-04:00 level=INFO msg="WatchProviders: Starting watcher for provider" providerID=muse providerName="Muse Code"
+time=2026-08-15T08:52:37.780-04:00 level=INFO msg="WatchAgent: Starting Muse Code activity monitoring" projectPath=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch/proj debugRaw=false
+time=2026-08-15T08:52:37.780-04:00 level=DEBUG msg="Muse watcher: added watch" directory=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch/data/muse/sessions
+time=2026-08-15T08:52:37.780-04:00 level=DEBUG msg="Muse watcher: added watch" directory=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch/data/muse/sessions/2026
+time=2026-08-15T08:52:37.780-04:00 level=DEBUG msg="Muse watcher: added watch" directory=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch/data/muse/sessions/2026/08
+time=2026-08-15T08:52:37.780-04:00 level=INFO msg="Muse watcher: watching session store" sessionsRoot=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch/data/muse/sessions
+time=2026-08-15T08:52:38.299-04:00 level=DEBUG msg="Muse watcher: added watch" directory=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch/data/muse/sessions/2026/08/15
+time=2026-08-15T08:52:44.309-04:00 level=INFO msg="StopWatcher: Signaling Muse watcher to stop"
+time=2026-08-15T08:52:44.309-04:00 level=INFO msg="Muse watcher: context cancelled, stopping"
+time=2026-08-15T08:52:44.309-04:00 level=INFO msg="StopWatcher: Muse watcher stopped"
+time=2026-08-15T08:52:44.309-04:00 level=INFO msg="WatchProviders: Provider watcher stopped" provider="Muse Code"
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 12:53:23Z)**_
+
+**Reproduced exactly.** The log tells the whole story: the watcher added a watch on `2026/08/15` at `08:52:38.299` — *after* the session directory and its transcript already existed inside it. fsnotify only reports what happens after a watch is added, so the session directory's creation and the `session.jsonl` write were both lost, and nothing was published.
+
+The gap: `handleEvent` adds a watch on a newly created directory but never looks at what's already inside it. For the first session of a day, two levels have to be adopted in sequence, and the content lands in the gap. The next `refresh()` is 10 minutes away, and by then the transcript is fully written, so no further events fire.
+
+_**Agent (claude-opus-5 2026-08-15 12:53:24Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/watcher.go`
+
+```text
+266	// handleEvent reacts to one fsnotify event: a new directory inside the window
+267	// starts being watched immediately (so a session created seconds from now is
+268	// live, not waiting for the next refresh), and a transcript write is converted
+269	// and published.
+270	func (s *watchSet) handleEvent(event fsnotify.Event) {
+271		if !event.Has(fsnotify.Create) && !event.Has(fsnotify.Write) {
+272			return
+273		}
+274	
+275		if filepath.Base(event.Name) == sessionFileName {
+276			if IsSubagentTranscript(event.Name) {
+277				return
+278			}
+279			processSessionChange(event.Name)
+280			return
+281		}
+282	
+283		// Anything else is only interesting when it is a directory that belongs in
+284		// the window: a new day directory, or a new session directory inside one.
+285		if !event.Has(fsnotify.Create) {
+286			return
+287		}
+288		if info, err := os.Stat(event.Name); err != nil || !info.IsDir() {
+289			return
+290		}
+291		if filepath.Base(event.Name) == subagentDirName {
+292			return
+293		}
+294		if !dirWithinWatchWindow(event.Name, s.sessionsRoot, watchWindowCutoff(time.Now())) {
+295			return
+296		}
+297		s.addWatch(event.Name)
+298	}
+299	
+300	// watchWindowCutoff returns the earliest date (local midnight) whose directory
+301	// is still watched.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 12:53:40Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/watcher.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 12:53:53Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Rebuild with the fix
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; gofmt -w pkg/providers/musecode/; go build -o specstory . 2>&1|head -5 && echo "built"`
+
+```text
+built
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 12:54:02Z)**_
+
+Now re-running the identical repro against the fixed binary.
+
+_**Agent (claude-opus-5 2026-08-15 12:54:17Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Verify the fix resolves the repro
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+S=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch
+BIN=$PWD/specstory
+rm -rf $S/data $S/proj && mkdir -p $S/data/muse/sessions/2026/08 $S/proj
+cd $S/proj
+XDG_DATA_HOME=$S/data $BIN watch muse --console --debug > $S/watch2.log 2>&1 &
+WPID=$!
+for i in $(seq 1 20); do grep -q 'watching session store' $S/watch2.log && break; sleep 0.5; done
+SID=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+mkdir -p $S/data/muse/sessions/2026/08/15/$SID
+cp $S/fixture.jsonl $S/data/muse/sessions/2026/08/15/$SID/session.jsonl
+sleep 6
+kill $WPID 2>/dev/null; wait $WPID 2>/dev/null
+echo "=== markdown produced? ==="; find $S/proj/.specstory -name '*.md' 2>/dev/null | head
+echo "=== adoption + publish lines ==="; grep -iE 'adopt|processSessionChange|Detected Muse|autosave|Saved|wrote' $S/watch2.log | tail -12
+```
+
+```text
+=== markdown produced? ===
+=== adoption + publish lines ===
+time=2026-08-15T08:54:11.044-04:00 level=INFO msg="Project identity saved" path=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch/proj/.specstory/.project.json identity="{WorkspaceID:88ae-aaba-b057-4bfc WorkspaceIDAt:2026-08-15T12:54:11Z GitID: GitIDAt: ProjectName:proj}"
+time=2026-08-15T08:54:11.452-04:00 level=DEBUG msg="processSessionChange: Detected Muse session file change" file=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch/data/muse/sessions/2026/08/15/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/session.jsonl
+time=2026-08-15T08:54:11.452-04:00 level=DEBUG msg="processSessionChange: Session file has no conversation events yet" file=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch/data/muse/sessions/2026/08/15/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/session.jsonl
+time=2026-08-15T08:54:11.452-04:00 level=DEBUG msg="processSessionChange: Detected Muse session file change" file=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch/data/muse/sessions/2026/08/15/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/session.jsonl
+time=2026-08-15T08:54:11.454-04:00 level=DEBUG msg="processSessionChange: Session file has no conversation events yet" file=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch/data/muse/sessions/2026/08/15/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/session.jsonl
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 12:54:33Z)**_
+
+Adoption is firing now — but the parse reports zero events, which is an artifact of my own fixture: I renamed the session directory without rewriting the stream ids inside, so every record was dropped as foreign. Re-running with the real id.
+
+_**Agent (claude-opus-5 2026-08-15 12:54:47Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Re-run the repro with a consistent session id
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+S=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch
+BIN=$PWD/specstory
+SID=14a4055e-41e1-44cc-8243-2c276b9b34b0   # must match the stream id inside the transcript
+rm -rf $S/data $S/proj && mkdir -p $S/data/muse/sessions/2026/08 $S/proj
+cd $S/proj
+XDG_DATA_HOME=$S/data $BIN watch muse --console --debug > $S/watch3.log 2>&1 &
+WPID=$!
+for i in $(seq 1 20); do grep -q 'watching session store' $S/watch3.log && break; sleep 0.5; done
+mkdir -p $S/data/muse/sessions/2026/08/15/$SID
+cp $S/fixture.jsonl $S/data/muse/sessions/2026/08/15/$SID/session.jsonl
+sleep 6
+kill $WPID 2>/dev/null; wait $WPID 2>/dev/null
+echo "=== markdown produced? ==="; find $S/proj/.specstory -name '*.md' 2>/dev/null
+echo "=== head of it ==="; find $S/proj/.specstory -name '*.md' 2>/dev/null | head -1 | xargs -I{} head -12 {}
+```
+
+```text
+=== markdown produced? ===
+/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch/proj/.specstory/history/2026-08-15_12-48-14Z-create-a-hello-world.md
+=== head of it ===
+<!-- Generated by SpecStory, Markdown v2.1.0 -->
+
+# 2026-08-15 12:48:26Z
+
+<!-- Muse Code Session 14a4055e-41e1-44cc-8243-2c276b9b34b0 (2026-08-15 12:48:26Z) -->
+
+_**User (2026-08-15 12:48:26Z)**_
+
+Create a Hello World in Python here. Just create it don't run it.
+
+---
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 12:55:08Z)**_
+
+Fixed and proven end-to-end — the markdown now appears, carrying the real prompt from your session. Let me lock it in with a regression test.
+
+_**Agent (claude-opus-5 2026-08-15 12:55:10Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check watcher_test imports and subagent helpers
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; sed -n '1,16p' pkg/providers/musecode/watcher_test.go; echo "--- subagent helper ---"; grep -n 'IsSubagentTranscript\|subagentDirName' pkg/providers/musecode/watcher_test.go pkg/providers/musecode/provider_test.go | head -4`
+
+```text
+package musecode
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+)
+
+func TestWatchWindowCutoff(t *testing.T) {
+	now := time.Date(2026, 8, 7, 15, 30, 0, 0, time.Local)
+
+--- subagent helper ---
+pkg/providers/musecode/watcher_test.go:99:	subagentDir := filepath.Join(filepath.Dir(todayPath), subagentDirName, "child-id")
+pkg/providers/musecode/watcher_test.go:124:	if desired[filepath.Join(filepath.Dir(todayPath), subagentDirName)] {
+pkg/providers/musecode/provider_test.go:175:	subagentDir := filepath.Join(filepath.Dir(parentPath), subagentDirName, "child-id")
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 12:55:32Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Add and run the adoption regression test
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; cat >> pkg/providers/musecode/watcher_test.go << 'EOF'
+
+// Muse creates a day directory, a session directory and the transcript in
+// immediate succession, so by the time the watcher adds a watch on the new day
+// directory the whole session can already be on disk. fsnotify reports nothing
+// that happened before the watch existed, so the directory must be walked on
+// arrival or the first session of every day is lost until the next refresh.
+func TestAdoptExisting_PublishesASessionThatLandedBeforeTheWatch(t *testing.T) {
+	sessionsRoot := seedStore(t)
+	project := t.TempDir()
+
+	writeSession(t, sessionsRoot, "2026/08/07", basicSessionID, "session-basic.jsonl", project)
+	// A subagent transcript sits one level deeper and is never a session.
+	subagentDir := filepath.Join(sessionsRoot, "2026", "08", "07", basicSessionID, subagentDirName, "child-id")
+	if err := os.MkdirAll(subagentDir, 0o755); err != nil {
+		t.Fatalf("failed to create subagent dir: %v", err)
+	}
+	writeFileFrom(t,
+		filepath.Join(sessionsRoot, "2026", "08", "07", basicSessionID, sessionFileName),
+		filepath.Join(subagentDir, sessionFileName))
+
+	var published []string
+	SetWatcherCallback(func(s *spi.AgentChatSession) { published = append(published, s.SessionID) })
+	SetWatcherWorkspaceRoot(project)
+	t.Cleanup(func() {
+		SetWatcherCallback(nil)
+		SetWatcherWorkspaceRoot("")
+	})
+
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		t.Fatalf("failed to create watcher: %v", err)
+	}
+	t.Cleanup(func() { _ = watcher.Close() })
+
+	set := &watchSet{watcher: watcher, sessionsRoot: sessionsRoot, watched: map[string]bool{}}
+	set.adoptExisting(filepath.Join(sessionsRoot, "2026", "08", "07"))
+
+	if len(published) != 1 || published[0] != basicSessionID {
+		t.Errorf("adopting a pre-populated day directory published %v, want exactly [%s]", published, basicSessionID)
+	}
+}
+EOF
+perl -0pi -e 's/import \(\n\t"fmt"/import (\n\t"fmt"/' pkg/providers/musecode/watcher_test.go
+python3 - <<'PY'
+p='pkg/providers/musecode/watcher_test.go'
+s=open(p).read()
+if '"github.com/fsnotify/fsnotify"' not in s:
+    s=s.replace('\t"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"',
+                '\t"github.com/fsnotify/fsnotify"\n\t"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"',1)
+open(p,'w').write(s)
+PY
+gofmt -w pkg/providers/musecode/ && go test ./pkg/providers/musecode/ -run TestAdoptExisting -v 2>&1 | grep -E 'RUN|PASS|FAIL|want'
+```
+
+```text
+=== RUN   TestAdoptExisting_PublishesASessionThatLandedBeforeTheWatch
+--- PASS: TestAdoptExisting_PublishesASessionThatLandedBeforeTheWatch (0.00s)
+PASS
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 12:55:44Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Confirm the test fails without the fix
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+# Prove the test fails without the fix.
+cp pkg/providers/musecode/watcher.go /tmp/w.bak
+perl -0pi -e 's/\ts\.addWatch\(event\.Name\)\n\ts\.adoptExisting\(event\.Name\)\n/\ts.addWatch(event.Name)\n/' pkg/providers/musecode/watcher.go
+perl -0pi -e 's/^func \(s \*watchSet\) adoptExisting\(dir string\) \{/func (s *watchSet) adoptExisting(dir string) {\n\tif true { return }/m' pkg/providers/musecode/watcher.go
+go test ./pkg/providers/musecode/ -run TestAdoptExisting 2>&1 | tail -5
+cp /tmp/w.bak pkg/providers/musecode/watcher.go && rm /tmp/w.bak
+echo "--- restored ---"; grep -c 'adoptExisting' pkg/providers/musecode/watcher.go
+```
+
+```text
+--- FAIL: TestAdoptExisting_PublishesASessionThatLandedBeforeTheWatch (0.00s)
+    watcher_test.go:263: adopting a pre-populated day directory published [], want exactly [11111111-2222-3333-4444-555555555555]
+FAIL
+FAIL	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode	0.017s
+FAIL
+--- restored ---
+4
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 12:56:01Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Full verification
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; gofmt -l . | head -3; go build ./... 2>&1|head -3; go test ./... 2>&1 | grep -v '^ok\|no test files' | head -8; echo "=== tests done ==="; golangci-lint run 2>&1|tail -3; go build -o specstory . && echo "binary builds"; git status --short | grep -v specstory-mac`
+
+```text
+=== tests done ===
+0 issues.
+binary builds
+ M pkg/providers/musecode/watcher.go
+ M pkg/providers/musecode/watcher_test.go
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 12:56:37Z)**_
+
+Fixed and verified end to end.
+
+## Root cause
+
+A race between directory creation and watch registration. Muse creates the day directory, the session directory and the transcript in immediate succession — your store shows `2026/08/15` and the session directory sharing a ctime of `08:48:14`, while watch started at 08:47. fsnotify only reports events that occur *after* a watch is added, so:
+
+1. At startup the watcher could only watch `sessions`, `2026` and `2026/08` — the day directory didn't exist yet.
+2. Muse created `2026/08/15`; the watcher saw that and added a watch on it.
+3. But by then the session directory and `session.jsonl` inside it already existed. Their creation events fired before the watch existed, so they were lost.
+4. `handleEvent` added the watch but never looked at what was already inside, and the next `refresh()` was 10 minutes out — by which point the transcript was fully written and emitting no further events.
+
+So the first session of any day was invisible. I confirmed this in a sandbox before changing anything: with the old binary, the watcher logged `added watch … /2026/08/15` and then produced nothing at all.
+
+## The fix
+
+`adoptExisting` walks a directory when it first appears and picks up whatever is already inside — adding watches to subdirectories and publishing any transcript found. It recurses, so a new year/month/day/session chain is adopted in one pass, and it skips `subagent` directories, which are never sessions of their own.
+
+Re-running the identical repro against the fixed binary produces the markdown, carrying the real prompt from your session:
+
+```
+.specstory/history/2026-08-15_12-48-14Z-create-a-hello-world.md
+```
+
+This also closes the narrower race for later sessions in a day, where the session directory is created a moment before its transcript.
+
+`TestAdoptExisting_PublishesASessionThatLandedBeforeTheWatch` locks it in, and I verified it genuinely fails without the fix (`published [], want exactly [1111...]`) rather than passing vacuously.
+
+## Two things I noticed along the way
+
+**Sessions are published twice on adoption** — once by the walk, once by the subsequent write event. That's harmless because autosave overwrites the same markdown file, which is what watch mode does continuously anyway. I left it rather than adding dedup state.
+
+**A session directory whose name disagrees with the stream id inside parses to zero events, silently.** I hit this myself: my first repro renamed the session directory, and `ParseSessionFile` settled the id from the directory name and then dropped every record as a foreign stream, logging only `no conversation events yet`. In the real store those always agree, so this isn't your bug — but anyone copying or renaming a session directory would get a silently empty session with no indication why. Worth a thought, not necessarily action.
+
+**Worth checking on the grok branch:** `grokbuild`'s watcher has the same shape — `syncWatches`/`desiredWatchDirs` over a store it doesn't own — so it may share this gap. I haven't looked, since grokbuild isn't on this branch.
+
+Only `watcher.go` and `watcher_test.go` are modified here; the earlier Copilot fixes are already committed. Full suite, lint and binary all clean.
+
+---
+
+_**User (2026-08-15 13:08:13Z)**_
+
+Testing `resume` into Muse... anything we can do about this warning in the synthesized session? Meaning... could we synthesize a clean stop?
+
+[Image #4]
+
+---
+
+_**User (2026-08-15 13:08:13Z)**_
+
+[Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-08-15-09.07.35.png]
+
+---
+
+_**Agent (claude-opus-5 2026-08-15 13:08:36Z)**_
+
+Let me compare what a real Muse session records at shutdown against what our reconstruction emits.
+
+_**Agent (claude-opus-5 2026-08-15 13:08:39Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Survey record and payload types in real Muse sessions
+
+```bash
+cd /Users/sean/.local/share/muse/sessions
+echo "=== all payload_type values across real sessions ==="
+for f in $(find . -name session.jsonl); do grep -o '"payload_type":"[^"]*"' "$f"; done | sort | uniq -c | sort -rn
+echo; echo "=== all record_type values ==="
+for f in $(find . -name session.jsonl); do grep -o '"record_type":"[^"]*"' "$f"; done | sort | uniq -c
+```
+
+```text
+=== all payload_type values across real sessions ===
+ 548 "payload_type":"runtime.session"
+   6 "payload_type":"runtime.session.metadata"
+   5 "payload_type":"tool_batch.effect.terminal"
+   5 "payload_type":"tool_batch.effect.started"
+   4 "payload_type":"session.startup_phases.observed"
+   4 "payload_type":"session.opened.observed"
+   4 "payload_type":"session.end"
+   4 "payload_type":"runtime.session.route_facts"
+   4 "payload_type":"run.model.configured"
+   3 "payload_type":"command.invoked"
+   1 "payload_type":"session.resumed"
+   1 "payload_type":"runtime.model_reconfigure.completed"
+   1 "payload_type":"reminder.cleanup_effect.terminal"
+   1 "payload_type":"reminder.cleanup_effect.started"
+
+=== all record_type values ===
+ 590 "record_type":"event"
+   1 "record_type":"status"
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 13:08:48Z)**_
+
+`session.end` is the record. Let me look at its exact shape and confirm our reconstruction omits it.
+
+_**Agent (claude-opus-5 2026-08-15 13:08:51Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Inspect a real session.end record
+
+```bash
+cd /Users/sean/.local/share/muse/sessions
+echo "=== a real session.end record ==="
+for f in $(find . -name session.jsonl); do grep -h '"payload_type":"session.end"' "$f" | head -1; done | head -2 | python3 -c "
+import sys, json
+for line in sys.stdin:
+    print(json.dumps(json.loads(line), indent=2))
+    print('---')
+"
+```
+
+```text
+=== a real session.end record ===
+{
+  "schema_version": 1,
+  "id": "89715f3a-f714-4055-8138-ac147ac51884",
+  "stream": {
+    "kind": "session",
+    "id": "14a4055e-41e1-44cc-8243-2c276b9b34b0"
+  },
+  "sequence": 190,
+  "recorded_at": 1786799052241511,
+  "record_type": "event",
+  "durability": "durable",
+  "causation_id": null,
+  "payload_type": "session.end",
+  "payload_schema_version": 1,
+  "payload": {
+    "kind": "session_end",
+    "record": {
+      "schema_version": 1,
+      "session_id": "14a4055e-41e1-44cc-8243-2c276b9b34b0",
+      "exit_reason": "clean",
+      "uptime_ms": 957253,
+      "resource_usage": {
+        "rss_self_peak_bytes": 97550336,
+        "rss_tree_peak_bytes": 97550336,
+        "cpu_self_ms": 10236,
+        "cpu_children_ms": 22,
+        "threads_live": 8,
+        "load_avg_1m_hundredths": 506,
+        "workspace_free_bytes": 1144566063104,
+        "data_dir_free_bytes": 1144566063104,
+        "session_log_bytes": 529584
+      }
+    }
+  }
+}
+---
+{
+  "schema_version": 1,
+  "id": "abe5f7af-bff6-48b1-9635-4d030be6b0d4",
+  "stream": {
+    "kind": "session",
+    "id": "122e404c-727b-4f62-a224-ac5cdf760e78"
+  },
+  "sequence": 83,
+  "recorded_at": 1786799094383392,
+  "record_type": "event",
+  "durability": "durable",
+  "causation_id": null,
+  "payload_type": "session.end",
+  "payload_schema_version": 1,
+  "payload": {
+    "kind": "session_end",
+    "record": {
+      "schema_version": 1,
+      "session_id": "122e404c-727b-4f62-a224-ac5cdf760e78",
+      "exit_reason": "clean",
+      "uptime_ms": 21083,
+      "resource_usage": {
+        "rss_self_peak_bytes": 95191040,
+        "rss_tree_peak_bytes": 106496000,
+        "cpu_self_ms": 495,
+        "cpu_children_ms": 14,
+        "threads_live": 10,
+        "load_avg_1m_hundredths": 533,
+        "workspace_free_bytes": 1144565567488,
+        "data_dir_free_bytes": 1144565567488,
+        "session_log_bytes": 302023
+      }
+    }
+  }
+}
+---
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 13:09:04Z)**_
+
+`exit_reason: "clean"` in a `session.end` record is the marker. Now let me see what our reconstruction writes.
+
+_**Agent (claude-opus-5 2026-08-15 13:09:09Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Inspect the reconstructed session and exit_reason values
+
+```bash
+cd /Users/sean/.local/share/muse/sessions
+P=$(find . -path '*4d47eb76*' -name session.jsonl)
+echo "reconstructed: $P"
+echo "=== its payload types ==="; grep -o '"payload_type":"[^"]*"' "$P" | sort | uniq -c
+echo "=== record count ==="; wc -l < "$P"
+echo "=== last record ==="; tail -1 "$P" | python3 -c "import sys,json; print(json.dumps(json.loads(sys.stdin.read()), indent=2)[:900])"
+echo "=== exit_reason values anywhere in store ==="; for f in $(find . -name session.jsonl); do grep -o '"exit_reason":"[^"]*"' "$f"; done | sort | uniq -c
+```
+
+```text
+reconstructed: ./2026/08/15/4d47eb76-c9e3-4e6d-829f-cd9fcf22e07c/session.jsonl
+=== its payload types ===
+   2 "payload_type":"runtime.session.metadata"
+   1 "payload_type":"runtime.session.route_facts"
+   6 "payload_type":"runtime.session"
+   1 "payload_type":"session.end"
+   1 "payload_type":"session.opened.observed"
+   1 "payload_type":"session.resumed"
+   1 "payload_type":"session.startup_phases.observed"
+=== record count ===
+      13
+=== last record ===
+{
+  "schema_version": 1,
+  "id": "8d063b23-959e-46b9-a242-aaea3aaddac7",
+  "stream": {
+    "kind": "session",
+    "id": "4d47eb76-c9e3-4e6d-829f-cd9fcf22e07c"
+  },
+  "sequence": 13,
+  "recorded_at": 1786799235730251,
+  "record_type": "event",
+  "durability": "durable",
+  "causation_id": null,
+  "payload_type": "session.startup_phases.observed",
+  "payload_schema_version": 1,
+  "payload": {
+    "kind": "startup_phases",
+    "record": {
+      "schema_version": 1,
+      "session_id": "4d47eb76-c9e3-4e6d-829f-cd9fcf22e07c",
+      "phases": [
+        {
+          "phase": "terminal_probe",
+          "start_ms": 0,
+          "duration_ms": 18
+        },
+        {
+          "phase": "session_open",
+          "start_ms": 67,
+          "duration_ms": 5
+        },
+        {
+          "phase": "runtime_init",
+          "start_ms": 72,
+          "duration_ms": 38
+        },
+        {
+          "phase
+=== exit_reason values anywhere in store ===
+   3 "exit_reason":"clean"
+   1 "exit_reason":"crash_inferred"
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 13:09:18Z)**_
+
+The reconstructed file now contains Muse's own records from the resume run. Let me confirm where `crash_inferred` came from — that should be Muse closing out our unterminated transcript.
+
+_**Agent (claude-opus-5 2026-08-15 13:09:24Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Trace crash_inferred and the record ordering
+
+```bash
+cd /Users/sean/.local/share/muse/sessions
+echo "=== which file has crash_inferred? ==="; grep -l 'crash_inferred' $(find . -name session.jsonl)
+echo; echo "=== that record ==="; grep -h 'crash_inferred' $(find . -name session.jsonl) | python3 -c "import sys,json; d=json.loads(sys.stdin.readline()); print(json.dumps(d,indent=2)[:800])"
+echo; echo "=== record order in the reconstructed session (payload_type by sequence) ==="
+python3 - <<'PY'
+import json
+p="./2026/08/15/4d47eb76-c9e3-4e6d-829f-cd9fcf22e07c/session.jsonl"
+for line in open(p):
+    d=json.loads(line)
+    print(f'  seq {d.get("sequence"):>3}  {d.get("payload_type")}')
+PY
+```
+
+```text
+=== which file has crash_inferred? ===
+./2026/08/15/4d47eb76-c9e3-4e6d-829f-cd9fcf22e07c/session.jsonl
+
+=== that record ===
+{
+  "schema_version": 1,
+  "id": "579a7d60-0df5-4452-bbef-78c59dc99226",
+  "stream": {
+    "kind": "session",
+    "id": "4d47eb76-c9e3-4e6d-829f-cd9fcf22e07c"
+  },
+  "sequence": 7,
+  "recorded_at": 1786799235599940,
+  "record_type": "event",
+  "durability": "durable",
+  "causation_id": null,
+  "payload_type": "session.end",
+  "payload_schema_version": 1,
+  "payload": {
+    "kind": "session_end",
+    "record": {
+      "schema_version": 1,
+      "session_id": "4d47eb76-c9e3-4e6d-829f-cd9fcf22e07c",
+      "exit_reason": "crash_inferred",
+      "uptime_ms": 0
+    }
+  }
+}
+
+=== record order in the reconstructed session (payload_type by sequence) ===
+  seq   1  runtime.session.metadata
+  seq   2  runtime.session
+  seq   3  runtime.session
+  seq   4  runtime.session
+  seq   5  runtime.session
+  seq   6  runtime.session
+  seq   7  session.end
+  seq   8  runtime.session.route_facts
+  seq   9  runtime.session.metadata
+  seq  10  session.opened.observed
+  seq  11  session.resumed
+  seq  12  runtime.session
+  seq  13  session.startup_phases.observed
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 13:09:44Z)**_
+
+Now it's completely clear. Our reconstruction wrote records 1–6; **Muse itself wrote record 7** — a `session.end` with `exit_reason: "crash_inferred"` — because nothing closed the previous run, then printed the warning. Records 8–13 are the normal resume.
+
+Crucially, Muse's own crash-inferred record carries **no `resource_usage` block** — just the four core fields. That's the minimal shape it writes when it has no real telemetry, which means we can close the session honestly without fabricating runtime stats. Let me look at our writer.
+
+_**Agent (claude-opus-5 2026-08-15 13:09:44Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/reconstruct.go`
+
+```text
+1	package musecode
+2	
+3	import (
+4		"bytes"
+5		"encoding/json"
+6		"fmt"
+7		"path/filepath"
+8		"time"
+9	
+10		"github.com/google/uuid"
+11	
+12		"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+13		"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+14	)
+15	
+16	const (
+17		// reconstructedSemver is stamped as the build that wrote the transcript.
+18		// Muse reads its own build metadata back, so a plausible value keeps the
+19		// record well-formed; the real version is unknowable at reconstruct time.
+20		reconstructedSemver = "0.1.0"
+21	
+22		// reconstructedToolSurface matches what Muse Code 0.1.0 writes.
+23		reconstructedToolSurface = "2"
+24	
+25		// recordSpacing separates consecutive reconstructed records. Muse's clock
+26		// is microseconds; one millisecond apart keeps every record distinct at the
+27		// millisecond precision the parser converts to.
+28		recordSpacing = int64(time.Millisecond / time.Microsecond)
+29	)
+30	
+31	// ReconstructSession rebuilds a Muse Code native transcript from the neutral
+32	// SessionData so `muse resume <id>` can continue the conversation.
+33	//
+34	// Muse stores a session as an append-only event log: a metadata record at
+35	// session open, then run events keyed by run_id. Tool calls and thinking are
+36	// already flattened into agent text by FlattenSessionData, so reconstruction
+37	// emits only the three events a conversation needs — `started` for a user turn,
+38	// `assistant_message_committed` for an agent turn, and `terminal` to close each
+39	// run. See docs/SESSION-PORTABILITY.md and docs/MUSE-FORMAT.md.
+40	func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.ReconstructOptions) (*spi.ReconstructedSession, error) {
+41		turns, err := spi.PrepareTurns(data, opts)
+42		if err != nil {
+43			return nil, err
+44		}
+45		workspaceRoot := spi.ResolveWorkspaceRoot(opts, data)
+46	
+47		newID := uuid.NewString()
+48		baseMicros := time.Now().UTC().UnixMicro()
+49	
+50		var buf bytes.Buffer
+51		encoder := json.NewEncoder(&buf)
+52		encoder.SetEscapeHTML(false)
+53	
+54		sequence := int64(0)
+55		emit := func(payloadType string, payload map[string]any) error {
+56			sequence++
+57			record := map[string]any{
+58				"schema_version":         1,
+59				"id":                     uuid.NewString(),
+60				"stream":                 map[string]any{"kind": "session", "id": newID},
+61				"sequence":               sequence,
+62				"recorded_at":            baseMicros + sequence*recordSpacing,
+63				"record_type":            "event",
+64				"durability":             "durable",
+65				"causation_id":           nil,
+66				"payload_type":           payloadType,
+67				"payload_schema_version": 1,
+68				"payload":                payload,
+69			}
+70			if err := encoder.Encode(record); err != nil {
+71				return fmt.Errorf("failed to encode muse record: %w", err)
+72			}
+73			return nil
+74		}
+75	
+76		metadata := map[string]any{
+77			"kind": "metadata",
+78			"record": map[string]any{
+79				"workspace_root":       workspaceRoot,
+80				"provider_id":          "meta",
+81				"build":                map[string]any{"semver": reconstructedSemver},
+82				"tool_surface_version": reconstructedToolSurface,
+83				// Provenance back-link to the source session this was reconstructed
+84				// from, so the lineage stays traceable (matches claude/codex/qwen).
+85				"specstorySourceSessionId": data.SessionID,
+86			},
+87		}
+88		if err := emit(payloadTypeMetadata, metadata); err != nil {
+89			return nil, err
+90		}
+91	
+92		currentRun := ""
+93		closeRun := func() error {
+94			if currentRun == "" {
+95				return nil
+96			}
+97			err := emit(payloadTypeSession, museRunRecord(currentRun, map[string]any{
+98				"kind":     eventTerminal,
+99				"terminal": "completed",
+100				"reason":   nil,
+101			}))
+102			currentRun = ""
+103			return err
+104		}
+105	
+106		for _, turn := range turns {
+107			if turn.Role == schema.RoleUser {
+108				if err := closeRun(); err != nil {
+109					return nil, err
+110				}
+111				currentRun = uuid.NewString()
+112				if err := emit(payloadTypeSession, museRunRecord(currentRun, map[string]any{
+113					"kind":   eventStarted,
+114					"prompt": turn.Text,
+115				})); err != nil {
+116					return nil, err
+117				}
+118				continue
+119			}
+120	
+121			// A leading agent turn (the migration note) has no user turn to belong
+122			// to, so it opens a run of its own rather than being dropped.
+123			if currentRun == "" {
+124				currentRun = uuid.NewString()
+125			}
+126			if err := emit(payloadTypeSession, museRunRecord(currentRun, map[string]any{
+127				"kind":       eventAssistantMessageCommitted,
+128				"message_id": uuid.NewString(),
+129				"text":       turn.Text,
+130			})); err != nil {
+131				return nil, err
+132			}
+133		}
+134	
+135		if err := closeRun(); err != nil {
+136			return nil, err
+137		}
+138	
+139		// Muse keys a session by directory, so the "filename" carries the session
+140		// directory: NativeSessionPath joins it under today's date shard and the
+141		// caller's MkdirAll creates the directory on the way to the file.
+142		return &spi.ReconstructedSession{
+143			SessionID: newID,
+144			Filename:  filepath.Join(newID, sessionFileName),
+145			Content:   buf.Bytes(),
+146		}, nil
+147	}
+148	
+149	// museRunRecord wraps a run event in the runtime.session payload envelope.
+150	func museRunRecord(runID string, event map[string]any) map[string]any {
+151		return map[string]any{
+152			"kind":   "run",
+153			"run_id": runID,
+154			"event":  event,
+155		}
+156	}
+157	
+158	// NativeSessionPath returns where a reconstructed transcript belongs in Muse's
+159	// store: sessions/YYYY/MM/DD/<session-id>/session.jsonl under today's date
+160	// shard. The directory is deliberately not created here — the caller writes the
+161	// file and creates its parents, and SupportsReconstruction callers probe this
+162	// method just to build target lists.
+163	func (p *Provider) NativeSessionPath(projectPath string, filename string) (string, error) {
+164		sessionsRoot, err := GetMuseSessionsDir()
+165		if err != nil {
+166			return "", err
+167		}
+168	
+169		now := time.Now()
+170		return filepath.Join(
+171			sessionsRoot,
+172			fmt.Sprintf("%04d", now.Year()),
+173			fmt.Sprintf("%02d", int(now.Month())),
+174			fmt.Sprintf("%02d", now.Day()),
+175			filename,
+176		), nil
+177	}
+178	
+179	// SupportsReconstruction reports true: this provider has a native serializer
+180	// (see ReconstructSession), so it can be a cross-agent resume target.
+181	func (p *Provider) SupportsReconstruction() bool {
+182		return true
+183	}
+184
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 13:10:06Z)**_
+
+Everything I need. Muse warns because nothing closes our transcript, and it demonstrates the minimal record shape itself. Let me add it.
+
+_**Agent (claude-opus-5 2026-08-15 13:10:09Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/jsonl_parser.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 13:10:18Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/reconstruct.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 13:10:28Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build and test the reconstruct change
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; gofmt -w pkg/providers/musecode/; go build ./... 2>&1|head -3; echo "build ok"; go test ./pkg/providers/musecode/ 2>&1|tail -5`
+
+```text
+build ok
+2026/08/15 09:10:28 INFO GenerateAgentSession: Starting sessionID=11111111-2222-3333-4444-555555555555 eventCount=8
+2026/08/15 09:10:28 INFO GenerateAgentSession: Built exchanges count=1
+FAIL
+FAIL	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode	0.086s
+FAIL
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 13:10:37Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Identify the failing test
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; go test ./pkg/providers/musecode/ 2>&1 | grep -E '^\s*---|FAIL:|\.go:[0-9]+:' | head -20`
+
+```text
+--- FAIL: TestReconstructSession_RecordEnvelope (0.00s)
+    reconstruct_test.go:135: record count = 8, want 7
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 13:10:43Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/musecode/reconstruct_test.go`
+
+```text
+108			messages := data.Exchanges[i].Messages
+109			if len(messages) != 2 {
+110				t.Fatalf("exchange %d message count = %d, want 2", i, len(messages))
+111			}
+112			if got := messages[0].Content[0].Text; got != want[0] {
+113				t.Errorf("exchange %d user text = %q, want %q", i, got, want[0])
+114			}
+115			if got := messages[1].Content[0].Text; got != want[1] {
+116				t.Errorf("exchange %d agent text = %q, want %q", i, got, want[1])
+117			}
+118		}
+119	}
+120	
+121	func TestReconstructSession_RecordEnvelope(t *testing.T) {
+122		provider := NewProvider()
+123		workspaceRoot := t.TempDir()
+124	
+125		rec, err := provider.ReconstructSession(sourceSessionData(workspaceRoot), spi.ReconstructOptions{
+126			WorkspaceRoot: workspaceRoot,
+127		})
+128		if err != nil {
+129			t.Fatalf("ReconstructSession failed: %v", err)
+130		}
+131	
+132		lines := strings.Split(strings.TrimSpace(string(rec.Content)), "\n")
+133		// metadata + (started + assistant + terminal) per turn pair.
+134		if len(lines) != 7 {
+135			t.Fatalf("record count = %d, want 7", len(lines))
+136		}
+137	
+138		var previousSequence, previousRecordedAt int64
+139		for i, line := range lines {
+140			var record MuseRecord
+141			if err := json.Unmarshal([]byte(line), &record); err != nil {
+142				t.Fatalf("record %d does not parse: %v", i, err)
+143			}
+144			if record.Stream.Kind != "session" || record.Stream.ID != rec.SessionID {
+145				t.Errorf("record %d stream = %+v, want session/%s", i, record.Stream, rec.SessionID)
+146			}
+147			if record.RecordType != "event" {
+148				t.Errorf("record %d record_type = %q, want event", i, record.RecordType)
+149			}
+150			if record.Sequence <= previousSequence {
+151				t.Errorf("record %d sequence = %d, not monotonic after %d", i, record.Sequence, previousSequence)
+152			}
+153			if record.RecordedAt <= previousRecordedAt {
+154				t.Errorf("record %d recorded_at = %d, not monotonic after %d", i, record.RecordedAt, previousRecordedAt)
+155			}
+156			// recorded_at is microseconds since the epoch, not milliseconds or
+157			// seconds: a value in any other unit converts to an absurd date.
+158			if age := time.Since(time.UnixMicro(record.RecordedAt)); age > time.Hour || age < -time.Hour {
+159				t.Errorf("record %d recorded_at %d is not a microsecond timestamp near now", i, record.RecordedAt)
+160			}
+161			previousSequence = record.Sequence
+162			previousRecordedAt = record.RecordedAt
+163		}
+164	
+165		// The first record carries the lineage back-link.
+166		var first MuseRecord
+167		if err := json.Unmarshal([]byte(lines[0]), &first); err != nil {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 13:10:52Z)**_
+
+The test pins the record count. Updating it, and turning the change into a real assertion about the closing record.
+
+_**Agent (claude-opus-5 2026-08-15 13:10:55Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/reconstruct_test.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 13:11:15Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Add and run the clean-close test
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; cat >> pkg/providers/musecode/reconstruct_test.go << 'EOF'
+
+// Muse treats a transcript that ends without a session.end record as a process
+// that died: on resume it writes its own session.end with exit_reason
+// "crash_inferred" and tells the user the previous run ended abnormally. A
+// reconstructed session never crashed, so it must close itself.
+func TestReconstructSession_ClosesTheSessionCleanly(t *testing.T) {
+	provider := NewProvider()
+	workspaceRoot := t.TempDir()
+
+	rec, err := provider.ReconstructSession(sourceSessionData(workspaceRoot), spi.ReconstructOptions{
+		WorkspaceRoot: workspaceRoot,
+	})
+	if err != nil {
+		t.Fatalf("ReconstructSession failed: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(rec.Content)), "\n")
+
+	var last MuseRecord
+	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &last); err != nil {
+		t.Fatalf("final record does not parse: %v", err)
+	}
+	if last.PayloadType != payloadTypeSessionEnd {
+		t.Fatalf("final record payload_type = %q, want %q", last.PayloadType, payloadTypeSessionEnd)
+	}
+
+	var payload struct {
+		Kind   string `json:"kind"`
+		Record struct {
+			SessionID  string `json:"session_id"`
+			ExitReason string `json:"exit_reason"`
+		} `json:"record"`
+	}
+	if err := json.Unmarshal(last.Payload, &payload); err != nil {
+		t.Fatalf("session.end payload does not parse: %v", err)
+	}
+	if payload.Kind != "session_end" {
+		t.Errorf("payload kind = %q, want session_end", payload.Kind)
+	}
+	if payload.Record.ExitReason != "clean" {
+		t.Errorf("exit_reason = %q, want clean — Muse warns on anything else", payload.Record.ExitReason)
+	}
+	if payload.Record.SessionID != rec.SessionID {
+		t.Errorf("session_id = %q, want %q", payload.Record.SessionID, rec.SessionID)
+	}
+
+	// The close must not disturb the conversation: a reconstructed transcript
+	// still parses back to the same exchanges.
+	dir := t.TempDir()
+	path := filepath.Join(dir, sessionFileName)
+	if err := os.WriteFile(path, rec.Content, 0o644); err != nil {
+		t.Fatalf("failed to write transcript: %v", err)
+	}
+	session, err := ParseSessionFile(path)
+	if err != nil {
+		t.Fatalf("reconstructed transcript no longer parses: %v", err)
+	}
+	if len(session.Events) == 0 {
+		t.Error("reconstructed transcript parsed to no events")
+	}
+}
+EOF
+gofmt -w pkg/providers/musecode/ && go test ./pkg/providers/musecode/ -run 'TestReconstruct' -v 2>&1 | grep -E 'RUN|PASS|FAIL|want'
+```
+
+```text
+=== RUN   TestReconstructSession_RoundTrip
+--- PASS: TestReconstructSession_RoundTrip (0.00s)
+=== RUN   TestReconstructSession_RecordEnvelope
+--- PASS: TestReconstructSession_RecordEnvelope (0.00s)
+=== RUN   TestReconstructSession_MigrationNoteOpensItsOwnRun
+--- PASS: TestReconstructSession_MigrationNoteOpensItsOwnRun (0.00s)
+=== RUN   TestReconstructSession_Errors
+=== RUN   TestReconstructSession_Errors/nil_session_data
+=== RUN   TestReconstructSession_Errors/no_content_to_reconstruct
+--- PASS: TestReconstructSession_Errors (0.00s)
+    --- PASS: TestReconstructSession_Errors/nil_session_data (0.00s)
+    --- PASS: TestReconstructSession_Errors/no_content_to_reconstruct (0.00s)
+=== RUN   TestReconstructSession_ClosesTheSessionCleanly
+--- PASS: TestReconstructSession_ClosesTheSessionCleanly (0.00s)
+PASS
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 13:11:23Z)**_
+
+Now let me verify against the real store — that our output matches the shape Muse itself writes for a clean exit.
+
+_**Agent (claude-opus-5 2026-08-15 13:11:33Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Dump our synthesized session.end for comparison
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+go build -o specstory . && echo "built"
+cat > /tmp/recon_check_test.go <<'EOF'
+package musecode
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+)
+
+func TestZZDumpFinalRecord(t *testing.T) {
+	rec, err := NewProvider().ReconstructSession(sourceSessionData(t.TempDir()), spi.ReconstructOptions{WorkspaceRoot: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(rec.Content)), "\n")
+	var pretty map[string]any
+	_ = json.Unmarshal([]byte(lines[len(lines)-1]), &pretty)
+	out, _ := json.MarshalIndent(pretty, "", "  ")
+	fmt.Println(string(out))
+}
+EOF
+cp /tmp/recon_check_test.go pkg/providers/musecode/zz_recon_test.go
+go test ./pkg/providers/musecode/ -run TestZZDumpFinalRecord -v 2>&1 | sed -n '/^{/,/^}/p'
+rm pkg/providers/musecode/zz_recon_test.go /tmp/recon_check_test.go
+```
+
+```text
+built
+{
+  "causation_id": null,
+  "durability": "durable",
+  "id": "0b318ca5-4448-4f26-a74e-25c378a16324",
+  "payload": {
+    "kind": "session_end",
+    "record": {
+      "exit_reason": "clean",
+      "schema_version": 1,
+      "session_id": "3aba2022-b1cb-4b61-a2ce-cd03e6170a15",
+      "uptime_ms": 0
+    }
+  },
+  "payload_schema_version": 1,
+  "payload_type": "session.end",
+  "record_type": "event",
+  "recorded_at": 1786799493022937,
+  "schema_version": 1,
+  "sequence": 8,
+  "stream": {
+    "id": "3aba2022-b1cb-4b61-a2ce-cd03e6170a15",
+    "kind": "session"
+  }
+}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 13:11:46Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Full verification
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; gofmt -l . | head -3; go build ./... 2>&1|head -3; go test ./... 2>&1 | grep -v '^ok\|no test files' | head -8; echo "=== tests done ==="; golangci-lint run 2>&1|tail -3; git status --short | grep -v specstory-mac`
+
+```text
+=== tests done ===
+0 issues.
+ M pkg/providers/musecode/jsonl_parser.go
+ M pkg/providers/musecode/reconstruct.go
+ M pkg/providers/musecode/reconstruct_test.go
+```
+</details></tool-use>
+
+_**Agent (claude-opus-5 2026-08-15 13:12:05Z)**_
+
+Yes — and Muse told us exactly how. Fixed.
+
+## What was happening
+
+Muse treats a transcript that ends without a `session.end` record as a process that died. Our reconstruction wrote records 1–6 (metadata plus the conversation) and stopped. On resume, **Muse wrote record 7 itself**:
+
+```json
+"payload_type": "session.end",
+"payload": { "kind": "session_end", "record": {
+    "session_id": "4d47eb76-…", "exit_reason": "crash_inferred", "uptime_ms": 0 }}
+```
+
+…and printed the warning. Records 8–13 were then the normal resume startup. So the warning wasn't about anything being wrong with the transcript — it was Muse noticing nobody closed it.
+
+## The fix
+
+`ReconstructSession` now emits a `session.end` with `exit_reason: "clean"` as its final record, after the last run is closed.
+
+The detail that made this comfortable: Muse's *own* crash-inferred record carries **no `resource_usage` block** — just `schema_version`, `session_id`, `exit_reason`, `uptime_ms`. Real clean exits include peak RSS, CPU time, load average and so on, none of which we could honestly produce. Since Muse itself writes the four-field form when it has no measurements, I matched that shape rather than fabricating telemetry. `uptime_ms` is `0` because no process ever ran, which is the same value Muse uses in that situation.
+
+`exit_reason: "clean"` is accurate here rather than generous: the transcript is written complete in a single pass, so there is genuinely no abnormal termination to report.
+
+## Verification
+
+Two tests. `TestReconstructSession_ClosesTheSessionCleanly` asserts the final record is a `session.end` with `exit_reason` `clean` and the right session id, then writes the transcript out and parses it back to confirm the close didn't disturb the conversation. I also updated `TestReconstructSession_RecordEnvelope`, which pinned the record count at 7 — it's 8 now, and I changed the comment so the extra record is documented rather than just renumbered.
+
+I diffed our emitted record against a real one from your store; the envelope matches field for field, with the sequence continuing correctly at 8 and the microsecond timestamp in range.
+
+Full suite, lint and build all clean.
+
+One thing I could not test end to end: whether Muse actually suppresses the warning. That needs a real `resume` into Muse, which I can't drive interactively. The evidence is strong — the warning is triggered by the missing record, and we now write the record Muse looks for, in the shape Muse itself writes — but the confirming run is yours. If the warning persists, the next thing I'd check is whether Muse also wants `session.opened.observed` or a `startup_phases` record present before it considers a run properly bracketed; our transcript has neither, and real sessions do.
+
+---
+
+_**User (2026-08-16 12:32:18Z)**_
+
+Yup... all good.
+
+---
+
+_**Agent (claude-opus-5 2026-08-16 12:32:42Z)**_
+
+Great — that confirms it: the missing `session.end` was the whole story.
+
+Two things left on my list from this stretch, whenever you want them:
+
+**The grok watcher probably has the same bug.** `grokbuild` uses the same shape as muse — `syncWatches`/`desiredWatchDirs` over a date-sharded store it doesn't own — so the first session of a day is likely invisible there too, for exactly the reason muse's was. I haven't looked, since grokbuild isn't on this branch. It'd be a quick check and the fix would port directly.
+
+**Doc section numbering** will collide again when the qwen and grok branches land, since dev now has geminicli as §10 and each branch adds its own. Mechanical to resolve, or worth collapsing the per-provider follow-ons into one section at that point.
+
+The muse changes are sitting uncommitted on `muse-provider` — `jsonl_parser.go`, `reconstruct.go` and `reconstruct_test.go` from the resume fix, on top of the watcher work.

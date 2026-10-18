@@ -122,6 +122,8 @@ func buildRegistry(p hostPaths) []Agent {
 			GlobalDir: filepath.Join(p.home, ".kilocode", "skills"), ConfigDir: filepath.Join(p.home, ".kilocode")},
 		{Name: "opencode", DisplayName: "OpenCode", ProjectDir: canonicalRel,
 			GlobalDir: filepath.Join(p.configHome, "opencode", "skills"), ConfigDir: filepath.Join(p.configHome, "opencode")},
+		{Name: "pi", DisplayName: "Pi", ProjectDir: filepath.Join(".pi", "skills"),
+			GlobalDir: filepath.Join(p.home, ".pi", "agent", "skills"), ConfigDir: filepath.Join(p.home, ".pi", "agent")},
 		{Name: "qwen-code", DisplayName: "Qwen Code", ProjectDir: filepath.Join(".qwen", "skills"),
 			GlobalDir: filepath.Join(p.home, ".qwen", "skills"), ConfigDir: filepath.Join(p.home, ".qwen")},
 		{Name: "roo", DisplayName: "Roo Code", ProjectDir: filepath.Join(".roo", "skills"),

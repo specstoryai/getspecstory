@@ -10435,7 +10435,7 @@ _**Agent (claude-fable-5 2026-07-02 12:11:31Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/CLOUD-RESUME.md`
 
-```text
+````text
 155	```
 156	
 157	- **`markdown` and `rawData` blobs live in Supabase object storage**, not the DB:
@@ -10454,7 +10454,7 @@ _**Agent (claude-fable-5 2026-07-02 12:11:31Z)**_
 170	  - **`POST /api/v1/graphql` → `searchSessions(query, filters, limit=200, page=1)`** — Postgres `websearch_to_tsquery` over `exchanges.fts`, ranked by most-recent matching exchange; filters: clientName, agentName, deviceId, gitBranches, llmModels, tags, date range (`shared/models/session.ts:191-336`)
 171	- **Auth:** Bearer JWT — **app-issued, verified with a shared HMAC secret** (`jwt.verify(token, env.JWT_SECRET)`, `shared.ts:48`), not Clerk-JWKS; `userId` from `sub`; per-request `Session.validateAccess(projectId, sessionId, userId)` / `user_permissions`. No DB-level RLS — enforced in app layer.
 172
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-07-02 12:12:00Z)**_
@@ -10535,7 +10535,7 @@ _**Agent (claude-fable-5 2026-07-02 13:09:16Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/CLOUD-RESUME.md`
 
-```text
+````text
 1	# Cloud Resume & Search
 2	
 3	Planning document for extending the CLI's `specstory resume` and `specstory search` to include sessions stored in SpecStory Cloud.
@@ -10842,7 +10842,7 @@ _**Agent (claude-fable-5 2026-07-02 13:09:16Z)**_
 304	- **CLI:** call cloud search on the search debounce; merge into the search TUI reusing Chunk 2's dedup / machine filter / gating / async layering; render local + cloud snippets uniformly.
 305	- **Validation:** compare local vs cloud results for the same queries (stemming/stopword/prefix parity per D18); confirm snippets render identically, recency ordering across sources, the 500 cap, and that `fts_simple` populated via re-sync (no backfill run).
 306
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-07-02 13:09:30Z)**_
@@ -14493,7 +14493,7 @@ _**Agent (claude-fable-5 2026-07-02 15:20:31Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/CLOUD-RESUME.md`
 
-```text
+````text
 1	# Cloud Resume & Search
 2	
 3	Planning document for extending the CLI's `specstory resume` and `specstory search` to include sessions stored in SpecStory Cloud.
@@ -14803,7 +14803,7 @@ _**Agent (claude-fable-5 2026-07-02 15:20:31Z)**_
 307	- **CLI:** call cloud search on its own fire-on-pause debounce (~600ms of typing silence, D11); merge into the search TUI reusing Chunk 2's dedup / machine filter / gating / async layering; render local + cloud snippets uniformly.
 308	- **Validation:** compare local vs cloud results for the same queries (stemming/stopword/prefix parity per D18); confirm snippets render identically, recency ordering across sources, the 500 cap, and that `fts_simple` populated via re-sync (no backfill run).
 309
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-07-02 15:21:36Z)**_

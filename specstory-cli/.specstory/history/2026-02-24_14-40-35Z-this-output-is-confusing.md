@@ -76,7 +76,7 @@ _**Agent (claude-opus-4-6 2026-02-24 14:41:10Z)**_
 <summary>Tool use: **Task**</summary>
 Explore only-stats flag handling
 
-```text
+````text
 Perfect! I now have all the information needed. Let me compile the comprehensive analysis:
 
 ## Summary
@@ -238,7 +238,7 @@ agentId: a317ca8 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 46093
 tool_uses: 7
 duration_ms: 27852</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-24 14:40:42Z)**_
@@ -2250,7 +2250,7 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-24 14:40:50Z)**_
 <summary>Tool use: **Grep**</summary>
  path `./` pattern `sessions up to date|sessions updated|new sessions created`
 
-```text
+````text
 <persisted-output>
 Output too large (20.5KB). Full output saved to: /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/bfb862d3-ecd6-415e-a037-3d7eec2edb92/tool-results/toolu_01WyRA9o5Co9pKyXSKYuY5Mo.txt
 
@@ -2274,7 +2274,7 @@ Preview (first 2KB):
 .specstory/history/2026-01-16_22-28-53Z-after-a-cloud-sync.md-5838-Options:
 ...
 </persisted-output>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-24 14:40:53Z)**_

@@ -185,7 +185,7 @@ _**Agent (claude-opus-4-6 2026-02-11 16:29:14Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/550009ba-fde6-4a8b-b35b-d6e8de2b6068/tool-results/dd516a46-d1e6-4ec4-8f19-82be453c31e5.txt`
 
-```text
+````text
      1→diff --git a/specstory-cli/.specstory/history/2026-02-09_22-53-07Z-command-message-code-review.md b/specstory-cli/.specstory/history/2026-02-09_22-53-07Z-command-message-code-review.md
      2→index 60ffdf5..c9dc462 100644
      3→--- a/specstory-cli/.specstory/history/2026-02-09_22-53-07Z-command-message-code-review.md
@@ -1149,7 +1149,7 @@ _**Agent (claude-opus-4-6 2026-02-11 16:29:14Z)**_
    961→ 	watchCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
    962→ 	watchCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
    963→ 	watchCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-11 16:29:14Z)**_

@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/xeipuuv/gojsonschema"
 )
@@ -542,6 +545,322 @@ func TestCodexUserMessageText_BothShapes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := codexUserMessageText(tt.line); got != tt.expected {
 				t.Errorf("codexUserMessageText() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParseToolOutput(t *testing.T) {
+	tests := []struct {
+		name     string
+		output   interface{}
+		expected map[string]interface{}
+	}{
+		{
+			name:     "Empty string records nothing",
+			output:   "",
+			expected: nil,
+		},
+		{
+			name:     "Plain text string wrapped as raw",
+			output:   "Exit code: 0\nOutput:\nhello",
+			expected: map[string]interface{}{"raw": "Exit code: 0\nOutput:\nhello"},
+		},
+		{
+			name:     "JSON object string parsed into map",
+			output:   `{"output":"Success","metadata":{"exit_code":0}}`,
+			expected: map[string]interface{}{"output": "Success", "metadata": map[string]interface{}{"exit_code": float64(0)}},
+		},
+		{
+			name: "Content item array flattened to raw text",
+			output: []interface{}{
+				map[string]interface{}{"type": "input_text", "text": "Script completed\nOutput:\n"},
+				map[string]interface{}{"type": "input_text", "text": "中文输出"},
+			},
+			expected: map[string]interface{}{"raw": "Script completed\nOutput:\n\n中文输出"},
+		},
+		{
+			name: "Image items replaced with marker instead of base64",
+			output: []interface{}{
+				map[string]interface{}{"type": "input_text", "text": "Screenshot:"},
+				map[string]interface{}{"type": "input_image", "image_url": "data:image/png;base64,iVBORw0KGgo"},
+			},
+			expected: map[string]interface{}{"raw": "Screenshot:\n[image]"},
+		},
+		{
+			name:     "Empty array records nothing",
+			output:   []interface{}{},
+			expected: nil,
+		},
+		{
+			name:     "Array without usable items records nothing",
+			output:   []interface{}{"stray", map[string]interface{}{"type": "input_text", "text": ""}},
+			expected: nil,
+		},
+		{
+			name:     "Missing output records nothing",
+			output:   nil,
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseToolOutput(tt.output)
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("parseToolOutput() = %#v, want %#v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFormatToolWithSummary_OutputTruncation(t *testing.T) {
+	const limit = 5000
+	tests := []struct {
+		name          string
+		output        string
+		wantTruncated bool
+	}{
+		{name: "ASCII under limit", output: strings.Repeat("a", limit-1), wantTruncated: false},
+		{name: "ASCII at limit", output: strings.Repeat("a", limit), wantTruncated: false},
+		{name: "ASCII over limit", output: strings.Repeat("a", limit+1), wantTruncated: true},
+		{name: "Chinese under limit", output: strings.Repeat("中", limit-1), wantTruncated: false},
+		{name: "Chinese at limit despite 15000 bytes", output: strings.Repeat("中", limit), wantTruncated: false},
+		{name: "Chinese over limit", output: strings.Repeat("中", limit+1), wantTruncated: true},
+		{name: "Emoji over limit", output: strings.Repeat("🎉", limit+1), wantTruncated: true},
+		// Byte 5000 lands one byte into a three-byte character: the exact
+		// case a byte-offset cut turns into invalid UTF-8.
+		{name: "Character straddling byte 5000", output: "x" + strings.Repeat("中", 2000), wantTruncated: false},
+		{name: "Mixed over limit", output: "x" + strings.Repeat("中", limit), wantTruncated: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tool := &ToolInfo{Name: "exec", Output: map[string]interface{}{"raw": tt.output}}
+			_, md := formatToolWithSummary(tool, "/test/workspace")
+
+			if !utf8.ValidString(md) {
+				t.Fatalf("formatted markdown is invalid UTF-8")
+			}
+			truncated := strings.Contains(md, "(output truncated)")
+			if truncated != tt.wantTruncated {
+				t.Errorf("truncated = %v, want %v", truncated, tt.wantTruncated)
+			}
+			if !tt.wantTruncated && !strings.Contains(md, tt.output) {
+				t.Errorf("untruncated output not rendered in full")
+			}
+			if tt.wantTruncated && !strings.Contains(md, string([]rune(tt.output)[:limit])) {
+				t.Errorf("truncated output does not keep the first %d characters", limit)
+			}
+		})
+	}
+}
+
+// TestGenerateAgentSession_ArrayToolOutput covers code-mode exec, whose output is an array
+// of content items rather than a string. It used to be dropped from the transcript.
+func TestGenerateAgentSession_ArrayToolOutput(t *testing.T) {
+	records := []map[string]interface{}{
+		{
+			"type":      "session_meta",
+			"timestamp": "2026-09-22T19:00:46Z",
+			"payload": map[string]interface{}{
+				"id":        "01a0ca7d",
+				"timestamp": "2026-09-22T19:00:46Z",
+				"cwd":       "/test/workspace",
+			},
+		},
+		{
+			"type":      "response_item",
+			"timestamp": "2026-09-22T19:00:47Z",
+			"payload": map[string]interface{}{
+				"type":    "message",
+				"role":    "user",
+				"content": []interface{}{map[string]interface{}{"type": "input_text", "text": "Print some Chinese"}},
+			},
+		},
+		{
+			"type":      "response_item",
+			"timestamp": "2026-09-22T19:00:48Z",
+			"payload": map[string]interface{}{
+				"type":    "custom_tool_call",
+				"name":    "exec",
+				"call_id": "call-1",
+				"input":   `text(await tools.exec_command({cmd:"echo 中文"}));`,
+			},
+		},
+		{
+			"type":      "response_item",
+			"timestamp": "2026-09-22T19:00:49Z",
+			"payload": map[string]interface{}{
+				"type":    "custom_tool_call_output",
+				"call_id": "call-1",
+				"output": []interface{}{
+					map[string]interface{}{"type": "input_text", "text": "Script completed\nOutput:\n"},
+					map[string]interface{}{"type": "input_text", "text": "中文"},
+				},
+			},
+		},
+	}
+
+	sessionData, err := GenerateAgentSession(records, "/test/workspace")
+	if err != nil {
+		t.Fatalf("GenerateAgentSession failed: %v", err)
+	}
+
+	var tool *ToolInfo
+	for _, exchange := range sessionData.Exchanges {
+		for _, msg := range exchange.Messages {
+			if msg.Tool != nil {
+				tool = msg.Tool
+			}
+		}
+	}
+	if tool == nil {
+		t.Fatal("exec tool call not found in session")
+	}
+	if tool.FormattedMarkdown == nil || !strings.Contains(*tool.FormattedMarkdown, "Script completed\nOutput:\n\n中文") {
+		t.Errorf("exec output missing from formatted markdown: %v", tool.FormattedMarkdown)
+	}
+}
+
+// TestGenerateAgentSession_StructuredToolOutputInMarkdown covers tool outputs that arrive
+// as a JSON-object string (e.g. request_user_input answers). They parse into a map with no
+// "raw" key, and used to render as an empty Result, silently losing the user's answers.
+func TestGenerateAgentSession_StructuredToolOutputInMarkdown(t *testing.T) {
+	colorQuestion := `{"id":"color","header":"Color","question":"Which color?","options":[{"label":"Blue","description":"Use blue"},{"label":"Green","description":"Use green"}]}`
+	sizeQuestion := `{"id":"size","header":"Size","question":"Which size?","options":[{"label":"Small","description":"Compact"},{"label":"Large","description":"Roomy"}]}`
+
+	tests := []struct {
+		name        string
+		toolName    string
+		arguments   string
+		output      string // empty means the call never received an output
+		wantContain []string
+		wantAbsent  []string
+	}{
+		{
+			name:      "Selected option and user note are rendered",
+			toolName:  "request_user_input",
+			arguments: `{"questions":[` + colorQuestion + `]}`,
+			output:    `{"answers":{"color":{"answers":["Blue","user_note: SYNTHETIC_ANSWER_ONLY_MARKER"]}}}`,
+			wantContain: []string{
+				"Which color?", "Blue", "Use blue", "Green", "Use green",
+				"SYNTHETIC_ANSWER_ONLY_MARKER",
+			},
+			// The Go map representation is what the generic fallback used to print
+			wantAbsent: []string{"map["},
+		},
+		{
+			name:      "Each question gets its own answer",
+			toolName:  "request_user_input",
+			arguments: `{"questions":[` + colorQuestion + `,` + sizeQuestion + `]}`,
+			output:    `{"answers":{"color":{"answers":["Green"]},"size":{"answers":["Large"]}}}`,
+			wantContain: []string{
+				"Which color?", "Which size?",
+				"**Answer:** Green", "**Answer:** Large",
+			},
+		},
+		{
+			name:        "Cancelled question is marked as unanswered",
+			toolName:    "request_user_input",
+			arguments:   `{"questions":[` + colorQuestion + `]}`,
+			output:      `{"answers":{}}`,
+			wantContain: []string{"Which color?", "_No answer_"},
+		},
+		{
+			name:        "Pending question still renders its question",
+			toolName:    "request_user_input",
+			arguments:   `{"questions":[` + colorQuestion + `]}`,
+			wantContain: []string{"Which color?", "Blue", "Green"},
+			wantAbsent:  []string{"_No answer_"},
+		},
+		{
+			name:        "Answer to an unknown question id is not dropped",
+			toolName:    "request_user_input",
+			arguments:   `{"questions":[` + colorQuestion + `]}`,
+			output:      `{"answers":{"color":{"answers":["Blue"]},"extra":{"answers":["ORPHAN_ANSWER"]}}}`,
+			wantContain: []string{"**Answer:** Blue", "ORPHAN_ANSWER"},
+		},
+		{
+			name:        "Unrecognized JSON object output is preserved",
+			toolName:    "some_future_tool",
+			arguments:   `{"target":"INPUT_MARKER"}`,
+			output:      `{"status":"ok","details":{"value":"STRUCTURED_OUTPUT_MARKER"}}`,
+			wantContain: []string{"INPUT_MARKER", "STRUCTURED_OUTPUT_MARKER"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			records := []map[string]interface{}{
+				{
+					"type":      "session_meta",
+					"timestamp": "2026-09-25T00:00:00Z",
+					"payload": map[string]interface{}{
+						"id":        "00000000-0000-4000-8000-000000000001",
+						"timestamp": "2026-09-25T00:00:00Z",
+						"cwd":       "/test/workspace",
+					},
+				},
+				{
+					"type":      "event_msg",
+					"timestamp": "2026-09-25T00:00:01Z",
+					"payload":   map[string]interface{}{"type": "user_message", "message": "Ask me something."},
+				},
+				{
+					"type":      "response_item",
+					"timestamp": "2026-09-25T00:00:02Z",
+					"payload": map[string]interface{}{
+						"type":      "function_call",
+						"name":      tt.toolName,
+						"call_id":   "call-1",
+						"arguments": tt.arguments,
+					},
+				},
+			}
+			if tt.output != "" {
+				records = append(records, map[string]interface{}{
+					"type":      "response_item",
+					"timestamp": "2026-09-25T00:00:03Z",
+					"payload": map[string]interface{}{
+						"type":    "function_call_output",
+						"call_id": "call-1",
+						"output":  tt.output,
+					},
+				})
+			}
+
+			sessionData, err := GenerateAgentSession(records, "/test/workspace")
+			if err != nil {
+				t.Fatalf("GenerateAgentSession failed: %v", err)
+			}
+			// The session renderer writes FormattedMarkdown verbatim, and skips its generic
+			// input/output rendering when it's set, so this is exactly what lands in the file.
+			var tool *ToolInfo
+			for _, exchange := range sessionData.Exchanges {
+				for _, msg := range exchange.Messages {
+					if msg.Tool != nil {
+						tool = msg.Tool
+					}
+				}
+			}
+			if tool == nil {
+				t.Fatal("tool call not found in session")
+			}
+			if tool.FormattedMarkdown == nil {
+				t.Fatal("tool has no formatted markdown")
+			}
+			markdown := *tool.FormattedMarkdown
+
+			for _, want := range tt.wantContain {
+				if !strings.Contains(markdown, want) {
+					t.Errorf("markdown missing %q:\n%s", want, markdown)
+				}
+			}
+			for _, absent := range tt.wantAbsent {
+				if strings.Contains(markdown, absent) {
+					t.Errorf("markdown unexpectedly contains %q:\n%s", absent, markdown)
+				}
 			}
 		})
 	}

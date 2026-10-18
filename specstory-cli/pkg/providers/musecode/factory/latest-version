@@ -7,6 +7,11 @@
 # dev.meta.ai/install.sh → api.meta.ai/muse-launcher.sh). "muse-stable" is the
 # public channel; the manifest's "version" field is the current release.
 # Muse is not on npm and its GitHub repo is not public.
+# Dist-tag/prerelease policy: there is no npm dist-tag. Track only muse-stable,
+# including its full -R build suffix (for example, 1.3.0-R3057.1). That suffix
+# is part of the stable channel's release identity, not a reason to filter the
+# version as a prerelease. Build-only changes must trigger the factory too.
+# Other channels are not tracked. See README.md for audit enrollment gaps.
 #
 # Requires jq (present on GitHub Actions runners). Not parsed with sed because
 # the manifest also carries a "min_version" field that substring-matches

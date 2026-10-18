@@ -221,3 +221,45 @@ func TestRenderGenericJSON(t *testing.T) {
 		}
 	})
 }
+
+func TestFormatInputSchema(t *testing.T) {
+	tests := []struct {
+		name   string
+		schema string
+		want   string
+	}{
+		{name: "no schema", schema: `null`, want: "Parameters: none"},
+		{name: "no properties", schema: `{"type":"object","properties":{}}`, want: "Parameters: none"},
+		{
+			name:   "required first, then by name, with types, descriptions and enums",
+			schema: `{"type":"object","required":["url"],"properties":{"mode":{"type":"string","enum":["fast","full"]},"limit":{"type":"integer"},"url":{"type":"string","description":"Page\n\nto fetch."}}}`,
+			want:   "Parameters:\n- `url` (string, required): Page to fetch.\n- `limit` (integer)\n- `mode` (string) One of: `fast`, `full`.",
+		},
+		{
+			name:   "array, union and unknown keywords",
+			schema: `{"properties":{"ids":{"type":"array","items":{"type":"string"}},"when":{"anyOf":[{"type":"string"},{"type":"null"}]},"n":{"type":"number","minimum":1}}}`,
+			want:   "Parameters:\n- `ids` (array of string)\n- `n` (number); minimum: `1`\n- `when` (string | null)",
+		},
+		{
+			name:   "nested object properties",
+			schema: `{"properties":{"todo":{"type":"object","required":["id"],"properties":{"id":{"type":"string"}}}}}`,
+			want:   "Parameters:\n- `todo` (object)\n  - `id` (string, required)",
+		},
+		{
+			name:   "whole-input constraints are kept",
+			schema: `{"type":"object","additionalProperties":false,"properties":{"path":{"type":"string"}}}`,
+			want:   "Parameters:\n- `path` (string)\n\nadditionalProperties: `false`",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var schema map[string]any
+			if err := json.Unmarshal([]byte(tt.schema), &schema); err != nil {
+				t.Fatal(err)
+			}
+			if got := FormatInputSchema(schema); got != tt.want {
+				t.Errorf("got:\n%s\nwant:\n%s", got, tt.want)
+			}
+		})
+	}
+}

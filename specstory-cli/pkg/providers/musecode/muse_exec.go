@@ -31,6 +31,8 @@ func parseMuseCommand(customCommand string) (string, []string) {
 }
 
 // ExecuteMuse runs the Muse Code CLI, optionally resuming an existing session.
+// Return the agent's exit status so ExecAgentAndWatch can stop the watcher and
+// join in-flight saves before the CLI applies that status to the process.
 func ExecuteMuse(customCommand string, resumeSessionID string) error {
 	museCmd, args := parseMuseCommand(customCommand)
 
@@ -57,7 +59,7 @@ func ExecuteMuse(customCommand string, resumeSessionID string) error {
 		if errors.As(err, &exitErr) {
 			exitCode := exitErr.ExitCode()
 			slog.Info("ExecuteMuse: Muse Code exited", "exitCode", exitCode)
-			os.Exit(exitCode)
+			return &spi.AgentExitError{Agent: "Muse Code", Code: exitCode}
 		}
 		return fmt.Errorf("muse execution failed: %w", err)
 	}

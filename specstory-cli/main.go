@@ -313,10 +313,8 @@ specstory run --output-dir ~/my-sessions`
 
 	// Determine default agent name
 	defaultAgent := "the default agent"
-	if len(ids) > 0 {
-		if provider, err := registry.Get(ids[0]); err == nil {
-			defaultAgent = provider.Name()
-		}
+	if provider, err := registry.GetDefault(); err == nil {
+		defaultAgent = provider.Name()
 	}
 
 	longDesc := fmt.Sprintf(`Launch terminal coding agents in interactive mode with auto-save markdown file generation.
@@ -361,16 +359,8 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 
 			// Get the provider
 			registry := factory.GetRegistry()
-			var providerID string
-			if len(args) == 0 {
-				// Default to first registered provider
-				ids := registry.ListIDs()
-				if len(ids) > 0 {
-					providerID = ids[0]
-				} else {
-					return fmt.Errorf("no providers registered")
-				}
-			} else {
+			providerID := factory.DefaultProviderID
+			if len(args) > 0 {
 				providerID = args[0]
 			}
 
@@ -477,11 +467,12 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			// allowing immediate markdown generation and cloud sync. Errors are logged but
 			// don't stop execution because transient failures (e.g., network issues) shouldn't
 			// interrupt the user's coding session.
-			// IDE-backed providers leave this terminal idle while the user works in
-			// the IDE, so per-save feedback belongs here. CLI agents own the
+			// IDE-backed providers, and the Cursor Cloud Agent whose run happens in
+			// a browser dashboard, leave this terminal idle while the user works
+			// elsewhere, so per-save feedback belongs here. CLI agents own the
 			// terminal with their own TUI and must not have output interleaved.
 			var onSaved func(providerID string, sess *spi.AgentChatSession, fileExisted bool, markdownSize int)
-			if providerID == "cursoride" || strings.HasPrefix(providerID, "copilotide") {
+			if providerID == "cursoride" || providerID == "cursorcloud" || strings.HasPrefix(providerID, "copilotide") {
 				onSaved = func(_ string, sess *spi.AgentChatSession, fileExisted bool, _ int) {
 					if log.IsSilent() {
 						return
@@ -1545,6 +1536,9 @@ func main() {
 	}
 	// Store config for use by command functions (e.g., provider commands in run)
 	loadedConfig = cfg
+	// Provider settings that are not launch commands (the Cursor Cloud Agent key
+	// and mirror location) must be in place before any provider method runs.
+	cmdpkg.ApplyProviderSettings(cfg)
 
 	// Apply config values to flag variables so the rest of the code can use them unchanged.
 	// This merges TOML config with CLI flags (CLI flags take precedence via config.Load).

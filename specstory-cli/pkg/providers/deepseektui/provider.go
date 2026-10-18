@@ -46,12 +46,13 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		VersionFlag:   versionFlag,
 	}
 
-	resolved, err := exec.LookPath(cmdName)
+	resolved, err := spi.LookPathForCheck(cmdName)
 	if err != nil {
-		slog.Info("Check: binary not found on PATH", "command", cmdName, "error", err)
-		msg := buildCheckErrorMessage(spi.CheckErrorNotFound, cmdName, isCustom, "")
-		analytics.TrackCheckFailure(attempt, spi.CheckErrorNotFound, err.Error(), "")
-		return spi.CheckResult{Success: false, Location: "", ErrorMessage: msg}
+		errorType := spi.ClassifyCheckError(err)
+		slog.Info("Check: binary lookup failed", "command", cmdName, "error", err)
+		msg := buildCheckErrorMessage(errorType, cmdName, isCustom, "")
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
+		return spi.CheckResult{Success: false, ErrorType: errorType, Location: "", ErrorMessage: msg}
 	}
 	slog.Info("Check: binary resolved", "command", cmdName, "resolved", resolved)
 	attempt.ResolvedPath = resolved
@@ -61,13 +62,13 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		errorType := spi.ClassifyCheckError(err)
+		errorType := spi.ClassifyCheckExecutionError(err)
 		stderrOutput := strings.TrimSpace(stderr.String())
 		slog.Info("Check: version probe failed",
 			"resolved", resolved, "errorType", errorType, "stderr", stderrOutput, "error", err)
 		msg := buildCheckErrorMessage(errorType, resolved, isCustom, stderrOutput)
 		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
-		return spi.CheckResult{Success: false, Location: resolved, ErrorMessage: msg}
+		return spi.CheckResult{Success: false, ErrorType: errorType, Location: resolved, ErrorMessage: msg}
 	}
 
 	version := strings.TrimSpace(stdout.String())
@@ -181,6 +182,10 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		return ExecuteDeepSeek(customCommand, resumeSessionID)
 	}
 
+	// Capture before launching either goroutine so a fast child cannot become
+	// part of the watcher's silent startup baseline.
+	finalState := &watchState{lastProcessed: make(map[string]int64)}
+	seedProcessedSessions(finalState)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -197,6 +202,10 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 
 	if werr := <-watchErr; werr != nil && !errors.Is(werr, context.Canceled) {
 		slog.Warn("ExecAgentAndWatch: watcher stopped with error", "error", werr)
+	}
+
+	if scanErr := scanAndProcessSessions(projectPath, debugRaw, sessionCallback, finalState); scanErr != nil {
+		slog.Warn("Final session scan failed", "error", scanErr)
 	}
 
 	if err != nil {

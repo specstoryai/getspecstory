@@ -283,3 +283,34 @@ func TestEnsureResumeArgs(t *testing.T) {
 		})
 	}
 }
+
+func TestEnsureResumeFlagArgs(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		args []string
+		id   string
+		want []string
+	}{
+		{"disabled", []string{"--resume", "old"}, "", []string{"--resume", "old"}},
+		{"append", []string{"--verbose"}, "new", []string{"--verbose", "--resume", "new"}},
+		{"pinned", []string{"--resume", "old"}, "new", []string{"--resume", "new"}},
+		{"bare", []string{"-r", "--verbose"}, "new", []string{"-r", "new", "--verbose"}},
+		{"empty", []string{"--resume", ""}, "new", []string{"--resume", "new"}},
+		{"equals", []string{"--resume=old", "-r="}, "new", []string{"--resume=new", "-r=new"}},
+		{"repeated", []string{"-r", "old", "--resume", "other"}, "new", []string{"-r", "new", "--resume", "new"}},
+		{"positional", []string{"--", "--resume", "prompt"}, "new", []string{"--resume", "new", "--", "--resume", "prompt"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			backing := make([]string, len(tt.args)+4)
+			copy(backing, tt.args)
+			before := slices.Clone(backing)
+			got := EnsureResumeFlagArgs(backing[:len(tt.args)], tt.id, "--resume", "-r")
+			if !slices.Equal(got, tt.want) {
+				t.Fatalf("got %q, want %q", got, tt.want)
+			}
+			if !slices.Equal(backing, before) {
+				t.Fatal("mutated caller's backing array")
+			}
+		})
+	}
+}

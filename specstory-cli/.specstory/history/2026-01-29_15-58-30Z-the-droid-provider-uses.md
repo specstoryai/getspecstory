@@ -33,7 +33,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:59:25Z)**_
 <summary>Tool use: **Task**</summary>
 Explore Droid provider watcher
 
-```text
+````text
 Perfect! Now I have a comprehensive understanding of the Droid provider's file watching implementation. Let me compile all the findings:
 
 ## Droid Provider File Watching Implementation Report
@@ -291,7 +291,7 @@ func dispatchSession(sessionCallback func(*spi.AgentChatSession), session *spi.A
 | **Stop Mechanism** | Context cancellation via `ctx.Done()` |
 | **Project Filtering** | Checks if session file mentions the project path |
 agentId: acfd902 (for resuming to continue this agent's work if needed)
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-29 15:59:35Z)**_
@@ -300,7 +300,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:59:35Z)**_
 <summary>Tool use: **Task**</summary>
 Explore fsnotify watcher patterns
 
-```text
+````text
 Excellent! Now I have all the information needed. Let me compile a comprehensive exploration report of the fsnotify-based file watching implementations across the providers.
 
 ## File Watching Implementation Exploration Report
@@ -1003,7 +1003,7 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 5. **Droid CLI (Simple Polling)**:
    - `/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/watcher.go`
 agentId: a95069b (for resuming to continue this agent's work if needed)
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-29 15:59:42Z)**_

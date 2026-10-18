@@ -1,0 +1,186 @@
+{
+  "schemaVersion": "1.0",
+  "provider": {
+    "id": "grok",
+    "name": "Grok Build",
+    "version": "unknown"
+  },
+  "sessionId": "01a0b157-a837-7681-8cfa-55f72b4f7efa",
+  "createdAt": "2026-09-17T21:48:27.071Z",
+  "updatedAt": "2026-09-17T21:48:41.084Z",
+  "workspaceRoot": "/qa/project space_under",
+  "exchanges": [
+    {
+      "exchangeId": "01a0b157-a837-7681-8cfa-55f72b4f7efa:0",
+      "startTime": "2026-09-17T21:48:27.210Z",
+      "endTime": "2026-09-17T21:48:40.920Z",
+      "messages": [
+        {
+          "timestamp": "2026-09-17T21:48:27.210Z",
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "This is a disposable exporter QA session. Exercise exactly these tools in order: search_tool with query \"SPECSTORY-NONEXISTENT-QA-TOOL-9281\"; use_tool with tool_name \"SPECSTORY-NONEXISTENT-QA-TOOL-9281\" and empty tool_input to capture failure without touching any real integration; web_fetch of https://example.com. Do not invoke any real MCP account tool, send messages or feedback, or modify files outside this scratch project. Conclude by reporting actual outcomes."
+            }
+          ]
+        },
+        {
+          "id": "rs_b2051e9b-f907-9515-a9f9-3d144c409b44",
+          "timestamp": "2026-09-17T21:48:30.531Z",
+          "role": "agent",
+          "content": [
+            {
+              "type": "thinking",
+              "text": "The user wants me to exercise specific tools in order as part of a disposable exporter QA session:"
+            }
+          ]
+        },
+        {
+          "timestamp": "2026-09-17T21:48:31.786Z",
+          "role": "agent",
+          "model": "grok-4.6",
+          "content": [
+            {
+              "type": "text",
+              "text": "I'll run the three requested tools in order, starting with the nonexistent-tool search."
+            }
+          ]
+        },
+        {
+          "id": "call-8e0709e4-b772-45a5-a42e-af5eb9566cc2-0",
+          "timestamp": "2026-09-17T21:48:32.044Z",
+          "role": "agent",
+          "model": "grok-4.6",
+          "tool": {
+            "name": "search_tool",
+            "type": "search",
+            "useId": "call-8e0709e4-b772-45a5-a42e-af5eb9566cc2-0",
+            "input": {
+              "query": "SPECSTORY-NONEXISTENT-QA-TOOL-9281"
+            },
+            "output": {
+              "output": "{\n  \"results\": [\n    {\n      \"server\": \"xray\",\n      \"tools\": [\n        {\n          \"tool_name\": \"xray__get_datasets\",\n          \"description\": \"Return the Xray Datasets matching the given filters.\\n\\nA Dataset must pass every filter given. A filter passes if any of its values match.\\nSupply at least one filter to receive Datasets.\\n\\nThis tool returns a list of Dataset, whose selectable fields are documented on\\nget_dataset. Unlike the other list tools it is not paged, so it takes no limit\\nor start argument.\\nExample: 'id testIssueId parameters { name type } rows { order Values }'\",\n          \"score\": 5.163255214691162,\n          \"input_schema\": {\n            \"additionalProperties\": false,\n            \"properties\": {\n              \"fields\": {\n                \"type\": \"string\"\n              },\n              \"test_issue_ids\": {\n                \"anyOf\": [\n                  {\n                    \"items\": {\n                      \"type\": \"string\"\n                    },\n                    \"type\": \"array\"\n                  },\n                  {\n                    \"type\": \"null\"\n                  }\n                ],\n                \"default\": null,\n                \"description\": \"the Tests whose Datasets to return\"\n              },\n              \"test_exec_issue_ids\": {\n                \"anyOf\": [\n                  {\n                    \"items\": {\n                      \"type\": \"string\"\n                    },\n                    \"type\": \"array\"\n                  },\n                  {\n                    \"type\": \"null\"\n                  }\n                ],\n                \"default\": null,\n                \"description\": \"the Test Executions whose Datasets to return\"\n              },\n              \"test_plan_issue_ids\": {\n                \"anyOf\": [\n                  {\n                    \"items\": {\n                      \"type\": \"string\"\n                    },\n                    \"type\": \"array\"\n                  },\n                  {\n                    \"type\": \"null\"\n                  }\n                ],\n                \"default\": null,\n                \"description\": \"the Test Plans whose Datasets to return\"\n              }\n            },\n            \"required\": [\n              \"fields\"\n            ],\n            \"type\": \"object\"\n          }\n        },\n        {\n          \"tool_name\": \"xray__get_status\",\n          \"description\": \"Return a single Xray test status by its name, for example \\\"PASSED\\\".\\n\\nThis tool returns a Status, whose selectable fields are documented on get_statuses.\\nExample: \\\"name description final color\\\"\",\n          \"score\": 4.90104341506958,\n          \"input_schema\": {\n            \"additionalProperties\": false,\n            \"properties\": {\n              \"fields\": {\n                \"type\": \"string\"\n              },\n              \"name\": {\n                \"anyOf\": [\n                  {\n                    \"type\": \"string\"\n                  },\n                  {\n                    \"type\": \"null\"\n                  }\n                ],\n                \"default\": null\n              }\n            },\n            \"required\": [\n              \"fields\"\n            ],\n            \"type\": \"object\"\n          }\n        },\n        {\n          \"tool_name\": \"xray__get_step_status\",\n          \"description\": \"Return a single Xray test step status by its name, for example \\\"PASSED\\\".\\n\\nThis tool returns a StepStatus, whose selectable fields are documented on get_step_statuses.\\nExample: \\\"name description color testStatus { name }\\\"\",\n          \"score\": 4.784576416015625,\n          \"input_schema\": {\n            \"additionalProperties\": false,\n            \"properties\": {\n              \"fields\": {\n                \"type\": \"string\"\n              },\n              \"name\": {\n                \"anyOf\": [\n                  {\n                    \"type\": \"string\"\n                  },\n                  {\n                    \"type\": \"null\"\n                  }\n                ],\n                \"default\": null\n              }\n            },\n            \"required\": [\n              \"fields\"\n            ],\n            \"type\": \"object\"\n          }\n        },\n        {\n          \"tool_name\": \"xray__get_test_run_by_id\",\n          \"description\": \"Return a single Xray Test Run by its Test Run id.\\n\\nThis tool returns a TestRun, whose selectable fields are documented on get_test_run.\\nExample: 'id status { name color } steps { action data result status { name } }'\",\n          \"score\": 4.602296829223633,\n          \"input_schema\": {\n            \"additionalProperties\": false,\n            \"properties\": {\n              \"fields\": {\n                \"type\": \"string\"\n              },\n              \"id\": {\n                \"anyOf\": [\n                  {\n                    \"type\": \"string\"\n                  },\n                  {\n                    \"type\": \"null\"\n                  }\n                ],\n                \"default\": null\n              }\n            },\n            \"required\": [\n              \"fields\"\n            ],\n            \"type\": \"object\"\n          }\n        },\n        {\n          \"tool_name\": \"xray__get_issue_link_types\",\n          \"description\": \"Return the Jira issue link types available to Xray.\\n\\nThis tool takes no filters, because getIssueLinkTypes accepts no arguments.\\n\\nAvailable fields on IssueLinkType:\\n  name: String   name of the issue link type\\n  id: String     id of the issue link type\\nExample: \\\"id name\\\"\",\n          \"score\": 4.533215522766113,\n          \"input_schema\": {\n            \"additionalProperties\": false,\n            \"properties\": {\n              \"fields\": {\n                \"type\": \"string\"\n              }\n            },\n            \"required\": [\n              \"fields\"\n            ],\n            \"type\": \"object\"\n          }\n        }\n      ]\n    }\n  ],\n  \"total_hidden_tools\": 199,\n  \"status\": \"ready\",\n  \"note\": null\n}",
+              "status": "success"
+            },
+            "summary": "Tool use: **search_tool** `SPECSTORY-NONEXISTENT-QA-TOOL-9281`",
+            "formattedMarkdown": "\nquery: `SPECSTORY-NONEXISTENT-QA-TOOL-9281`\n\nDiscovered tools:\n\nServer: `xray`\n\n**xray__get_datasets**\n\nReturn the Xray Datasets matching the given filters.\n\nA Dataset must pass every filter given. A filter passes if any of its values match.\nSupply at least one filter to receive Datasets.\n\nThis tool returns a list of Dataset, whose selectable fields are documented on\nget_dataset. Unlike the other list tools it is not paged, so it takes no limit\nor start argument.\nExample: 'id testIssueId parameters { name type } rows { order Values }'\n\n```json\n{\n  \"input_schema\": {\n    \"additionalProperties\": false,\n    \"properties\": {\n      \"fields\": {\n        \"type\": \"string\"\n      },\n      \"test_exec_issue_ids\": {\n        \"anyOf\": [\n          {\n            \"items\": {\n              \"type\": \"string\"\n            },\n            \"type\": \"array\"\n          },\n          {\n            \"type\": \"null\"\n          }\n        ],\n        \"default\": null,\n        \"description\": \"the Test Executions whose Datasets to return\"\n      },\n      \"test_issue_ids\": {\n        \"anyOf\": [\n          {\n            \"items\": {\n              \"type\": \"string\"\n            },\n            \"type\": \"array\"\n          },\n          {\n            \"type\": \"null\"\n          }\n        ],\n        \"default\": null,\n        \"description\": \"the Tests whose Datasets to return\"\n      },\n      \"test_plan_issue_ids\": {\n        \"anyOf\": [\n          {\n            \"items\": {\n              \"type\": \"string\"\n            },\n            \"type\": \"array\"\n          },\n          {\n            \"type\": \"null\"\n          }\n        ],\n        \"default\": null,\n        \"description\": \"the Test Plans whose Datasets to return\"\n      }\n    },\n    \"required\": [\n      \"fields\"\n    ],\n    \"type\": \"object\"\n  },\n  \"score\": 5.163255214691162\n}\n```\n\n**xray__get_status**\n\nReturn a single Xray test status by its name, for example \"PASSED\".\n\nThis tool returns a Status, whose selectable fields are documented on get_statuses.\nExample: \"name description final color\"\n\n```json\n{\n  \"input_schema\": {\n    \"additionalProperties\": false,\n    \"properties\": {\n      \"fields\": {\n        \"type\": \"string\"\n      },\n      \"name\": {\n        \"anyOf\": [\n          {\n            \"type\": \"string\"\n          },\n          {\n            \"type\": \"null\"\n          }\n        ],\n        \"default\": null\n      }\n    },\n    \"required\": [\n      \"fields\"\n    ],\n    \"type\": \"object\"\n  },\n  \"score\": 4.90104341506958\n}\n```\n\n**xray__get_step_status**\n\nReturn a single Xray test step status by its name, for example \"PASSED\".\n\nThis tool returns a StepStatus, whose selectable fields are documented on get_step_statuses.\nExample: \"name description color testStatus { name }\"\n\n```json\n{\n  \"input_schema\": {\n    \"additionalProperties\": false,\n    \"properties\": {\n      \"fields\": {\n        \"type\": \"string\"\n      },\n      \"name\": {\n        \"anyOf\": [\n          {\n            \"type\": \"string\"\n          },\n          {\n            \"type\": \"null\"\n          }\n        ],\n        \"default\": null\n      }\n    },\n    \"required\": [\n      \"fields\"\n    ],\n    \"type\": \"object\"\n  },\n  \"score\": 4.784576416015625\n}\n```\n\n**xray__get_test_run_by_id**\n\nReturn a single Xray Test Run by its Test Run id.\n\nThis tool returns a TestRun, whose selectable fields are documented on get_test_run.\nExample: 'id status { name color } steps { action data result status { name } }'\n\n```json\n{\n  \"input_schema\": {\n    \"additionalProperties\": false,\n    \"properties\": {\n      \"fields\": {\n        \"type\": \"string\"\n      },\n      \"id\": {\n        \"anyOf\": [\n          {\n            \"type\": \"string\"\n          },\n          {\n            \"type\": \"null\"\n          }\n        ],\n        \"default\": null\n      }\n    },\n    \"required\": [\n      \"fields\"\n    ],\n    \"type\": \"object\"\n  },\n  \"score\": 4.602296829223633\n}\n```\n\n**xray__get_issue_link_types**\n\nReturn the Jira issue link types available to Xray.\n\nThis tool takes no filters, because getIssueLinkTypes accepts no arguments.\n\nAvailable fields on IssueLinkType:\n  name: String   name of the issue link type\n  id: String     id of the issue link type\nExample: \"id name\"\n\n```json\n{\n  \"input_schema\": {\n    \"additionalProperties\": false,\n    \"properties\": {\n      \"fields\": {\n        \"type\": \"string\"\n      }\n    },\n    \"required\": [\n      \"fields\"\n    ],\n    \"type\": \"object\"\n  },\n  \"score\": 4.533215522766113\n}\n```\n\n\n```json\n{\n  \"note\": null,\n  \"status\": \"ready\",\n  \"total_hidden_tools\": 199\n}\n```\n"
+          }
+        },
+        {
+          "id": "rs_16be05b7-f485-9657-82c3-4bc21c2d59fa",
+          "timestamp": "2026-09-17T21:48:33.461Z",
+          "role": "agent",
+          "content": [
+            {
+              "type": "thinking",
+              "text": "The search_tool returned unrelated Xray tools (fuzzy matches) rather than finding SPECSTORY-NONEXISTENT-QA-TOOL-9281. That's expected - the tool doesn't exist. Now I need to call use_tool with that nonexistent tool name and empty tool_input."
+            }
+          ]
+        },
+        {
+          "timestamp": "2026-09-17T21:48:33.885Z",
+          "role": "agent",
+          "model": "grok-4.6",
+          "content": [
+            {
+              "type": "text",
+              "text": "Search returned unrelated Xray matches, not the requested tool. Next I'll call `use_tool` with that nonexistent name and an empty input."
+            }
+          ]
+        },
+        {
+          "id": "call-784177bf-9372-4a42-814a-a5f1559888d6-1",
+          "timestamp": "2026-09-17T21:48:34.194Z",
+          "role": "agent",
+          "model": "grok-4.6",
+          "tool": {
+            "name": "use_tool",
+            "type": "generic",
+            "useId": "call-784177bf-9372-4a42-814a-a5f1559888d6-1",
+            "input": {
+              "tool_input": {},
+              "tool_name": "SPECSTORY-NONEXISTENT-QA-TOOL-9281"
+            },
+            "output": {
+              "output": "Tool `SPECSTORY-NONEXISTENT-QA-TOOL-9281` failed via `use_tool`: 'SPECSTORY-NONEXISTENT-QA-TOOL-9281' is not a valid MCP tool name. Tool names must be qualified as `server__tool` (e.g., `linear__save_issue`). Use `search_tool` to discover available tools.",
+              "status": "error"
+            },
+            "summary": "Tool use: **use_tool** `SPECSTORY-NONEXISTENT-QA-TOOL-9281`",
+            "formattedMarkdown": "\nMCP tool: `SPECSTORY-NONEXISTENT-QA-TOOL-9281`\n\nError: Tool `SPECSTORY-NONEXISTENT-QA-TOOL-9281` failed via `use_tool`: 'SPECSTORY-NONEXISTENT-QA-TOOL-9281' is not a valid MCP tool name. Tool names must be qualified as `server__tool` (e.g., `linear__save_issue`). Use `search_tool` to discover available tools.\n"
+          }
+        },
+        {
+          "id": "rs_d87d72d5-9b6f-987e-9628-dcf3ca5ebe64",
+          "timestamp": "2026-09-17T21:48:35.238Z",
+          "role": "agent",
+          "content": [
+            {
+              "type": "thinking",
+              "text": "Good, captured the failure. Now web_fetch of https://example.com."
+            }
+          ]
+        },
+        {
+          "timestamp": "2026-09-17T21:48:35.484Z",
+          "role": "agent",
+          "model": "grok-4.6",
+          "content": [
+            {
+              "type": "text",
+              "text": "The nonexistent-tool call failed as expected. Fetching https://example.com next."
+            }
+          ]
+        },
+        {
+          "id": "call-dc386aea-ee47-4d6f-8a50-994f5b42ce47-2",
+          "timestamp": "2026-09-17T21:48:35.656Z",
+          "role": "agent",
+          "model": "grok-4.6",
+          "tool": {
+            "name": "web_fetch",
+            "type": "read",
+            "useId": "call-dc386aea-ee47-4d6f-8a50-994f5b42ce47-2",
+            "input": {
+              "url": "https://example.com"
+            },
+            "output": {
+              "output": "Example Domain\n\n# Example Domain\n\nThis domain is for use in documentation examples without needing permission. Avoid use in operations.\n\n[Learn more](https://iana.org/domains/example)",
+              "status": "success"
+            },
+            "summary": "Tool use: **web_fetch** `https://example.com`",
+            "formattedMarkdown": "\nurl: `https://example.com`\n\nResult:\n```text\nExample Domain\n\n# Example Domain\n\nThis domain is for use in documentation examples without needing permission. Avoid use in operations.\n\n[Learn more](https://iana.org/domains/example)\n```\n"
+          }
+        },
+        {
+          "id": "rs_2992242a-b835-9156-970f-01a4a12fc55c",
+          "timestamp": "2026-09-17T21:48:37.084Z",
+          "role": "agent",
+          "content": [
+            {
+              "type": "thinking",
+              "text": "I have all three outcomes. Now I need to report the actual outcomes without modifying files, sending feedback, or invoking real MCP account tools. I'll write a clear summary."
+            }
+          ]
+        },
+        {
+          "timestamp": "2026-09-17T21:48:40.920Z",
+          "role": "agent",
+          "model": "grok-4.6",
+          "content": [
+            {
+              "type": "text",
+              "text": "All three requested calls ran in order. Outcomes:\n\n### 1. `search_tool` — query `SPECSTORY-NONEXISTENT-QA-TOOL-9281`\n\n**Succeeded as a search, but did not find that tool.** Status was `ready`. It returned 5 fuzzy Xray matches (`xray__get_datasets`, `xray__get_status`, `xray__get_step_status`, `xray__get_test_run_by_id`, `xray__get_issue_link_types`) plus `total_hidden_tools: 199`. None of the results was `SPECSTORY-NONEXISTENT-QA-TOOL-9281`.\n\n### 2. `use_tool` — `tool_name` `SPECSTORY-NONEXISTENT-QA-TOOL-9281`, empty `tool_input`\n\n**Failed without touching a real integration.** Error:\n\n\u003e Tool `SPECSTORY-NONEXISTENT-QA-TOOL-9281` failed via `use_tool`: `'SPECSTORY-NONEXISTENT-QA-TOOL-9281'` is not a valid MCP tool name. Tool names must be qualified as `server__tool` (e.g., `linear__save_issue`). Use `search_tool` to discover available tools.\n\n### 3. `web_fetch` — `https://example.com`\n\n**Succeeded.** Page title/heading: Example Domain. Body: this domain is for documentation examples; avoid use in operations. Link: https://iana.org/domains/example.\n\nNo real MCP account tools were invoked, no messages or feedback were sent, and no files were modified."
+            }
+          ],
+          "usage": {
+            "inputTokens": 73630,
+            "outputTokens": 713,
+            "cachedTokens": 54656,
+            "thoughtTokens": 229
+          }
+        }
+      ]
+    }
+  ]
+}

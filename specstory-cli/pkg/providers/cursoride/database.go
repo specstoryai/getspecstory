@@ -3,6 +3,7 @@ package cursoride
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -68,7 +69,7 @@ func LoadWorkspaceComposerIDs(workspaceDbPath string) ([]string, error) {
 	// Method 1: composer.composerData key (Cursor 2: allComposers, Cursor 3: selectedComposerIds)
 	var valueJSON string
 	err = db.QueryRow("SELECT value FROM ItemTable WHERE key = ?", "composer.composerData").Scan(&valueJSON)
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		slog.Warn("Failed to query workspace composer data", "error", err)
 	} else if err == nil {
 		var composerRefs WorkspaceComposerRefs
@@ -395,7 +396,7 @@ func AppendToSelectedComposerIDs(workspaceDbPath, composerID string) error {
 	blob := make(map[string]json.RawMessage)
 	var existing string
 	err = db.QueryRow("SELECT value FROM ItemTable WHERE key = 'composer.composerData'").Scan(&existing)
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("failed to read composer.composerData: %w", err)
 	}
 	if existing != "" {
@@ -471,7 +472,7 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 	var raw string
 	blob := make(map[string]json.RawMessage)
 	err = tx.QueryRow("SELECT value FROM ItemTable WHERE key = 'composer.composerHeaders'").Scan(&raw)
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("failed to read composer.composerHeaders: %w", err)
 	}
 	if raw != "" {
@@ -587,7 +588,7 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 func insertComposerHeaderRow(tx *sql.Tx, meta ComposerHeadMeta, headJSON []byte) error {
 	var tableName string
 	err := tx.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='composerHeaders'").Scan(&tableName)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		slog.Debug("composerHeaders table not present, skipping table registration (pre-3.12 Cursor)")
 		return nil
 	}
@@ -656,7 +657,7 @@ func RegisterGlassProjectMembership(globalDbPath, composerID, workspaceID, works
 	var rawProjects []json.RawMessage
 	var projectsRaw string
 	err = db.QueryRow("SELECT value FROM ItemTable WHERE key = ?", glassProjectsKey).Scan(&projectsRaw)
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("failed to read %s: %w", glassProjectsKey, err)
 	}
 	if projectsRaw != "" {
@@ -727,7 +728,7 @@ func RegisterGlassProjectMembership(globalDbPath, composerID, workspaceID, works
 	membership := make(map[string]json.RawMessage)
 	var membershipRaw string
 	err = db.QueryRow("SELECT value FROM ItemTable WHERE key = ?", glassMembershipKey).Scan(&membershipRaw)
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("failed to read %s: %w", glassMembershipKey, err)
 	}
 	if membershipRaw != "" {

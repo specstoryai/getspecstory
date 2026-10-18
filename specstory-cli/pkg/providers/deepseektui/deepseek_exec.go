@@ -1,11 +1,11 @@
 package deepseektui
 
 import (
+	"errors"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -49,34 +49,15 @@ func ExecuteDeepSeek(customCommand string, resumeSessionID string) error {
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 
-	return command.Run()
+	err := command.Run()
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return &spi.AgentExitError{Agent: "DeepSeek TUI", Code: exitErr.ExitCode()}
+	}
+	return err
 }
 
-// ensureResumeArgs adds --resume <sessionID> to args if not already present.
-// DeepSeek TUI uses --resume to continue an existing session.
+// ensureResumeArgs makes the requested session override configured resume flags.
 func ensureResumeArgs(args []string, resumeSessionID string) []string {
-	if resumeSessionID == "" {
-		return args
-	}
-
-	for i, arg := range args {
-		if arg == "--resume" || arg == "-r" {
-			if i+1 < len(args) && strings.TrimSpace(args[i+1]) != "" && !strings.HasPrefix(args[i+1], "-") {
-				return args
-			}
-			// slices.Concat always allocates a new backing array, so the caller's
-			// slice is never mutated.
-			return slices.Concat(args[:i+1], []string{resumeSessionID}, args[i+1:])
-		}
-		if strings.HasPrefix(arg, "--resume=") {
-			if strings.TrimSpace(strings.TrimPrefix(arg, "--resume=")) != "" {
-				return args
-			}
-			repaired := slices.Clone(args)
-			repaired[i] = "--resume=" + resumeSessionID
-			return repaired
-		}
-	}
-
-	return append(args, "--resume", resumeSessionID)
+	return spi.EnsureResumeFlagArgs(args, resumeSessionID, "--resume", "-r")
 }

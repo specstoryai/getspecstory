@@ -6,8 +6,7 @@ import (
 )
 
 // TestBuildCheckErrorMessage locks in the user-facing wording for each Check
-// failure classification, matching the pattern used by sibling providers
-// (see e.g. deepseektui/antigravitycli).
+// failure classification and names the command the user can retry.
 func TestBuildCheckErrorMessage(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -32,24 +31,21 @@ func TestBuildCheckErrorMessage(t *testing.T) {
 			mustHave:  []string{"pi coding agent was not found", "/opt/foo"},
 		},
 		{
-			// The command passed here must be the resolved binary path, not a bare
-			// command name — Check() only reaches this branch after exec.LookPath
-			// has already succeeded, so a resolved path is always available.
-			name:      "permission_denied includes chmod hint with resolved path",
+			name:      "permission_denied names binary",
 			errorType: "permission_denied",
 			command:   "/usr/local/bin/pi",
-			mustHave:  []string{"chmod", "/usr/local/bin/pi"},
+			mustHave:  []string{"permissions", "/usr/local/bin/pi"},
 		},
 		{
 			name:      "unclassified failure includes stderr verbatim",
-			errorType: "version_failed",
+			errorType: "unknown",
 			command:   "pi",
 			stderr:    "pi: bad runtime, no biscuit",
 			mustHave:  []string{"pi --version", "pi: bad runtime, no biscuit"},
 		},
 		{
 			name:      "unclassified failure without stderr still gives diagnosis hint",
-			errorType: "version_failed",
+			errorType: "unknown",
 			command:   "pi",
 			mustHave:  []string{"pi --version"},
 		},

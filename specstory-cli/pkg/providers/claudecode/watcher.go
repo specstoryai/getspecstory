@@ -19,15 +19,11 @@ import (
 var (
 	watcherCtx      context.Context
 	watcherCancel   context.CancelFunc
-	watcherWg       sync.WaitGroup
+	watcherWg       = new(sync.WaitGroup)
 	watcherCallback func(*spi.AgentChatSession) // Callback for session updates
 	watcherDebugRaw bool                        // Whether to write debug raw data files
 	watcherMutex    sync.RWMutex                // Protects watcherCallback and watcherDebugRaw
 )
-
-func init() {
-	watcherCtx, watcherCancel = context.WithCancel(context.Background())
-}
 
 // watchReconcileInterval is how often the project directory is re-listed to
 // detect newly created session files, re-watch dormant sessions that have woken
@@ -98,14 +94,20 @@ func getWatcherCallback() func(*spi.AgentChatSession) {
 // StopWatcher gracefully stops the watcher goroutine
 func StopWatcher() {
 	slog.Info("StopWatcher: Signaling watcher to stop")
-	watcherCancel()
+	if watcherCancel != nil {
+		watcherCancel()
+	}
 	slog.Info("StopWatcher: Waiting for watcher goroutine to finish")
 	watcherWg.Wait()
+	// No event or deadline scans can add work now. Save synchronously before
+	// the caller clears the callback and closes its persistence dependencies.
+	flushDeferredScans()
 	slog.Info("StopWatcher: Watcher stopped")
 }
 
 // WatchForProjectDir watches for a project directory that matches the current working directory
 func WatchForProjectDir() error {
+	watcherCtx, watcherCancel = context.WithCancel(context.Background())
 	slog.Info("WatchForProjectDir: Determining project directory to monitor")
 	claudeProjectDir, err := GetClaudeCodeProjectDir("")
 	if err != nil {
@@ -128,7 +130,7 @@ func startProjectWatcher(claudeProjectDir string) error {
 	slog.Info("startProjectWatcher: Creating file watcher", "directory", claudeProjectDir)
 
 	// Create a new watcher
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return fmt.Errorf("failed to create file watcher: %v", err)
 	}
@@ -335,6 +337,7 @@ func startProjectWatcher(claudeProjectDir string) error {
 
 			case <-ticker.C:
 				reconcile(true)
+				flushExpiredDeferredScans(time.Now())
 
 			case err, ok := <-watcher.Errors:
 				if !ok {
@@ -350,6 +353,18 @@ func startProjectWatcher(claudeProjectDir string) error {
 
 // scanJSONLFiles scans JSONL files and optionally filters processing to a specific changed file
 func scanJSONLFiles(claudeProjectDir string, changedFile ...string) {
+	var targetFile string
+	if len(changedFile) > 0 {
+		targetFile = changedFile[0]
+	}
+	scanJSONLFilesWithOptions(claudeProjectDir, targetFile, false)
+}
+
+// scanJSONLFilesWithOptions is scanJSONLFiles with the shell gate made explicit:
+// force saves the targeted session even while a shell tool call is open. The
+// deadline and shutdown flushes and final post-exit sweep use it; event scans do
+// not. Call only on the watcher loop, or after StopWatcher has joined it.
+func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force bool) {
 	// Ensure logs are flushed even if we panic
 	defer func() {
 		if r := recover(); r != nil {
@@ -359,9 +374,7 @@ func scanJSONLFiles(claudeProjectDir string, changedFile ...string) {
 	}()
 
 	slog.Info("ScanJSONLFiles: === START SCAN ===", "timestamp", time.Now().Format(time.RFC3339))
-	var targetFile string
-	if len(changedFile) > 0 && changedFile[0] != "" {
-		targetFile = changedFile[0]
+	if targetFile != "" {
 		slog.Info("ScanJSONLFiles: Scanning JSONL files with changed file",
 			"directory", claudeProjectDir,
 			"changedFile", targetFile)
@@ -432,12 +445,28 @@ func scanJSONLFiles(claudeProjectDir string, changedFile ...string) {
 			continue
 		}
 
+		// Shell gate: while a Bash call is open, saving would land inside
+		// Claude Code's before/after diff of that command and surface our
+		// files as its edits. Wait for the tool_result event instead. This
+		// runs before convertToAgentChatSession because the debug-raw files
+		// are written in there too.
+		pendingSession := deferredSession{claudeProjectDir: claudeProjectDir, sessionID: session.SessionUuid}
+		if targetFile != "" && !force {
+			if open := openShellToolUses(session.Records); len(open) > 0 {
+				deferScan(pendingSession, targetFile, open)
+				continue
+			}
+		}
+		if targetFile != "" {
+			clearDeferredScan(pendingSession)
+		}
+
 		// Convert to AgentChatSession (workspaceRoot extracted from records' cwd field)
 		agentSession := convertToAgentChatSession(session, "", getWatcherDebugRaw())
 		if agentSession != nil {
 			slog.Info("ScanJSONLFiles: Calling callback for session", "sessionId", agentSession.SessionID)
-			// Call the callback in a goroutine to avoid blocking
-			go func(s *spi.AgentChatSession) {
+			// Deliver synchronously so Stop joins every save in order.
+			func(s *spi.AgentChatSession) {
 				defer func() {
 					if r := recover(); r != nil {
 						slog.Error("ScanJSONLFiles: Callback panicked", "panic", r)
@@ -454,15 +483,15 @@ func scanJSONLFiles(claudeProjectDir string, changedFile ...string) {
 // WatchForClaudeSetup watches for the creation of Claude directories
 func WatchForClaudeSetup() error {
 	slog.Info("WatchForClaudeSetup: Starting Claude directory setup watcher")
-	homeDir, err := os.UserHomeDir()
+	claudeDir, err := claudeConfigDir()
 	if err != nil {
-		return fmt.Errorf("failed to get user home directory: %v", err)
+		return err
 	}
-
-	claudeDir := filepath.Join(homeDir, ".claude")
+	// Watch the config dir's parent for its creation; for the default this is the home dir.
+	parentDir := filepath.Dir(claudeDir)
 	projectsDir := filepath.Join(claudeDir, "projects")
 	slog.Info("WatchForClaudeSetup: Directories",
-		"homeDir", homeDir,
+		"parentDir", parentDir,
 		"claudeDir", claudeDir,
 		"projectsDir", projectsDir)
 
@@ -471,24 +500,24 @@ func WatchForClaudeSetup() error {
 	var watchingFor string
 
 	if _, err := os.Stat(claudeDir); os.IsNotExist(err) {
-		// .claude doesn't exist, watch home directory
-		watchDir = homeDir
-		watchingFor = ".claude"
-		slog.Warn("WatchForClaudeSetup: .claude directory does not exist")
-		slog.Info("Claude directory not found, watching for creation of ~/.claude\n")
+		// The config dir doesn't exist, watch its parent
+		watchDir = parentDir
+		watchingFor = filepath.Base(claudeDir)
+		slog.Warn("WatchForClaudeSetup: Claude config directory does not exist", "claudeDir", claudeDir)
+		slog.Info("Claude directory not found, watching for its creation", "claudeDir", claudeDir)
 	} else {
-		// .claude exists but projects doesn't, watch .claude
+		// The config dir exists but projects doesn't, watch the config dir
 		watchDir = claudeDir
 		watchingFor = "projects"
-		slog.Warn("WatchForClaudeSetup: .claude directory exists, checking for projects")
-		slog.Info("Claude directory found, watching for creation of ~/.claude/projects\n")
+		slog.Warn("WatchForClaudeSetup: Claude config directory exists, checking for projects", "claudeDir", claudeDir)
+		slog.Info("Claude directory found, watching for creation of projects directory", "projectsDir", projectsDir)
 	}
 	slog.Info("WatchForClaudeSetup: Will watch directory",
 		"watchDir", watchDir,
 		"watchingFor", watchingFor)
 
 	// Create watcher
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		log.UserWarn("Failed to create file watcher: %v", err)
 		slog.Error("WatchForClaudeSetup: Failed to create file watcher", "error", err)
@@ -504,11 +533,13 @@ func WatchForClaudeSetup() error {
 	slog.Info("WatchForClaudeSetup: Successfully started watching", "directory", watchDir)
 
 	// Start watching in a goroutine
-	go func() {
+	watcherWg.Go(func() {
 		defer func() { _ = watcher.Close() }() // Cleanup on exit; errors not recoverable
 
 		for {
 			select {
+			case <-watcherCtx.Done():
+				return
 			case event, ok := <-watcher.Events:
 				if !ok {
 					return
@@ -527,9 +558,9 @@ func WatchForClaudeSetup() error {
 					time.Sleep(1 * time.Second)
 
 					// Check what we should do next
-					if watchingFor == ".claude" {
-						slog.Info("WatchForClaudeSetup: .claude was created, checking if projects exists")
-						// We were watching for .claude, now check if projects exists
+					if watchingFor == filepath.Base(claudeDir) {
+						slog.Info("WatchForClaudeSetup: Claude config directory was created, checking if projects exists", "claudeDir", claudeDir)
+						// We were watching for the config dir, now check if projects exists
 						if _, err := os.Stat(projectsDir); os.IsNotExist(err) {
 							slog.Info("WatchForClaudeSetup: projects directory does not exist, switching watcher")
 							// Need to watch for projects directory
@@ -540,11 +571,11 @@ func WatchForClaudeSetup() error {
 								"watchDir", watchDir,
 								"watchingFor", watchingFor)
 							if err := watcher.Add(watchDir); err != nil {
-								log.UserWarn("Error switching to watch .claude directory: %v", err)
+								log.UserWarn("Error switching to watch Claude directory %s: %v", claudeDir, err)
 								slog.Error("WatchForClaudeSetup: Failed to switch watcher", "error", err)
 								return
 							}
-							slog.Info("Now watching for creation of ~/.claude/projects\n")
+							slog.Info("Now watching for creation of projects directory", "projectsDir", projectsDir)
 							continue
 						} else {
 							slog.Info("WatchForClaudeSetup: projects directory already exists!")
@@ -583,7 +614,7 @@ func WatchForClaudeSetup() error {
 				slog.Error("WatchForClaudeSetup: Watcher error", "error", err)
 			}
 		}
-	}()
+	})
 
 	return nil
 }
@@ -597,10 +628,12 @@ func convertToAgentChatSession(session Session, workspaceRoot string, debugRaw b
 	}
 
 	// Write debug files first (even for warmup-only sessions)
-	_ = make(map[int]int) // recordToFileNumber no longer needed
 	if debugRaw {
 		// Write debug files
-		writeDebugRawFiles(session)
+		if err := writeDebugRawFiles(session); err != nil {
+			slog.Warn("Failed to write debug raw files", "sessionId", session.SessionUuid,
+				"path", spi.GetDebugDir(session.SessionUuid), "error", err)
+		}
 	}
 
 	// Filter warmup messages
@@ -635,6 +668,8 @@ func convertToAgentChatSession(session Session, workspaceRoot string, debugRaw b
 		slog.Error("Failed to generate SessionData", "sessionId", session.SessionUuid, "error", err)
 		return nil
 	}
+	// Resume titles a reconstructed session from SessionData's slug.
+	sessionData.Slug = slug
 
 	// Convert session records to JSONL format for raw data
 	// Note: Uses unfiltered session.Records (not filteredSession.Records) to preserve

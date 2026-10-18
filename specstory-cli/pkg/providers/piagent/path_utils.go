@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // Environment overrides pi documents in `pi --help` (config.ts ENV_AGENT_DIR /
@@ -68,11 +70,10 @@ func EncodeCwd(cwd string) string {
 	return "--" + encoded + "--"
 }
 
-// projectCandidates returns the working-directory forms a pi session for this
-// project may have been recorded under: the absolute path as given and, when
-// different, its symlink-resolved form. pi encodes the cwd as its own process
-// saw it, which may be either form (e.g. /tmp/foo vs /private/tmp/foo on
-// macOS), so callers must check both.
+// projectCandidates puts the canonical local root first so directory encoding
+// and watching use the spelling Pi sees. Retain the original absolute spelling
+// as a lookup alias for sessions recorded through a symlink; stored cwds are
+// compared exactly and never canonicalized as if they were local paths.
 func projectCandidates(projectPath string) ([]string, error) {
 	cwd := strings.TrimSpace(projectPath)
 	if cwd == "" {
@@ -86,9 +87,13 @@ func projectCandidates(projectPath string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("pi: cannot resolve %s: %w", cwd, err)
 	}
-	candidates := []string{abs}
-	if real, rErr := filepath.EvalSymlinks(abs); rErr == nil && real != abs {
-		candidates = append(candidates, real)
+	canonical, err := spi.GetCanonicalPath(abs)
+	if err != nil {
+		return nil, fmt.Errorf("pi: canonicalizing project path %s: %w", abs, err)
+	}
+	candidates := []string{canonical}
+	if abs != canonical {
+		candidates = append(candidates, abs)
 	}
 	return candidates, nil
 }
@@ -123,52 +128,52 @@ func ProjectSessionDir(projectPath string) (string, error) {
 // cwd matches the project, the same filtering pi applies to custom session
 // dirs. Returns an empty slice (no error) if nothing exists yet.
 func SessionFilesInProject(projectPath string) ([]string, error) {
-	root, flat, err := piSessionsRoot()
+	files, candidates, flat, err := projectSessionCandidates(projectPath)
 	if err != nil {
 		return nil, err
+	}
+	var matched []string
+	for _, path := range files {
+		if sessionFileBelongsToProject(path, candidates, flat) {
+			matched = append(matched, path)
+		}
+	}
+	return matched, nil
+}
+
+// projectSessionCandidates includes unreadable and incomplete files so bulk
+// sync can report progress for them even when their headers cannot be parsed.
+func projectSessionCandidates(projectPath string) ([]string, []string, bool, error) {
+	root, flat, err := piSessionsRoot()
+	if err != nil {
+		return nil, nil, false, err
 	}
 	candidates, err := projectCandidates(projectPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, false, err
 	}
-	if flat {
-		return flatSessionFiles(root, candidates)
+	dirs := []string{root}
+	if !flat {
+		dirs = nil
+		for _, c := range candidates {
+			dirs = append(dirs, filepath.Join(root, EncodeCwd(c)))
+		}
 	}
 	var files []string
 	seen := make(map[string]bool)
-	for _, c := range candidates {
-		dir := filepath.Join(root, EncodeCwd(c))
-		dirFiles, dErr := jsonlFilesInDir(dir)
-		if dErr != nil {
-			return nil, dErr
+	for _, dir := range dirs {
+		paths, err := jsonlFilesInDir(dir)
+		if err != nil {
+			return nil, nil, false, err
 		}
-		for _, f := range dirFiles {
-			if seen[f] {
-				continue
-			}
-			seen[f] = true
-			if sessionFileBelongsToProject(f, candidates, false) {
-				files = append(files, f)
+		for _, path := range paths {
+			if !seen[path] {
+				files = append(files, path)
+				seen[path] = true
 			}
 		}
 	}
-	return files, nil
-}
-
-// flatSessionFiles lists *.jsonl in a flat override sessions dir, keeping only
-// files whose session header cwd matches one of the project candidates.
-func flatSessionFiles(root string, candidates []string) ([]string, error) {
-	all, err := jsonlFilesInDir(root)
-	if err != nil {
-		return nil, err
-	}
-	var files []string
-	for _, f := range all {
-		if sessionFileBelongsToProject(f, candidates, true) {
-			files = append(files, f)
-		}
-	}
-	return files, nil
+	return files, candidates, flat, nil
 }
 
 // sessionFileBelongsToProject reads the header of the session file at path and

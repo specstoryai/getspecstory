@@ -23,10 +23,6 @@ var (
 	watcherWorkspaceRoot string
 )
 
-func init() {
-	watcherCtx, watcherCancel = context.WithCancel(context.Background())
-}
-
 func SetWatcherCallback(callback func(*spi.AgentChatSession)) {
 	watcherMutex.Lock()
 	defer watcherMutex.Unlock()
@@ -58,11 +54,14 @@ func getWatcherDebugRaw() bool {
 }
 
 func StopWatcher() {
-	watcherCancel()
+	if watcherCancel != nil {
+		watcherCancel()
+	}
 	watcherWg.Wait()
 }
 
 func WatchGeminiProject(projectPath string, callback func(*spi.AgentChatSession)) error {
+	watcherCtx, watcherCancel = context.WithCancel(context.Background())
 	SetWatcherCallback(callback)
 	SetWatcherWorkspaceRoot(projectPath)
 
@@ -151,7 +150,7 @@ func waitForProjectDir(ctx context.Context, tmpDir, projectPath, hashDir string)
 	}
 
 	// Nothing exists yet — watch tmpDir for new directory creation
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return "", fmt.Errorf("failed to create fsnotify watcher for project dir: %w", err)
 	}
@@ -197,7 +196,7 @@ func waitForProjectDir(ctx context.Context, tmpDir, projectPath, hashDir string)
 }
 
 func startChatsWatcher(chatsDir string) error {
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return err
 	}
@@ -348,7 +347,7 @@ func waitForDirectoryFsnotify(ctx context.Context, dir string, label string) err
 		return fmt.Errorf("parent directory %q does not exist for %s: %w", parentDir, label, err)
 	}
 
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return fmt.Errorf("failed to create fsnotify watcher for %s: %w", label, err)
 	}
@@ -390,7 +389,7 @@ func waitForDirectoryFsnotify(ctx context.Context, dir string, label string) err
 
 func startArtifactWatcher(filePath string, label string) error {
 	dir := filepath.Dir(filePath)
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return err
 	}

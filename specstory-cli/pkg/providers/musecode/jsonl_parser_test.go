@@ -288,23 +288,27 @@ func TestIsSessionID(t *testing.T) {
 	}
 }
 
-// A single oversized line must be refused by the reader's own bound, not read
+// A single oversized line must be skipped by the reader's own bound, not read
 // into memory and measured afterwards: the check exists to prevent exactly the
 // allocation that reading-then-checking would already have made.
-func TestParseSessionFile_RefusesOversizedLine(t *testing.T) {
+func TestParseSessionFile_SkipsOversizedLine(t *testing.T) {
 	path := filepath.Join(t.TempDir(), sessionFileName)
 
 	var line strings.Builder
 	line.WriteString(`{"payload_type":"runtime.session","payload":"`)
 	line.WriteString(strings.Repeat("x", maxReasonableLineSize))
 	line.WriteString("\"}\n")
+	// Even an unterminated final record after the bad line must survive.
+	line.WriteString(`{"id":"after-oversized","payload_type":"future","unknown":true}`)
 	if err := os.WriteFile(path, []byte(line.String()), 0o644); err != nil {
 		t.Fatalf("failed to write oversized transcript: %v", err)
 	}
 
-	if _, err := ParseSessionFile(path); err == nil {
-		t.Fatal("expected an error for a line past the size limit")
-	} else if !strings.Contains(err.Error(), "exceeds") {
-		t.Errorf("error should name the size limit, got: %v", err)
+	session, err := ParseSessionFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(session.RawRecords) != 1 || string(session.RawRecords[0]) != `{"id":"after-oversized","payload_type":"future","unknown":true}` {
+		t.Fatal("oversized record was retained or later native record was lost")
 	}
 }

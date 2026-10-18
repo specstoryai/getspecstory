@@ -47,8 +47,13 @@ type resumePlan struct {
 	// session by matching its recorded cwd — looking under the current cwd would
 	// find nothing. Empty for older index rows; callers fall back to the current cwd.
 	fromCwd string
-	to      spi.Provider
-	toID    string
+	// fromNativePath is the index's native_path for the source session. When fromCwd is
+	// empty, as it is for a hosted agent that records a repository but never a directory,
+	// a provider implementing spi.PathSessionReader loads the source from this path, so
+	// the resume works from any directory rather than only from a clone of its repository.
+	fromNativePath string
+	to             spi.Provider
+	toID           string
 
 	// fromCloud marks a session sourced from SpecStory Cloud (another machine) rather than the
 	// local index. It has no local native file, so resume always fetches its SessionData from the
@@ -344,11 +349,7 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 	// user's current cwd — a session picked from another project (all-projects browser)
 	// lives elsewhere, and providers like Codex locate it by its recorded cwd. The
 	// reconstructed session is still written and launched under the current cwd below.
-	fromCwd := plan.fromCwd
-	if fromCwd == "" {
-		fromCwd = cwd
-	}
-	fromSession, err := plan.from.GetAgentChatSession(fromCwd, plan.sessionID, false)
+	fromSession, err := loadResumeSource(plan, cwd)
 	if err != nil {
 		return "", fmt.Errorf("failed to load source session: %w", err)
 	}
@@ -373,6 +374,23 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 	fprintf(out, "\nReconstructed %s session into %s as %s.\n", plan.from.Name(), plan.to.Name(), shortID(rec.SessionID))
 	printIDERestartNote(plan, out)
 	return rec.SessionID, nil
+}
+
+// loadResumeSource reads the source session for a cross-agent resume. A session with
+// no recorded cwd but a known native path is read by path when its provider can, since
+// a by-id lookup would be scoped to the current directory's project; everything else
+// is looked up by id under its original cwd, falling back to the current one.
+func loadResumeSource(plan *resumePlan, cwd string) (*spi.AgentChatSession, error) {
+	if plan.fromCwd == "" && plan.fromNativePath != "" {
+		if reader, ok := plan.from.(spi.PathSessionReader); ok {
+			return reader.GetAgentChatSessionByPath(plan.fromNativePath, "", false)
+		}
+	}
+	fromCwd := plan.fromCwd
+	if fromCwd == "" {
+		fromCwd = cwd
+	}
+	return plan.from.GetAgentChatSession(fromCwd, plan.sessionID, false)
 }
 
 // prepareCloudResumeTarget resumes a session that lives only in SpecStory Cloud: fetch its
@@ -623,7 +641,7 @@ func sessionFileReadable(path string) (bool, error) {
 	if n > 0 {
 		return true, nil
 	}
-	if err == io.EOF || err == nil {
+	if errors.Is(err, io.EOF) || err == nil {
 		return false, fmt.Errorf("session file is empty")
 	}
 	return false, err

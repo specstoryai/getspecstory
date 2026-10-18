@@ -18,9 +18,10 @@ _**Agent (gpt-5.6-sol 2026-08-03 21:15:05Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-const r = await tools.exec_command({cmd:"sed -n '1,240p' .claude/commands/code-review.md && git status --short && git diff --stat && git diff","workdir":"/Users/sean/Source/SpecStory/getspecstory/spec
-...
+Input:
+```
+const r = await tools.exec_command({cmd:"sed -n '1,240p' .claude/commands/code-review.md && git status --short && git diff --stat && git diff","workdir":"/Users/sean/Source/SpecStory/getspecstory/specstory-cli","yield_time_ms":10000,"max_output_tokens":30000}); text(r.output)
+
 ```
 </details></tool-use>
 
@@ -32,9 +33,10 @@ _**Agent (gpt-5.6-sol 2026-08-03 21:15:11Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-const r = await tools.exec_command({cmd:"sed -n '1,280p' pkg/providers/codexcli/watcher_test.go; sed -n '1,620p' pkg/providers/codexcli/watcher.go; git log --oneline --all --grep='266' -20; git remote
-...
+Input:
+```
+const r = await tools.exec_command({cmd:"sed -n '1,280p' pkg/providers/codexcli/watcher_test.go; sed -n '1,620p' pkg/providers/codexcli/watcher.go; git log --oneline --all --grep='266' -20; git remote -v","workdir":"/Users/sean/Source/SpecStory/getspecstory/specstory-cli","yield_time_ms":10000,"max_output_tokens":40000}); text(r.output)
+
 ```
 </details></tool-use>
 
@@ -42,7 +44,8 @@ _**Agent (gpt-5.6-sol 2026-08-03 21:15:13Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input: ```
+Input:
+```
 const r = await tools.web__run({search_query:[{q:"site:github.com/specstoryai/getspecstory/issues/266"}],response_length:"short"}); text(r)
 
 ```
@@ -52,7 +55,8 @@ _**Agent (gpt-5.6-sol 2026-08-03 21:15:21Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input: ```
+Input:
+```
 const r = await tools.web__run({open:[{ref_id:"https://github.com/specstoryai/getspecstory/issues/266"}],response_length:"long"}); text(r)
 
 ```
@@ -62,9 +66,10 @@ _**Agent (gpt-5.6-sol 2026-08-03 21:15:24Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-const r = await tools.exec_command({cmd:"curl -L --fail --silent --show-error -H 'Accept: application/vnd.github+json' https://api.github.com/repos/specstoryai/getspecstory/issues/266","workdir":"/Use
-...
+Input:
+```
+const r = await tools.exec_command({cmd:"curl -L --fail --silent --show-error -H 'Accept: application/vnd.github+json' https://api.github.com/repos/specstoryai/getspecstory/issues/266","workdir":"/Users/sean/Source/SpecStory/getspecstory/specstory-cli","yield_time_ms":10000,"max_output_tokens":12000}); text(r.output)
+
 ```
 </details></tool-use>
 
@@ -76,9 +81,10 @@ _**Agent (gpt-5.6-sol 2026-08-03 21:15:36Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-const r = await tools.exec_command({cmd:"rg -n \"startCodexSessionWatcher\\(\" . --glob '!specstory' --glob '!.specstory/**' --glob '!.claude/**' --glob '!.cursor/**'; git diff --check; go test ./pkg/
-...
+Input:
+```
+const r = await tools.exec_command({cmd:"rg -n \"startCodexSessionWatcher\\(\" . --glob '!specstory' --glob '!.specstory/**' --glob '!.claude/**' --glob '!.cursor/**'; git diff --check; go test ./pkg/providers/codexcli","workdir":"/Users/sean/Source/SpecStory/getspecstory/specstory-cli","yield_time_ms":30000,"max_output_tokens":20000}); text(JSON.stringify(r))
+
 ```
 </details></tool-use>
 
@@ -86,9 +92,10 @@ _**Agent (gpt-5.6-sol 2026-08-03 21:15:49Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-const r = await tools.exec_command({cmd:"nl -ba pkg/providers/codexcli/watcher.go | sed -n '1,530p'; nl -ba pkg/providers/codexcli/watcher_test.go | sed -n '1,240p'; rg --files -g 'AGENTS.md' -g 'AGEN
-...
+Input:
+```
+const r = await tools.exec_command({cmd:"nl -ba pkg/providers/codexcli/watcher.go | sed -n '1,530p'; nl -ba pkg/providers/codexcli/watcher_test.go | sed -n '1,240p'; rg --files -g 'AGENTS.md' -g 'AGENT.md' ..","workdir":"/Users/sean/Source/SpecStory/getspecstory/specstory-cli","yield_time_ms":10000,"max_output_tokens":30000}); text(r.output)
+
 ```
 </details></tool-use>
 
@@ -96,7 +103,8 @@ _**Agent (gpt-5.6-sol 2026-08-03 21:15:51Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input: ```
+Input:
+```
 const r = await tools.exec_command({cmd:"go test ./...","workdir":"/Users/sean/Source/SpecStory/getspecstory/specstory-cli","yield_time_ms":30000,"max_output_tokens":30000}); text(JSON.stringify(r))
 
 ```

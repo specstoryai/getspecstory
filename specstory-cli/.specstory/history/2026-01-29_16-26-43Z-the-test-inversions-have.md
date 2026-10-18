@@ -2132,7 +2132,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 16:27:20Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/markdown_tools.go`
 
-```text
+````text
      1→package droidcli
      2→
      3→import (
@@ -2697,7 +2697,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 16:27:20Z)**_
    562→	return strings.TrimRight(builder.String(), "\n")
    563→}
    564→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-29 16:27:20Z)**_
@@ -3442,7 +3442,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 16:27:25Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/markdown_tools_test.go`
 
-```text
+````text
      1→package droidcli
      2→
      3→import (
@@ -3614,7 +3614,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 16:27:25Z)**_
    169→	}
    170→}
    171→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-29 16:27:28Z)**_

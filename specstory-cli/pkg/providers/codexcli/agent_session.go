@@ -498,21 +498,15 @@ func buildExchangesFromRecords(records []map[string]interface{}, workspaceRoot s
 			case "function_call_output":
 				// Function call output - merge into the pending tool call
 				callID, _ := payload["call_id"].(string)
-				outputJSON, _ := payload["output"].(string)
+				output := parseToolOutput(payload["output"])
 
-				if callID == "" || outputJSON == "" {
+				if callID == "" || output == nil {
 					continue
 				}
 
 				// Find the pending tool call
 				if pending, exists := pendingTools[callID]; exists {
-					// Parse the output JSON
-					var outputData map[string]interface{}
-					if err := json.Unmarshal([]byte(outputJSON), &outputData); err == nil {
-						pending.toolInfo.Output = outputData
-					} else {
-						pending.toolInfo.Output = map[string]interface{}{"raw": outputJSON}
-					}
+					pending.toolInfo.Output = output
 					delete(pendingTools, callID)
 				}
 
@@ -569,21 +563,15 @@ func buildExchangesFromRecords(records []map[string]interface{}, workspaceRoot s
 			case "custom_tool_call_output":
 				// Custom tool call output - merge into the pending tool call
 				callID, _ := payload["call_id"].(string)
-				outputJSON, _ := payload["output"].(string)
+				output := parseToolOutput(payload["output"])
 
-				if callID == "" || outputJSON == "" {
+				if callID == "" || output == nil {
 					continue
 				}
 
 				// Find the pending tool call
 				if pending, exists := pendingTools[callID]; exists {
-					// Parse the output JSON
-					var outputData map[string]interface{}
-					if err := json.Unmarshal([]byte(outputJSON), &outputData); err == nil {
-						pending.toolInfo.Output = outputData
-					} else {
-						pending.toolInfo.Output = map[string]interface{}{"raw": outputJSON}
-					}
+					pending.toolInfo.Output = output
 					delete(pendingTools, callID)
 				}
 			}
@@ -598,12 +586,56 @@ func buildExchangesFromRecords(records []map[string]interface{}, workspaceRoot s
 	return exchanges, nil
 }
 
+// parseToolOutput normalizes a function or custom tool call's output payload into the map
+// stored on ToolInfo.Output. Returns nil when there's nothing to record.
+//
+// Codex writes output in two shapes: a string (a JSON object or plain text), and an array
+// of content items (e.g. code-mode `exec`, whose results are input_text and input_image
+// parts). Arrays are flattened into the same {"raw": text} shape as plain text, so
+// markdown rendering and cloud session data handle both without a second code path.
+func parseToolOutput(output interface{}) map[string]interface{} {
+	switch v := output.(type) {
+	case string:
+		if v == "" {
+			return nil
+		}
+		var outputData map[string]interface{}
+		if err := json.Unmarshal([]byte(v), &outputData); err == nil {
+			return outputData
+		}
+		return map[string]interface{}{"raw": v}
+	case []interface{}:
+		var parts []string
+		for _, item := range v {
+			part, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if text, ok := part["text"].(string); ok && text != "" {
+				parts = append(parts, text)
+			} else if part["type"] == "input_image" {
+				// Images arrive as base64 data URLs; a marker keeps the transcript
+				// honest about their presence without embedding megabytes of base64.
+				parts = append(parts, "[image]")
+			}
+		}
+		if len(parts) == 0 {
+			return nil
+		}
+		return map[string]interface{}{"raw": strings.Join(parts, "\n")}
+	default:
+		return nil
+	}
+}
+
 // formatToolWithSummary generates custom summary and formatted markdown for a Codex tool
 // Returns (summary, formattedMarkdown) where summary is the custom content for <summary> tag
 // and formattedMarkdown is additional content to display in the tool-use block
 func formatToolWithSummary(tool *ToolInfo, workspaceRoot string) (string, string) {
 	var summary string
 	var formattedMd strings.Builder
+	// Set when the input formatter already rendered the output alongside the input
+	var outputRendered bool
 
 	// Format tool input based on whether it's a function call or custom tool
 	if tool.Input != nil {
@@ -630,26 +662,45 @@ func formatToolWithSummary(tool *ToolInfo, workspaceRoot string) (string, string
 			}
 		} else {
 			// Other function calls with JSON arguments
-			inputJSON, _ := json.Marshal(tool.Input)
-			formattedMd.WriteString(formatToolCall(tool.Name, string(inputJSON)))
+			var formatted string
+			if tool.Name == "request_user_input" {
+				// The answers are rendered under their questions, so the output needs no
+				// block of its own.
+				formatted = formatRequestUserInput(tool.Input, tool.Output)
+				outputRendered = formatted != ""
+			} else {
+				inputJSON, _ := json.Marshal(tool.Input)
+				formatted = formatToolCall(tool.Name, string(inputJSON))
+			}
+			if formatted == "" {
+				// Once this tool has any formatted markdown, the session renderer skips its
+				// generic input rendering, so the arguments must be written here or be lost.
+				formatted = spi.RenderGenericJSON(tool.Input)
+			}
+			formattedMd.WriteString(formatted)
 		}
 	}
 
 	// Format tool output if present
-	if tool.Output != nil {
+	if tool.Output != nil && !outputRendered {
+		var outputMd string
 		if outputStr, ok := tool.Output["raw"].(string); ok {
-			// Clean and truncate output if needed
-			cleaned := strings.TrimSpace(outputStr)
 			// Only show output if there's actual content
-			if cleaned != "" {
-				if formattedMd.Len() > 0 {
-					formattedMd.WriteString("\n")
-				}
-				if len(cleaned) > 5000 {
-					cleaned = cleaned[:5000] + "\n... (truncated)"
-				}
-				formattedMd.WriteString(spi.CodeFence("", cleaned))
+			if cleaned := strings.TrimSpace(outputStr); cleaned != "" {
+				// Cap by runes so the cut never splits a multi-byte character, which
+				// would leave the saved markdown as invalid UTF-8.
+				outputMd = spi.CodeFence("", spi.CapRunes(cleaned, 5000))
 			}
+		} else {
+			// Output that was a JSON object has no single text field to show, and its
+			// fields vary by tool; show it whole rather than silently dropping it.
+			outputMd = spi.RenderGenericJSON(tool.Output)
+		}
+		if outputMd != "" {
+			if formattedMd.Len() > 0 {
+				formattedMd.WriteString("\n")
+			}
+			formattedMd.WriteString(outputMd)
 		}
 	}
 

@@ -1,6 +1,6 @@
 # Session Data Schema
 
-The unified session data format used by all terminal coding agent providers (Claude Code, Cursor CLI, Codex CLI, Gemini CLI, etc.).
+The unified session data format that every provider under `pkg/providers/` produces. The Go types in `pkg/spi/schema/types.go` are the source of truth; this document explains them.
 
 ## Purpose
 
@@ -99,6 +99,7 @@ type Message struct {
     Content   []ContentPart          `json:"content,omitempty"`
     Tool      *ToolInfo              `json:"tool,omitempty"`
     PathHints []string               `json:"pathHints,omitempty"` // File paths referenced
+    Usage     *Usage                 `json:"usage,omitempty"`     // Token usage (agent only)
     Metadata  map[string]interface{} `json:"metadata,omitempty"`
 }
 ```
@@ -127,6 +128,56 @@ type ContentPart struct {
 |------|-------------|
 | `text` | Regular text content |
 | `thinking` | Model's reasoning/thinking (often displayed differently) |
+
+### Usage
+
+Token accounting for an agent message. Optional — providers that don't report
+usage omit it entirely.
+
+Providers track different token types, so this is a **union**: every field is
+`omitempty`, and only the ones a given provider reports appear in the JSON. A
+consumer must not assume any particular field is present.
+
+```go
+type Usage struct {
+    // Common (all providers that report usage at all)
+    InputTokens  int `json:"inputTokens,omitempty"`
+    OutputTokens int `json:"outputTokens,omitempty"`
+
+    // Claude Code (also used by Droid CLI)
+    CacheCreationInputTokens int `json:"cacheCreationInputTokens,omitempty"`
+    CacheReadInputTokens     int `json:"cacheReadInputTokens,omitempty"`
+
+    // Codex CLI
+    CachedInputTokens     int `json:"cachedInputTokens,omitempty"`
+    ReasoningOutputTokens int `json:"reasoningOutputTokens,omitempty"`
+
+    // Gemini CLI
+    CachedTokens  int `json:"cachedTokens,omitempty"`  // cached input tokens
+    ThoughtTokens int `json:"thoughtTokens,omitempty"` // reasoning/thinking tokens
+    ToolTokens    int `json:"toolTokens,omitempty"`    // tool-related tokens
+
+    // Droid CLI
+    ThinkingTokens int `json:"thinkingTokens,omitempty"` // thinking/reasoning tokens
+}
+```
+
+Which fields each provider populates:
+
+| Provider    | Fields populated                                                                      |
+|-------------|---------------------------------------------------------------------------------------|
+| Claude Code | `inputTokens`, `outputTokens`, `cacheCreationInputTokens`, `cacheReadInputTokens`      |
+| Codex CLI   | `inputTokens`, `outputTokens`, `cachedInputTokens`, `reasoningOutputTokens`            |
+| Gemini CLI  | `inputTokens`, `outputTokens`, `cachedTokens`, `thoughtTokens`, `toolTokens`           |
+| Droid CLI   | `inputTokens`, `outputTokens`, `cacheCreationInputTokens`, `cacheReadInputTokens`, `thinkingTokens` |
+
+Note that "cached input tokens" has three different field names across providers
+(`cacheReadInputTokens`, `cachedInputTokens`, `cachedTokens`) because each agent
+reports it under its own name and the schema preserves that rather than guessing
+at an equivalence.
+
+`schema.GetIntFromMap` is provided for pulling these out of a provider's raw
+`map[string]interface{}`, handling the `float64` that JSON numbers decode to.
 
 ### ToolInfo
 
@@ -183,7 +234,7 @@ type ToolInfo struct {
       "additionalProperties": false,
       "required": ["id", "name", "version"],
       "properties": {
-        "id": { "type": "string", "enum": ["claude", "cursor", "codex", "gemini"] },
+        "id": { "type": "string", "description": "The provider's registry id, as registered in pkg/spi/factory/registry.go" },
         "name": { "type": "string" },
         "version": { "type": "string" }
       }
@@ -232,7 +283,24 @@ type ToolInfo struct {
           "type": "array",
           "items": { "type": "string" }
         },
+        "usage": { "$ref": "#/$defs/usage" },
         "metadata": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "inputTokens": { "type": "integer" },
+        "outputTokens": { "type": "integer" },
+        "cacheCreationInputTokens": { "type": "integer" },
+        "cacheReadInputTokens": { "type": "integer" },
+        "cachedInputTokens": { "type": "integer" },
+        "reasoningOutputTokens": { "type": "integer" },
+        "cachedTokens": { "type": "integer" },
+        "thoughtTokens": { "type": "integer" },
+        "toolTokens": { "type": "integer" },
+        "thinkingTokens": { "type": "integer" }
       }
     },
     "contentPart": {
@@ -492,14 +560,21 @@ Each provider must convert its native session format to this schema:
 ### Exchange IDs
 
 - Must be unique within the session
-- Suggested format: `ex_<index>` or `ex_<hash>`
-- Can include context like `ex_0_9f86d081` (index + short hash)
+- Convention: `<sessionId>:<index>`, which every provider uses unless its native format already assigns a stable per-exchange id (the IDE providers use the native request id)
 
 ## Versioning
 
-- Current version: `"1.0"`
+- Current version: `"1.0"`, exported as `schema.CurrentSchemaVersion` — always compare
+  against the constant rather than a literal, since `Validate()` is keyed off it too.
 - Backward-compatible additions allowed (new optional properties)
 - Breaking changes require bumping `schemaVersion`
+
+Cloud resume is the one consumer that acts on the version rather than just validating
+it: a `SessionData` blob fetched from the cloud may have been written by a **newer** CLI
+than the one reading it. When the blob's `schemaVersion` is newer than
+`CurrentSchemaVersion`, resume refuses the session and tells the user to update; older
+or equal proceeds normally. That asymmetry is why additions must stay backward-compatible
+— an older CLI has to be able to read a newer blob's common fields.
 
 ## Markdown Rendering
 
