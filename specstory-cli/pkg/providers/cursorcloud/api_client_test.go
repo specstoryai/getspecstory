@@ -219,6 +219,9 @@ func (f *fakeAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		f.mu.Lock()
 		f.launches = append(f.launches, launch)
+		// The launched agent's first run has started, as it has a few seconds
+		// after a real launch, so the wait before opening its page ends at once.
+		f.runs[launchedAgentID] = []json.RawMessage{json.RawMessage(`{"id":"run-1","agentId":"` + launchedAgentID + `","status":"RUNNING"}`)}
 		f.mu.Unlock()
 		w.WriteHeader(http.StatusCreated)
 		writeJSON(w, map[string]any{"agent": map[string]any{"id": launchedAgentID, "name": launch.Name}, "run": map[string]any{"id": "run-1"}})

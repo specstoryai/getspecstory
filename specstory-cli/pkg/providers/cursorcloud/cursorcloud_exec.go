@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -217,7 +218,44 @@ func launchSession(ctx context.Context, client *apiClient, projectPath, name, pr
 		return apiAgent{}, err
 	}
 	slog.Info("launchSession: launched", "agentID", agent.ID, "branch", branch)
+	waitForRunStart(ctx, client, agent.ID)
 	return agent, nil
+}
+
+// Waiting for a new agent's first run. Cursor's agent page renders blank, and
+// stays blank until reloaded, when it is opened while the run is still
+// CREATING; the run leaves that state a few seconds after the launch. Variables
+// so tests can shorten them.
+var (
+	runStartTimeout = 30 * time.Second
+	runStartPoll    = time.Second
+)
+
+// waitForRunStart returns once the agent's first run has left CREATING, or
+// after runStartTimeout. Opening the page late beats opening a blank one, and
+// a failure here never stops the launch: the page is opened regardless.
+func waitForRunStart(ctx context.Context, client *apiClient, agentID string) {
+	log.UserMessage("Waiting for the Cursor Cloud Agent to start...\n")
+	deadline := time.Now().Add(runStartTimeout)
+	for {
+		runs, err := client.listRuns(ctx, agentID)
+		if err != nil {
+			slog.Warn("waitForRunStart: could not read the agent's runs; opening its page anyway", "agentID", agentID, "error", err)
+			return
+		}
+		// A new agent has exactly one run.
+		if len(runs) > 0 && runs[0].run.Status != "CREATING" {
+			slog.Info("waitForRunStart: run started", "agentID", agentID, "status", runs[0].run.Status)
+			return
+		}
+		if time.Now().After(deadline) {
+			slog.Warn("waitForRunStart: run still being created; opening its page anyway", "agentID", agentID, "timeout", runStartTimeout)
+			return
+		}
+		if err := sleepContext(ctx, runStartPoll); err != nil {
+			return
+		}
+	}
 }
 
 // newLaunchRequest is the launch body for repoURL; an empty branch starts the

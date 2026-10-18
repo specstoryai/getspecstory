@@ -643,6 +643,42 @@ func TestResumeTarget(t *testing.T) {
 	}
 }
 
+// TestWaitForRunStart: the agent page is opened only once the first run has
+// left CREATING, and a run that never does stops the wait at the timeout
+// instead of holding `run` forever.
+func TestWaitForRunStart(t *testing.T) {
+	tests := []struct {
+		name       string
+		status     string
+		wantRepeat bool // polled until the timeout rather than once
+	}{
+		{name: "run started", status: "RUNNING"},
+		{name: "run already finished", status: "FINISHED"},
+		{name: "run still being created", status: "CREATING", wantRepeat: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFakeAPI(t)
+			const agentID = "bc-22222222-3333-4444-8555-666666666666"
+			f.runs[agentID] = []json.RawMessage{json.RawMessage(`{"id":"run-1","agentId":"` + agentID + `","status":"` + tt.status + `"}`)}
+			prevTimeout, prevPoll := runStartTimeout, runStartPoll
+			runStartTimeout, runStartPoll = 50*time.Millisecond, 20*time.Millisecond
+			t.Cleanup(func() { runStartTimeout, runStartPoll = prevTimeout, prevPoll })
+
+			waitForRunStart(context.Background(), newAPIClient("test-key"), agentID)
+			// A run stuck in CREATING is polled until the timeout passes; the
+			// exact count depends on timing, so only "more than once" is checked.
+			polls := f.count("/v1/agents/" + agentID + "/runs")
+			if !tt.wantRepeat && polls != 1 {
+				t.Errorf("polled %d times, want once", polls)
+			}
+			if tt.wantRepeat && polls < 2 {
+				t.Errorf("polled %d times, want it to keep polling until the timeout", polls)
+			}
+		})
+	}
+}
+
 func ptr[T any](v T) *T { return &v }
 
 func TestDebugOutput(t *testing.T) {
