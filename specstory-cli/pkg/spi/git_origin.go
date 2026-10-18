@@ -93,33 +93,68 @@ func readOriginURL(gitConfigPath string) string {
 	return strings.TrimSpace(string(matches[1]))
 }
 
+// GitHeadBranch returns the branch checked out in the repository containing
+// dir, or "" when HEAD is detached, unreadable, or dir is not in a repository.
+func GitHeadBranch(dir string) string {
+	root, ok := FindGitRoot(dir)
+	if !ok {
+		return ""
+	}
+	// HEAD is per worktree, so it lives in the private dir, not the common one.
+	private, _ := gitDirs(root)
+	if private == "" {
+		return ""
+	}
+	head, err := os.ReadFile(filepath.Join(private, "HEAD"))
+	if err != nil {
+		return ""
+	}
+	// A detached HEAD holds a commit id rather than a branch ref.
+	branch, ok := strings.CutPrefix(strings.TrimSpace(string(head)), "ref: refs/heads/")
+	if !ok {
+		return ""
+	}
+	return branch
+}
+
 // gitConfigPath returns the path to the git config file that holds a root's
-// remotes, handling both a normal .git directory and a .git file (worktrees and
-// submodules, whose private gitdir points at a commondir that holds the shared
-// config). Returns "" when it cannot be resolved.
+// remotes, or "" when it cannot be resolved. The config is shared by every
+// worktree, so it lives in the common dir.
 func gitConfigPath(gitRoot string) string {
+	_, common := gitDirs(gitRoot)
+	if common == "" {
+		return ""
+	}
+	return filepath.Join(common, "config")
+}
+
+// gitDirs returns a root's private git dir, which holds per-worktree state such
+// as HEAD, and its common dir, which holds the shared config. They are the same
+// .git directory in a normal clone; a .git file (worktrees and submodules)
+// points at a private gitdir whose commondir names the shared one. Both are ""
+// when they cannot be resolved.
+func gitDirs(gitRoot string) (private, common string) {
 	gitPath := filepath.Join(gitRoot, ".git")
 	info, err := os.Stat(gitPath)
 	if err != nil {
-		return ""
+		return "", ""
 	}
 	if info.IsDir() {
-		return filepath.Join(gitPath, "config")
+		return gitPath, gitPath
 	}
 
-	// A .git file reads "gitdir: <path>" and points at the worktree's private git
-	// dir; the shared config lives in the common dir, not that private dir.
+	// A .git file reads "gitdir: <path>" and points at the private git dir.
 	data, err := os.ReadFile(gitPath)
 	if err != nil {
-		return ""
+		return "", ""
 	}
 	content := strings.TrimSpace(string(data))
 	if !strings.HasPrefix(content, "gitdir:") {
-		return ""
+		return "", ""
 	}
 	gitDir := strings.TrimSpace(strings.TrimPrefix(content, "gitdir:"))
 	if gitDir == "" {
-		return ""
+		return "", ""
 	}
 	if !filepath.IsAbs(gitDir) {
 		gitDir = filepath.Join(gitRoot, gitDir)
@@ -132,5 +167,5 @@ func gitConfigPath(gitRoot string) string {
 		}
 		commonDir = filepath.Clean(c)
 	}
-	return filepath.Join(commonDir, "config")
+	return gitDir, commonDir
 }

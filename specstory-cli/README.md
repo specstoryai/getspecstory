@@ -44,7 +44,7 @@ The following coding agents are supported in the SpecStory CLI:
 
 ### Notes on Cursor Cloud Agents
 
-Cursor Cloud Agents run in Cursor's backend, and their conversations are never written to your machine. The `cursorcloud` provider reads them from the [Cloud Agents API](https://cursor.com/docs/cloud-agent/api/endpoints) with your Cursor API key (create one at https://cursor.com/dashboard/api, then set `CURSOR_API_KEY` or `cursor_api_key` under `[providers]`). Agents are matched to the current project by repository: an agent belongs to the project when one of its repositories is the project's git `origin`. The provider keeps a local mirror of what it has read in `.specstory/cursorcloud/` (it writes its own `.gitignore` there, because the mirror holds unredacted transcripts); `cursorcloud_mirror_dir` or `--user-data-dir cursorcloud:<path>` moves it. A finished run's full transcript, including tool calls and output, is available from the API for 24 hours; after that only its text remains, so sync at least daily or keep `specstory watch` running. `specstory run cursorcloud` opens https://cursor.com/agents in your browser and then watches until interrupted with `ctrl-c`. Resuming another agent's session into a cloud agent is not supported, because that would launch a new paid run; cloud sessions can be resumed into local agents.
+Cursor Cloud Agents run in Cursor's backend, and their conversations are never written to your machine. The `cursorcloud` provider reads them from the [Cloud Agents API](https://cursor.com/docs/cloud-agent/api/endpoints) with your Cursor API key (create one at https://cursor.com/dashboard/api, then set `CURSOR_API_KEY` or `cursor_api_key` under `[providers]`). Agents are matched to the current project by repository: an agent belongs to the project when one of its repositories is the project's git `origin`. The provider keeps a local mirror of what it has read in `.specstory/cursorcloud/` (it writes its own `.gitignore` there, because the mirror holds unredacted transcripts); `cursorcloud_mirror_dir` or `--user-data-dir cursorcloud:<path>` moves it. A finished run's full transcript, including tool calls and output, is available from the API for 24 hours; after that only its text remains, so sync at least daily or keep `specstory watch` running. `specstory run cursorcloud` starts a cloud agent on the project's repository and current branch (the default branch when the current one is not pushed), opens its page in your browser, and then watches until interrupted with `ctrl-c`. The agent opens with a short greeting, which is a paid run like any other, and you continue the conversation in the browser. Resuming another agent's session into a cloud agent is not supported, because that would launch a new paid run; cloud sessions can be resumed into local agents.
 
 ### Notes on IDEs
 
@@ -334,8 +334,8 @@ specstory sync --config-dir ~/specstory-configs/myproject
 # Cursor IDE command (used by specstory run cursoride to open the IDE)
 # cursoride_cmd = "cursor"
 
-# Cursor Cloud Agent: command used by specstory run cursorcloud to open
-# https://cursor.com/agents. The default is the system URL opener for your OS,
+# Cursor Cloud Agent: command used by specstory run cursorcloud to open the new
+# agent's page on cursor.com. The default is the system URL opener for your OS,
 # shown below; set it to open a specific browser instead.
 # cursorcloud_cmd = "open"                                  # macOS default
 # cursorcloud_cmd = "xdg-open"                              # Linux default
@@ -404,7 +404,7 @@ specstory sync --config-dir ~/specstory-configs/myproject
 | `[providers]`     | `copilotide_vscodium_insiders_cmd` | `"codium-insiders"`  | VSCodium Insiders launcher command                                  |
 | `[providers]`     | `cursor_cmd`                       | `"cursor-agent"`     | Cursor CLI command                                                  |
 | `[providers]`     | `cursoride_cmd`                    | `"cursor"`           | Cursor IDE launcher command                                         |
-| `[providers]`     | `cursorcloud_cmd`                  | system URL opener    | Command `run cursorcloud` uses to open the cloud agents dashboard   |
+| `[providers]`     | `cursorcloud_cmd`                  | system URL opener    | Command `run cursorcloud` uses to open the new agent's page         |
 | `[providers]`     | `cursor_api_key`                   | none                 | Cursor API key for cloud agents (`CURSOR_API_KEY` takes precedence) |
 | `[providers]`     | `cursorcloud_mirror_dir`           | `.specstory/cursorcloud` | Where raw cloud agent transcripts are mirrored                  |
 | `[providers]`     | `deepseek_cmd`                     | `"deepseek"`         | DeepSeek TUI command                                                |

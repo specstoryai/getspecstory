@@ -103,6 +103,10 @@ agents/<agentId>/runs/<runId>.events.jsonl   one {"id","event","data"} object pe
 - Detection (`sync`, `list`) consults the mirror before the API, so histories already mirrored stay readable without a key.
 - An agent directory without `agent.json` is not an agent yet. Readers skip it.
 
+## Run
+
+`specstory run cursorcloud` launches a new agent with `POST /v1/agents` instead of opening the bare agents page, because that page cannot be told which repository to use: an agent started there without one lands in a scratch repository (`origin.cursor.com/git/<user>/tmp-….git`) that never matches the project. The launch sets `repos[0].url` to `https://` plus the normalized origin and `startingRef` to the checked-out branch. The API validates the branch before creating anything (`400 validation_error`, "Branch '…' does not exist in repository …"), so an unpushed branch is retried once without `startingRef`, starting from the default branch. The API cannot create an agent without a prompt, so the agent is named `SpecStory session` and opens with a fixed no-tools greeting; both are skipped when choosing the session title and slug, and an agent with only the greeting yields no session yet. A launch is never resent after a 5xx or a transport failure, because the first attempt may already have started a paid run. `run` then opens `https://cursor.com/agents/<id>` and watches.
+
 ## Resume
 
 Same-agent resume (`specstory resume` of a cloud session into `cursorcloud`) opens `https://cursor.com/agents/<id>`, where a follow-up run can be started, and then watches. Resuming another agent's session into `cursorcloud` is unsupported: the only way to create a cloud agent conversation is to launch a new paid run, so `ReconstructSession` returns `spi.ErrReconstructionUnsupported`. Resuming a cloud session into a local agent works through the shared `SessionData` flattening, from any directory: with no `OriginCwd` on the index row, resume reads the session by its mirror path (`agent.json`) through `GetAgentChatSessionByPath`.

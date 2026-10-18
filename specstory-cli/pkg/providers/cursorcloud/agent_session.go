@@ -206,8 +206,11 @@ func buildSessionData(snap *agentSnapshot, workspaceRoot string) (*schema.Sessio
 		if exchange == nil {
 			continue
 		}
-		if firstPrompt == "" {
-			firstPrompt = firstUserText(exchange)
+		// The greeting `run` opens an agent with is not what the session is
+		// about, so the title and slug wait for the user's own first prompt,
+		// and an agent with only the greeting has nothing to save yet.
+		if text := firstUserText(exchange); firstPrompt == "" && strings.TrimSpace(text) != launchPromptText {
+			firstPrompt = text
 		}
 		if exchange.Metadata["source"] == v0Source {
 			textOnly++
@@ -545,9 +548,11 @@ func firstUserText(exchange *schema.Exchange) string {
 }
 
 // sessionName prefers the agent's own name (Cursor sets one, derived from the
-// prompt when the launcher gave none) over the shared generator.
+// prompt when the launcher gave none) over the shared generator. The fixed name
+// `run` launches with says nothing about the session, so it yields to the
+// generator too.
 func sessionName(agent apiAgent, firstPrompt string) string {
-	if name := strings.TrimSpace(agent.Name); name != "" {
+	if name := strings.TrimSpace(agent.Name); name != "" && name != launchName {
 		return name
 	}
 	return spi.GenerateReadableName(firstPrompt)

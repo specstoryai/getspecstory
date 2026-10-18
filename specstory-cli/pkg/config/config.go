@@ -132,8 +132,8 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # Cursor IDE command (used by specstory run cursoride to open the IDE)
 # cursoride_cmd = "cursor"
 
-# Cursor Cloud Agent: command used by specstory run cursorcloud to open
-# https://cursor.com/agents. The default is the system URL opener for your OS,
+# Cursor Cloud Agent: command used by specstory run cursorcloud to open the new
+# agent's page on cursor.com. The default is the system URL opener for your OS,
 # shown below; set it to open a specific browser instead.
 # cursorcloud_cmd = "open"                                  # macOS default
 # cursorcloud_cmd = "xdg-open"                              # Linux default

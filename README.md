@@ -103,7 +103,7 @@ specstory check
 # Launch your preferred agent with session auto-save
 specstory run claude       # Launch Claude Code
 specstory run cursor       # Launch Cursor CLI
-specstory run cursorcloud  # Open cursor.com/agents and save Cursor Cloud Agent sessions
+specstory run cursorcloud  # Start a Cursor Cloud Agent on this repo and save its sessions
 specstory run codex        # Launch Codex CLI
 specstory run droid        # Launch Droid CLI
 specstory run deepseek     # Launch DeepSeek TUI

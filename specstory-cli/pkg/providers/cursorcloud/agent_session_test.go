@@ -258,6 +258,65 @@ func TestV0FallbackForExpiredPartialRun(t *testing.T) {
 	}
 }
 
+// TestLaunchGreetingIsNotTheSessionTopic: an agent `run` started opens with a
+// fixed greeting under a fixed name, so the title and slug come from the
+// user's own first prompt, and a greeting alone is nothing to save yet.
+func TestLaunchGreetingIsNotTheSessionTopic(t *testing.T) {
+	tests := []struct {
+		name      string
+		runs      int
+		wantSaved bool
+	}{
+		{name: "greeting only", runs: 1, wantSaved: false},
+		{name: "greeting then the user's prompt", runs: 2, wantSaved: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			snap := snapshotFromFixture(t, "failure-run")
+			snap.runs = snap.runs[:tt.runs]
+			snap.agent.Name = launchName
+			replaceUserPrompt(t, snap.runs[0].events, launchPromptText)
+
+			data, firstPrompt := buildSessionData(snap, testWorkspace)
+			if !tt.wantSaved {
+				if data != nil {
+					t.Errorf("built a session from the greeting alone: slug %q", data.Slug)
+				}
+				return
+			}
+			if data == nil {
+				t.Fatal("no session built")
+			}
+			if len(data.Exchanges) != 2 {
+				t.Errorf("got %d exchanges, want the greeting kept as the first", len(data.Exchanges))
+			}
+			if !strings.HasPrefix(firstPrompt, "Follow-up: append the line") || data.Slug != "follow-up-append-the" {
+				t.Errorf("first prompt %q, slug %q; want both from the user's prompt", firstPrompt, data.Slug)
+			}
+			if name := sessionName(snap.agent, firstPrompt); name == launchName {
+				t.Errorf("session name = %q, want one from the user's prompt", name)
+			}
+		})
+	}
+}
+
+// replaceUserPrompt rewrites the run's prompt event to text.
+func replaceUserPrompt(t *testing.T, events []sseEvent, text string) {
+	t.Helper()
+	for i, ev := range events {
+		if ev.Event != "interaction_update" || !bytes.Contains(ev.Data, []byte(`"user-message-appended"`)) {
+			continue
+		}
+		data, err := json.Marshal(map[string]any{"type": "user-message-appended", "userMessage": map[string]string{"text": text}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		events[i].Data = data
+		return
+	}
+	t.Fatal("no user-message-appended event in the run")
+}
+
 // TestV0FallbackSkippedWhenARunIsMissing: v0 turns pair with runs by position,
 // so a run missing from the mirror would hand turn 0's text to what is really
 // run 1. The partial stream must be kept instead.

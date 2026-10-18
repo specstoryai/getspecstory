@@ -103,3 +103,61 @@ func TestGitOriginURL(t *testing.T) {
 		}
 	})
 }
+
+func TestGitHeadBranch(t *testing.T) {
+	tests := []struct {
+		name string
+		head string
+		want string
+	}{
+		{name: "branch", head: "ref: refs/heads/main\n", want: "main"},
+		{name: "branch with slashes", head: "ref: refs/heads/feature/cloud-run\n", want: "feature/cloud-run"},
+		{name: "detached", head: "3f1c2b9e0d4a5f6e7d8c9b0a1f2e3d4c5b6a7f8e\n", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := writeGitConfig(t, t.TempDir(), "")
+			if err := os.WriteFile(filepath.Join(root, ".git", "HEAD"), []byte(tt.head), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if got := GitHeadBranch(root); got != tt.want {
+				t.Errorf("GitHeadBranch = %q, want %q", got, tt.want)
+			}
+		})
+	}
+
+	// A worktree's HEAD is its own, in the private gitdir, not the main
+	// checkout's HEAD in the common dir.
+	t.Run("worktree reads its private HEAD", func(t *testing.T) {
+		main := writeGitConfig(t, filepath.Join(t.TempDir(), "main"), "")
+		if err := os.WriteFile(filepath.Join(main, ".git", "HEAD"), []byte("ref: refs/heads/main\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		private := filepath.Join(main, ".git", "worktrees", "wt")
+		if err := os.MkdirAll(private, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(private, "commondir"), []byte("../..\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(private, "HEAD"), []byte("ref: refs/heads/wt-branch\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		worktree := filepath.Join(t.TempDir(), "wt")
+		if err := os.MkdirAll(worktree, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(worktree, ".git"), []byte("gitdir: "+private+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if got := GitHeadBranch(worktree); got != "wt-branch" {
+			t.Errorf("GitHeadBranch = %q, want %q", got, "wt-branch")
+		}
+	})
+
+	t.Run("not a repository", func(t *testing.T) {
+		if got := GitHeadBranch(t.TempDir()); got != "" {
+			t.Errorf("GitHeadBranch = %q, want empty", got)
+		}
+	})
+}

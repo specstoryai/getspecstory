@@ -76,7 +76,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 			errorType := spi.ClassifyCheckError(err)
 			return fail(errorType, err.Error(), fmt.Sprintf(
 				"Could not find the dashboard opener: %s\n\n"+
-					"• cursorcloud_cmd (or -c) is the command run cursorcloud uses to open https://cursor.com/agents.\n"+
+					"• cursorcloud_cmd (or -c) is the command run cursorcloud uses to open the agent's page on cursor.com.\n"+
 					"• Check the path, or remove the setting to use the system URL opener.\n", opener[0]))
 		}
 		attempt.ResolvedPath = resolved
@@ -160,7 +160,7 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 			log.UserMessage("Run SpecStory from a clone of the repository the cloud agents worked on.\n\n")
 		default:
 			log.UserMessage("Cloud agents are matched to a project by repository URL. None of your agents worked on %s.\n", origin)
-			log.UserMessage("Launch one at https://cursor.com/agents for this repository, then sync again.\n\n")
+			log.UserMessage("Start one with specstory run cursorcloud, or launch one at https://cursor.com/agents for this repository, then sync again.\n\n")
 		}
 	}
 	return found

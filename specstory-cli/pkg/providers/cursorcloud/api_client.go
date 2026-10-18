@@ -1,6 +1,7 @@
 package cursorcloud
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -155,11 +156,12 @@ func streamTransport() *http.Transport {
 }
 
 // do sends one request built by build, waiting out any hold first and
-// retrying 429 and 5xx responses after the server's requested delay or
-// exponential backoff.
-// Transport failures (DNS, connection reset, timeout) take the same backoff,
-// because every request here is an idempotent GET and a sync that gave up on
-// one agent over a blip would leave it stale until the next run. A cancelled
+// retrying 429 responses after the server's requested delay or exponential
+// backoff. A GET also retries 5xx responses and transport failures (DNS,
+// connection reset, timeout) with the same backoff, because a sync that gave up
+// on one agent over a blip would leave it stale until the next run. Any other
+// method gets only the 429 retry: a launch that failed in flight may still have
+// started a paid agent, and sending it again could start a second. A cancelled
 // context is never retried. A 2xx response is returned open; any other status
 // is returned as *apiError.
 func (c *apiClient) do(ctx context.Context, httpClient *http.Client, build func(ctx context.Context) (*http.Request, error)) (*http.Response, error) {
@@ -173,9 +175,10 @@ func (c *apiClient) do(ctx context.Context, httpClient *http.Client, build func(
 			return nil, err
 		}
 		req.Header.Set("Authorization", "Bearer "+c.key)
+		idempotent := req.Method == http.MethodGet
 		resp, err := httpClient.Do(req)
 		if err != nil {
-			if ctx.Err() != nil || attempt >= maxRetries {
+			if ctx.Err() != nil || !idempotent || attempt >= maxRetries {
 				return nil, err
 			}
 			delay := backoff
@@ -190,7 +193,7 @@ func (c *apiClient) do(ctx context.Context, httpClient *http.Client, build func(
 		}
 
 		apiErr := readAPIError(resp)
-		retryable := resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500
+		retryable := resp.StatusCode == http.StatusTooManyRequests || (idempotent && resp.StatusCode >= 500)
 		if !retryable || attempt >= maxRetries {
 			return nil, apiErr
 		}
@@ -297,6 +300,63 @@ func (c *apiClient) me(ctx context.Context) (apiMe, error) {
 type agentPage struct {
 	records    []agentRecord
 	nextCursor string
+}
+
+// launchRequest is the body of POST /v1/agents.
+type launchRequest struct {
+	Name   string       `json:"name,omitempty"`
+	Prompt launchPrompt `json:"prompt"`
+	Repos  []launchRepo `json:"repos"`
+}
+
+type launchPrompt struct {
+	Text string `json:"text"`
+}
+
+type launchRepo struct {
+	URL string `json:"url"`
+	// StartingRef is the branch the agent starts from; empty means the
+	// repository's default branch.
+	StartingRef string `json:"startingRef,omitempty"`
+}
+
+// launchAgent creates a cloud agent, which starts its first (paid) run at once.
+func (c *apiClient) launchAgent(ctx context.Context, launch launchRequest) (apiAgent, error) {
+	body, err := json.Marshal(launch)
+	if err != nil {
+		return apiAgent{}, err
+	}
+	resp, err := c.do(ctx, c.jsonHTTP, func(ctx context.Context) (*http.Request, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1/agents", bytes.NewReader(body))
+		if err == nil {
+			req.Header.Set("Accept", "application/json")
+			req.Header.Set("Content-Type", "application/json")
+		}
+		return req, err
+	})
+	if err != nil {
+		return apiAgent{}, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return apiAgent{}, fmt.Errorf("read launch response: %w", err)
+	}
+	// The created agent may come wrapped as {"agent": {...}, ...} or bare.
+	var wrapped struct {
+		Agent json.RawMessage `json:"agent"`
+	}
+	if json.Unmarshal(raw, &wrapped) == nil && len(wrapped.Agent) > 0 {
+		raw = wrapped.Agent
+	}
+	var agent apiAgent
+	if err := json.Unmarshal(raw, &agent); err != nil {
+		return apiAgent{}, fmt.Errorf("decode launch response: %w", err)
+	}
+	if !validAgentID(agent.ID) {
+		return apiAgent{}, fmt.Errorf("launch response has no valid agent id (%q)", agent.ID)
+	}
+	return agent, nil
 }
 
 // listAgents returns every agent the key can see, newest first, following

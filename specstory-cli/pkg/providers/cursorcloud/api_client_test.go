@@ -500,6 +500,83 @@ func TestClientGivesUpAfterMaxRetries(t *testing.T) {
 	}
 }
 
+// TestLaunchAgentRetriesOnlyRefusals: a launch is retried only when the API
+// refused it (429), because a 5xx or a dropped connection may have started a
+// paid agent already, and resending would start a second.
+func TestLaunchAgentRetriesOnlyRefusals(t *testing.T) {
+	const created = `{"id":"bc-0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d","name":"SpecStory session","url":"https://cursor.com/agents/bc-0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"}`
+	tests := []struct {
+		name      string
+		first     func(w http.ResponseWriter)
+		success   string
+		wantCalls int
+		wantErr   bool
+	}{
+		{name: "429 retried", first: func(w http.ResponseWriter) {
+			writeAPIError(w, http.StatusTooManyRequests, "rate_limited", "slow down")
+		}, success: created, wantCalls: 2},
+		{name: "503 not retried", first: func(w http.ResponseWriter) {
+			writeAPIError(w, http.StatusServiceUnavailable, "unavailable", "try later")
+		}, wantCalls: 1, wantErr: true},
+		{name: "dropped connection not retried", first: func(w http.ResponseWriter) {
+			conn, _, err := w.(http.Hijacker).Hijack()
+			if err == nil {
+				_ = conn.Close()
+			}
+		}, wantCalls: 1, wantErr: true},
+		{name: "agent wrapped in the response", first: func(w http.ResponseWriter) {
+			_, _ = w.Write([]byte(`{"agent":` + created + `,"run":{"id":"run-1"}}`))
+		}, wantCalls: 1},
+		{name: "bare agent response", first: func(w http.ResponseWriter) {
+			_, _ = w.Write([]byte(created))
+		}, wantCalls: 1},
+		{name: "response without an agent id", first: func(w http.ResponseWriter) {
+			_, _ = w.Write([]byte(`{"ok":true}`))
+		}, wantCalls: 1, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			calls := 0
+			var got launchRequest
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				if r.Method != http.MethodPost || r.URL.Path != "/v1/agents" {
+					t.Errorf("request = %s %s, want POST /v1/agents", r.Method, r.URL.Path)
+				}
+				if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+					t.Errorf("decode body: %v", err)
+				}
+				if calls == 1 {
+					tt.first(w)
+					return
+				}
+				_, _ = w.Write([]byte(tt.success))
+			}))
+			defer server.Close()
+
+			clock := &fakeClock{now: time.Unix(1_800_000_000, 0)}
+			c := newAPIClient("test-key")
+			c.baseURL = server.URL
+			c.throttle = &throttle{now: clock.Now, sleep: clock.Sleep}
+
+			launch := newLaunchRequest("https://github.com/o/r", "main")
+			agent, err := c.launchAgent(context.Background(), launch)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+			if calls != tt.wantCalls {
+				t.Errorf("calls = %d, want %d", calls, tt.wantCalls)
+			}
+			if !tt.wantErr && agent.ID != "bc-0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d" {
+				t.Errorf("agent id = %q, want bc-0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", agent.ID)
+			}
+			if len(got.Repos) != 1 || got.Repos[0] != (launchRepo{URL: "https://github.com/o/r", StartingRef: "main"}) || got.Prompt.Text != launchPromptText {
+				t.Errorf("sent %+v, want the repo, branch and launch prompt", got)
+			}
+		})
+	}
+}
+
 func TestOpenStreamExpired(t *testing.T) {
 	f := newFakeAPI(t)
 	f.expired["run-1"] = true
