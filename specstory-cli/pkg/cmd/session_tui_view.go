@@ -331,6 +331,10 @@ func (m sessionTUI) renderTarget() string {
 		// native file, so even the same agent reconstructs — show no extra label there.
 		if m.chosen != nil && a.id == m.chosen.Agent && !m.chosen.IsCloud {
 			label += styFaint.Render(" (same agent — native resume)")
+		} else if noter, ok := a.provider.(spi.ResumeTargetNoter); ok && m.chosen != nil {
+			if note := noter.ResumeTargetNote(m.chosen.Agent); note != "" {
+				label += styFaint.Render(" (" + note + ")")
+			}
 		}
 		if i == m.targetCursor {
 			cursor = styCursor.Render(" ▸ ")

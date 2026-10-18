@@ -3,9 +3,9 @@ package grokbuild
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 	"unicode"
 
@@ -95,7 +95,7 @@ func buildToolSummary(tool *ToolInfo) string {
 			return fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, command)
 		}
 	case "get_command_or_subagent_output":
-		if ids, ok := stringList(tool.Input["task_ids"]); ok && len(ids) == 1 {
+		if ids, ok := spi.StringList(tool.Input["task_ids"]); ok && len(ids) == 1 {
 			return fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, ids[0])
 		} else if ok && len(ids) > 1 {
 			return fmt.Sprintf("Tool use: **%s** %d tasks", tool.Name, len(ids))
@@ -192,19 +192,14 @@ var parameterLabels = map[string]string{
 const summaryPromptRunes = 80
 
 func formatParameters(input map[string]any) string {
-	keys := make([]string, 0, len(input))
-	for key := range input {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
 	var b strings.Builder
-	for _, key := range keys {
+	for _, key := range slices.Sorted(maps.Keys(input)) {
 		label := parameterLabels[key]
 		if label == "" {
 			label = key
 		}
 		// A list of IDs or paths reads better as code spans than as a JSON array.
-		if items, ok := stringList(input[key]); ok && len(items) > 0 && !slices.ContainsFunc(items, func(item string) bool {
+		if items, ok := spi.StringList(input[key]); ok && len(items) > 0 && !slices.ContainsFunc(items, func(item string) bool {
 			return item == "" || strings.ContainsAny(item, "\n`")
 		}) {
 			fmt.Fprintf(&b, "%s: `%s`\n", label, strings.Join(items, "`, `"))
@@ -368,7 +363,7 @@ func formatToolCatalog(text string) string {
 			return ""
 		}
 		fmt.Fprintf(&b, "\nServer: `%s`\n", stringArg(group, "server"))
-		if extra := formatParameters(withoutKeys(group, "server", "tools")); extra != "" {
+		if extra := formatParameters(spi.WithoutKeys(group, "server", "tools")); extra != "" {
 			b.WriteString("\n" + extra + "\n")
 		}
 		for _, raw := range tools {
@@ -381,12 +376,12 @@ func formatToolCatalog(text string) string {
 				b.WriteString(description + "\n\n")
 			}
 			schema, _ := tool["input_schema"].(map[string]any)
-			b.WriteString(formatInputSchema(schema) + "\n")
+			b.WriteString(spi.FormatInputSchema(schema) + "\n")
 			// score is the discovery search's relevance ranking, not a property
 			// of the tool, so it is left out.
-			rest := withoutKeys(tool, "tool_name", "description", "score")
+			rest := spi.WithoutKeys(tool, "tool_name", "description", "score")
 			if schema != nil {
-				rest = withoutKeys(rest, "input_schema")
+				rest = spi.WithoutKeys(rest, "input_schema")
 			}
 			if extra := formatParameters(rest); extra != "" {
 				b.WriteString("\n" + extra + "\n")
@@ -395,7 +390,7 @@ func formatToolCatalog(text string) string {
 	}
 	// A null footer field (Grok writes "note": null) carries nothing to show.
 	footer := map[string]any{}
-	for key, value := range withoutKeys(catalog, "results") {
+	for key, value := range spi.WithoutKeys(catalog, "results") {
 		if value != nil {
 			footer[key] = value
 		}
@@ -404,130 +399,6 @@ func formatToolCatalog(text string) string {
 		b.WriteString("\n" + extra)
 	}
 	return strings.TrimSpace(b.String())
-}
-
-// formatInputSchema lists a tool's parameters, required ones first, with their
-// types and descriptions.
-func formatInputSchema(schema map[string]any) string {
-	if schema == nil {
-		return "Parameters: none"
-	}
-	var b strings.Builder
-	properties, _ := schema["properties"].(map[string]any)
-	if len(properties) == 0 {
-		b.WriteString("Parameters: none")
-	} else {
-		b.WriteString("Parameters:\n")
-		writeSchemaProperties(&b, schema, 0)
-	}
-	// Keys such as additionalProperties constrain the whole input; "type" is
-	// always "object" for a tool input and says nothing.
-	if extra := formatParameters(withoutKeys(schema, "type", "properties", "required")); extra != "" {
-		b.WriteString("\n\n" + extra)
-	}
-	return strings.TrimRight(b.String(), "\n")
-}
-
-// writeSchemaProperties writes one bullet per property of an object schema,
-// nesting the properties of object and array-of-object parameters beneath it.
-func writeSchemaProperties(b *strings.Builder, schema map[string]any, depth int) {
-	properties, _ := schema["properties"].(map[string]any)
-	required, _ := stringList(schema["required"])
-	names := make([]string, 0, len(properties))
-	for name := range properties {
-		names = append(names, name)
-	}
-	sort.SliceStable(names, func(i, j int) bool {
-		iRequired, jRequired := slices.Contains(required, names[i]), slices.Contains(required, names[j])
-		if iRequired != jRequired {
-			return iRequired
-		}
-		return names[i] < names[j]
-	})
-
-	indent := strings.Repeat("  ", depth)
-	for _, name := range names {
-		property, ok := properties[name].(map[string]any)
-		if !ok {
-			fmt.Fprintf(b, "%s- %s: %s\n", indent, spi.InlineCode(name), spi.InlineCode(stringArg(properties, name)))
-			continue
-		}
-		var qualifiers []string
-		if schemaType := schemaTypeName(property); schemaType != "" {
-			qualifiers = append(qualifiers, schemaType)
-		}
-		if slices.Contains(required, name) {
-			qualifiers = append(qualifiers, "required")
-		}
-		line := indent + "- " + spi.InlineCode(name)
-		if len(qualifiers) > 0 {
-			line += " (" + strings.Join(qualifiers, ", ") + ")"
-		}
-		// A description can span paragraphs; one line keeps the list intact.
-		if description := strings.Join(strings.Fields(stringArg(property, "description")), " "); description != "" {
-			line += ": " + description
-		}
-		if values, ok := property["enum"].([]any); ok && len(values) > 0 {
-			spans := make([]string, 0, len(values))
-			for _, value := range values {
-				spans = append(spans, spi.InlineCode(jsonText(value)))
-			}
-			line += " One of: " + strings.Join(spans, ", ") + "."
-		}
-		consumed := []string{"type", "anyOf", "oneOf", "description", "enum", "properties", "required"}
-		items, _ := property["items"].(map[string]any)
-		if schemaTypeName(property) != "" {
-			consumed = append(consumed, "items")
-		}
-		for _, key := range sortedKeys(withoutKeys(property, consumed...)) {
-			line += fmt.Sprintf("; %s: %s", key, spi.InlineCode(jsonText(property[key])))
-		}
-		b.WriteString(line + "\n")
-
-		if _, nested := property["properties"].(map[string]any); nested {
-			writeSchemaProperties(b, property, depth+1)
-		} else if _, nested := items["properties"].(map[string]any); nested {
-			writeSchemaProperties(b, items, depth+1)
-		}
-	}
-}
-
-// schemaTypeName describes a JSON schema's type the way a reader would say it:
-// "string", "array of string", "string | null".
-func schemaTypeName(schema map[string]any) string {
-	switch typed := schema["type"].(type) {
-	case string:
-		if items, ok := schema["items"].(map[string]any); typed == "array" && ok {
-			if itemType := schemaTypeName(items); itemType != "" {
-				return "array of " + itemType
-			}
-		}
-		return typed
-	case []any:
-		if names, ok := stringList(typed); ok {
-			return strings.Join(names, " | ")
-		}
-	}
-	for _, key := range []string{"anyOf", "oneOf"} {
-		branches, ok := schema[key].([]any)
-		if !ok {
-			continue
-		}
-		var names []string
-		for _, raw := range branches {
-			branch, ok := raw.(map[string]any)
-			if !ok {
-				return ""
-			}
-			name := schemaTypeName(branch)
-			if name == "" {
-				return ""
-			}
-			names = append(names, name)
-		}
-		return strings.Join(names, " | ")
-	}
-	return ""
 }
 
 // formatTaskEnvelope turns the tagged envelope Grok returns for a backgrounded
@@ -582,7 +453,7 @@ func formatImageResult(text string) string {
 		return ""
 	}
 	result := fmt.Sprintf("Saved image: %s", spi.InlineCode(path))
-	if extra := formatParameters(withoutKeys(envelope, "path", "filename", "session_folder", "message")); extra != "" {
+	if extra := formatParameters(spi.WithoutKeys(envelope, "path", "filename", "session_folder", "message")); extra != "" {
 		result += "\n" + extra
 	}
 	return result
@@ -875,59 +746,6 @@ func stringArg(args map[string]any, key string) string {
 	}
 }
 
-// stringList reads a JSON array whose items are all strings. The bool is false
-// for any other value, so a caller can fall back to rendering it as JSON.
-func stringList(value any) ([]string, bool) {
-	switch typed := value.(type) {
-	case []string:
-		return typed, true
-	case []any:
-		items := make([]string, 0, len(typed))
-		for _, raw := range typed {
-			item, ok := raw.(string)
-			if !ok {
-				return nil, false
-			}
-			items = append(items, item)
-		}
-		return items, true
-	}
-	return nil, false
-}
-
-// withoutKeys returns a copy of m without the named keys, leaving m intact.
-func withoutKeys(m map[string]any, keys ...string) map[string]any {
-	kept := make(map[string]any, len(m))
-	for key, value := range m {
-		if !slices.Contains(keys, key) {
-			kept[key] = value
-		}
-	}
-	return kept
-}
-
-func sortedKeys(m map[string]any) []string {
-	keys := make([]string, 0, len(m))
-	for key := range m {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-// jsonText renders a JSON value as its literal text: strings as-is, everything
-// else encoded, including null.
-func jsonText(value any) string {
-	if text, ok := value.(string); ok {
-		return text
-	}
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		return fmt.Sprint(value)
-	}
-	return string(encoded)
-}
-
 // headerText fits text to one line of a collapsed summary, marking a cut.
 func headerText(text string, maxRunes int) string {
 	line := strings.Join(strings.Fields(text), " ")
@@ -982,7 +800,7 @@ func formatWorkflowBody(input map[string]any) string {
 	if _, ok := source["type"]; ok {
 		parts = append(parts, fmt.Sprintf("Source: %s", spi.InlineCode(stringArg(source, "type"))))
 	}
-	if extra := formatParameters(withoutKeys(source, "type", "script")); extra != "" {
+	if extra := formatParameters(spi.WithoutKeys(source, "type", "script")); extra != "" {
 		parts = append(parts, extra)
 	}
 	if script := stringArg(source, "script"); script != "" {

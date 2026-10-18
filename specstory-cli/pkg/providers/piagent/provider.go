@@ -361,6 +361,8 @@ func (snapshot *sessionSnapshot) agentSession(path, projectPath string, debugRaw
 			slog.Warn("pi: debug-raw write failed", "sessionId", data.SessionID, "path", spi.GetDebugDir(data.SessionID), "error", dErr)
 		}
 	}
+	// Resume titles a reconstructed session from SessionData's slug.
+	data.Slug = deriveSlug(data)
 	var raw strings.Builder
 	for _, record := range snapshot.records {
 		raw.Write(record)
@@ -368,7 +370,7 @@ func (snapshot *sessionSnapshot) agentSession(path, projectPath string, debugRaw
 	return &spi.AgentChatSession{
 		SessionID:   data.SessionID,
 		CreatedAt:   data.CreatedAt,
-		Slug:        deriveSlug(data),
+		Slug:        data.Slug,
 		SessionData: data,
 		RawData:     raw.String(),
 	}, nil

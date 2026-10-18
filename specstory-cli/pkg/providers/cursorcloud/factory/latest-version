@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Latest published version of the Cursor Cloud Agents API.
+#
+# Channel: the OpenAPI document Cursor publishes for the API,
+# https://cursor.com/docs-static/cloud-agents-openapi.yaml; its info.version is
+# the only version string the hosted service exposes. Cloud agents run in
+# Cursor's backend, so there is no binary, npm tag, GitHub release or installer
+# to track. Rejected: GET /v1/me (needs a key and reports no version) and the
+# cursor-agent installer (that is the local CLI, tracked by cursorcli).
+#
+# There is no install or list-tools script: nothing installs locally, and the
+# tool inventory is recorded from a paid cloud run (see testdata/tools.txt),
+# which an unattended factory job must not launch.
+#
+# Factory SPI contract: print the current released version to stdout and exit 0.
+# Non-zero exit means "sensor failure", never "no change". Output is opaque to
+# the factory — byte-compared against the stored reading, never parsed.
+set -euo pipefail
+# awk reads the whole document (no early exit) so curl never sees a closed
+# pipe, which pipefail would report as a sensor failure.
+version=$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 https://cursor.com/docs-static/cloud-agents-openapi.yaml \
+  | awk '/^info:/ { in_info = 1; next } in_info && /^[^ ]/ { in_info = 0 } in_info && !found && $1 == "version:" { print $2; found = 1 }' \
+  | tr -d "\"'")
+if [ -z "$version" ]; then
+  echo "could not read info.version from cloud-agents-openapi.yaml (document format changed?)" >&2
+  exit 1
+fi
+printf '%s\n' "$version"

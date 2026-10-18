@@ -321,7 +321,7 @@ func selectWork(order []string, best map[string]reindexItem, fingerprints map[st
 	for _, key := range order {
 		item := best[key]
 		if projectFilter != "" {
-			if pid, _ := cache.resolve(item.ref.OriginCwd); pid != projectFilter {
+			if pid, _ := cache.resolveRef(item.ref); pid != projectFilter {
 				continue
 			}
 		}
@@ -601,7 +601,7 @@ func (li *LiveIndexer) Close() {
 // dropped.
 func buildSession(item reindexItem, cache *projectIDCache, indexedAt string) sessionindex.Session {
 	ref := item.ref
-	projectID, projectName := cache.resolve(ref.OriginCwd)
+	projectID, projectName := cache.resolveRef(ref)
 
 	sess := sessionindex.Session{
 		ProjectID:    projectID,
@@ -621,7 +621,7 @@ func buildSession(item reindexItem, cache *projectIDCache, indexedAt string) ses
 		IsNew:        item.isNew,
 	}
 
-	if ref.OriginCwd == "" {
+	if ref.OriginCwd == "" && !canParseByRepo(item.prov, ref) {
 		return sess // cannot re-locate without a cwd → metadata-only
 	}
 	full, err := parseFullSession(item.prov, ref)
@@ -638,6 +638,14 @@ func buildSession(item reindexItem, cache *projectIDCache, indexedAt string) ses
 		sess.UpdatedAt = ts
 	}
 	return sess
+}
+
+// canParseByRepo reports whether a session with no cwd can still be parsed: a
+// hosted agent names its repository and is read from its known native path, which
+// needs no cwd to locate.
+func canParseByRepo(prov spi.Provider, ref spi.GlobalSessionRef) bool {
+	_, ok := prov.(spi.PathSessionReader)
+	return ok && ref.OriginRepoURL != "" && ref.NativePath != ""
 }
 
 // parseFullSession reads a session's full data for indexing. It prefers a provider's
@@ -761,6 +769,27 @@ type projectIDName struct{ id, name string }
 type projectIDCache struct {
 	mu sync.Mutex
 	m  map[string]projectIDName
+}
+
+// resolveRef resolves a ref's project: from its originating cwd when known, else
+// from the repository URL a hosted agent records. Repository keys are prefixed so
+// they can never collide with a cwd in the cache.
+func (c *projectIDCache) resolveRef(ref spi.GlobalSessionRef) (string, string) {
+	if strings.TrimSpace(ref.OriginCwd) != "" || strings.TrimSpace(ref.OriginRepoURL) == "" {
+		return c.resolve(ref.OriginCwd)
+	}
+	key := "repo:" + ref.OriginRepoURL
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if v, ok := c.m[key]; ok {
+		return v.id, v.name
+	}
+	id, name, err := utils.ComputeProjectIDFromRemote(ref.OriginRepoURL)
+	if err != nil || id == "" {
+		id, name = unknownProjectID, ""
+	}
+	c.m[key] = projectIDName{id, name}
+	return id, name
 }
 
 func (c *projectIDCache) resolve(cwd string) (string, string) {

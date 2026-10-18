@@ -121,7 +121,8 @@ func TestWatcherPrunesOldFilesAndReadoptsResumedSessions(t *testing.T) {
 			case <-ctx.Done():
 				return
 			case <-watcher.Events:
-			case <-watcher.Errors:
+			case err := <-watcher.Errors:
+				t.Logf("fsnotify error: %v", err)
 			}
 		}
 	}()

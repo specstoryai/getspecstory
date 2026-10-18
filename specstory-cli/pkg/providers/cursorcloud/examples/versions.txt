@@ -1,0 +1,6 @@
+Cursor Cloud Agents API: v1 (public beta) and v0 (legacy), api.cursor.com, captured 2026-10-13
+OpenAPI document info.version: 1.0.0 (https://cursor.com/docs-static/cloud-agents-openapi.yaml)
+Stream retention header: x-cursor-stream-retention-seconds: 86400
+No agent version is exposed by the API; hook payloads inside the VM report cursor_version 1.0.0
+SpecStory CLI: v2.15.1-39-g9712fa7 plus the uncommitted cursorcloud provider (branch cloud-agent-provider)
+Captures: testdata/fixture-run (bc-a2a25972), testdata/tool-enumeration (bc-24df7300), testdata/failure-run (bc-cac9a149, runs 1-2)

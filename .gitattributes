@@ -1,0 +1,5 @@
+# Provider test fixtures are byte-exact captures of agent output (SSE streams,
+# JSON, golden files). Git for Windows defaults to core.autocrlf=true, which
+# rewrites LF to CRLF at checkout and breaks byte-for-byte comparisons on the
+# Windows CI runner. Keep them exactly as committed on every platform.
+specstory-cli/pkg/providers/*/testdata/** -text

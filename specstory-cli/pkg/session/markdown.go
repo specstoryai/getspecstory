@@ -57,6 +57,10 @@ func GenerateMarkdownFromAgentSession(sessionData *SessionData, includeMessageID
 		sessionData.Provider.Name,
 		sessionData.SessionID,
 		commentTimestamp)
+	for _, note := range sessionData.Notes {
+		// "--" would end the HTML comment early and spill the rest into the page.
+		fmt.Fprintf(&markdown, "<!-- %s -->\n\n", strings.ReplaceAll(note, "--", "-"))
+	}
 
 	// Render each exchange, tracking role across exchanges for proper separators
 	prevRole := ""
