@@ -9,6 +9,10 @@
 - The Cursor API serves full session transcripts, including tool calls and their output, for only 24 hours after a run finishes; after that it returns only the conversation text. SpecStory keeps a local copy of each Cursor Cloud Agent transcript in `.specstory/cursorcloud/` in your project (or in the directory set by `cursorcloud_mirror_dir` in `~/.specstory/cli/config.toml`), so a session synced within those 24 hours keeps its tool calls. Run `specstory sync` at least every 24 hours, or keep `specstory watch` running, to capture the details of each run in time. Don't delete the `.specstory/cursorcloud/` directory in your project or a run older than 24 hours can only be rebuilt from the conversation text alone without its tool calls. The directory holds unredacted transcripts, so SpecStory adds a `.gitignore` file to that directory to keep it out of git.
 - You can resume a Cursor Cloud Agent session into another agent, and resume any agent's session into a Cursor Cloud Agent. Resuming a Cursor Cloud Agent session into Cursor Cloud reopens the same agent. Resuming any other session starts a new cloud agent, which is a new paid run, seeded with the session so far. Sessions over 1,000,000 characters are too large to resume into a Cursor Cloud Agent.
 
+### 🐛 Bug Fixes
+
+- A session from Claude Code, Codex CLI, Gemini CLI or Pi resumed with `specstory resume` into an agent that shows session titles (Cursor CLI, Cursor IDE, Cursor Cloud Agents, VS Code Copilot, Droid, DeepSeek TUI or OpenCode) is now titled after the original session. Previously it was titled "Resumed session".
+
 ## v2.15.1 2026-09-24
 
 ### 🐛 Bug Fixes

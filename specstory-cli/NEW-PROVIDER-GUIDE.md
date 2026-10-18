@@ -210,6 +210,7 @@ Providers must never import `pkg/utils`, `pkg/session`, or `pkg/cloud` (the impo
 - `CheckResult.Version` is the version string the probe printed. It is empty when no version probe is possible (an IDE store, a hosted agent), and the CLI then omits the version line; it is the literal `"unknown"` when the binary ran but printed nothing. Never any other label.
 - `ProviderInfo.Version` is the agent's version when the native data records it, otherwise the literal `"unknown"`. The model name is not a substitute; it belongs on each agent message's `Model` field, and it is the real model, never a placeholder such as an automatic-mode label.
 - `SessionData.WorkspaceRoot` is never empty: the workspace the agent stated, then the caller's project path, then the process working directory as a documented last resort. These fallbacks support path normalization and rendering; they are not evidence that the session belongs to the caller's project.
+- `SessionData.Slug` is the same slug as `AgentChatSession.Slug`. Set both. Resume titles a reconstructed session from `SessionData`, so a provider that sets only the session's slug leaves every session resumed from it titled "Resumed session".
 - `GlobalSessionRef.OriginCwd` records the session's originating working directory. Leave it empty when the origin cannot be determined; do not fill it from a rendering fallback. Global enumeration still returns the session, and the CLI assigns the `"unknown"` project ID. The literal `"unknown"` belongs in neither `OriginCwd` nor `WorkspaceRoot`. A session that records a repository but no directory leaves `OriginCwd` empty and sets `OriginRepoURL`; reindex attributes it to the project with that origin by the same `git_id` normalization. A provider whose sessions carry no cwd must implement `spi.PathSessionReader`, because reindex and resume read such sessions by path.
 - Never infer project membership from the paths that tools touched; one read of `~/.gitconfig` would attach the session to every project under the home directory. Session-to-project matching uses containment of stated paths, never a rendering fallback or a guessed common ancestor.
 - `GetAgentChatSession` returns `nil, nil` for not found. Errors are for real failures.
@@ -494,6 +495,7 @@ Also run each script's negative case (an unreachable channel, a bogus version, t
 - [ ] Exported identifiers are documented
 - [ ] `Check` lifecycle logging present
 - [ ] No `fmt.Print` outside detection help
+- [ ] `SessionData.Slug` set to the same slug as `AgentChatSession.Slug`
 - [ ] `RawData` set on every session and built from the parsed records, not a second read
 - [ ] [Native debug output](#native-debug-output) preserves readable native input, honors the flag and debug directory across read and live paths, and refreshes without stale records or deleting CLI-owned files
 - [ ] `gofmt -w .` leaves code formatted
