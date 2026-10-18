@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Latest released version of Qwen Code.
+#
+# Channel: https://registry.npmjs.org/@qwen-code/qwen-code/latest, the vendor's
+# canonical npm stable dist-tag. Excludes nightly/preview tags. Homebrew may
+# lag this channel; GitHub's API imposes unauthenticated shared-runner limits.
+# An empty or changed registry response fails rather than returning no reading.
+#
+# Factory SPI contract: print the current released version to stdout and exit 0.
+# Non-zero exit means sensor failure, never no change. Output is opaque to the
+# factory and matches the plain version printed by `qwen --version`.
+set -euo pipefail
+version=$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 \
+  'https://registry.npmjs.org/@qwen-code/qwen-code/latest' |
+  jq -er '.version | select(type == "string" and length > 0)') || {
+  echo 'latest-version: failed to read a non-empty version from the npm registry' >&2
+  exit 1
+}
+printf '%s\n' "$version"

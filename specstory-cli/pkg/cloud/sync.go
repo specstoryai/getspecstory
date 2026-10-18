@@ -183,6 +183,7 @@ var (
 	machineName       string         // Cached machine name (os.Hostname)
 	clientVersion     string = "dev" // Will be set from main
 	apiBaseURL        string         // Base URL for API calls
+	specstoryDir      string         // Path to .specstory dir; set via SetSpecstoryDir after config is resolved
 )
 
 // incrementCategory atomically increments the counter for a given category
@@ -681,6 +682,13 @@ func GetAPIBaseURL() string {
 	return DefaultAPIBaseURL
 }
 
+// SetSpecstoryDir sets the directory where .project.json lives.
+// Must be called after the output config is resolved so cloud sync can
+// find the project config when --output-dir points to a non-default location.
+func SetSpecstoryDir(dir string) {
+	specstoryDir = dir
+}
+
 // GetUserAgent returns the User-Agent string for API requests
 func GetUserAgent() string {
 	return fmt.Sprintf("%s/%s SpecStory, Inc.", ClientName, clientVersion)
@@ -1034,15 +1042,11 @@ func (syncMgr *SyncManager) debouncedSync(sessionID, mdPath, mdContent string, r
 		}
 
 		// Start sync in goroutine (always skip HEAD check in autosave mode)
-		syncMgr.wg.Add(1)
 		atomic.AddInt32(&syncMgr.syncCount, 1)
-		go func() {
-			defer func() {
-				syncMgr.wg.Done()
-				atomic.AddInt32(&syncMgr.syncCount, -1)
-			}()
+		syncMgr.wg.Go(func() {
+			defer atomic.AddInt32(&syncMgr.syncCount, -1)
 			syncMgr.performSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, redactPayloads, true)
-		}()
+		})
 
 		// Log with timeSinceLastSync only if meaningful (not after cleanup)
 		if state.lastSyncTime.IsZero() {
@@ -1113,15 +1117,11 @@ func (syncMgr *SyncManager) flushPendingSync(sessionID string) {
 	syncMgr.debounceSessions.Delete(sessionID)
 
 	// Start sync in goroutine (always skip HEAD check for debounced syncs)
-	syncMgr.wg.Add(1)
 	atomic.AddInt32(&syncMgr.syncCount, 1)
-	go func() {
-		defer func() {
-			syncMgr.wg.Done()
-			atomic.AddInt32(&syncMgr.syncCount, -1)
-		}()
+	syncMgr.wg.Go(func() {
+		defer atomic.AddInt32(&syncMgr.syncCount, -1)
 		syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, req.sessionData, req.agentName, req.title, req.redactPayloads, true)
-	}()
+	})
 
 	slog.Debug("Flushed pending sync after debounce, cleaned up session state",
 		"sessionId", sessionID)
@@ -1150,15 +1150,11 @@ func (syncMgr *SyncManager) flushAllPending() {
 			state.pending = nil
 
 			// Start sync in goroutine (always skip HEAD check for debounced syncs)
-			syncMgr.wg.Add(1)
 			atomic.AddInt32(&syncMgr.syncCount, 1)
-			go func() {
-				defer func() {
-					syncMgr.wg.Done()
-					atomic.AddInt32(&syncMgr.syncCount, -1)
-				}()
+			syncMgr.wg.Go(func() {
+				defer atomic.AddInt32(&syncMgr.syncCount, -1)
 				syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, req.sessionData, req.agentName, req.title, req.redactPayloads, true)
-			}()
+			})
 
 			slog.Info("Flushing pending sync on shutdown",
 				"sessionId", sessionID)
@@ -1200,15 +1196,11 @@ func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawDa
 		syncMgr.debouncedSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, redactPayloads)
 	} else {
 		// Manual sync mode: immediate sync with HEAD check
-		syncMgr.wg.Add(1)
 		atomic.AddInt32(&syncMgr.syncCount, 1)
-		go func() {
-			defer func() {
-				syncMgr.wg.Done()
-				atomic.AddInt32(&syncMgr.syncCount, -1)
-			}()
+		syncMgr.wg.Go(func() {
+			defer atomic.AddInt32(&syncMgr.syncCount, -1)
 			syncMgr.performSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, redactPayloads, false)
-		}()
+		})
 	}
 }
 
@@ -1316,13 +1308,19 @@ func Shutdown(timeout time.Duration) *CloudSyncStats {
 	}
 }
 
-// readProjectConfig reads the .specstory/.project.json file
+// readProjectConfig reads the .project.json file from the resolved specstory dir.
+// Uses the path set via SetSpecstoryDir (which reflects --output-dir), falling back
+// to the default ".specstory" relative to cwd so the function is safe without a prior call.
 func readProjectConfig() (*ProjectData, error) {
 	var projectData ProjectData
 	var err error
 
-	// Read the project config file
-	configPath := filepath.Join(utils.SPECSTORY_DIR, utils.PROJECT_JSON_FILE)
+	// Use the resolved specstory dir when available; fall back to the default relative path
+	baseDir := specstoryDir
+	if baseDir == "" {
+		baseDir = utils.SPECSTORY_DIR
+	}
+	configPath := filepath.Join(baseDir, utils.PROJECT_JSON_FILE)
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read project config: %w", err)

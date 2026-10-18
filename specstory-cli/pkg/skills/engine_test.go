@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
 )
 
@@ -13,7 +14,7 @@ import (
 func newTestEngine(t *testing.T, library []cloud.SkillRow) (*Engine, *[]string) {
 	t.Helper()
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	t.Setenv("XDG_STATE_HOME", "")
 	project := filepath.Join(home, "proj")
 	if err := os.MkdirAll(filepath.Join(project, ".claude"), 0o755); err != nil {

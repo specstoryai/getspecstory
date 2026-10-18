@@ -1084,7 +1084,7 @@ _**Agent (claude-opus-4-6 2026-02-22 15:59:43Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
      1→<img width="1649" height="158" alt="Group 6 (1)" src="https://github.com/user-attachments/assets/93f0210f-c3ce-4035-91df-ec597e00a3ce" />
      2→
      3→# Intent is the new source code
@@ -1435,7 +1435,7 @@ _**Agent (claude-opus-4-6 2026-02-22 15:59:43Z)**_
    348→
    349→SpecStory® is a registered trademark of SpecStory, Inc.
    350→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-22 15:59:49Z)**_
@@ -1983,7 +1983,7 @@ _**Agent (claude-opus-4-6 2026-02-23 11:48:50Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/plans/goofy-conjuring-wombat.md`
 
-```text
+````text
      1→# Plan: Fix Config Paths + Auto-Create Default User Config
      2→
      3→## Context
@@ -2148,7 +2148,7 @@ _**Agent (claude-opus-4-6 2026-02-23 11:48:50Z)**_
    162→3. Manual: delete `~/.specstory/cli/config.toml`, run `./specstory sync`, verify file created with commented-out content
    163→4. Manual: run again, verify file not overwritten
    164→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-23 11:48:50Z)**_
@@ -2550,7 +2550,7 @@ _**Agent (claude-opus-4-6 2026-02-23 11:49:44Z)**_
 <summary>Tool use: **Task**</summary>
 Explore flag definitions and cmd
 
-```text
+````text
 Perfect. Now let me create a comprehensive summary document. Let me compile all my findings:
 
 ## Summary of CLI Flag/Command Definitions in SpecStory CLI
@@ -2697,7 +2697,7 @@ agentId: aa689f5 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 61829
 tool_uses: 16
 duration_ms: 44439</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-23 11:48:59Z)**_
@@ -2749,7 +2749,7 @@ _**Agent (claude-opus-4-6 2026-02-23 11:49:42Z)**_
 <summary>Tool use: **Task**</summary>
 Explore output dir usage
 
-```text
+````text
 Perfect! Now I have all the information I need. Let me compile a comprehensive report.
 
 ## Comprehensive Analysis: Output Dir and Debug Directories in SpecStory CLI
@@ -2893,7 +2893,7 @@ agentId: a449db0 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 55675
 tool_uses: 16
 duration_ms: 38138</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-23 11:49:04Z)**_
@@ -3109,7 +3109,7 @@ _**Agent (claude-opus-4-6 2026-02-23 11:49:50Z)**_
 <summary>Tool use: **Task**</summary>
 Explore print and local_time_zone
 
-```text
+````text
 Perfect! Now I have all the information I need. Let me create a comprehensive report of my findings.
 
 ## Comprehensive Flag Analysis Report
@@ -3327,7 +3327,7 @@ agentId: ae9c2cd (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 59175
 tool_uses: 15
 duration_ms: 42837</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-23 11:49:07Z)**_
@@ -10905,7 +10905,7 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-23 11:49:20Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/session/markdown.go`
 
-```text
+````text
     80→	// Fallback to session creation time if no exchanges or no start time
     81→	return formatTimestamp(sessionData.CreatedAt, useUTC)
     82→}
@@ -11117,7 +11117,7 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-23 11:49:20Z)**_
    288→	return currentRole != prevRole
    289→}
    290→
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-23 11:49:21Z)**_
@@ -13865,6 +13865,8 @@ _**User (2026-02-23 11:57:16Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-02-23 11:57:40Z)**_
 
 I made some mistakes in my {u ...} {p ...} content. I fixed them. Re-read the file.
@@ -13957,7 +13959,7 @@ _**Agent (claude-opus-4-6 2026-02-23 12:01:22Z)**_
 <summary>Tool use: **Task**</summary>
 Design implementation plan
 
-```text
+````text
 Good. No `processTemplate` function exists yet. No project-level default config creation either. Now I have all the information needed to produce the implementation plan. Let me organize this carefully.
 
 Here is the detailed implementation plan, organized by dependency order with exact file references and code-level specifics.
@@ -14536,7 +14538,7 @@ agentId: ac13455 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 87456
 tool_uses: 21
 duration_ms: 163338</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-23 11:58:39Z)**_
@@ -18837,7 +18839,7 @@ _**Agent - sidechain (claude-opus-4-6 2026-02-23 11:58:56Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
      1→<img width="1649" height="158" alt="Group 6 (1)" src="https://github.com/user-attachments/assets/93f0210f-c3ce-4035-91df-ec597e00a3ce" />
      2→
      3→# Intent is the new source code
@@ -18938,7 +18940,7 @@ _**Agent - sidechain (claude-opus-4-6 2026-02-23 11:58:56Z)**_
     98→output_dir = "/path/to/output"
     99→
    100→[version_check]
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-4-6 2026-02-23 11:58:57Z)**_
@@ -19020,7 +19022,7 @@ _**Agent - sidechain (claude-opus-4-6 2026-02-23 11:59:02Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
    100→[version_check]
    101→# Check for newer versions on startup (default: true)
    102→enabled = true
@@ -19121,7 +19123,7 @@ _**Agent - sidechain (claude-opus-4-6 2026-02-23 11:59:02Z)**_
    197→
    198→```zsh
    199→./specstory run --debug-raw
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-4-6 2026-02-23 11:59:04Z)**_
@@ -20632,7 +20634,7 @@ _**Agent (claude-opus-4-6 2026-02-23 12:02:41Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+````markdown
 # Plan: Config Template Processing, debug-dir Flag, local_time_zone Config Support
 
 ## Context
@@ -20657,78 +20659,78 @@ Add `processTemplate(template, level string) string`:
 - Blocks span multiple lines; closing `}` is at end of a line
 
 Update `ensureDefaultUserConfig` (line 236):
-\```go
+```go
 // Before:
 if err := os.WriteFile(path, []byte(defaultConfigTemplate), 0644); err != nil {
 // After:
 processed := processTemplate(defaultConfigTemplate, "user")
 if err := os.WriteFile(path, []byte(processed), 0644); err != nil {
-\```
+```
 
 ## Part 2: Add `DebugDir` to Config System
 
 ### `pkg/config/config.go`
 
 **LoggingConfig** — add field:
-\```go
+```go
 DebugDir string `toml:"debug_dir"`
-\```
+```
 
 **Config struct** — update `OutputDir` comment:
-\```go
+```go
 // OutputDir is the custom output directory for markdown files
-\```
+```
 
 **CLIOverrides** — add field:
-\```go
+```go
 DebugDir string
-\```
+```
 
 **`applyCLIOverrides`** — add block:
-\```go
+```go
 if o.DebugDir != "" {
     cfg.Logging.DebugDir = o.DebugDir
 }
-\```
+```
 
 **New getter:**
-\```go
+```go
 func (c *Config) GetDebugDir() string {
     return c.Logging.DebugDir
 }
-\```
+```
 
 ## Part 3: Add `LocalTimeZone` to Config System
 
 ### `pkg/config/config.go`
 
 **Config struct** — add field (root level, after OutputDir):
-\```go
+```go
 LocalTimeZone *bool `toml:"local_time_zone"`
-\```
+```
 
 **CLIOverrides** — add field:
-\```go
+```go
 LocalTimeZone bool
-\```
+```
 
 **`applyCLIOverrides`** — add block:
-\```go
+```go
 if o.LocalTimeZone {
     enabled := true
     cfg.LocalTimeZone = &enabled
 }
-\```
+```
 
 **New getter:**
-\```go
+```go
 func (c *Config) IsLocalTimeZoneEnabled() bool {
     if c.LocalTimeZone != nil {
         return *c.LocalTimeZone
     }
     return false
 }
-\```
+```
 
 ## Part 4: Debug Dir Plumbing — SPI Package-Level Override
 
@@ -20736,23 +20738,23 @@ func (c *Config) IsLocalTimeZoneEnabled() bool {
 
 Use the same package-level variable pattern already used in `claudecode/jsonl_debug.go` (`jsonlBurstMode`, `SetJsonlBurst()`):
 
-\```go
+```go
 var debugBaseDirOverride string
 
 func SetDebugBaseDir(dir string) {
     debugBaseDirOverride = dir
 }
-\```
+```
 
 Update `GetDebugDir` (line 221-223):
-\```go
+```go
 func GetDebugDir(sessionID string) string {
     if debugBaseDirOverride != "" {
         return filepath.Join(debugBaseDirOverride, sessionID)
     }
     return filepath.Join(".specstory", "debug", sessionID)
 }
-\```
+```
 
 This avoids changing `GetDebugDir`'s signature and cascading through all 6+ provider callers. `WriteDebugSessionData` picks it up automatically.
 
@@ -20769,22 +20771,22 @@ This avoids changing `GetDebugDir`'s signature and cascading through all 6+ prov
 ### `pkg/utils/path_utils.go`
 
 **OutputPathConfig** — add field:
-\```go
+```go
 type OutputPathConfig struct {
     BaseDir      string // Validated absolute path for markdown output
     DebugBaseDir string // Validated absolute path for debug output
 }
-\```
+```
 
 **`GetDebugDir()`** (line 95-97) — respect override:
-\```go
+```go
 func (c *OutputPathConfig) GetDebugDir() string {
     if c.DebugBaseDir != "" {
         return c.DebugBaseDir
     }
     return filepath.Join(c.getBasePath(), DEBUG_DIR)
 }
-\```
+```
 
 **`NewOutputPathConfig`** — add `debugDir` parameter. Same validation logic as `dir` (abs path, stat check, write check, MkdirAll). Sets `config.DebugBaseDir`.
 
@@ -20793,13 +20795,13 @@ func (c *OutputPathConfig) GetDebugDir() string {
 ## Part 6: Wire Everything in `main.go`
 
 ### New global variable (near line 37):
-\```go
+```go
 var debugDir string    // custom output directory for debug files
 var localTimeZone bool // flag to use local timezone instead of UTC
-\```
+```
 
 ### Early manual parsing (in `main()`, alongside existing --output-dir block):
-\```go
+```go
 case "--debug-dir":
     if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
         debugDir = args[i+1]
@@ -20807,29 +20809,29 @@ case "--debug-dir":
     }
 case "--local-time-zone":
     localTimeZone = true
-\```
+```
 Also handle `--debug-dir=value` format (same pattern as --output-dir=).
 
 ### Config Load (line 1196-1206) — add to CLIOverrides:
-\```go
+```go
 DebugDir:      debugDir,
 LocalTimeZone: localTimeZone,
-\```
+```
 
 ### Merge config back (after line 1224):
-\```go
+```go
 if cfg.GetDebugDir() != "" {
     debugDir = cfg.GetDebugDir()
 }
 localTimeZone = cfg.IsLocalTimeZoneEnabled()
-\```
+```
 
 ### Set SPI override (before command creation):
-\```go
+```go
 if debugDir != "" {
     spi.SetDebugBaseDir(debugDir)
 }
-\```
+```
 
 ### Update all `SetupOutputConfig` calls — add `debugDir` param:
 - Line 157 (PersistentPreRunE log path setup)
@@ -20840,70 +20842,70 @@ if debugDir != "" {
 - Line 1230 (main log path setup)
 
 ### Register flags on commands:
-\```go
+```go
 // sync
 syncCmd.Flags().StringVar(&debugDir, "debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
 
 // run
 runCmd.Flags().StringVar(&debugDir, "debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
-\```
+```
 
 ### Update `--output-dir` help text (lines 1284, 1297):
-\```
+```
 "custom output directory for markdown files (default: ./.specstory/history)"
-\```
+```
 
 ### Convert `--local-time-zone` to use global variable:
 Change from `BoolP` to `BoolVar` pointing to `localTimeZone`:
-\```go
+```go
 syncCmd.Flags().BoolVar(&localTimeZone, "local-time-zone", localTimeZone, "...")
 runCmd.Flags().BoolVar(&localTimeZone, "local-time-zone", localTimeZone, "...")
-\```
+```
 
 Replace per-command reads (lines ~407, ~554, ~946, ~1073):
-\```go
+```go
 // Before:
 useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
 useUTC := !useLocalTimezone
 // After:
 useUTC := !localTimeZone
-\```
+```
 
 ## Part 7: Wire in `pkg/cmd/watch.go`
 
 ### Update `CreateWatchCommand` signature:
-\```go
+```go
 func CreateWatchCommand(cloudURL *string, localTimeZone bool, debugDir string) *cobra.Command
-\```
+```
 
 ### Register new flag and update existing:
-\```go
+```go
 watchCmd.Flags().String("debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
 watchCmd.Flags().Bool("local-time-zone", localTimeZone, "...")
-\```
+```
 
 ### Update help text for `--output-dir` (line 302):
-\```
+```
 "custom output directory for markdown files (default: ./.specstory/history)"
-\```
+```
 
 ### In RunE — read debug-dir flag and set SPI override:
-\```go
+```go
 debugDir, _ := cmd.Flags().GetString("debug-dir")
 if debugDir != "" {
     spi.SetDebugBaseDir(debugDir)
 }
-\```
+```
 
 ### Update `SetupOutputConfig` call (line 95):
-\```go
+```go
 config, err := utils.SetupOutputConfig(outputDir, debugDir)
-\```
+```
 
 ### Update call in `main.go` (line 1242):
-\```go
+```go
 watchCmd := cmdpkg.CreateWatchCommand(&cloudURL, localTimeZone, debugDir)
-\```
+```
 
 ## Part 8: Tests
 
@@ -20965,7 +20967,7 @@ Update "Example Configuration" and "Configuration Options" table:
 6. Manual: set `local_time_zone = true` in `~/.specstory/cli/config.toml`, run `./specstory sync` — verify local timestamps
 7. Manual: verify `--output-dir` only affects markdown, not debug output
 
-```
+````
 
 ```text
 The file /Users/sean/.claude/plans/goofy-conjuring-wombat.md has been overwritten successfully.

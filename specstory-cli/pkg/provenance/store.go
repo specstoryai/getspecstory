@@ -82,7 +82,10 @@ func (s *Store) ensureSchema() error {
 	return err
 }
 
-// PushFileEvent stores a file event for later correlation.
+// PushFileEvent stores a file event for later correlation. The file_path column
+// gets the normalized (forward-slash) form: correlation compares it against
+// agent paths that are stored normalized, so a native Windows watcher path
+// (C:\…) must enter the same path space or nothing would ever match there.
 func (s *Store) PushFileEvent(ctx context.Context, event FileEvent) error {
 	if err := event.Validate(); err != nil {
 		return fmt.Errorf("invalid file event: %w", err)
@@ -95,7 +98,7 @@ func (s *Store) PushFileEvent(ctx context.Context, event FileEvent) error {
 
 	_, err = s.db.ExecContext(ctx,
 		`INSERT OR IGNORE INTO events (id, type, file_path, timestamp, payload) VALUES (?, ?, ?, ?, ?)`,
-		event.ID, "file_event", event.Path, event.Timestamp.UnixNano(), string(payload),
+		event.ID, "file_event", NormalizePath(event.Path), event.Timestamp.UnixNano(), string(payload),
 	)
 	if err != nil {
 		return fmt.Errorf("inserting file event: %w", err)

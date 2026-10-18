@@ -47,8 +47,13 @@ type resumePlan struct {
 	// session by matching its recorded cwd — looking under the current cwd would
 	// find nothing. Empty for older index rows; callers fall back to the current cwd.
 	fromCwd string
-	to      spi.Provider
-	toID    string
+	// fromNativePath is the index's native_path for the source session. When fromCwd is
+	// empty, as it is for a hosted agent that records a repository but never a directory,
+	// a provider implementing spi.PathSessionReader loads the source from this path, so
+	// the resume works from any directory rather than only from a clone of its repository.
+	fromNativePath string
+	to             spi.Provider
+	toID           string
 
 	// fromCloud marks a session sourced from SpecStory Cloud (another machine) rather than the
 	// local index. It has no local native file, so resume always fetches its SessionData from the
@@ -91,7 +96,9 @@ Resuming SpecStory Cloud sessions (from your other machines) requires an active 
 		Long:  longDesc,
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config.EnsureDefaultProjectConfig()
+			// resume doesn't register --config-dir (only run/sync/watch do), so the
+			// default project config always lands at the standard location here.
+			config.EnsureDefaultProjectConfig("")
 			slog.Info("Running in resume mode")
 
 			registry := factory.GetRegistry()
@@ -105,9 +112,19 @@ Resuming SpecStory Cloud sessions (from your other machines) requires an active 
 			presetTarget := ""
 			if len(args) == 1 {
 				presetTarget = strings.ToLower(strings.TrimSpace(args[0]))
-				if _, err := registry.Get(presetTarget); err != nil {
+				presetProvider, err := registry.Get(presetTarget)
+				if err != nil {
 					return utils.ValidationError{Message: fmt.Sprintf(
 						"unknown agent %q. Valid agents: %s", presetTarget, registry.GetProviderList())}
+				}
+				// A preset applies the target to whatever session is picked next,
+				// but an agent without a native serializer can only resume its own
+				// local sessions in place — so as a blanket target it is invalid.
+				// Fail here, before the picker opens on a dead-end choice.
+				if !presetProvider.SupportsReconstruction() {
+					return utils.ValidationError{Message: fmt.Sprintf(
+						"%s can't be a resume target for other agents' sessions. Run 'specstory resume' without a target and pick one of its own sessions to resume in place",
+						presetProvider.Name())}
 				}
 			}
 
@@ -224,7 +241,11 @@ func launchResume(plan *resumePlan, cwd string, o resumeLaunchOpts) error {
 	if err := utils.EnsureHistoryDirectoryExists(outConfig); err != nil {
 		return err
 	}
-	if _, err := utils.NewProjectIdentityManager(cwd).EnsureProjectIdentity(); err != nil {
+	// Tell cloud sync where .project.json lives (respects --output-dir) — without
+	// this the autosave callback's cloud sync reads ./.specstory/.project.json and
+	// fails or syncs under the wrong identity when --output-dir is set.
+	cloud.SetSpecstoryDir(outConfig.GetSpecstoryDir())
+	if _, err := utils.NewProjectIdentityManager(cwd, outConfig.GetSpecstoryDir()).EnsureProjectIdentity(); err != nil {
 		slog.Error("Failed to ensure project identity", "error", err)
 	}
 
@@ -328,11 +349,7 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 	// user's current cwd — a session picked from another project (all-projects browser)
 	// lives elsewhere, and providers like Codex locate it by its recorded cwd. The
 	// reconstructed session is still written and launched under the current cwd below.
-	fromCwd := plan.fromCwd
-	if fromCwd == "" {
-		fromCwd = cwd
-	}
-	fromSession, err := plan.from.GetAgentChatSession(fromCwd, plan.sessionID, false)
+	fromSession, err := loadResumeSource(plan, cwd)
 	if err != nil {
 		return "", fmt.Errorf("failed to load source session: %w", err)
 	}
@@ -346,7 +363,7 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 		if errors.Is(err, spi.ErrReconstructionUnsupported) {
 			track("unsupported")
 			return "", utils.ValidationError{Message: fmt.Sprintf(
-				"%s can't yet be a cross-agent resume target. Choose Claude Code or Codex CLI (or resume in %s itself).",
+				"%s can't be a cross-agent resume target — it has no native session serializer. Choose a different target agent, or resume the session in %s itself",
 				plan.to.Name(), plan.from.Name())}
 		}
 		slog.Warn("resume: reconstruction failed", "from", plan.fromID, "to", plan.toID, "error", err)
@@ -355,8 +372,25 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 	}
 	track("success")
 	fprintf(out, "\nReconstructed %s session into %s as %s.\n", plan.from.Name(), plan.to.Name(), shortID(rec.SessionID))
-	printCursorIDERestartNote(plan, out)
+	printIDERestartNote(plan, out)
 	return rec.SessionID, nil
+}
+
+// loadResumeSource reads the source session for a cross-agent resume. A session with
+// no recorded cwd but a known native path is read by path when its provider can, since
+// a by-id lookup would be scoped to the current directory's project; everything else
+// is looked up by id under its original cwd, falling back to the current one.
+func loadResumeSource(plan *resumePlan, cwd string) (*spi.AgentChatSession, error) {
+	if plan.fromCwd == "" && plan.fromNativePath != "" {
+		if reader, ok := plan.from.(spi.PathSessionReader); ok {
+			return reader.GetAgentChatSessionByPath(plan.fromNativePath, "", false)
+		}
+	}
+	fromCwd := plan.fromCwd
+	if fromCwd == "" {
+		fromCwd = cwd
+	}
+	return plan.from.GetAgentChatSession(fromCwd, plan.sessionID, false)
 }
 
 // prepareCloudResumeTarget resumes a session that lives only in SpecStory Cloud: fetch its
@@ -399,7 +433,7 @@ func prepareCloudResumeTarget(plan *resumePlan, cwd string, out io.Writer) (stri
 		if errors.Is(err, spi.ErrReconstructionUnsupported) {
 			track("unsupported")
 			return "", utils.ValidationError{Message: fmt.Sprintf(
-				"%s can't yet be a resume target. Choose Claude Code or Codex CLI.", plan.to.Name())}
+				"%s can't be a resume target for cloud sessions — resuming from the cloud requires reconstructing a local native session, which it doesn't support. Choose a different target agent", plan.to.Name())}
 		}
 		slog.Warn("resume: cloud reconstruction failed", "from", plan.fromID, "to", plan.toID, "error", err)
 		track("error")
@@ -407,16 +441,30 @@ func prepareCloudResumeTarget(plan *resumePlan, cwd string, out io.Writer) (stri
 	}
 	track("success")
 	fprintf(out, "Reconstructed cloud %s session into %s as %s.\n", plan.from.Name(), plan.to.Name(), shortID(rec.SessionID))
-	printCursorIDERestartNote(plan, out)
+	printIDERestartNote(plan, out)
 	return rec.SessionID, nil
 }
 
-// printCursorIDERestartNote tells the user how to surface a session reconstructed into Cursor
-// IDE's store: Cursor only picks up imported sessions from its SQLite database on startup, so
-// unlike CLI targets the result is not visible until the app is restarted.
-func printCursorIDERestartNote(plan *resumePlan, out io.Writer) {
+// printIDERestartNote tells the user how to surface a session reconstructed into an
+// IDE-backed store. Unlike CLI targets, these are not visible until the app restarts:
+// Cursor only picks up imported sessions from its SQLite database on startup, and VS
+// Code holds its chat session index in memory and flushes it over ours on shutdown.
+func printIDERestartNote(plan *resumePlan, out io.Writer) {
 	if plan.toID == "cursoride" {
 		fprintf(out, "\nNote: only Cursor 3 is supported. Restart Cursor to see the imported session in the Agent sidebar.\n")
+	}
+	// An ID-prefix check so every Copilot IDE variant — stock VS Code, Insiders,
+	// VSCodium, and any added later — gets the note without this layer importing
+	// a concrete provider package. Reconstruction normally holds its write until
+	// the app is quit, so this only matters for the scripted path that warned
+	// and proceeded with the app still running.
+	if strings.HasPrefix(plan.toID, "copilotide") {
+		// The provider name is "<app> Copilot IDE"; trimming the suffix names the
+		// actual app (VS Code, VSCodium, ...) so Insiders/VSCodium users aren't
+		// told about the wrong application. If the naming convention ever
+		// changes, the full provider name prints — awkward but still correct.
+		app := strings.TrimSuffix(plan.to.Name(), " Copilot IDE")
+		fprintf(out, "\nNote: if %s was running during the import, fully quit and reopen it to see the session.\n", app)
 	}
 }
 
@@ -593,7 +641,7 @@ func sessionFileReadable(path string) (bool, error) {
 	if n > 0 {
 		return true, nil
 	}
-	if err == io.EOF || err == nil {
+	if errors.Is(err, io.EOF) || err == nil {
 		return false, fmt.Errorf("session file is empty")
 	}
 	return false, err

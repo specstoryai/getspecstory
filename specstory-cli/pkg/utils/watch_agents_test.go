@@ -42,6 +42,14 @@ func TestFingerprintSession(t *testing.T) {
 		}
 	})
 
+	t.Run("same-length in-place edit changes fingerprint", func(t *testing.T) {
+		// Length and count alone can't see this change — only the content hash can.
+		edited := sessionWith(textMsg("user", "question"), textMsg("agent", "PARTIAL"))
+		if fingerprintSession(base) == fingerprintSession(edited) {
+			t.Error("expected fingerprint to change for a same-length content edit")
+		}
+	})
+
 	t.Run("added message changes fingerprint", func(t *testing.T) {
 		more := sessionWith(textMsg("user", "question"), textMsg("agent", "partial"), textMsg("user", "next"))
 		if fingerprintSession(base) == fingerprintSession(more) {
@@ -74,8 +82,8 @@ func TestFingerprintSession(t *testing.T) {
 	t.Run("metadata-only differences keep fingerprint equal", func(t *testing.T) {
 		// Non-content fields (timestamps, models, usage) must not affect the
 		// fingerprint, or every UI metadata patch would defeat the dedup.
-		a := sessionWith(schema.Message{Role: "agent", Model: "gpt-4", Content: []schema.ContentPart{{Text: "hi"}}})
-		b := sessionWith(schema.Message{Role: "agent", Model: "gpt-5", Timestamp: "2026-07-08T10:00:00Z", Content: []schema.ContentPart{{Text: "hi"}}})
+		a := sessionWith(schema.Message{Role: "agent", Model: "gpt-4", Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "hi"}}})
+		b := sessionWith(schema.Message{Role: "agent", Model: "gpt-5", Timestamp: "2026-07-08T10:00:00Z", Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "hi"}}})
 		if fingerprintSession(a) != fingerprintSession(b) {
 			t.Error("expected equal fingerprints when only non-content metadata differs")
 		}

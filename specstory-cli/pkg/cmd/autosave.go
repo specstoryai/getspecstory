@@ -28,6 +28,7 @@ import (
 // defaults.
 type SessionFlagDefaults struct {
 	LocalTimeZone      bool
+	OutputDir          string
 	DebugDir           string
 	NoTelemetryPrompts bool
 	NoRedactSecrets    bool
@@ -44,7 +45,7 @@ type SessionFlagDefaults struct {
 // accepts them. debug-raw, provenance and cloud-url are hidden, matching
 // run/sync.
 func registerSessionProcessingFlags(cmd *cobra.Command, cloudURL *string, d SessionFlagDefaults) {
-	cmd.Flags().String("output-dir", "", "custom output directory for markdown files (default: ./.specstory/history)")
+	cmd.Flags().String("output-dir", d.OutputDir, "custom output directory for markdown files (default: ./.specstory/history)")
 	cmd.Flags().String("debug-dir", d.DebugDir, "custom output directory for debug data (default: ./.specstory/debug)")
 	cmd.Flags().Bool("only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	cmd.Flags().Bool("no-cloud-sync", false, "disable cloud sync functionality")
@@ -57,6 +58,7 @@ func registerSessionProcessingFlags(cmd *cobra.Command, cloudURL *string, d Sess
 	_ = cmd.Flags().MarkHidden("cloud-url")
 	cmd.Flags().Bool("no-telemetry-prompts", d.NoTelemetryPrompts, "exclude prompt text from telemetry spans, if telemetry is enabled")
 	cmd.Flags().Bool("no-redact-secrets", d.NoRedactSecrets, "disable redaction of API keys and tokens from saved markdown history and cloud-synced session data")
+	cmd.Flags().Bool("no-stats", false, "skip statistics entirely, do not read or write statistics.json")
 	cmd.Flags().String("telemetry-endpoint", "", "Open Telemetry Protocol (OTLP) gRPC collector endpoint (default is off, e.g., localhost:4317)")
 	cmd.Flags().String("telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
 }
@@ -75,6 +77,7 @@ func ResolveProcessingOptions(cmd *cobra.Command, isAutosave, showOutput bool) s
 	useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
 	noTelemetryPrompts, _ := cmd.Flags().GetBool("no-telemetry-prompts")
 	noRedactSecrets, _ := cmd.Flags().GetBool("no-redact-secrets")
+	noStats, _ := cmd.Flags().GetBool("no-stats")
 
 	return session.ProcessingOptions{
 		ShowOutput:         showOutput,
@@ -84,6 +87,7 @@ func ResolveProcessingOptions(cmd *cobra.Command, isAutosave, showOutput bool) s
 		UseUTC:             !useLocalTimezone,
 		NoTelemetryPrompts: noTelemetryPrompts,
 		RedactSecrets:      !noRedactSecrets,
+		NoStats:            noStats,
 	}
 }
 
@@ -127,7 +131,7 @@ func NewAutosaveCallback(d AutosaveDeps) func(providerID string, sess *spi.Agent
 			fileExisted = statErr == nil
 		}
 
-		markdownSize, err := session.ProcessSingleSession(d.Ctx, sess, d.Config, d.Processing)
+		markdownSize, err := session.ProcessSingleSession(d.Ctx, providerID, sess, d.Config, d.Processing)
 		if err != nil {
 			slog.Error("Failed to process session update",
 				"sessionId", sess.SessionID,

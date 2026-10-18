@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "1.0",
+  "provider": {
+    "id": "grok",
+    "name": "Grok Build",
+    "version": "unknown"
+  },
+  "sessionId": "01a0b166-cb07-7443-b1e6-f56859274404",
+  "createdAt": "2026-09-17T22:04:59.031Z",
+  "updatedAt": "2026-09-17T22:05:05.624Z",
+  "workspaceRoot": "/qa/bounded-project",
+  "exchanges": [
+    {
+      "exchangeId": "01a0b166-cb07-7443-b1e6-f56859274404:0",
+      "startTime": "2026-09-17T22:04:59.125Z",
+      "endTime": "2026-09-17T22:05:03.501Z",
+      "messages": [
+        {
+          "timestamp": "2026-09-17T22:04:59.125Z",
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "This is explicitly authorized bounded native-tool QA. Do only these steps, no subagents, no feedback, no MCP and no unrelated shell operations. First call scheduler_list. Create exactly one schedule with interval 1d, prompt \"QA temporary no-op\", durable false, fire_immediately false. Immediately delete the returned ID before any other activity; then list to verify it is gone. Next generate exactly one square image: a small solid blue circle on a white background. Edit that image exactly once to change blue to red. Using the generated image, request image_to_video exactly once with duration 6 and resolution_name 480p, a stationary circle with a tiny gentle motion. Request reference_to_video exactly once with that image as images, duration 1, resolution_name 480p, aspect_ratio 1:1, prompt \"The circle from \u003cIMAGE_0\u003e moves very slightly on white\". Do not retry failed media calls and do not request any extra images or videos. If image creation fails, skip dependent media calls. Report each actual result. Always prioritize cleanup of the temporary schedule."
+            }
+          ]
+        },
+        {
+          "id": "rs_9f2c6107-eb36-9ee5-8638-d4e9fe5c622b",
+          "timestamp": "2026-09-17T22:05:00.668Z",
+          "role": "agent",
+          "content": [
+            {
+              "type": "thinking",
+              "text": "The user wants me to follow a specific sequence of steps for QA testing. Let me carefully follow their instructions:"
+            }
+          ]
+        },
+        {
+          "timestamp": "2026-09-17T22:05:03.355Z",
+          "role": "agent",
+          "model": "grok-4.6",
+          "content": [
+            {
+              "type": "text",
+              "text": "I'll start with `scheduler_list`, then create and immediately delete the temporary schedule before any media work."
+            }
+          ]
+        },
+        {
+          "id": "call-a4e036c9-712a-4e0f-8e4d-1519d093c8d2-0",
+          "timestamp": "2026-09-17T22:05:03.501Z",
+          "role": "agent",
+          "model": "grok-4.6",
+          "tool": {
+            "name": "scheduler_list",
+            "type": "generic",
+            "useId": "call-a4e036c9-712a-4e0f-8e4d-1519d093c8d2-0",
+            "output": {
+              "output": "No scheduled tasks.",
+              "status": "success"
+            },
+            "formattedMarkdown": "\n\nResult: No scheduled tasks.\n"
+          },
+          "usage": {
+            "inputTokens": 13321,
+            "outputTokens": 300,
+            "cachedTokens": 128,
+            "thoughtTokens": 272
+          }
+        }
+      ]
+    }
+  ]
+}

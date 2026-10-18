@@ -539,3 +539,11 @@ func TestToolTypeMappings(t *testing.T) {
 		})
 	}
 }
+
+func TestToolMarkdownPreservesNestedFences(t *testing.T) {
+	content := "before\n````markdown\n```text\ninner\n```\n````\nafter"
+	got := formatToolOutput(&fdToolCall{Name: "Execute", Result: &fdToolResult{Content: content}})
+	if !strings.Contains(got, "`````text\n"+content+"\n`````") {
+		t.Fatalf("unsafe fence: %s", got)
+	}
+}

@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -141,11 +142,32 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # Codex CLI command
 # codex_cmd = "codex"
 
+# Copilot IDE commands (used by specstory run copilotide[-variant] to open the IDE)
+# copilotide_cmd = "code"
+# copilotide_insiders_cmd = "code-insiders"
+# copilotide_vscodium_cmd = "codium"
+# copilotide_vscodium_insiders_cmd = "codium-insiders"
+
 # Cursor CLI command
 # cursor_cmd = "cursor-agent"
 
 # Cursor IDE command (used by specstory run cursoride to open the IDE)
 # cursoride_cmd = "cursor"
+
+# Cursor Cloud Agent: command used by specstory run cursorcloud to open the new
+# agent's page on cursor.com. The default is the system URL opener for your OS,
+# shown below; set it to open a specific browser instead.
+# cursorcloud_cmd = "open"                                  # macOS default
+# cursorcloud_cmd = "xdg-open"                              # Linux default
+# cursorcloud_cmd = "rundll32 url.dll,FileProtocolHandler"  # Windows default
+
+# Cursor API key for reading cloud agents (create one at https://cursor.com/dashboard/api).
+# The CURSOR_API_KEY environment variable takes precedence. Prefer it, or your user
+# config (~/.specstory/cli/config.toml): a key in a project config is readable by
+# anyone who can read the project, and is committed unless .specstory/cli/ is ignored.
+# cursor_api_key = "crsr_..."
+# Where raw cloud agent transcripts are mirrored (default: .specstory/cursorcloud in the project)
+# cursorcloud_mirror_dir = "~/.specstory/cursorcloud"
 
 # Droid CLI command
 # droid_cmd = "droid"
@@ -155,6 +177,24 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 
 # DeepSeek TUI command
 # deepseek_cmd = "deepseek"
+
+# Antigravity CLI command
+# antigravity_cmd = "agy"
+
+# Grok Build command
+# grok_cmd = "grok"
+
+# Muse Code command
+# muse_cmd = "muse"
+
+# OpenCode command
+# opencode_cmd = "opencode"
+
+# Pi command
+# pi_cmd = "pi"
+
+# Qwen Code command
+# qwen_cmd = "qwen"
 `
 
 // Config represents the complete CLI configuration
@@ -277,22 +317,43 @@ type TelemetryConfig struct {
 
 // ProvidersConfig holds custom agent execution commands by provider.
 // These are used by `specstory run` as the equivalent of the -c flag,
-// scoped to a specific provider.
+// scoped to a specific provider. It also holds the few provider settings
+// that are not commands (the Cursor Cloud Agent key and mirror location).
 type ProvidersConfig struct {
-	ClaudeCmd    string `toml:"claude_cmd"`
-	CodexCmd     string `toml:"codex_cmd"`
-	CursorCmd    string `toml:"cursor_cmd"`
-	CursorIDECmd string `toml:"cursoride_cmd"`
-	DeepSeekCmd  string `toml:"deepseek_cmd"`
-	DroidCmd     string `toml:"droid_cmd"`
-	GeminiCmd    string `toml:"gemini_cmd"`
+	AntigravityCmd                string `toml:"antigravity_cmd"`
+	ClaudeCmd                     string `toml:"claude_cmd"`
+	CodexCmd                      string `toml:"codex_cmd"`
+	CopilotIDECmd                 string `toml:"copilotide_cmd"`
+	CopilotIDEInsidersCmd         string `toml:"copilotide_insiders_cmd"`
+	CopilotIDEVSCodiumCmd         string `toml:"copilotide_vscodium_cmd"`
+	CopilotIDEVSCodiumInsidersCmd string `toml:"copilotide_vscodium_insiders_cmd"`
+	CursorCmd                     string `toml:"cursor_cmd"`
+	CursorIDECmd                  string `toml:"cursoride_cmd"`
+	CursorCloudCmd                string `toml:"cursorcloud_cmd"`
+	DeepSeekCmd                   string `toml:"deepseek_cmd"`
+	DroidCmd                      string `toml:"droid_cmd"`
+	GeminiCmd                     string `toml:"gemini_cmd"`
+	GrokCmd                       string `toml:"grok_cmd"`
+	MuseCmd                       string `toml:"muse_cmd"`
+	OpenCodeCmd                   string `toml:"opencode_cmd"`
+	PiCmd                         string `toml:"pi_cmd"`
+	QwenCmd                       string `toml:"qwen_cmd"`
+
+	// Settings that are not launch commands. They reach the provider through
+	// its package-level setters at startup rather than through GetProviderCmd.
+	CursorAPIKey         string `toml:"cursor_api_key"`
+	CursorCloudMirrorDir string `toml:"cursorcloud_mirror_dir"`
 }
 
 // CLIOverrides holds CLI flag values that override config file settings.
 // These are applied after config files are loaded.
 type CLIOverrides struct {
 	// General
-	OutputDir     string
+	OutputDir string
+	// ConfigDir relocates the project-level config directory (--config-dir).
+	// Unlike the other fields it doesn't override a config value — it changes
+	// where the project-level config.toml is looked up during Load.
+	ConfigDir     string
 	LocalTimeZone bool
 
 	// Version check
@@ -331,6 +392,8 @@ func Load(cliOverrides *CLIOverrides) (*Config, error) {
 	// Load user-level config first (lowest priority)
 	userConfigPath := getUserConfigPath()
 	if userConfigPath != "" {
+		// Before parsing, so a file with a syntax error is still protected.
+		tightenUserConfigMode(userConfigPath)
 		if err := loadTOMLFile(userConfigPath, cfg); err != nil {
 			if os.IsNotExist(err) {
 				slog.Debug("No user-level config file found", "path", userConfigPath)
@@ -346,6 +409,11 @@ func Load(cliOverrides *CLIOverrides) (*Config, error) {
 
 	// Load local project config (overwrites user-level)
 	localConfigPath := getLocalConfigPath()
+	// --config-dir relocates the project-level config; without this, a config
+	// created there via EnsureDefaultProjectConfig would never be read back.
+	if cliOverrides != nil && cliOverrides.ConfigDir != "" {
+		localConfigPath = filepath.Join(cliOverrides.ConfigDir, ConfigFileName)
+	}
 	if localConfigPath != "" {
 		if err := loadTOMLFile(localConfigPath, cfg); err != nil {
 			if os.IsNotExist(err) {
@@ -511,22 +579,31 @@ func ensureDefaultUserConfig(path string) {
 		return
 	}
 	processed := processTemplate(defaultConfigTemplate, "user")
-	if err := os.WriteFile(path, []byte(processed), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(processed), 0o600); err != nil {
 		slog.Debug("Could not write default config file", "path", path, "error", err)
 		return
 	}
 	slog.Debug("Created default user config file", "path", path)
 }
 
-// EnsureDefaultProjectConfig creates a default project-level config file at
-// .specstory/cli/config.toml if one doesn't already exist. All options are
-// commented out so the file is self-documenting but inert.
+// EnsureDefaultProjectConfig creates a default project-level config file if one
+// doesn't already exist. All options are commented out so the file is
+// self-documenting but inert.
+//
+// When configDir is non-empty the config file is placed at
+// {configDir}/config.toml, which respects --config-dir. Otherwise the
+// default location {cwd}/.specstory/cli/config.toml is used.
 //
 // This should only be called from commands that imply active project work
 // (run, sync, watch) to avoid scattering config files in arbitrary directories.
 // Failures are silently ignored — this is a convenience, not a requirement.
-func EnsureDefaultProjectConfig() {
-	path := getLocalConfigPath()
+func EnsureDefaultProjectConfig(configDir string) {
+	var path string
+	if configDir != "" {
+		path = filepath.Join(configDir, ConfigFileName)
+	} else {
+		path = getLocalConfigPath()
+	}
 	if path == "" {
 		return
 	}
@@ -540,11 +617,38 @@ func EnsureDefaultProjectConfig() {
 		return
 	}
 	processed := processTemplate(defaultConfigTemplate, "project")
-	if err := os.WriteFile(path, []byte(processed), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(processed), 0o600); err != nil {
 		slog.Debug("Could not write default config file", "path", path, "error", err)
 		return
 	}
 	slog.Debug("Created default project config file", "path", path)
+}
+
+// tightenUserConfigMode strips group and other permission bits from the user
+// config, because it can hold credentials such as cursor_api_key. Files created
+// by earlier releases are 0644, and os.WriteFile keeps an existing file's mode,
+// so creation-time permissions alone would leave upgraded installs readable by
+// other local users. Project configs are created 0600 too, but an existing one
+// is not tightened: it lives in the user's checkout, under permissions they
+// chose. Windows is skipped because it has no POSIX mode bits (Chmod there only
+// toggles read-only).
+func tightenUserConfigMode(path string) {
+	if runtime.GOOS == "windows" {
+		return
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return
+	}
+	perm := info.Mode().Perm()
+	if perm&0o077 == 0 {
+		return
+	}
+	if err := os.Chmod(path, perm&^0o077); err != nil {
+		slog.Debug("Could not tighten user config permissions", "path", path, "error", err)
+		return
+	}
+	slog.Debug("Tightened user config permissions", "path", path, "was", perm.String())
 }
 
 // loadTOMLFile reads a TOML file and decodes it into the config struct.
@@ -866,7 +970,7 @@ func SaveResumePrefs(viewMode, lastAgent string) error {
 	}
 
 	updated := upsertResumeSection(string(data), viewMode, lastAgent)
-	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(updated), 0o600); err != nil {
 		return fmt.Errorf("writing config: %w", err)
 	}
 	return nil
@@ -896,7 +1000,7 @@ func SaveSkillsPrefs(viewMode, defaultLocation string) error {
 		{"view_mode", viewMode},
 		{"default_location", defaultLocation},
 	})
-	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(updated), 0o600); err != nil {
 		return fmt.Errorf("writing config: %w", err)
 	}
 	return nil
@@ -1029,24 +1133,51 @@ func (c *Config) MonitorExclude() []string {
 }
 
 // GetProviderCmd returns the custom execution command for a provider, or empty
-// string if none is configured. The providerID should match a registered
-// provider ID (e.g., "claude", "codex", "cursor", "droid", "gemini").
+// string if none is configured. The providerID must match the id the provider is
+// registered under in pkg/spi/factory/registry.go.
+//
+// Every provider that can be launched needs a case here AND a field on
+// ProvidersConfig AND a commented line in the config template above: a provider
+// missing any one of the three silently ignores its config key, since the
+// unknown-id default returns "" and TOML tolerates keys with no struct field.
 func (c *Config) GetProviderCmd(providerID string) string {
 	switch strings.ToLower(providerID) {
 	case "claude":
 		return c.Providers.ClaudeCmd
 	case "codex":
 		return c.Providers.CodexCmd
+	case "copilotide":
+		return c.Providers.CopilotIDECmd
+	case "copilotide-insiders":
+		return c.Providers.CopilotIDEInsidersCmd
+	case "copilotide-vscodium":
+		return c.Providers.CopilotIDEVSCodiumCmd
+	case "copilotide-vscodium-insiders":
+		return c.Providers.CopilotIDEVSCodiumInsidersCmd
 	case "cursor":
 		return c.Providers.CursorCmd
 	case "cursoride":
 		return c.Providers.CursorIDECmd
+	case "cursorcloud":
+		return c.Providers.CursorCloudCmd
 	case "deepseek":
 		return c.Providers.DeepSeekCmd
 	case "droid":
 		return c.Providers.DroidCmd
 	case "gemini":
 		return c.Providers.GeminiCmd
+	case "antigravity":
+		return c.Providers.AntigravityCmd
+	case "grok":
+		return c.Providers.GrokCmd
+	case "muse":
+		return c.Providers.MuseCmd
+	case "opencode":
+		return c.Providers.OpenCodeCmd
+	case "pi":
+		return c.Providers.PiCmd
+	case "qwen":
+		return c.Providers.QwenCmd
 	default:
 		return ""
 	}

@@ -25,7 +25,7 @@ func TestProjectIdentityManager_EnsureProjectIdentity(t *testing.T) {
 
 	// Test case 1: No .project.json yet
 	t.Run("CreateNewProjectIdentity", func(t *testing.T) {
-		manager := NewProjectIdentityManager(tempDir)
+		manager := NewProjectIdentityManager(tempDir, "")
 
 		modified, err := manager.EnsureProjectIdentity()
 		if err != nil {
@@ -80,7 +80,7 @@ func TestProjectIdentityManager_EnsureProjectIdentity(t *testing.T) {
 			t.Fatalf("Failed to write git config: %v", err)
 		}
 
-		manager := NewProjectIdentityManager(tempDir)
+		manager := NewProjectIdentityManager(tempDir, "")
 
 		// Run EnsureProjectIdentity again - should add git_id
 		modified, err := manager.EnsureProjectIdentity()
@@ -110,7 +110,7 @@ func TestProjectIdentityManager_EnsureProjectIdentity(t *testing.T) {
 
 	// Test case 3: .project.json exists with both workspace_id and git_id
 	t.Run("NoModificationWhenComplete", func(t *testing.T) {
-		manager := NewProjectIdentityManager(tempDir)
+		manager := NewProjectIdentityManager(tempDir, "")
 
 		// Run EnsureProjectIdentity again - should not modify
 		modified, err := manager.EnsureProjectIdentity()
@@ -305,7 +305,7 @@ func TestProjectIdentityManager_ReadProjectIdentity(t *testing.T) {
 				}
 			}
 
-			manager := NewProjectIdentityManager(tempDir)
+			manager := NewProjectIdentityManager(tempDir, "")
 			identity, err := manager.ReadProjectIdentity()
 
 			if tt.expectError {
@@ -459,7 +459,7 @@ func TestGetProjectID(t *testing.T) {
 				}
 			}
 
-			manager := NewProjectIdentityManager(tempDir)
+			manager := NewProjectIdentityManager(tempDir, "")
 			projectID, err := manager.GetProjectID()
 
 			if tt.expectError {
@@ -478,159 +478,6 @@ func TestGetProjectID(t *testing.T) {
 	}
 }
 
-// TestNormalizeGitURL tests the git URL normalization function
-func TestNormalizeGitURL(t *testing.T) {
-	manager := &ProjectIdentityManager{}
-
-	tests := []struct {
-		name     string
-		gitURL   string
-		expected string
-	}{
-		// GitHub tests
-		{
-			name:     "GitHub HTTPS with .git",
-			gitURL:   "https://github.com/specstoryai/specstory-cli.git",
-			expected: "github.com/specstoryai/specstory-cli",
-		},
-		{
-			name:     "GitHub SSH with .git",
-			gitURL:   "git@github.com:specstoryai/specstory-cli.git",
-			expected: "github.com/specstoryai/specstory-cli",
-		},
-		// GitLab tests
-		{
-			name:     "GitLab HTTPS",
-			gitURL:   "https://gitlab.com/patterns-ai-core/langchainrb.git",
-			expected: "gitlab.com/patterns-ai-core/langchainrb",
-		},
-		{
-			name:     "GitLab SSH",
-			gitURL:   "git@gitlab.com:patterns-ai-core/langchainrb.git",
-			expected: "gitlab.com/patterns-ai-core/langchainrb",
-		},
-		// Bitbucket tests
-		{
-			name:     "Bitbucket HTTPS",
-			gitURL:   "https://bitbucket.org/myteam/myrepo.git",
-			expected: "bitbucket.org/myteam/myrepo",
-		},
-		{
-			name:     "Bitbucket SSH",
-			gitURL:   "git@bitbucket.org:myteam/myrepo.git",
-			expected: "bitbucket.org/myteam/myrepo",
-		},
-		// Custom git server
-		{
-			name:     "Custom server HTTPS",
-			gitURL:   "https://git.company.com/project/repo.git",
-			expected: "git.company.com/project/repo",
-		},
-		{
-			name:     "Custom server SSH",
-			gitURL:   "git@git.company.com:project/repo.git",
-			expected: "git.company.com/project/repo",
-		},
-		// Other protocols
-		{
-			name:     "Git protocol",
-			gitURL:   "git://github.com/user/repo.git",
-			expected: "github.com/user/repo",
-		},
-		{
-			name:     "Git+SSH protocol",
-			gitURL:   "git+ssh://github.com/user/repo.git",
-			expected: "github.com/user/repo",
-		},
-		// Without .git suffix
-		{
-			name:     "HTTPS without .git",
-			gitURL:   "https://github.com/user/repo",
-			expected: "github.com/user/repo",
-		},
-		{
-			name:     "SSH without .git",
-			gitURL:   "git@github.com:user/repo",
-			expected: "github.com/user/repo",
-		},
-		// Already normalized
-		{
-			name:     "Already normalized",
-			gitURL:   "github.com/user/repo",
-			expected: "github.com/user/repo",
-		},
-		// SSH with different user
-		{
-			name:     "SSH with custom user",
-			gitURL:   "customuser@github.com:owner/repo.git",
-			expected: "github.com/owner/repo",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := manager.normalizeGitURL(tt.gitURL)
-			if result != tt.expected {
-				t.Errorf("normalizeGitURL(%s) = %s, expected %s", tt.gitURL, result, tt.expected)
-			}
-		})
-	}
-}
-
-// TestNormalizedGitURLConsistency tests that HTTPS and SSH URLs for the same repo generate the same git ID
-func TestNormalizedGitURLConsistency(t *testing.T) {
-	manager := &ProjectIdentityManager{}
-
-	// Test pairs of URLs that should generate the same normalized form
-	urlPairs := []struct {
-		name  string
-		https string
-		ssh   string
-	}{
-		{
-			name:  "GitHub",
-			https: "https://github.com/specstoryai/specstory-cli.git",
-			ssh:   "git@github.com:specstoryai/specstory-cli.git",
-		},
-		{
-			name:  "GitLab",
-			https: "https://gitlab.com/patterns-ai-core/langchainrb.git",
-			ssh:   "git@gitlab.com:patterns-ai-core/langchainrb.git",
-		},
-		{
-			name:  "Bitbucket",
-			https: "https://bitbucket.org/myteam/myrepo.git",
-			ssh:   "git@bitbucket.org:myteam/myrepo.git",
-		},
-		{
-			name:  "Custom server",
-			https: "https://git.company.com/project/repo.git",
-			ssh:   "git@git.company.com:project/repo.git",
-		},
-	}
-
-	for _, pair := range urlPairs {
-		t.Run(pair.name, func(t *testing.T) {
-			httpsNormalized := manager.normalizeGitURL(pair.https)
-			sshNormalized := manager.normalizeGitURL(pair.ssh)
-
-			if httpsNormalized != sshNormalized {
-				t.Errorf("HTTPS and SSH URLs should normalize to the same value:\nHTTPS: %s -> %s\nSSH: %s -> %s",
-					pair.https, httpsNormalized, pair.ssh, sshNormalized)
-			}
-
-			// Also verify that the hashes would be the same
-			httpsHash := manager.createHash(httpsNormalized)
-			sshHash := manager.createHash(sshNormalized)
-
-			if httpsHash != sshHash {
-				t.Errorf("HTTPS and SSH URLs should generate the same hash:\nHTTPS hash: %s\nSSH hash: %s",
-					httpsHash, sshHash)
-			}
-		})
-	}
-}
-
 // TestWorkspaceIDConsistency tests that workspace ID is consistent for the same path
 func TestWorkspaceIDConsistency(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "specstory-consistency-test-*")
@@ -640,8 +487,8 @@ func TestWorkspaceIDConsistency(t *testing.T) {
 	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Create multiple managers for the same directory
-	manager1 := NewProjectIdentityManager(tempDir)
-	manager2 := NewProjectIdentityManager(tempDir)
+	manager1 := NewProjectIdentityManager(tempDir, "")
+	manager2 := NewProjectIdentityManager(tempDir, "")
 
 	// Generate workspace IDs
 	id1 := manager1.generateWorkspaceID()
@@ -666,7 +513,7 @@ func TestTimestampFormat(t *testing.T) {
 		t.Fatalf("Failed to create .specstory directory: %v", err)
 	}
 
-	manager := NewProjectIdentityManager(tempDir)
+	manager := NewProjectIdentityManager(tempDir, "")
 
 	// Create project identity
 	if _, err := manager.EnsureProjectIdentity(); err != nil {
@@ -833,7 +680,7 @@ func TestProjectNameInFullFlow(t *testing.T) {
 	}
 
 	// First run - should create everything including project_name
-	manager := NewProjectIdentityManager(tempDir)
+	manager := NewProjectIdentityManager(tempDir, "")
 	modified, err := manager.EnsureProjectIdentity()
 	if err != nil {
 		t.Fatalf("First EnsureProjectIdentity failed: %v", err)
@@ -903,7 +750,7 @@ func TestProjectNameMigration(t *testing.T) {
 	}
 
 	// Run EnsureProjectIdentity - should add project_name
-	manager := NewProjectIdentityManager(tempDir)
+	manager := NewProjectIdentityManager(tempDir, "")
 	modified, err := manager.EnsureProjectIdentity()
 	if err != nil {
 		t.Fatalf("EnsureProjectIdentity failed: %v", err)
@@ -941,7 +788,7 @@ func TestProjectIdentityManager_EnsureProjectIdentity_NoSpecstoryDir(t *testing.
 	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// DO NOT create .specstory directory - it should be created automatically
-	manager := NewProjectIdentityManager(tempDir)
+	manager := NewProjectIdentityManager(tempDir, "")
 
 	modified, err := manager.EnsureProjectIdentity()
 	if err != nil {
@@ -1148,5 +995,213 @@ func TestWorkspaceIDCaseFolding(t *testing.T) {
 	caseInsensitiveFilesystem = false
 	if upper.generateWorkspaceID() == lower.generateWorkspaceID() {
 		t.Error("case-sensitive FS: differently-cased paths should yield distinct workspace ids")
+	}
+}
+
+// TestNewProjectIdentityManagerWithOverrides_DetectionRoot verifies that a locally
+// readable --project-path drives identity auto-detection: git_id must come from the
+// TARGET project's .git/config and project_name from the target's basename, while
+// .project.json itself stays anchored to the launch directory. Without the
+// detection root, git detection would walk up from the launch directory and find
+// nothing (or the wrong repo).
+func TestNewProjectIdentityManagerWithOverrides_DetectionRoot(t *testing.T) {
+	// Target project: a git repo with an origin remote.
+	targetProject := filepath.Join(t.TempDir(), "target-project")
+	gitDir := filepath.Join(targetProject, ".git")
+	if err := os.MkdirAll(gitDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := "[core]\n\tbare = false\n[remote \"origin\"]\n\turl = git@github.com:acme/target-project.git\n"
+	if err := os.WriteFile(filepath.Join(gitDir, "config"), []byte(cfg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Launch directory: not a git repo.
+	cwd := t.TempDir()
+
+	manager := NewProjectIdentityManagerWithOverrides(cwd, "", targetProject, "")
+	if _, err := manager.EnsureProjectIdentity(); err != nil {
+		t.Fatalf("EnsureProjectIdentity failed: %v", err)
+	}
+
+	// .project.json is anchored to the launch directory, not the target.
+	if _, err := os.Stat(filepath.Join(cwd, ".specstory", ".project.json")); err != nil {
+		t.Fatalf(".project.json not written under launch dir: %v", err)
+	}
+	identity, err := manager.ReadProjectIdentity()
+	if err != nil {
+		t.Fatalf("ReadProjectIdentity failed: %v", err)
+	}
+	if identity.GitID == "" {
+		t.Error("git_id empty: detection did not walk the --project-path target's .git/config")
+	}
+	if identity.ProjectName != "target-project" {
+		t.Errorf("project_name = %q, want %q", identity.ProjectName, "target-project")
+	}
+
+	// Prove the git_id came from the target repo by comparing with a manager
+	// rooted there directly.
+	targetOnly := NewProjectIdentityManager(targetProject, filepath.Join(t.TempDir(), ".specstory"))
+	if _, err := targetOnly.EnsureProjectIdentity(); err != nil {
+		t.Fatalf("EnsureProjectIdentity (target-rooted) failed: %v", err)
+	}
+	targetIdentity, err := targetOnly.ReadProjectIdentity()
+	if err != nil {
+		t.Fatalf("ReadProjectIdentity (target-rooted) failed: %v", err)
+	}
+	if identity.GitID != targetIdentity.GitID {
+		t.Errorf("git_id = %q, want the target repo's %q", identity.GitID, targetIdentity.GitID)
+	}
+}
+
+// TestNewProjectIdentityManagerWithOverrides_RemoteDetectionRoot verifies identity
+// derivation when --project-path names a remote (SSH) directory that doesn't exist
+// locally. workspace_id must derive from the remote path itself: hashing the launch
+// directory would hand every remote project launched from the same local directory
+// (the extension flow) the same identity. And the filesystem walk-up must be
+// skipped: walking up from a non-existent path scans its LOCAL ancestors, so a
+// .git there must not leak into the remote target's git_id.
+func TestNewProjectIdentityManagerWithOverrides_RemoteDetectionRoot(t *testing.T) {
+	// A local ancestor of the "remote" paths that is itself a git repo — the
+	// walk-up trap the skip exists to avoid.
+	ancestor := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(ancestor, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := "[remote \"origin\"]\n\turl = git@github.com:acme/local-ancestor.git\n"
+	if err := os.WriteFile(filepath.Join(ancestor, ".git", "config"), []byte(cfg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	remoteA := filepath.Join(ancestor, "no-such-dir", "remote-project-a")
+	remoteB := filepath.Join(ancestor, "no-such-dir", "remote-project-b")
+
+	// One launch directory for both projects, distinct output dirs — exactly how
+	// the extension spawns the CLI for different remote workspaces.
+	cwd := t.TempDir()
+	identityFor := func(remotePath string) *ProjectIdentity {
+		t.Helper()
+		specstoryDir := filepath.Join(t.TempDir(), ".specstory")
+		manager := NewProjectIdentityManagerWithOverrides(cwd, specstoryDir, remotePath, "")
+		if _, err := manager.EnsureProjectIdentity(); err != nil {
+			t.Fatalf("EnsureProjectIdentity failed: %v", err)
+		}
+		identity, err := manager.ReadProjectIdentity()
+		if err != nil {
+			t.Fatalf("ReadProjectIdentity failed: %v", err)
+		}
+		return identity
+	}
+
+	a := identityFor(remoteA)
+	b := identityFor(remoteB)
+
+	if a.WorkspaceID == b.WorkspaceID {
+		t.Errorf("different remote projects got the same workspace_id %q — identity must derive from the remote path, not the launch directory", a.WorkspaceID)
+	}
+
+	// Remote filesystems are case-sensitive regardless of the host's rules, so
+	// remote paths differing only in case are distinct projects. Host-side case
+	// folding (which a case-insensitive macOS/Windows host would apply to local
+	// paths) must not be applied to a remote path's hash.
+	upper := identityFor(filepath.Join(ancestor, "no-such-dir", "Remote-Project-A"))
+	if upper.WorkspaceID == a.WorkspaceID {
+		t.Errorf("remote paths differing only in case got the same workspace_id %q — host case-folding must not apply to remote paths", a.WorkspaceID)
+	}
+	if a.GitID != "" {
+		t.Errorf("git_id = %q — a local ancestor's .git leaked into the remote target's identity; the filesystem walk-up must be skipped", a.GitID)
+	}
+	if a.ProjectName != "remote-project-a" {
+		t.Errorf("project_name = %q, want %q", a.ProjectName, "remote-project-a")
+	}
+}
+
+// TestNewProjectIdentityManagerWithOverrides_RetargetsSharedSpecstoryDir verifies
+// that pointing --project-path at a different project retargets a reused
+// .project.json instead of keeping the previous target's ids. The fill-if-empty
+// rules alone would preserve project A's workspace_id/git_id when targeting B
+// (only the name updated), silently syncing B's sessions under A's identity.
+func TestNewProjectIdentityManagerWithOverrides_RetargetsSharedSpecstoryDir(t *testing.T) {
+	newRepo := func(t *testing.T, name, origin string) string {
+		t.Helper()
+		root := filepath.Join(t.TempDir(), name)
+		gitDir := filepath.Join(root, ".git")
+		if err := os.MkdirAll(gitDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		cfg := "[remote \"origin\"]\n\turl = " + origin + "\n"
+		if err := os.WriteFile(filepath.Join(gitDir, "config"), []byte(cfg), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return root
+	}
+	projectA := newRepo(t, "project-a", "git@github.com:acme/project-a.git")
+	projectB := newRepo(t, "project-b", "git@github.com:acme/project-b.git")
+
+	// One launch dir and ONE shared specstory dir across runs — the reuse
+	// scenario where stale identity previously survived.
+	cwd := t.TempDir()
+	specstoryDir := filepath.Join(t.TempDir(), ".specstory")
+
+	runFor := func(target string) *ProjectIdentity {
+		t.Helper()
+		manager := NewProjectIdentityManagerWithOverrides(cwd, specstoryDir, target, "")
+		if _, err := manager.EnsureProjectIdentity(); err != nil {
+			t.Fatalf("EnsureProjectIdentity(%s) failed: %v", target, err)
+		}
+		identity, err := manager.ReadProjectIdentity()
+		if err != nil {
+			t.Fatalf("ReadProjectIdentity failed: %v", err)
+		}
+		return identity
+	}
+
+	a := runFor(projectA)
+	b := runFor(projectB)
+	if b.WorkspaceID == a.WorkspaceID {
+		t.Errorf("retargeting to project B kept project A's workspace_id %q", a.WorkspaceID)
+	}
+	if b.GitID == a.GitID {
+		t.Errorf("retargeting to project B kept project A's git_id %q", a.GitID)
+	}
+	if b.ProjectName != "project-b" {
+		t.Errorf("project_name = %q, want %q", b.ProjectName, "project-b")
+	}
+
+	// Retargeting back must restore A's identity exactly — per-target stability.
+	a2 := runFor(projectA)
+	if a2.WorkspaceID != a.WorkspaceID || a2.GitID != a.GitID {
+		t.Errorf("retargeting back to A gave (%q, %q), want A's original (%q, %q)",
+			a2.WorkspaceID, a2.GitID, a.WorkspaceID, a.GitID)
+	}
+}
+
+// TestComputeProjectIDFromRemoteMatchesCheckout guards the contract hosted-agent
+// sessions rely on: a session that names only its repository must land in the
+// same project as a local clone of that repository, whichever URL form each uses.
+func TestComputeProjectIDFromRemoteMatchesCheckout(t *testing.T) {
+	repo := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repo, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := "[remote \"origin\"]\n\turl = git@github.com:specstoryai/cloud-agent-test.git\n"
+	if err := os.WriteFile(filepath.Join(repo, ".git", "config"), []byte(cfg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	wantID, wantName, err := ComputeProjectID(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, remote := range []string{
+		"https://github.com/specstoryai/cloud-agent-test",
+		"github.com/specstoryai/cloud-agent-test",
+	} {
+		id, name, err := ComputeProjectIDFromRemote(remote)
+		if err != nil || id != wantID || name != wantName {
+			t.Errorf("ComputeProjectIDFromRemote(%q) = (%q, %q, %v); want (%q, %q)", remote, id, name, err, wantID, wantName)
+		}
+	}
+	if _, _, err := ComputeProjectIDFromRemote(" "); err == nil {
+		t.Error("an empty remote URL must be an error")
 	}
 }

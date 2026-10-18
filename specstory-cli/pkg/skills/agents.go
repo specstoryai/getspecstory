@@ -93,6 +93,12 @@ func buildRegistry(p hostPaths) []Agent {
 	return []Agent{
 		{Name: "amp", DisplayName: "Amp", ProjectDir: canonicalRel,
 			GlobalDir: filepath.Join(p.configHome, "agents", "skills"), ConfigDir: filepath.Join(p.configHome, "amp")},
+		// Antigravity discovers project skills in .agents/ (the canonical store) and global
+		// ones in ~/.gemini/config/. Detection keys off the antigravity-cli subtree, not
+		// ~/.gemini itself, which is shared with the separately-registered Gemini CLI.
+		{Name: "antigravity", DisplayName: "Antigravity", ProjectDir: canonicalRel,
+			GlobalDir: filepath.Join(p.home, ".gemini", "config", "skills"),
+			ConfigDir: filepath.Join(p.home, ".gemini", "antigravity-cli")},
 		{Name: "claude-code", DisplayName: "Claude Code", ProjectDir: filepath.Join(".claude", "skills"),
 			GlobalDir: filepath.Join(p.claudeHome, "skills"), ConfigDir: p.claudeHome},
 		{Name: "cline", DisplayName: "Cline", ProjectDir: canonicalRel,
@@ -116,6 +122,8 @@ func buildRegistry(p hostPaths) []Agent {
 			GlobalDir: filepath.Join(p.home, ".kilocode", "skills"), ConfigDir: filepath.Join(p.home, ".kilocode")},
 		{Name: "opencode", DisplayName: "OpenCode", ProjectDir: canonicalRel,
 			GlobalDir: filepath.Join(p.configHome, "opencode", "skills"), ConfigDir: filepath.Join(p.configHome, "opencode")},
+		{Name: "pi", DisplayName: "Pi", ProjectDir: filepath.Join(".pi", "skills"),
+			GlobalDir: filepath.Join(p.home, ".pi", "agent", "skills"), ConfigDir: filepath.Join(p.home, ".pi", "agent")},
 		{Name: "qwen-code", DisplayName: "Qwen Code", ProjectDir: filepath.Join(".qwen", "skills"),
 			GlobalDir: filepath.Join(p.home, ".qwen", "skills"), ConfigDir: filepath.Join(p.home, ".qwen")},
 		{Name: "roo", DisplayName: "Roo Code", ProjectDir: filepath.Join(".roo", "skills"),

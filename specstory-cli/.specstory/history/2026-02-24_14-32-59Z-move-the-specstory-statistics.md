@@ -69,15 +69,21 @@ _**User (2026-02-24 14:33:07Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-02-24 14:33:32Z)**_
 
 <command-name>/exit</command-name>
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-02-24 14:33:32Z)**_
 
 <local-command-stdout>Catch you later!</local-command-stdout>
+
+---
 
 _**User (2026-02-24 14:33:32Z)**_
 

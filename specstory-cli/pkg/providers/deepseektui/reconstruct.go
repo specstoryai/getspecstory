@@ -37,7 +37,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	newID := uuid.NewString()
 	now := deepseekTimestamp(time.Now().UTC())
 
-	title := spi.ResumedSessionTitle(data.Slug)
+	title := spi.ResumedSessionTitle(data)
 
 	messages := make([]map[string]interface{}, 0, len(turns))
 	for _, turn := range turns {
@@ -47,10 +47,16 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		})
 	}
 
-	session := map[string]interface{}{
-		"schema_version": 1,
-		"system_prompt":  "",
-		"metadata": map[string]interface{}{
+	// Keep metadata before messages, matching native sessions: lightweight
+	// discovery stops scanning when it reaches the conversation body.
+	session := struct {
+		SchemaVersion int                      `json:"schema_version"`
+		SystemPrompt  string                   `json:"system_prompt"`
+		Metadata      map[string]interface{}   `json:"metadata"`
+		Messages      []map[string]interface{} `json:"messages"`
+	}{
+		SchemaVersion: 1,
+		Metadata: map[string]interface{}{
 			"id":            newID,
 			"title":         title,
 			"created_at":    now,
@@ -64,7 +70,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 			// lineage stays traceable (matches claude/codex/droid). See docs/SESSION-PORTABILITY.md.
 			"specstorySourceSessionId": data.SessionID,
 		},
-		"messages": messages,
+		Messages: messages,
 	}
 
 	var buf bytes.Buffer
@@ -92,4 +98,10 @@ func (p *Provider) NativeSessionPath(projectPath string, filename string) (strin
 		return "", err
 	}
 	return filepath.Join(dir, filename), nil
+}
+
+// SupportsReconstruction reports true: this provider has a native serializer
+// (see ReconstructSession), so it can be a cross-agent resume target.
+func (p *Provider) SupportsReconstruction() bool {
+	return true
 }

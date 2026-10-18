@@ -12,6 +12,8 @@ where we show this message. Let's make it: "u - Upgrade to..."
 
 and have the u hotkey wired to open `/checkout?plan=pro` off whatever the active SpecStory Cloud URL is.
 
+---
+
 _**User (2026-07-10 15:20:51Z)**_
 
 [Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-07-10-11.17.34.png]

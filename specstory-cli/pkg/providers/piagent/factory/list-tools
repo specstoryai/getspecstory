@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# Enumerate Pi's tool inventory, for TOOL-AUDIT.
+#
+# Source: the harness's own declaration. Pi puts no tool list on the wire
+# (neither the `--mode json` event stream nor RPC `get_state` carries one), but
+# its extension API does: a one-file extension loaded with `-e` calls
+# `pi.getAllTools()` from the `session_start` hook — which fires once the tools
+# are configured and before any model call — writes the names to ./tools.txt,
+# and exits. That is the set pi hands the model, read from the harness rather
+# than asked of the model. It spends no quota and needs no credential: the run
+# ends before pi looks for an API key.
+#
+# getAllTools() is the configured surface (0.85.1: read, bash, powershell,
+# edit, write, grep, find, ls); getActiveTools() is the subset on by default
+# (read, bash, edit, write). The inventory is the full surface — anything a
+# user can switch on with --tools or settings can land in session data — and
+# the default-active subset is reported on stderr for the record.
+#
+# Run this in an empty throwaway directory under an isolated $HOME (the
+# caller's job — no user settings, extensions, or skills). Discovery is also
+# switched off explicitly so the inventory is the built-in surface alone.
+#
+# Factory SPI contract: print the raw tool list, one name per line, to stdout
+# and exit 0. Non-zero exit means enumeration failed — never an empty or
+# partial inventory — with the reason on stderr. Pi's own output is left in
+# ./stream.log and the extension in ./list-tools.ts for diagnosis.
+set -euo pipefail
+pi="$HOME/.local/bin/pi"
+export PI_OFFLINE=1   # no update check or install telemetry; the audit pins its version
+
+cat > list-tools.ts <<'TS'
+import { writeFileSync } from "node:fs";
+export default function (pi) {
+  pi.on("session_start", () => {
+    writeFileSync("tools.txt", pi.getAllTools().map((t) => t.name).join("\n") + "\n");
+    writeFileSync("active.txt", pi.getActiveTools().join("\n") + "\n");
+    process.exit(0);
+  });
+}
+TS
+
+rm -f tools.txt active.txt stream.log
+rc=0
+timeout 120 "$pi" -p -e ./list-tools.ts --no-session --no-extensions --no-skills \
+  --no-prompt-templates --no-themes --no-context-files --no-approve "OK" \
+  < /dev/null > stream.log 2>&1 || rc=$?
+
+if [ "$rc" -ne 0 ]; then
+  echo "list-tools: Pi failed (exit $rc); refusing partial inventory" >&2
+  head -c 600 stream.log >&2
+  exit 1
+fi
+if [ ! -s tools.txt ]; then
+  echo "list-tools: the session_start hook never wrote tools.txt (pi exit $rc)" >&2
+  head -c 600 stream.log >&2
+  exit 1
+fi
+# Reject whitespace, malformed names and duplicates without hiding the raw
+# diagnostic file. A future built-in is accepted without hard-coding its name.
+if ! LC_ALL=C awk '
+  !/^[A-Za-z_][A-Za-z0-9_.:-]*$/ { bad=1 }
+  seen[$0]++ { bad=1 }
+  END { exit (NR == 0 || bad) }
+' tools.txt; then
+  echo "list-tools: invalid or duplicate tool names in tools.txt" >&2
+  exit 1
+fi
+if [ -s active.txt ]; then
+  echo "active by default: $(paste -sd ' ' - < active.txt)" >&2
+fi
+cat tools.txt

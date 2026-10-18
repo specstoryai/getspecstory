@@ -9,20 +9,32 @@ import (
 	"strings"
 )
 
+// claudeConfigDir returns Claude Code's base config directory. Claude Code honors
+// CLAUDE_CONFIG_DIR (used to run separate profiles/accounts side by side) and
+// otherwise defaults to ~/.claude, so read sessions from the same place it writes them.
+func claudeConfigDir() (string, error) {
+	if dir := strings.TrimSpace(os.Getenv("CLAUDE_CONFIG_DIR")); dir != "" {
+		return dir, nil
+	}
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %v", err)
+	}
+	return filepath.Join(homeDir, ".claude"), nil
+}
+
 // projectDirNameRegex matches any character that is not alphanumeric or a dash.
 // Claude Code replaces each such character with a dash to map a working directory
 // to a project folder name under ~/.claude/projects.
 var projectDirNameRegex = regexp.MustCompile(`[^a-zA-Z0-9-]`)
 
 // encodeProjectDirName converts a real (symlink-resolved) path into Claude Code's
-// project directory name: non-alphanumeric/dash characters become dashes, with a
-// guaranteed leading dash. Example: "/Users/sean/app" -> "-Users-sean-app".
+// project directory name: non-alphanumeric/dash characters become dashes.
+// On Unix: "/Users/sean/app" -> "-Users-sean-app".
+// On Windows: "C:\Users\Admin\code\app" -> "C--Users-Admin-code-app" (no leading
+// dash — Claude Code does not add one on Windows).
 func encodeProjectDirName(realPath string) string {
-	name := projectDirNameRegex.ReplaceAllString(realPath, "-")
-	if !strings.HasPrefix(name, "-") {
-		name = "-" + name
-	}
-	return name
+	return projectDirNameRegex.ReplaceAllString(realPath, "-")
 }
 
 // EncodeProjectDirName exposes Claude Code's project-directory naming for a
@@ -47,9 +59,9 @@ func EncodeProjectDirName(projectPath string) string {
 // the directory). Distinct from GetClaudeCodeProjectDir, which requires the
 // projects directory to already exist.
 func resolveClaudeProjectDir(projectPath string) (string, error) {
-	homeDir, err := os.UserHomeDir()
+	configDir, err := claudeConfigDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to get user home directory: %v", err)
+		return "", err
 	}
 
 	cwd := projectPath
@@ -67,19 +79,16 @@ func resolveClaudeProjectDir(projectPath string) (string, error) {
 		realPath = cwd
 	}
 
-	return filepath.Join(homeDir, ".claude", "projects", encodeProjectDirName(realPath)), nil
+	return filepath.Join(configDir, "projects", encodeProjectDirName(realPath)), nil
 }
 
 // GetClaudeCodeProjectsDir returns the path to the Claude Code projects directory
 func GetClaudeCodeProjectsDir() (string, error) {
-	// Get user's home directory
-	homeDir, err := os.UserHomeDir()
+	configDir, err := claudeConfigDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to get user home directory: %v", err)
+		return "", err
 	}
-
-	// Construct the path to .claude/projects
-	projectsDir := filepath.Join(homeDir, ".claude", "projects")
+	projectsDir := filepath.Join(configDir, "projects")
 
 	// Check if the directory exists
 	if _, err := os.Stat(projectsDir); err != nil {
@@ -128,7 +137,8 @@ func GetClaudeCodeProjectDir(projectPath string) (string, error) {
 	}
 
 	// Convert path to project directory format (matching Claude Code's behavior).
-	// Example: "/Users/sean/My Projects(1)/app" becomes "-Users-sean-My-Projects-1--app"
+	// On Unix: "/Users/sean/My Projects(1)/app" becomes "-Users-sean-My-Projects-1--app"
+	// On Windows: "C:\Users\Admin\code\app" becomes "C--Users-Admin-code-app"
 	projectDirName := encodeProjectDirName(realPath)
 
 	// Log the transformation for debugging path issues

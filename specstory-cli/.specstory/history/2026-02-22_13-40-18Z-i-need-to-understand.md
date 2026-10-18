@@ -10,6 +10,8 @@ _**User (2026-02-22 13:40:18Z)**_
 <command-name>/pr-review</command-name>
 <command-args>170</command-args>
 
+---
+
 _**User (2026-02-22 13:40:18Z)**_
 
 ## Context
@@ -2170,7 +2172,7 @@ _**Agent (claude-opus-4-6 2026-02-22 13:44:23Z)**_
 <summary>Tool use: **Task**</summary>
 Explore PR170 source files
 
-```text
+````text
 Excellent! Now I have all the information needed. Let me provide you with a comprehensive analysis.
 
 ## PR Review Context Analysis
@@ -2319,7 +2321,7 @@ agentId: ae55a66 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 68759
 tool_uses: 24
 duration_ms: 73638</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-22 13:43:09Z)**_
@@ -2565,7 +2567,7 @@ _**Agent - sidechain (claude-sonnet-4-5-20250929 2026-02-22 13:43:13Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/session/markdown.go`
 
-```text
+````text
      1→package session
      2→
      3→import (
@@ -2856,7 +2858,7 @@ _**Agent - sidechain (claude-sonnet-4-5-20250929 2026-02-22 13:43:13Z)**_
    288→	return currentRole != prevRole
    289→}
    290→
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-sonnet-4-5-20250929 2026-02-22 13:43:13Z)**_
@@ -7805,9 +7807,13 @@ _**User (2026-02-22 14:29:42Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-02-22 14:29:42Z)**_
 
 <local-command-stdout>Bye!</local-command-stdout>
+
+---
 
 _**User (2026-02-22 14:29:42Z)**_
 

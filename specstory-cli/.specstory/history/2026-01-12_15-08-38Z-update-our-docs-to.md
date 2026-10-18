@@ -990,9 +990,13 @@ _**User (2026-01-17 14:55:47Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-01-17 14:55:47Z)**_
 
 <local-command-stdout>Bye!</local-command-stdout>
+
+---
 
 _**User (2026-01-17 14:55:47Z)**_
 

@@ -6,15 +6,19 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
+
+// ProviderID is the registry/CLI identifier for this provider (the key used in
+// the provider registry and in flags like `--user-data-dir cursoride:<path>`).
+const ProviderID = "cursoride"
 
 // Provider implements the SPI Provider interface for Cursor IDE
 type Provider struct{}
@@ -31,34 +35,43 @@ func (p *Provider) Name() string {
 
 // Check verifies Cursor IDE database exists and returns info
 func (p *Provider) Check(customCommand string) spi.CheckResult {
+	attempt := analytics.CheckAttempt{Provider: ProviderID}
 	slog.Debug("Check: Checking Cursor IDE installation")
 
 	// Check for global database
 	globalDbPath, err := GetGlobalDatabasePath()
 	if err != nil {
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":      "cursoride",
-			"error_type":    "database_not_found",
-			"error_message": err.Error(),
-		})
+		errorType := spi.ClassifyCheckError(err)
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     "",
-			ErrorMessage: fmt.Sprintf("Cursor IDE global database not found: %v", err),
+			ErrorMessage: fmt.Sprintf("Cannot locate Cursor IDE global database: %v", err),
 		}
+	}
+	// Preserve native permission errors before SQLite translates them into its
+	// own error codes. Resolving the path alone does not prove it is readable.
+	file, err := os.Open(globalDbPath)
+	if err != nil {
+		errorType := spi.ClassifyCheckError(err)
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
+		return spi.CheckResult{ErrorType: errorType, Location: globalDbPath,
+			ErrorMessage: fmt.Sprintf("Cannot read Cursor IDE global database: %v", err)}
+	}
+	if err := file.Close(); err != nil {
+		slog.Warn("Failed to close database file during check", "error", err)
 	}
 
 	// Try to open the database
 	db, err := OpenDatabase(globalDbPath)
 	if err != nil {
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":      "cursoride",
-			"error_type":    "database_open_failed",
-			"error_message": err.Error(),
-		})
+		errorType := spi.ClassifyCheckError(err)
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     globalDbPath,
 			ErrorMessage: fmt.Sprintf("Failed to open global database: %v", err),
@@ -69,13 +82,19 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 			slog.Warn("Failed to close database during check", "error", closeErr)
 		}
 	}()
+	// sql.Open is lazy; a schema query actually opens and validates the database.
+	var tableCount int
+	if err := db.QueryRow("SELECT count(*) FROM sqlite_master").Scan(&tableCount); err != nil {
+		errorType := spi.ClassifyCheckError(err)
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
+		return spi.CheckResult{ErrorType: errorType, Location: globalDbPath,
+			ErrorMessage: fmt.Sprintf("Cannot read Cursor IDE global database: %v", err)}
+	}
 
 	slog.Debug("Cursor IDE check successful", "dbPath", globalDbPath)
 
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
-		"provider": "cursoride",
-		"location": globalDbPath,
-	})
+	attempt.Location = globalDbPath
+	analytics.TrackCheckSuccess(attempt, "")
 
 	return spi.CheckResult{
 		Success: true,
@@ -143,7 +162,7 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 // (GetAgentChatSessions, ListAgentChatSessions), which differ only in how they treat a
 // missing workspace and what they convert the composers into. Returns an empty map
 // (not an error) when the project has no composers.
-func loadProjectComposers(projectPath string, workspaces []WorkspaceMatch) (map[string]*ComposerData, error) {
+func loadProjectComposers(projectPath string, workspaces []vscode.WorkspaceEntry) (map[string]*ComposerData, error) {
 	globalDbPath, err := GetGlobalDatabasePath()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get global database path: %w", err)
@@ -471,7 +490,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		// since the user can open Cursor manually and watching still works.
 		slog.Debug("Could not open Cursor IDE automatically", "error", err)
 		fmt.Fprintf(os.Stderr, "Open Cursor IDE manually in: %s\n", projectPath)
-		if errors.Is(err, errCursorCLIMissing) {
+		if errors.Is(err, vscode.ErrCLIMissing) {
 			fmt.Fprintln(os.Stderr, "To let SpecStory open the project for you, install Cursor's shell command:")
 			fmt.Fprintln(os.Stderr, "open the command palette in Cursor (Cmd/Ctrl+Shift+P) and run \"Shell Command: Install 'cursor' command\".")
 		}
@@ -504,44 +523,14 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	}
 }
 
-// errCursorCLIMissing signals that Cursor's `cursor` shell command is not on PATH. The
-// command is opt-in (installed from Cursor's command palette), so its absence is an
-// expected condition, not a failure — callers use this to print installation guidance
-// instead of a generic error.
-var errCursorCLIMissing = errors.New("the `cursor` shell command is not installed")
-
-// openCursorIDE launches Cursor IDE at the given project path. By default it uses
-// Cursor's own `cursor` CLI — the only launcher that reliably opens the directory as
-// a workspace window (`open -a Cursor` on macOS mostly just activates an
-// already-running instance on its home screen, so it is deliberately not used as a
-// fallback). A custom command (from --command or the cursoride_cmd config) overrides
-// the launcher binary and prepends any extra arguments before the project path.
-//
-// When the default `cursor` CLI isn't on PATH, errCursorCLIMissing is returned so the
-// caller can tell the user how to install it; a missing custom launcher returns a
-// plain error, since the install guidance only applies to Cursor's own command.
+// openCursorIDE launches Cursor IDE at the given project path via the shared
+// lineage launcher, using Cursor's own `cursor` CLI. A custom command (from
+// --command or the cursoride_cmd config) overrides the launcher binary and
+// prepends extra arguments before the project path. vscode.ErrCLIMissing
+// surfaces when Cursor's own CLI is not installed so the caller can print
+// installation guidance.
 func openCursorIDE(projectPath, customCommand string) error {
-	launcher := "cursor"
-	var args []string
-	if customCommand != "" {
-		if parts := spi.SplitCommandLine(customCommand); len(parts) > 0 {
-			launcher = parts[0]
-			args = parts[1:]
-		}
-	}
-
-	if _, err := exec.LookPath(launcher); err != nil {
-		if customCommand == "" {
-			return errCursorCLIMissing
-		}
-		return fmt.Errorf("configured Cursor IDE launcher %q not found on PATH: %w", launcher, err)
-	}
-
-	args = append(args, projectPath)
-	if out, err := exec.Command(launcher, args...).CombinedOutput(); err != nil {
-		return fmt.Errorf("cursor IDE launcher %q failed: %w: %s", launcher, err, string(out))
-	}
-	return nil
+	return vscode.OpenApp("Cursor IDE", "cursor", customCommand, projectPath)
 }
 
 // WatchAgent watches for Cursor IDE activity and calls the callback with AgentChatSession
@@ -549,6 +538,26 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 	slog.Info("WatchAgent: Starting Cursor IDE activity monitoring",
 		"projectPath", projectPath,
 		"debugRaw", debugRaw)
+
+	// The workspace entry may not exist yet — a watch can start before the
+	// project is ever opened in Cursor. Erroring would permanently disable this
+	// provider for the multi-provider watch, so wait for the entry instead.
+	loggedWaiting := false
+	for {
+		if _, err := FindWorkspaceForProject(projectPath); err == nil {
+			break
+		}
+		if !loggedWaiting {
+			slog.Info("No Cursor workspace for project yet; waiting for it to be opened",
+				"projectPath", projectPath)
+			loggedWaiting = true
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(2 * time.Second):
+		}
+	}
 
 	// Create and start watcher
 	watcher, err := NewCursorIDEWatcher(projectPath, debugRaw, sessionCallback, defaultCheckInterval)

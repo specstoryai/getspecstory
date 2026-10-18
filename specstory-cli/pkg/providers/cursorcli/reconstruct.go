@@ -82,7 +82,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	}
 
 	newID := uuid.NewString()
-	name := spi.ResumedSessionTitle(data.Slug)
+	name := spi.ResumedSessionTitle(data)
 
 	// No specstorySourceSessionId provenance back-link here, unlike claude/codex/droid/gemini/
 	// deepseek. Cursor's store is a content-addressed Merkle-DAG of fixed-shape blobs with no
@@ -218,4 +218,10 @@ func (p *Provider) NativeSessionPath(projectPath string, filename string) (strin
 		return "", err
 	}
 	return filepath.Join(hashDir, filename), nil
+}
+
+// SupportsReconstruction reports true: this provider has a native serializer
+// (see ReconstructSession), so it can be a cross-agent resume target.
+func (p *Provider) SupportsReconstruction() bool {
+	return true
 }

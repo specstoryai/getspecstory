@@ -10,6 +10,8 @@ _**User (2026-02-20 22:54:02Z)**_
 <command-name>/pr-review</command-name>
 <command-args>170</command-args>
 
+---
+
 _**User (2026-02-20 22:54:02Z)**_
 
 ## Context
@@ -665,7 +667,7 @@ _**Agent (claude-opus-4-6 2026-02-20 22:54:40Z)**_
 <summary>Tool use: **Task**</summary>
 Find filename generation code
 
-```text
+````text
 Perfect! Now I have all the information I need. Let me create a comprehensive report with all findings.
 
 ## Summary of Findings
@@ -769,7 +771,7 @@ agentId: a1f988a (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 66148
 tool_uses: 10
 duration_ms: 24799</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-20 22:54:15Z)**_
@@ -2830,7 +2832,7 @@ _**Agent (claude-opus-4-6 2026-02-20 22:54:55Z)**_
 <summary>Tool use: **Task**</summary>
 Find provider registry usage
 
-```text
+````text
 Perfect! Now I have all the information needed. Let me compile my findings:
 
 ## Summary Report: Provider ID Resolution in SpecStory CLI
@@ -2929,7 +2931,7 @@ agentId: aa4c4a1 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 30043
 tool_uses: 21
 duration_ms: 37501</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-20 22:54:18Z)**_
@@ -5343,7 +5345,7 @@ _**Agent (claude-opus-4-6 2026-02-20 22:55:37Z)**_
 <summary>Tool use: **Task**</summary>
 Find AgentChatSession struct and user prompt counting
 
-```text
+````text
 Perfect! Now let me compile a comprehensive report with all the findings.
 
 ## Summary
@@ -5494,7 +5496,7 @@ agentId: ac37057 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 52198
 tool_uses: 16
 duration_ms: 34521</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-20 22:55:02Z)**_
@@ -6178,7 +6180,7 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 22:55:16Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/markdown/markdown.go`
 
-```text
+````text
      1→package markdown
      2→
      3→import (
@@ -6469,7 +6471,7 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 22:55:16Z)**_
    288→	return currentRole != prevRole
    289→}
    290→
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 22:55:16Z)**_
@@ -9781,7 +9783,7 @@ _**Agent (claude-opus-4-6 2026-02-20 23:41:16Z)**_
 <summary>Tool use: **Task**</summary>
 Explore watch command flags and JSON patterns
 
-```text
+````text
 Perfect! Now I have all the information I need. Let me create a comprehensive report for the user with all the specific details they requested.
 
 ## Summary: Watch Command Flag Definitions and Code Patterns
@@ -9997,7 +9999,7 @@ agentId: afd8a39 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 55229
 tool_uses: 10
 duration_ms: 36589</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-20 23:40:39Z)**_
@@ -12994,7 +12996,7 @@ _**Agent (claude-opus-4-6 2026-02-20 23:41:43Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+````markdown
 # Plan: Add `--json` flag to `specstory watch`
 
 ## Context
@@ -13011,15 +13013,15 @@ Add a `--json` boolean flag to the watch command. When set, replace the `fmt.Pri
 
 **1. Add flag variable** (~line 50, near other flag vars):
 
-\```go
+```go
 var jsonOutput bool
-\```
+```
 
 **2. Register flag on watch command** (~line 1791, with other watch flags):
 
-\```go
+```go
 watchCmd.Flags().BoolVar(&jsonOutput, "json", false, "output session updates as JSON lines (one JSON object per line)")
-\```
+```
 
 **3. Modify the output block in the watch session callback** (~lines 713-750):
 
@@ -13036,9 +13038,9 @@ Both branches remain gated behind `if !silent`.
 
 ## Example JSON output
 
-\```json
+```json
 {"timestamp":"2026-02-20T18:03:47-05:00","action":"created","session_id":"019c7d4b-22b8-7b22-ad07-df6bcffdd205","start_time":"2026-02-20T23:03:47.053Z","end_time":"2026-02-20T23:03:47.053Z","provider":"codex","markdown_size":248,"total_user_prompts":1,"markdown_file":"/Users/sean/.specstory/history/2026-02-20_23-03-47Z.md"}
-\```
+```
 
 ## Files modified
 
@@ -13051,7 +13053,7 @@ Both branches remain gated behind `if !silent`.
 3. Manual: `go build -o specstory && ./specstory watch --json` — confirm JSONL output
 4. Manual: `./specstory watch` (no flag) — confirm text output unchanged
 
-```
+````
 
 ```text
 File created successfully at: /Users/sean/.claude/plans/wobbly-tickling-pretzel.md

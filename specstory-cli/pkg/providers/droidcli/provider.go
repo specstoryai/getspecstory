@@ -38,24 +38,32 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	cmdName, _ := parseDroidCommand(customCommand)
 	isCustom := strings.TrimSpace(customCommand) != ""
 	versionFlag := "--version"
-
-	resolved, err := exec.LookPath(cmdName)
-	if err != nil {
-		msg := buildCheckErrorMessage("not_found", cmdName, isCustom, "")
-		trackCheckFailure("droid", isCustom, cmdName, "", versionFlag, "", "not_found", err.Error())
-		return spi.CheckResult{Success: false, Location: "", ErrorMessage: msg}
+	attempt := analytics.CheckAttempt{
+		Provider:      "droid",
+		CustomCommand: isCustom,
+		CommandPath:   cmdName,
+		VersionFlag:   versionFlag,
 	}
+
+	resolved, err := spi.LookPathForCheck(cmdName)
+	if err != nil {
+		errorType := spi.ClassifyCheckError(err)
+		msg := buildCheckErrorMessage(errorType, cmdName, isCustom, "")
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
+		return spi.CheckResult{Success: false, ErrorType: errorType, Location: "", ErrorMessage: msg}
+	}
+	attempt.ResolvedPath = resolved
 
 	var stdout, stderr bytes.Buffer
 	cmd := exec.Command(resolved, versionFlag)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		errorType := classifyCheckError(err)
+		errorType := spi.ClassifyCheckExecutionError(err)
 		stderrOutput := strings.TrimSpace(stderr.String())
 		msg := buildCheckErrorMessage(errorType, resolved, isCustom, stderrOutput)
-		trackCheckFailure("droid", isCustom, cmdName, resolved, versionFlag, stderrOutput, errorType, err.Error())
-		return spi.CheckResult{Success: false, Location: resolved, ErrorMessage: msg}
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
+		return spi.CheckResult{Success: false, ErrorType: errorType, Location: resolved, ErrorMessage: msg}
 	}
 
 	versionOutput := sanitizeDroidVersion(stdout.String())
@@ -63,7 +71,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	if version == "" {
 		version = strings.TrimSpace(versionOutput)
 	}
-	trackCheckSuccess("droid", isCustom, cmdName, resolved, version, versionFlag)
+	analytics.TrackCheckSuccess(attempt, version)
 	return spi.CheckResult{Success: true, Version: version, Location: resolved}
 }
 
@@ -169,6 +177,10 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		return ExecuteDroid(customCommand, resumeSessionID)
 	}
 
+	// Capture before launching either goroutine so a fast child cannot become
+	// part of the watcher's silent startup baseline.
+	finalState := &watchState{lastProcessed: make(map[string]int64)}
+	seedProcessedSessions(finalState)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -182,6 +194,10 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 
 	if werr := <-watchErr; werr != nil && !errors.Is(werr, context.Canceled) {
 		slog.Warn("droidcli: watcher stopped with error", "error", werr)
+	}
+
+	if scanErr := scanAndProcessSessions(projectPath, debugRaw, sessionCallback, finalState); scanErr != nil {
+		slog.Warn("Final session scan failed", "error", scanErr)
 	}
 
 	if err != nil {
@@ -221,25 +237,10 @@ func convertToAgentSession(session *fdSession, workspaceRoot string, debugRaw bo
 	}
 	if debugRaw {
 		if err := writeFactoryDebugRaw(session); err != nil {
-			slog.Debug("droidcli: debug raw failed", "sessionId", session.ID, "error", err)
+			slog.Warn("droidcli: debug raw failed", "sessionId", session.ID, "path", spi.GetDebugDir(session.ID), "error", err)
 		}
 	}
 	return chat
-}
-
-func classifyCheckError(err error) string {
-	var execErr *exec.Error
-	var pathErr *os.PathError
-	switch {
-	case errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound:
-		return "not_found"
-	case errors.As(err, &pathErr) && errors.Is(pathErr.Err, os.ErrPermission):
-		return "permission_denied"
-	case errors.Is(err, os.ErrPermission):
-		return "permission_denied"
-	default:
-		return "version_failed"
-	}
 }
 
 func buildCheckErrorMessage(errorType string, command string, isCustom bool, stderr string) string {
@@ -293,34 +294,6 @@ func extractDroidVersion(raw string) string {
 	return filtered[len(filtered)-1]
 }
 
-func trackCheckSuccess(provider string, custom bool, commandPath string, resolvedPath string, version string, versionFlag string) {
-	props := analytics.Properties{
-		"provider":       provider,
-		"custom_command": custom,
-		"command_path":   commandPath,
-		"resolved_path":  resolvedPath,
-		"version":        version,
-		"version_flag":   versionFlag,
-	}
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, props)
-}
-
-func trackCheckFailure(provider string, custom bool, commandPath string, resolvedPath string, versionFlag string, stderrOutput string, errorType string, message string) {
-	props := analytics.Properties{
-		"provider":       provider,
-		"custom_command": custom,
-		"command_path":   commandPath,
-		"resolved_path":  resolvedPath,
-		"version_flag":   versionFlag,
-		"error_type":     errorType,
-		"error_message":  message,
-	}
-	if stderrOutput != "" {
-		props["stderr"] = stderrOutput
-	}
-	analytics.TrackEvent(analytics.EventCheckInstallFailed, props)
-}
-
 func printDetectionHelp() {
 	log.UserMessage("No Factory Droid sessions found under ~/.factory/sessions yet.\n")
 	log.UserMessage("Run the Factory CLI inside this project to create a JSONL session, then rerun `specstory sync droid`.\n")
@@ -332,13 +305,19 @@ func sessionMentionsProject(filePath string, projectPath string) bool {
 		return false
 	}
 
-	canonicalProject := canonicalizePath(projectPath)
+	canonicalProject := spi.CanonicalizePathOrClean(projectPath)
 	if sessionRoot := extractSessionWorkspaceRoot(filePath); sessionRoot != "" {
-		canonicalRoot := canonicalizePath(sessionRoot)
+		canonicalRoot := spi.CanonicalizePathOrClean(sessionRoot)
 		if canonicalProject != "" && canonicalRoot != "" {
-			return canonicalRoot == canonicalProject
+			if canonicalRoot == canonicalProject {
+				return true
+			}
+		} else if strings.TrimSpace(sessionRoot) == projectPath {
+			return true
 		}
-		return strings.TrimSpace(sessionRoot) == projectPath
+
+		// We found a session root but it didn't match — don't fall through to text search
+		return false
 	}
 
 	return sessionMentionsProjectText(filePath, projectPath)
@@ -354,7 +333,7 @@ func extractSessionWorkspaceRoot(filePath string) string {
 	}()
 
 	var workspaceRoot string
-	scanErr := scanLines(file, func(_ int, line string) error {
+	scanErr := scanLines(file, filePath, func(_ int, line string) error {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			return nil
@@ -380,21 +359,6 @@ func extractSessionWorkspaceRoot(filePath string) string {
 	return strings.TrimSpace(workspaceRoot)
 }
 
-func canonicalizePath(path string) string {
-	trimmed := strings.TrimSpace(path)
-	if trimmed == "" {
-		return ""
-	}
-	canonical, err := spi.GetCanonicalPath(trimmed)
-	if err == nil {
-		return canonical
-	}
-	if abs, absErr := filepath.Abs(trimmed); absErr == nil {
-		return filepath.Clean(abs)
-	}
-	return filepath.Clean(trimmed)
-}
-
 func sessionMentionsProjectText(filePath string, projectPath string) bool {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -404,10 +368,13 @@ func sessionMentionsProjectText(filePath string, projectPath string) bool {
 		_ = file.Close()
 	}()
 	needle := strings.TrimSpace(projectPath)
+	// Session files are JSONL, so a Windows path appears in the raw text with
+	// escaped backslashes (C:\\proj); match either encoding.
+	escapedNeedle := strings.ReplaceAll(needle, `\`, `\\`)
 	short := filepath.Base(projectPath)
 	foundLines := 0
-	err = scanLines(file, func(_ int, line string) error {
-		if needle != "" && strings.Contains(line, needle) {
+	err = scanLines(file, filePath, func(_ int, line string) error {
+		if needle != "" && (strings.Contains(line, needle) || strings.Contains(line, escapedNeedle)) {
 			return errStopScan
 		}
 		if short != "" && strings.Contains(line, short) {
@@ -427,70 +394,13 @@ func sessionMentionsProjectText(filePath string, projectPath string) bool {
 	return errors.Is(err, errStopScan)
 }
 
-// writeFactoryDebugRaw writes pretty-printed JSON files for each line in the session's JSONL.
-// Each JSONL line becomes a numbered file (1.json, 2.json, etc.) matching the Claude Code provider format.
+// writeFactoryDebugRaw exports the accepted JSONL snapshot without losing
+// native fields, numeric precision, or key order.
 func writeFactoryDebugRaw(session *fdSession) error {
 	if session == nil {
 		return nil
 	}
-
-	dir := spi.GetDebugDir(session.ID)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("droidcli: unable to create debug dir: %w", err)
-	}
-
-	// Clean existing files from the debug directory
-	entries, err := os.ReadDir(dir)
-	if err == nil {
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				_ = os.Remove(filepath.Join(dir, entry.Name()))
-			}
-		}
-	}
-
-	// Split JSONL into individual lines and write each as a pretty-printed JSON file
-	lines := strings.Split(session.RawData, "\n")
-	lineNumber := 0
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-
-		// Parse the JSON line
-		var data map[string]interface{}
-		if err := json.Unmarshal([]byte(trimmed), &data); err != nil {
-			slog.Debug("droidcli: skipping malformed JSONL line in debug-raw",
-				"lineNumber", lineNumber+1,
-				"error", err)
-			continue
-		}
-
-		lineNumber++
-
-		// Pretty-print and write to numbered file
-		prettyJSON, err := json.MarshalIndent(data, "", "  ")
-		if err != nil {
-			slog.Debug("droidcli: failed to marshal JSON for debug-raw",
-				"lineNumber", lineNumber,
-				"error", err)
-			continue
-		}
-
-		filePath := filepath.Join(dir, fmt.Sprintf("%d.json", lineNumber))
-		if err := os.WriteFile(filePath, prettyJSON, 0o644); err != nil {
-			slog.Debug("droidcli: failed to write debug-raw file",
-				"path", filePath,
-				"error", err)
-		}
-	}
-
-	slog.Debug("droidcli: wrote debug-raw files",
-		"sessionId", session.ID,
-		"fileCount", lineNumber)
-
-	return nil
+	return spi.WriteDebugJSONL(spi.GetDebugDir(session.ID), session.RawData)
 }
 
 // ListAgentChatSessions retrieves lightweight session metadata without full parsing

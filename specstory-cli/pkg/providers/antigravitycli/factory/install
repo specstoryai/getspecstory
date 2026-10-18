@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Install Antigravity CLI (agy) at an exact version, for the factory's audits
+# (TOOL-AUDIT, SESSION-AUDIT).
+#
+# Channel: GitHub releases of google-antigravity/antigravity-cli — the same
+# releases `latest-version` watches. The official installer
+# (antigravity.google/cli/install.sh) can only install the latest build from
+# its manifest service, so the pinned install fetches the release asset
+# directly (agy_cli_<mac|linux>_<arm64|x64>.tar.gz, containing one binary named
+# `antigravity`) and places it at $HOME/.local/bin/agy, where the installer
+# would. The caller isolates the install by pointing $HOME at a throwaway dir.
+#
+# Factory SPI contract: `install <version>` installs the agent under $HOME,
+# prints the version as read back from the installed binary, and exits 0.
+# Non-zero exit means the install failed or the binary reports a different
+# version — never "close enough".
+set -euo pipefail
+version=${1:?usage: install <version>}
+case "$(uname -s)" in Darwin) os=mac ;; Linux) os=linux ;; *) echo "install: unsupported OS $(uname -s)" >&2; exit 1 ;; esac
+case "$(uname -m)" in x86_64|amd64) arch=x64 ;; arm64|aarch64) arch=arm64 ;; *) echo "install: unsupported arch $(uname -m)" >&2; exit 1 ;; esac
+url="https://github.com/google-antigravity/antigravity-cli/releases/download/$version/agy_cli_${os}_${arch}.tar.gz"
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+curl -fsSL --retry 2 -o "$tmp/agy.tgz" "$url"
+tar -xzf "$tmp/agy.tgz" -C "$tmp" antigravity
+mkdir -p "$HOME/.local/bin"
+install -m 755 "$tmp/antigravity" "$HOME/.local/bin/agy"
+[ "$os" = mac ] && xattr -d com.apple.quarantine "$HOME/.local/bin/agy" 2>/dev/null || true
+installed=$(AGY_CLI_DISABLE_AUTO_UPDATE=true "$HOME/.local/bin/agy" --version | head -1 | awk '{print $1}')
+if [ "$installed" != "$version" ]; then
+  echo "install: wanted $version, binary reports $installed" >&2
+  exit 1
+fi
+echo "$installed"

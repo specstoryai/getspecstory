@@ -78,7 +78,9 @@ type sessionTUI struct {
 	projectID   string
 	projectName string
 	agents      map[string]agentMeta // provider id -> display meta
-	installed   []agentChoice        // installed agents, for the target step
+	agentColW   int                  // width of the agent-name column, see agentColWidth
+	installed   []agentChoice        // installed agents; the target step narrows these per session
+	targets     []agentChoice        // valid targets for the chosen session, see eligibleTargets
 	presetTo    string               // pre-selected target (from `resume <agent>`), or ""
 	lastAgent   string               // default target (last resumed), or ""
 
@@ -248,6 +250,7 @@ func newSessionTUI(store *sessionindex.Store, registry *factory.Registry, projec
 		homeProjectName: projectName,
 		homeSessions:    sessions,
 		agents:          agents,
+		agentColW:       agentColWidth(agents),
 		installed:       installed,
 		presetTo:        opts.presetTo,
 		lastAgent:       opts.lastAgent,
@@ -783,11 +786,14 @@ func (m sessionTUI) updateTarget(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.targetCursor--
 		}
 	case "down", "j":
-		if m.targetCursor < len(m.installed)-1 {
+		if m.targetCursor < len(m.targets)-1 {
 			m.targetCursor++
 		}
 	case "enter":
-		m.result = sessionTUIResult{session: m.chosen, targetID: m.installed[m.targetCursor].id}
+		if len(m.targets) == 0 {
+			return m, nil // nothing can resume this session; esc is the way out
+		}
+		m.result = sessionTUIResult{session: m.chosen, targetID: m.targets[m.targetCursor].id}
 		return m, tea.Quit
 	}
 	return m, nil
@@ -1015,8 +1021,28 @@ func (m sessionTUI) beginResume(sess *sessionindex.Session) (tea.Model, tea.Cmd)
 func (m sessionTUI) enterTargetPicker(sess *sessionindex.Session) sessionTUI {
 	m.chosen = sess
 	m.mode = modeTarget
+	m.targets = m.eligibleTargets(sess)
 	m.targetCursor = m.defaultTargetIndex()
 	return m
+}
+
+// eligibleTargets narrows the installed agents to the valid resume targets for
+// sess. Any agent that can reconstruct sessions into its native store
+// qualifies; the session's own agent additionally qualifies for local sessions,
+// which resume natively in place with no reconstruction. A cloud session has no
+// local native file, so even its own agent must reconstruct to qualify. This
+// keeps a provider without a serializer (Antigravity) out of the list except
+// for its own local sessions, where picking it would otherwise dead-end after
+// selection.
+func (m sessionTUI) eligibleTargets(sess *sessionindex.Session) []agentChoice {
+	var out []agentChoice
+	for _, a := range m.installed {
+		sameAgentLocal := sess != nil && !sess.IsCloud && a.id == sess.Agent
+		if sameAgentLocal || a.provider.SupportsReconstruction() {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 func (m sessionTUI) defaultTargetIndex() int {
@@ -1027,7 +1053,7 @@ func (m sessionTUI) defaultTargetIndex() int {
 	if want == "" && m.chosen != nil {
 		want = m.chosen.Agent
 	}
-	for i, a := range m.installed {
+	for i, a := range m.targets {
 		if a.id == want {
 			return i
 		}

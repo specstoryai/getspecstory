@@ -146,3 +146,9 @@ func prepareGeminiProjectDir(projectPath string) (string, error) {
 
 	return dir, nil
 }
+
+// SupportsReconstruction reports true: this provider has a native serializer
+// (see ReconstructSession), so it can be a cross-agent resume target.
+func (p *Provider) SupportsReconstruction() bool {
+	return true
+}

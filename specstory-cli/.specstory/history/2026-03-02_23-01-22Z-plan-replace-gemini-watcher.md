@@ -2135,7 +2135,7 @@ View GitHub issue #183
 
 `gh issue view 183 --repo specstoryai/getspecstory`
 
-```text
+````text
 title:	Bug: Gemini CLI history sync fails due to directory naming mismatch   (Path Hash vs Project Name)
 state:	OPEN
 author:	KiBlazer
@@ -2183,7 +2183,7 @@ Actual directory created by Gemini CLI: `/home/kingbo/.gemini/tmp/guarantee`
 The issue seems to be that SpecStory calculates `ba7652...` based on the path `/mnt/d/...`, but Gemini CLI uses the string `guarantee`. 
 
 A more robust solution would be for SpecStory to scan `~/.gemini/tmp/*/` and read the `.project_root` file inside each subdirectory to find a match for the current working directory, instead of strictly relying on a pre-calculated hash folder name.
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-03-02 23:12:28Z)**_
@@ -2391,7 +2391,7 @@ _**Agent (claude-opus-4-6 2026-03-02 23:13:36Z)**_
 <summary>Tool use: **Task**</summary>
 Explore Gemini path resolution
 
-```text
+````text
 Perfect. Now I have all the information I need. Let me compile a comprehensive report.
 
 ## Comprehensive Analysis: Gemini Project Directory Resolution
@@ -2624,7 +2624,7 @@ agentId: ab97c53 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 56358
 tool_uses: 27
 duration_ms: 54746</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-03-02 23:12:42Z)**_
@@ -5609,7 +5609,7 @@ _**Agent (claude-opus-4-6 2026-03-02 23:14:06Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/plans/snappy-puzzling-rose.md`
 
-```text
+````text
      1→# Plan: Replace Gemini Watcher Polling with fsnotify
      2→
      3→## Context
@@ -5667,7 +5667,7 @@ _**Agent (claude-opus-4-6 2026-03-02 23:14:06Z)**_
     55→3. `golangci-lint run` — no lint errors
     56→4. Manual test: run `./specstory run` or `./specstory sync` in a directory with no Gemini project dir, observe that debug.log shows a single "watching for directory creation" DEBUG message instead of repeated INFO messages
     57→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-03-02 23:14:17Z)**_
@@ -5675,7 +5675,7 @@ _**Agent (claude-opus-4-6 2026-03-02 23:14:17Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+````markdown
 # Plan: Support Gemini CLI's New Project-Name-Based Directory Format (Issue #183)
 
 ## Context
@@ -5694,9 +5694,9 @@ Both formats coexist on disk — old hash-based dirs (no `.project_root`) and ne
 
 Scans `~/.gemini/tmp/` for any subdirectory whose `.project_root` file content matches the current project path (after canonical path normalization for case-insensitive filesystem support):
 
-\```go
+```go
 func findProjectDirByProjectRoot(tmpDir, projectPath string) (string, error)
-\```
+```
 
 - Read each subdirectory in `tmpDir`
 - Read `.project_root` file inside it (skip dirs that don't have one)
@@ -5708,17 +5708,17 @@ func findProjectDirByProjectRoot(tmpDir, projectPath string) (string, error)
 After the hash-based directory check fails with `project_missing`, call `findProjectDirByProjectRoot` as a fallback before returning the error. If a match is found, use that directory instead.
 
 Current flow:
-\```
+```
 hash dir exists? → yes → return it
                 → no  → return GeminiPathError{Kind: "project_missing"}
-\```
+```
 
 New flow:
-\```
+```
 hash dir exists? → yes → return it
                 → no  → scan .project_root files → found? → return it
                                                   → no    → return GeminiPathError
-\```
+```
 
 ### File: `pkg/providers/geminicli/watcher.go`
 
@@ -5726,9 +5726,9 @@ hash dir exists? → yes → return it
 
 Replace the simple `waitForDirectoryFsnotify(ctx, projectDir, ...)` call for the project directory step with a smarter function that can detect either directory format:
 
-\```go
+```go
 func waitForProjectDir(ctx context.Context, tmpDir, projectPath, hashDir string) (string, error)
-\```
+```
 
 - First check if hash-based dir exists → return it
 - Then scan `.project_root` files for a match → return it
@@ -5740,21 +5740,21 @@ func waitForProjectDir(ctx context.Context, tmpDir, projectPath, hashDir string)
 
 The directory chain changes from:
 
-\```
+```
 wait for ~/.gemini
 wait for ~/.gemini/tmp
 wait for ~/.gemini/tmp/<hash>        ← fixed name, never matches new format
 wait for ~/.gemini/tmp/<hash>/chats
-\```
+```
 
 To:
 
-\```
+```
 wait for ~/.gemini
 wait for ~/.gemini/tmp
 waitForProjectDir(tmpDir, projectPath, hashDir) → resolvedDir  ← matches either format
 wait for resolvedDir/chats
-\```
+```
 
 The resolved `projectDir` is then used for the rest of the chain (chats watcher, artifact watchers).
 
@@ -5775,7 +5775,7 @@ Test cases:
 3. `golangci-lint run` — no lint errors
 4. Manual test: `cd /Users/sean/Source/SpecStory/compositions/gemini-2 && ./specstory sync --debug --log` — should now find the Gemini session in `~/.gemini/tmp/gemini-2/`
 
-```
+````
 
 ```text
 The file /Users/sean/.claude/plans/snappy-puzzling-rose.md has been overwritten successfully.

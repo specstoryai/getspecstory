@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -59,7 +60,19 @@ func TestGetProjectHashDir(t *testing.T) {
 			projectPath: "/tmp/test-project",
 			wantErr:     false,
 			validate: func(t *testing.T, result string) {
-				// Calculate expected hash
+				// The reference md5 pins compatibility with Cursor CLI's own hash
+				// of the same directory. The fixture is a Unix path, which a
+				// Windows host legitimately canonicalizes differently — and real
+				// inputs there are native paths — so the pin only holds off
+				// Windows; there the shape checks of the other cases apply.
+				if runtime.GOOS == "windows" {
+					parts := strings.Split(result, string(os.PathSeparator))
+					hashPart := parts[len(parts)-1]
+					if len(hashPart) != 32 {
+						t.Errorf("Expected 32-character MD5 hash, got %s", hashPart)
+					}
+					return
+				}
 				canonicalPath := "/tmp/test-project"
 				hash := md5.Sum([]byte(canonicalPath))
 				expectedHash := hex.EncodeToString(hash[:])
@@ -87,13 +100,16 @@ func TestGetProjectHashDir(t *testing.T) {
 			projectPath: "/tmp/test-project/",
 			wantErr:     false,
 			validate: func(t *testing.T, result string) {
-				// Should normalize and produce same hash as without trailing slash
-				canonicalPath := "/tmp/test-project"
-				hash := md5.Sum([]byte(canonicalPath))
-				expectedHash := hex.EncodeToString(hash[:])
-
-				if !strings.HasSuffix(result, expectedHash) {
-					t.Errorf("Expected normalized hash %s, got %s", expectedHash, result)
+				// The invariant is the point: a trailing slash must not change
+				// the hash. Comparing against the slashless call keeps this
+				// platform-independent (the exact value is pinned by the
+				// "absolute path" case).
+				slashless, err := GetProjectHashDir("/tmp/test-project")
+				if err != nil {
+					t.Fatalf("GetProjectHashDir without slash failed: %v", err)
+				}
+				if result != slashless {
+					t.Errorf("trailing slash changed result: %s vs %s", result, slashless)
 				}
 			},
 		},

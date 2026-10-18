@@ -10,6 +10,8 @@ _**User (2026-02-26 09:53:09Z)**_
 <command-name>/pr-review</command-name>
 <command-args>168</command-args>
 
+---
+
 _**User (2026-02-26 09:53:09Z)**_
 
 ## Context
@@ -1179,7 +1181,7 @@ _**Agent (claude-opus-4-6 2026-02-26 09:55:52Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/8bda05a6-149b-4fd3-b417-985bf1623e7e/tool-results/1aa49d68-af9a-4f4f-85a9-df16531c62b9.txt`
 
-```text
+````text
      1→diff --git a/specstory-cli/.specstory/history/2026-02-24_13-47-24Z-use-gh-to-check.md b/specstory-cli/.specstory/history/2026-02-24_13-47-24Z-use-gh-to-check.md
      2→new file mode 100644
      3→index 0000000..f923ac5
@@ -1380,7 +1382,7 @@ _**Agent (claude-opus-4-6 2026-02-26 09:55:52Z)**_
    198→+1. `specstory run` → Calls CheckForUpdates (line 1460 in main)
    199→+2. `specstory sync` → Calls CheckForUpdates (line 1460 in main)
    200→+3. `specstory --help` → Calls CheckForUpdates (line 1460 in main)
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-26 09:55:53Z)**_
@@ -5573,6 +5575,8 @@ _**User (2026-02-26 10:04:34Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-02-26 10:05:33Z)**_
 
 no man... add a function like GetLogPath that does the whole thing in path_utils, don't do a join outside of it
@@ -5677,6 +5681,8 @@ pkg/session/session.go:83:func GetSpecStoryDir(config utils.OutputConfig) string
 _**User (2026-02-26 10:06:16Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-02-26 10:06:33Z)**_
 
@@ -6337,6 +6343,8 @@ _**User (2026-02-26 10:09:04Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-02-26 10:09:43Z)**_
 
 Dude.... you are DUMB this morning.
@@ -6978,6 +6986,8 @@ _**User (2026-02-26 10:10:43Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-02-26 10:11:27Z)**_
 
 proceed
@@ -7492,9 +7502,13 @@ _**User (2026-02-26 10:19:09Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-02-26 10:19:09Z)**_
 
 <local-command-stdout>Catch you later!</local-command-stdout>
+
+---
 
 _**User (2026-02-26 10:19:09Z)**_
 

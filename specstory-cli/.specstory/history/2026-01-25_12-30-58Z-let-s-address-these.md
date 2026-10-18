@@ -10,6 +10,8 @@ _**User (2026-01-25 12:30:58Z)**_
 <command-name>/pr-review</command-name>
 <command-args>152</command-args>
 
+---
+
 _**User (2026-01-25 12:30:58Z)**_
 
 ## Context
@@ -179,7 +181,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:31:05Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/0df48eb8-a9ed-438e-b1f0-266bff1fc69c/tool-results/4193d278-9970-4195-ab8c-6ad50d99db79.txt`
 
-```text
+````text
      1→diff --git a/specstory-cli/.specstory/history/2026-01-23_14-20-54Z-command-message-pr-review.md b/specstory-cli/.specstory/history/2026-01-23_14-20-54Z-command-message-pr-review.md
      2→new file mode 100644
      3→index 0000000..b46e758
@@ -1798,7 +1800,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:31:05Z)**_
   1616→ 	checkCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
   1617→ 
   1618→ 	logoutCmd.Flags().Bool("force", false, "skip confirmation prompt and logout immediately")
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-25 12:31:08Z)**_
@@ -4469,6 +4471,8 @@ _**User (2026-01-25 12:50:54Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-01-25 12:50:59Z)**_
 
 I ran it, it's there.
@@ -4730,9 +4734,13 @@ _**User (2026-01-25 14:51:15Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-01-25 14:51:15Z)**_
 
 <local-command-stdout>See ya!</local-command-stdout>
+
+---
 
 _**User (2026-01-25 14:51:15Z)**_
 

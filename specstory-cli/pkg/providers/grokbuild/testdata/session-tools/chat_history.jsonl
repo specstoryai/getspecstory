@@ -1,0 +1,11 @@
+{"type":"system","content":"You are Grok 4.6."}
+{"type":"user","content":[{"type":"text","text":"<user_query>\nedit calc.py, run the tests, and search the web\n</user_query>"}],"prompt_index":0}
+{"type":"assistant","content":"Working through those now.","model_id":"grok-4.6","tool_calls":[{"id":"call-edit-1","name":"search_replace","arguments":"{\"file_path\":\"/Users/dev/project/calc.py\",\"old_string\":\"def sub(a, b):\\n    return a - b\",\"new_string\":\"def sub(a, b):\\n    return a - b\\n\\ndef div(a, b):\\n    return a / b\"}"},{"id":"call-shell-1","name":"run_terminal_command","arguments":"{\"command\":\"python3 -m pytest\",\"description\":\"Run the tests\"}"},{"id":"call-miss-1","name":"read_file","arguments":"{\"target_file\":\"/Users/dev/project/missing.txt\"}"},{"id":"call-todo-1","name":"todo_write","arguments":"{\"todos\":[{\"id\":\"1\",\"content\":\"Edit calc.py\",\"status\":\"completed\"},{\"id\":\"2\",\"content\":\"Run tests\",\"status\":\"in_progress\"},{\"id\":\"3\",\"content\":\"Report\",\"status\":\"pending\"}]}"},{"id":"call-mcp-1","name":"use_tool","arguments":"{\"tool_name\":\"voice__list_voices\",\"tool_input\":{\"limit\":3}}"}]}
+{"type":"tool_result","tool_call_id":"call-edit-1","content":"The file /Users/dev/project/calc.py has been updated."}
+{"type":"tool_result","tool_call_id":"call-shell-1","content":"2 passed in 0.01s"}
+{"type":"tool_result","tool_call_id":"call-miss-1","content":"File not found: /Users/dev/project/missing.txt"}
+{"type":"tool_result","tool_call_id":"call-todo-1","content":"Todos updated."}
+{"type":"tool_result","tool_call_id":"call-mcp-1","content":"voices: alpha, bravo, charlie"}
+{"type":"backend_tool_call","kind":{"tool_type":"web_search","action":{"type":"search","query":"grok 4.6 release notes"},"id":"ws-1","status":"completed"}}
+{"type":"backend_tool_call","kind":{"tool_type":"x_search","call_id":"xs-1","input":"{\"query\":\"xAI\",\"count\":\"3\"}","name":"x_user_search","id":"ctc-1"}}
+{"type":"assistant","content":"Edited calc.py, the tests pass, and missing.txt does not exist.","model_id":"grok-4.6"}

@@ -10,13 +10,19 @@ Let's consider what happens when our agent providers are parsing a JSONL file, a
 
 Let's start by understanding which providers this impacts. Which use JSONL to get at the agent history? In fact, in the `## Agent Support` section of the @REA
 
+---
+
 _**User (2026-01-31 15:19:39Z)**_
 
 [Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-01-31-10.16.37.png]
 
+---
+
 _**User (2026-01-31 15:19:40Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-01-31 15:20:30Z)**_
 
@@ -138,7 +144,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:20:37Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
      1→<img width="1649" height="158" alt="Group 6 (1)" src="https://github.com/user-attachments/assets/93f0210f-c3ce-4035-91df-ec597e00a3ce" />
      2→
      3→# Intent is the new source code
@@ -427,7 +433,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:20:37Z)**_
    286→
    287→SpecStory® is a registered trademark of SpecStory, Inc.
    288→
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-31 15:20:38Z)**_
@@ -6763,6 +6769,8 @@ _**User (2026-01-31 15:26:27Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-01-31 15:27:43Z)**_
 
 The Codex and Droid log level changes are fine, do those. For the Claude Code change, let's use a TDD approach. Add a test with 3 JSON objects to parse, 1 bad, and show that the test is failing currently. Then add our fix and have the test pass.
@@ -8746,9 +8754,13 @@ _**User (2026-01-31 15:31:02Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-01-31 15:31:02Z)**_
 
 <local-command-stdout>See ya!</local-command-stdout>
+
+---
 
 _**User (2026-01-31 15:31:02Z)**_
 

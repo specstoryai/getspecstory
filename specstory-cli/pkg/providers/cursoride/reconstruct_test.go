@@ -8,16 +8,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
 // createTestWorkspaceDB creates an in-temp-dir SQLite workspace database with an ItemTable
 // and returns both its path and a WorkspaceMatch pointing at it.
-func createTestWorkspaceDB(t *testing.T) (string, *WorkspaceMatch) {
+func createTestWorkspaceDB(t *testing.T) (string, *vscode.WorkspaceEntry) {
 	t.Helper()
 	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "workspace.vscdb")
+	dbPath := filepath.Join(dir, "state.vscdb")
 	db, err := OpenDatabaseReadWrite(dbPath)
 	if err != nil {
 		t.Fatalf("createTestWorkspaceDB: open: %v", err)
@@ -27,16 +28,16 @@ func createTestWorkspaceDB(t *testing.T) (string, *WorkspaceMatch) {
 		t.Fatalf("createTestWorkspaceDB: create ItemTable: %v", err)
 	}
 	_ = db.Close()
-	ws := &WorkspaceMatch{ID: "test-workspace", DBPath: dbPath, URI: "file:///tmp/proj"}
+	ws := &vscode.WorkspaceEntry{ID: "test-workspace", Dir: dir, URI: "file:///tmp/proj"}
 	return dbPath, ws
 }
 
 // patchWorkspace replaces FindWorkspaceForProject for the duration of the test,
 // always returning the provided workspace regardless of the project path argument.
-func patchWorkspace(t *testing.T, ws *WorkspaceMatch) {
+func patchWorkspace(t *testing.T, ws *vscode.WorkspaceEntry) {
 	t.Helper()
 	orig := FindWorkspaceForProject
-	FindWorkspaceForProject = func(_ string) (*WorkspaceMatch, error) { return ws, nil }
+	FindWorkspaceForProject = func(_ string) (*vscode.WorkspaceEntry, error) { return ws, nil }
 	t.Cleanup(func() { FindWorkspaceForProject = orig })
 }
 
@@ -63,6 +64,8 @@ func reconstructSampleData() *schema.SessionData {
 func TestReconstructSession_WritesGlobalDB(t *testing.T) {
 	data := reconstructSampleData()
 	expected := spi.FlattenSessionData(data, "")
+	// Resumed sessions are titled with the source's first prompt.
+	const wantTitle = "What's wrong with the login flow?"
 
 	// Point the provider at temp databases instead of the live Cursor installation.
 	dbPath := createTestGlobalDB(t, map[string]string{})
@@ -93,8 +96,8 @@ func TestReconstructSession_WritesGlobalDB(t *testing.T) {
 	if !ok {
 		t.Fatalf("composer row %q not found in database after reconstruction", out.SessionID)
 	}
-	if composer.Name != "fix the login bug" {
-		t.Errorf("composer name = %q, want %q", composer.Name, "fix the login bug")
+	if composer.Name != wantTitle {
+		t.Errorf("composer name = %q, want %q", composer.Name, wantTitle)
 	}
 	if len(composer.FullConversationHeadersOnly) != len(expected) {
 		t.Errorf("composer has %d headers, want %d", len(composer.FullConversationHeadersOnly), len(expected))
@@ -152,8 +155,8 @@ func TestReconstructSession_WritesGlobalDB(t *testing.T) {
 	for _, h := range headers {
 		if h["composerId"] == out.SessionID {
 			found = true
-			if h["name"] != "fix the login bug" {
-				t.Errorf("composerHeaders entry name = %v, want %q", h["name"], "fix the login bug")
+			if h["name"] != wantTitle {
+				t.Errorf("composerHeaders entry name = %v, want %q", h["name"], wantTitle)
 			}
 			break
 		}

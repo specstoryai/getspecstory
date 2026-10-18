@@ -4457,7 +4457,7 @@ _**Agent (claude-opus-4-6 2026-02-23 12:05:30Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
     85→
     86→1. **User-level config**: `~/.specstory/cli/config.toml` - applies to all projects
     87→2. **Project-level config**: `.specstory/cli/config.toml` - applies only to the current project
@@ -4538,7 +4538,7 @@ _**Agent (claude-opus-4-6 2026-02-23 12:05:30Z)**_
    162→
    163→### Building from source
    164→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-23 12:05:32Z)**_
@@ -5931,9 +5931,13 @@ _**User (2026-02-23 12:35:23Z)**_
 
 I ran `specstory help run` and didn't get a local config file.
 
+---
+
 _**User (2026-02-23 12:38:22Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-02-23 12:38:31Z)**_
 
@@ -5982,6 +5986,8 @@ _**User (2026-02-23 12:40:01Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-02-23 12:41:05Z)**_
 
 nm, user error
@@ -5990,9 +5996,13 @@ the replacement doesn't seem right though. Got this double `#`:
 
 ~/source/SpecStory/getspecstory/specstory-cli
 
+---
+
 _**User (2026-02-23 12:41:09Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-02-23 12:41:17Z)**_
 
@@ -6193,6 +6203,8 @@ The user doesn't want to proceed with this tool use. The tool use was rejected (
 _**User (2026-02-23 12:42:37Z)**_
 
 [Request interrupted by user for tool use]
+
+---
 
 _**User (2026-02-23 12:42:41Z)**_
 
@@ -7493,7 +7505,7 @@ _**Agent (claude-opus-4-6 2026-02-23 13:16:27Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
     94→### Example Configuration
     95→
     96→```toml
@@ -7549,7 +7561,7 @@ _**Agent (claude-opus-4-6 2026-02-23 13:16:27Z)**_
    146→| `[logging]` | `silent` | `false` | Suppress non-error output |
    147→| `[analytics]` | `enabled` | `true` | Send anonymous usage analytics |
    148→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-23 13:16:41Z)**_
@@ -7669,7 +7681,7 @@ _**Agent (claude-opus-4-6 2026-02-23 13:17:45Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
     94→### Example Configuration
     95→
     96→```toml
@@ -7730,7 +7742,7 @@ _**Agent (claude-opus-4-6 2026-02-23 13:17:45Z)**_
    151→- macOS development environment
    152→- Go 1.25.1 or later
    153→- golangci-lint, latest version
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-23 13:17:49Z)**_
@@ -7855,7 +7867,7 @@ _**Agent (claude-opus-4-6 2026-02-23 13:20:12Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
     94→### Example Configuration
     95→
     96→```toml
@@ -7902,7 +7914,7 @@ _**Agent (claude-opus-4-6 2026-02-23 13:20:12Z)**_
    137→gemini_cmd = "gemini"
    138→```
    139→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-23 13:20:27Z)**_
@@ -12755,9 +12767,13 @@ _**User (2026-02-23 16:00:17Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-02-23 16:00:17Z)**_
 
 <local-command-stdout>See ya!</local-command-stdout>
+
+---
 
 _**User (2026-02-23 16:00:17Z)**_
 
