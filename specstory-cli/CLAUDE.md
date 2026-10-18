@@ -58,7 +58,7 @@ There are two main modes of operation:
 ./specstory sync
 
 # Sync mode - process specific session
-./specstory sync -u <uuid>
+./specstory sync -s <uuid>
 ```
 
 ### Debugging

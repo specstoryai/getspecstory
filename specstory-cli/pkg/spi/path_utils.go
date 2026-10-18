@@ -174,12 +174,16 @@ func ReadableTitleFromSessionData(data *schema.SessionData) string {
 
 // firstUserMessageText returns the concatenated text content of the first user-role message in the
 // session — the prompt that opens the conversation. Skips a user message that carries no text (e.g.
-// a tool result) and moves to the next. Empty when none is found.
+// a tool result) and moves to the next, and skips exchanges SpecStory opened itself
+// (schema.MetadataOpenedBySpecStory), whose prompt the user did not write. Empty when none is found.
 func firstUserMessageText(data *schema.SessionData) string {
 	if data == nil {
 		return ""
 	}
 	for _, ex := range data.Exchanges {
+		if opened, _ := ex.Metadata[schema.MetadataOpenedBySpecStory].(bool); opened {
+			continue
+		}
 		for _, msg := range ex.Messages {
 			if msg.Role != schema.RoleUser {
 				continue

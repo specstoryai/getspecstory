@@ -240,3 +240,39 @@ func TestResolveWorkspaceRoot(t *testing.T) {
 		})
 	}
 }
+
+// TestResumedSessionTitle: a resumed session takes the title its source shows
+// (the first prompt the user wrote), skipping exchanges SpecStory opened, and
+// falls back to the slug and then to a generic title.
+func TestResumedSessionTitle(t *testing.T) {
+	user := func(text string) schema.Message {
+		return schema.Message{Role: schema.RoleUser, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: text}}}
+	}
+	opened := map[string]interface{}{schema.MetadataOpenedBySpecStory: true}
+	tests := []struct {
+		name string
+		data *schema.SessionData
+		want string
+	}{
+		{name: "no session", data: nil, want: "Resumed session"},
+		{name: "first prompt", data: &schema.SessionData{Slug: "tell-me-all-about", Exchanges: []schema.Exchange{
+			{Messages: []schema.Message{user("Tell me all  about\nthis repo")}},
+		}}, want: "Tell me all about this repo"},
+		{name: "opening exchange skipped", data: &schema.SessionData{Exchanges: []schema.Exchange{
+			{Metadata: opened, Messages: []schema.Message{user("Session started by SpecStory.")}},
+			{Messages: []schema.Message{user("Let's write Forth")}},
+		}}, want: "Let's write Forth"},
+		{name: "only an opening exchange falls back to the slug", data: &schema.SessionData{Slug: "forth", Exchanges: []schema.Exchange{
+			{Metadata: opened, Messages: []schema.Message{user("Session started by SpecStory.")}},
+		}}, want: "forth"},
+		{name: "no user text falls back to the slug", data: &schema.SessionData{Slug: " forth "}, want: "forth"},
+		{name: "blank slug", data: &schema.SessionData{Slug: "  "}, want: "Resumed session"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ResumedSessionTitle(tt.data); got != tt.want {
+				t.Errorf("ResumedSessionTitle = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

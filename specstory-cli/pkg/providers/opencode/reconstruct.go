@@ -124,7 +124,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	document := exportDocument{
 		Info: exportInfo{
 			ID:    sessionID,
-			Title: spi.ResumedSessionTitle(data.Slug),
+			Title: spi.ResumedSessionTitle(data),
 			Time:  exportTime{Created: firstMillis, Updated: now.UnixMilli()},
 			Location: exportLocation{
 				Directory: workspaceRoot,
