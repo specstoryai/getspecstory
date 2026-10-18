@@ -14,12 +14,17 @@ require (
 	charm.land/bubbletea/v2 v2.1.0 // Terminal UI framework for Go https://github.com/charmbracelet/bubbletea
 	charm.land/lipgloss/v2 v2.0.6 // Terminal styling for Go https://github.com/charmbracelet/lipgloss
 	github.com/BurntSushi/toml v1.6.0 // TOML parsing for configuration files
+	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/betterleaks/betterleaks v1.9.0 // Detect and redact secrets
+	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/fang v1.0.0 // Styled terminal output for Cobra commands
 	github.com/charmbracelet/glamour v1.0.0
 	github.com/charmbracelet/x/ansi v0.11.9
+	github.com/creativeprojects/go-selfupdate v1.6.0
 	github.com/fsnotify/fsnotify v1.10.1 // Cross-platform file system event notifications
 	github.com/google/uuid v1.6.0 // Generates and inspects UUIDs
+	github.com/muesli/mango-cobra v1.2.0
+	github.com/muesli/roff v0.1.0
 	github.com/posthog/posthog-go v1.34.0 // Analytics tracking
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // Git ignore file parsing
 	github.com/spf13/cobra v1.10.2 // Command-line interface framework
@@ -31,6 +36,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.47.0
 	go.opentelemetry.io/otel/sdk/metric v1.47.0
 	go.opentelemetry.io/otel/trace v1.47.0
+	golang.org/x/sys v0.49.0
 	golang.org/x/term v0.47.0 // terminal and console support
 	golang.org/x/text v0.43.0 // Text processing and Unicode normalization
 	modernc.org/sqlite v1.60.1 // Pure Go SQLite database driver
@@ -38,7 +44,6 @@ require (
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
-	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/STARRY-S/zip v0.2.3 // indirect
 	github.com/alecthomas/chroma/v2 v2.20.0 // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
@@ -52,7 +57,6 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charlievieth/fastwalk v1.0.14 // indirect
-	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20261008173134-6b8d4baf91b4 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
@@ -74,11 +78,11 @@ require (
 	github.com/go-sprout/sprout v1.0.3 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/google/go-github/v72 v72.0.0 // indirect
-	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
 	github.com/h2non/filetype v1.1.3 // indirect
-	github.com/hashicorp/go-version v1.7.0 // indirect
+	github.com/hashicorp/go-version v1.9.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.18.6 // indirect
@@ -95,10 +99,8 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/mango v0.1.0 // indirect
-	github.com/muesli/mango-cobra v1.2.0 // indirect
 	github.com/muesli/mango-pflag v0.1.0 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect
-	github.com/muesli/roff v0.1.0 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/nwaples/rardecode/v2 v2.2.2 // indirect
@@ -133,7 +135,6 @@ require (
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260928230214-8a89bd6388cc // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260928230214-8a89bd6388cc // indirect
 	google.golang.org/grpc v1.83.2 // indirect
