@@ -163,7 +163,7 @@ func checkSingleProvider(registry *factory.Registry, providerID, customCmd strin
 
 		return nil
 	} else {
-		fmt.Print(formatCheckFailure(provider.Name(), result, customCmd, false))
+		fmt.Print(formatCheckFailure(providerID, provider.Name(), result, customCmd, false))
 		return errors.New("check failed")
 	}
 }
@@ -171,11 +171,14 @@ func checkSingleProvider(registry *factory.Registry, providerID, customCmd strin
 // formatCheckFailure softens missing optional agents without hiding broken
 // installs or an explicitly requested custom command that cannot be found.
 // Older providers with no classification retain the failure presentation.
-func formatCheckFailure(name string, result spi.CheckResult, customCmd string, summary bool) string {
+// The summary names the single-provider check, because "not found" alone does
+// not say what is missing: a binary for most providers, an API key for a
+// hosted one.
+func formatCheckFailure(id, name string, result spi.CheckResult, customCmd string, summary bool) string {
 	if result.ErrorType == spi.CheckErrorNotFound && strings.TrimSpace(customCmd) == "" {
 		message := fmt.Sprintf("\nℹ️  %s not found.\n", name)
 		if summary {
-			return message + "   Optional — skipping.\n"
+			return message + fmt.Sprintf("   Optional — skipping. Run `specstory check %s` for setup.\n", id)
 		}
 		if result.ErrorMessage != "" {
 			message += "\n" + result.ErrorMessage + "\n"
@@ -242,7 +245,7 @@ func checkAllProviders(registry *factory.Registry, filterIDs []string) error {
 			fmt.Printf("  📍 Location: %s\n", result.Location)
 			fmt.Printf("  ✅ Status: All systems go!\n")
 		} else {
-			fmt.Print(formatCheckFailure(provider.Name(), result, "", true))
+			fmt.Print(formatCheckFailure(id, provider.Name(), result, "", true))
 		}
 	}
 

@@ -281,6 +281,8 @@ func convertToAgentChatSession(session *GeminiSession, workspaceRoot string, deb
 	if slug == "" {
 		slug = "gemini-session"
 	}
+	// Resume titles a reconstructed session from SessionData's slug.
+	sessionData.Slug = slug
 
 	// Raw data
 	rawDataBytes, _ := json.Marshal(session)

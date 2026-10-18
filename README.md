@@ -40,6 +40,7 @@ Copilot IDE        │
 Claude Code CLI    │
 Copilot CLI        │
 Cursor CLI         │
+Cursor Cloud Agent │
 Codex CLI          ├──────►  .specstory/history/  ──────►  cloud.specstory.com
 Droid CLI          │          (Auto-Saved Locally)        (Search, Ask & Share)
 DeepSeek TUI       │
@@ -75,6 +76,7 @@ SpecStory integrates seamlessly with your favorite AI coding tools, automaticall
 | [Codex CLI](https://www.openai.com/codex)                                     | CLI        | v0.42.0+     | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/codexcli)       | `brew tap specstoryai/tap`<br/>`brew install specstory`       |
 | [Copilot CLI](https://github.com/features/copilot/cli)                        | CLI        | 1.0.95+      | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/copilotcli)     | `brew tap specstoryai/tap`<br/>`brew install specstory`       |
 | [Cursor CLI](https://cursor.com/cli)                                          | CLI        | v2025.09.18+ | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/cursorcli)      | `brew tap specstoryai/tap`<br/>`brew install specstory`       |
+| [Cursor Cloud Agents](https://cursor.com/agents)                              | Cloud      |              | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/cursorcloud)    | `brew tap specstoryai/tap`<br/>`brew install specstory`       |
 | [Droid CLI](https://factory.ai/product/cli)                                   | CLI        | v0.56.3+     | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/droidcli)       | `brew tap specstoryai/tap`<br/>`brew install specstory`       |
 | [Gemini CLI](https://docs.cloud.google.com/gemini/docs/codeassist/gemini-cli) | CLI        | 0.15.1+      | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/geminicli)      | `brew tap specstoryai/tap`<br/>`brew install specstory`       |
 | [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)                        | CLI        | 0.8.39+      | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/deepseektui)    | `brew tap specstoryai/tap`<br/>`brew install specstory`       |
@@ -94,7 +96,7 @@ SpecStory integrates seamlessly with your favorite AI coding tools, automaticall
 
 ### Terminal Coding Agents
 
-**One installation works with all terminal coding agents** - Claude Code, Cursor CLI, Codex, Copilot CLI, Droid, DeepSeek, Antigravity CLI, OpenCode, Qwen Code, and Pi:
+**One installation works with all terminal coding agents** - Claude Code, Cursor CLI, Codex, Copilot CLI, Droid, DeepSeek, Antigravity CLI, OpenCode, Qwen Code, and Pi - and with Cursor Cloud Agents, read from the Cursor API with your API key (set `CURSOR_API_KEY`, or `cursor_api_key` under `[providers]` in `~/.specstory/cli/config.toml`):
 
 ```bash
 # Check which agents are installed
@@ -103,6 +105,7 @@ specstory check
 # Launch your preferred agent with session auto-save
 specstory run claude       # Launch Claude Code
 specstory run cursor       # Launch Cursor CLI
+specstory run cursorcloud  # Start a Cursor Cloud Agent on this repo and save its sessions
 specstory run codex        # Launch Codex CLI
 specstory run copilot      # Launch Copilot CLI
 specstory run droid        # Launch Droid CLI
