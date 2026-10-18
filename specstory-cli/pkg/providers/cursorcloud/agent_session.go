@@ -207,10 +207,17 @@ func buildSessionData(snap *agentSnapshot, workspaceRoot string) (*schema.Sessio
 			continue
 		}
 		// The greeting `run` opens an agent with, and the transcript `resume`
-		// seeds one with, are not what the session is about, so the title and
-		// slug wait for the user's own first prompt, and an agent with only
-		// that opening prompt has nothing to save yet.
-		if text := firstUserText(exchange); firstPrompt == "" && !isSpecStoryPrompt(text) {
+		// seeds one with, are not what the session is about. Flagging the
+		// exchange keeps every title (here, in listings and in SpecStory Cloud)
+		// on the user's own first prompt, and an agent with only that opening
+		// prompt has nothing to save yet.
+		text := firstUserText(exchange)
+		if isSpecStoryPrompt(text) {
+			if exchange.Metadata == nil {
+				exchange.Metadata = map[string]interface{}{}
+			}
+			exchange.Metadata[schema.MetadataOpenedBySpecStory] = true
+		} else if firstPrompt == "" {
 			firstPrompt = text
 		}
 		if exchange.Metadata["source"] == v0Source {

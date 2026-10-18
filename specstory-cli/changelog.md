@@ -11,7 +11,7 @@
 
 ### 🐛 Bug Fixes
 
-- A session from Claude Code, Codex CLI, Gemini CLI or Pi resumed with `specstory resume` into an agent that shows session titles (Cursor CLI, Cursor IDE, Cursor Cloud Agents, VS Code Copilot, Droid, DeepSeek TUI or OpenCode) is now titled after the original session. Previously it was titled "Resumed session".
+- A session resumed with `specstory resume` into an agent that shows session titles (Cursor CLI, Cursor IDE, Cursor Cloud Agents, VS Code Copilot, Droid, DeepSeek TUI or OpenCode) is now titled with the original session's first prompt, as it is in `specstory list` and SpecStory Cloud. Previously it was titled with a short filename slug such as `tell-me-all-about`, and sessions from Claude Code, Codex CLI, Gemini CLI and Pi were titled "Resumed session".
 
 ## v2.15.1 2026-09-24
 

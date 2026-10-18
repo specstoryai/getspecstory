@@ -158,7 +158,9 @@ func writeSessionSummary(sessionDir, projectPath string) error {
 			"id":  filepath.Base(sessionDir),
 			"cwd": projectPath,
 		},
-		"session_summary":     spi.ResumedSessionTitle(""),
+		// The summary is written while resolving the session path, before any
+		// session data is at hand, so it takes the generic title.
+		"session_summary":     spi.ResumedSessionTitle(nil),
 		"created_at":          now,
 		"updated_at":          now,
 		"num_messages":        0,

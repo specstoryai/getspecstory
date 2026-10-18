@@ -67,7 +67,7 @@ func TestReconstructSession(t *testing.T) {
 	}
 
 	info := document.Info
-	if info["id"] != rec.SessionID || info["title"] != "list-the-files" {
+	if info["id"] != rec.SessionID || info["title"] != "The magic passphrase is PURPLE-ELEPHANT-42. List the files." {
 		t.Errorf("info id/title = %v / %v", info["id"], info["title"])
 	}
 	if location, _ := info["location"].(map[string]any); location["directory"] != "/Users/dev/target" {

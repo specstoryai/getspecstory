@@ -34,7 +34,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	newID := uuid.NewString()
 	base := time.Now().UTC()
 
-	title := spi.ResumedSessionTitle(data.Slug)
+	title := spi.ResumedSessionTitle(data)
 
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)

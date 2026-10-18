@@ -49,7 +49,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	if err != nil {
 		return nil, err
 	}
-	pending := pendingResume{Name: spi.ResumedSessionTitle(data.Slug), Prompt: resumePrompt(turns)}
+	pending := pendingResume{Name: spi.ResumedSessionTitle(data), Prompt: resumePrompt(turns)}
 	if data.Provider.ID == ProviderID && validAgentID(data.SessionID) {
 		pending.SourceAgentID = data.SessionID
 	} else if err := checkResumeSize(pending.Prompt); err != nil {

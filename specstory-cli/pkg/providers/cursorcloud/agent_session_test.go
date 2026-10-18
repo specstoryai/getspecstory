@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
@@ -288,7 +289,17 @@ func TestLaunchGreetingIsNotTheSessionTopic(t *testing.T) {
 				t.Fatal("no session built")
 			}
 			if len(data.Exchanges) != 2 {
-				t.Errorf("got %d exchanges, want the greeting kept as the first", len(data.Exchanges))
+				t.Fatalf("got %d exchanges, want the greeting kept as the first", len(data.Exchanges))
+			}
+			if opened, _ := data.Exchanges[0].Metadata[schema.MetadataOpenedBySpecStory].(bool); !opened {
+				t.Error("the greeting exchange is not flagged as opened by SpecStory")
+			}
+			if _, flagged := data.Exchanges[1].Metadata[schema.MetadataOpenedBySpecStory]; flagged {
+				t.Error("the user's own exchange is flagged as opened by SpecStory")
+			}
+			// The SpecStory Cloud title skips the flagged greeting too.
+			if title := spi.ReadableTitleFromSessionData(data); !strings.HasPrefix(title, "Follow-up: append the line") {
+				t.Errorf("cloud title = %q, want the user's prompt", title)
 			}
 			if !strings.HasPrefix(firstPrompt, "Follow-up: append the line") || data.Slug != "follow-up-append-the" {
 				t.Errorf("first prompt %q, slug %q; want both from the user's prompt", firstPrompt, data.Slug)

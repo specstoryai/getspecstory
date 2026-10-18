@@ -153,8 +153,8 @@ func TestReconstructSession_RoundTrip(t *testing.T) {
 	if composer.Version != copilotSessionVersion {
 		t.Errorf("version = %d, want %d", composer.Version, copilotSessionVersion)
 	}
-	if composer.CustomTitle != "fix the login bug" {
-		t.Errorf("customTitle = %q, want source slug", composer.CustomTitle)
+	if composer.CustomTitle != "What's wrong with the login flow?" {
+		t.Errorf("customTitle = %q, want the source's first prompt", composer.CustomTitle)
 	}
 	if !composer.IsImported {
 		t.Error("isImported should be true on reconstructed sessions")
@@ -178,8 +178,8 @@ func TestReconstructSession_RoundTrip(t *testing.T) {
 	if !ok {
 		t.Fatalf("session %s missing from %s", rec.SessionID, chatSessionIndexKey)
 	}
-	if entry.Title != "fix the login bug" {
-		t.Errorf("index title = %q, want source slug", entry.Title)
+	if entry.Title != "What's wrong with the login flow?" {
+		t.Errorf("index title = %q, want the source's first prompt", entry.Title)
 	}
 	if entry.IsEmpty {
 		t.Error("index entry isEmpty should be false")

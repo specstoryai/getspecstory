@@ -148,7 +148,7 @@ func resumeAgent(ctx context.Context, client *apiClient, projectPath, agentID st
 	if err != nil {
 		return "", err
 	}
-	return launchCopy(ctx, client, projectPath, spi.ResumedSessionTitle(data.Slug), resumePrompt(turns))
+	return launchCopy(ctx, client, projectPath, spi.ResumedSessionTitle(data), resumePrompt(turns))
 }
 
 // reopenAgent reports whether agentID can be reopened for this project. An

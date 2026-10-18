@@ -32,6 +32,13 @@ const (
 // a newer CLI on another machine) is refused rather than mis-reconstructed.
 const CurrentSchemaVersion = "1.0"
 
+// MetadataOpenedBySpecStory is the Exchange.Metadata key (value true) marking an
+// exchange whose prompt SpecStory sent to open a session, such as a greeting or
+// a transcript carried into a new agent, rather than one the user wrote. The
+// exchange is still part of the conversation; only choosing a session's title
+// skips it, because a title should say what the user asked for.
+const MetadataOpenedBySpecStory = "openedBySpecStory"
+
 // SessionData is the unified data format for sessions from all terminal coding agent providers
 type SessionData struct {
 	SchemaVersion string       `json:"schemaVersion"`

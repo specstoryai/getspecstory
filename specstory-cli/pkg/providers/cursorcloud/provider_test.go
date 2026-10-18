@@ -500,10 +500,11 @@ func TestReconstructSession(t *testing.T) {
 		name       string
 		data       *schema.SessionData
 		wantSource string
+		wantName   string // "" skips the check
 		wantErr    string
 	}{
-		{name: "another agent's session", data: sessionWithText("claude", "c-1", "Let's write Forth")},
-		{name: "a cloud agent's session", data: sessionWithText(ProviderID, cloudAgent, "Let's write Forth"), wantSource: cloudAgent},
+		{name: "another agent's session", data: sessionWithText("claude", "c-1", "Let's write Forth"), wantName: "Let's write Forth"},
+		{name: "a cloud agent's session", data: sessionWithText(ProviderID, cloudAgent, "Let's write Forth"), wantSource: cloudAgent, wantName: "Let's write Forth"},
 		{name: "another agent's session over the cap", data: sessionWithText("claude", "c-1", huge), wantErr: "the limit is 1,000,000 characters"},
 		{name: "a cloud agent's session over the cap", data: sessionWithText(ProviderID, cloudAgent, huge), wantSource: cloudAgent},
 	}
@@ -528,8 +529,11 @@ func TestReconstructSession(t *testing.T) {
 			if err := json.Unmarshal(rec.Content, &pending); err != nil {
 				t.Fatal(err)
 			}
-			if pending.SourceAgentID != tt.wantSource || pending.Name != "forth-mastermind" {
-				t.Errorf("pending = source %q name %q, want source %q", pending.SourceAgentID, pending.Name, tt.wantSource)
+			if pending.SourceAgentID != tt.wantSource {
+				t.Errorf("pending source = %q, want %q", pending.SourceAgentID, tt.wantSource)
+			}
+			if tt.wantName != "" && pending.Name != tt.wantName {
+				t.Errorf("pending name = %q, want %q", pending.Name, tt.wantName)
 			}
 			if !strings.HasPrefix(pending.Prompt, resumePromptHead) || !strings.Contains(pending.Prompt, "## User\n\n") {
 				t.Errorf("prompt does not open with the resume head and the transcript: %.200q", pending.Prompt)
