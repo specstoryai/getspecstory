@@ -113,7 +113,7 @@ Why not C or D: C requires per-repo setup and alters PR diffs; D only sees agent
 - Transcript source per run: v1 stream replay (primary), v0 conversation (fallback after 24 hours). Treat `tool_call` events keyed by `callId` as the tool record; `assistant` and `thinking` deltas concatenate into the message; `interaction_update` can be ignored for rendering.
 - Raw data: the captured SSE events plus the v0 conversation JSON, stored together so a later re-render can improve.
 - Session metadata should carry `url`, branch and PR URL from `runs[].git.branches`, which is what users want to click, and `cost.chargedCents` from usage if we want to show it.
-- `ExecAgentAndWatch` and `ReconstructSession` return unsupported for v1 of the provider; resume into a local agent still works through the generic `SessionData` path.
+- `ExecAgentAndWatch` launches agents through the API and `ReconstructSession` seeds a new agent with a flattened transcript; see the provider's `CURSOR-CLOUD-FORMAT.md`.
 
 ## 6. Hands-on spike
 

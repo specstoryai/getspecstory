@@ -1,8 +1,8 @@
 package cursorcloud
 
 import (
+	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -476,18 +476,174 @@ func TestProjectPathShapes(t *testing.T) {
 	}
 }
 
-func TestReconstructionUnsupportedConsistently(t *testing.T) {
-	p := NewProvider()
-	if p.SupportsReconstruction() {
-		t.Error("SupportsReconstruction = true")
-	}
-	if _, err := p.ReconstructSession(&schema.SessionData{}, spi.ReconstructOptions{}); !errors.Is(err, spi.ErrReconstructionUnsupported) {
-		t.Errorf("ReconstructSession err = %v", err)
-	}
-	if _, err := p.NativeSessionPath(t.TempDir(), "x"); !errors.Is(err, spi.ErrReconstructionUnsupported) {
-		t.Errorf("NativeSessionPath err = %v", err)
+// sessionWithText is a one-exchange session whose user prompt is text.
+func sessionWithText(providerID, sessionID, text string) *schema.SessionData {
+	return &schema.SessionData{
+		SchemaVersion: schema.CurrentSchemaVersion,
+		Provider:      schema.ProviderInfo{ID: providerID, Name: providerID, Version: "1"},
+		SessionID:     sessionID,
+		Slug:          "forth-mastermind",
+		Exchanges: []schema.Exchange{{Messages: []schema.Message{
+			{Role: schema.RoleUser, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: text}}},
+			{Role: schema.RoleAgent, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "Sure."}}},
+		}}},
 	}
 }
+
+// TestReconstructSession: any session becomes a pending launch. A cloud agent's
+// own session remembers its agent so resume can reopen it, and skips the size
+// cap until it actually has to be copied.
+func TestReconstructSession(t *testing.T) {
+	const cloudAgent = "bc-11111111-2222-4333-8444-555555555555"
+	huge := strings.Repeat("x", maxResumePromptChars)
+	tests := []struct {
+		name       string
+		data       *schema.SessionData
+		wantSource string
+		wantErr    string
+	}{
+		{name: "another agent's session", data: sessionWithText("claude", "c-1", "Let's write Forth")},
+		{name: "a cloud agent's session", data: sessionWithText(ProviderID, cloudAgent, "Let's write Forth"), wantSource: cloudAgent},
+		{name: "another agent's session over the cap", data: sessionWithText("claude", "c-1", huge), wantErr: "the limit is 1,000,000 characters"},
+		{name: "a cloud agent's session over the cap", data: sessionWithText(ProviderID, cloudAgent, huge), wantSource: cloudAgent},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			useSettings(t, "")
+			p := NewProvider()
+			rec, err := p.ReconstructSession(tt.data, spi.ReconstructOptions{MigrationNote: "Resumed via SpecStory."})
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("err = %v, want %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.HasPrefix(rec.SessionID, pendingPrefix) || rec.Filename != rec.SessionID+".json" {
+				t.Errorf("session %q file %q, want a pending id and its .json", rec.SessionID, rec.Filename)
+			}
+			var pending pendingResume
+			if err := json.Unmarshal(rec.Content, &pending); err != nil {
+				t.Fatal(err)
+			}
+			if pending.SourceAgentID != tt.wantSource || pending.Name != "forth-mastermind" {
+				t.Errorf("pending = source %q name %q, want source %q", pending.SourceAgentID, pending.Name, tt.wantSource)
+			}
+			if !strings.HasPrefix(pending.Prompt, resumePromptHead) || !strings.Contains(pending.Prompt, "## User\n\n") {
+				t.Errorf("prompt does not open with the resume head and the transcript: %.200q", pending.Prompt)
+			}
+
+			// The transcript waits in the mirror, behind its .gitignore.
+			project := makeProject(t, t.TempDir(), testOrigin)
+			path, err := p.NativeSessionPath(project, rec.Filename)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m, _ := mirrorFor(project)
+			if path != m.pendingFile(rec.Filename) {
+				t.Errorf("path = %s, want the mirror's pending dir", path)
+			}
+			if _, err := os.Stat(filepath.Join(m.root, ".gitignore")); err != nil {
+				t.Errorf("mirror .gitignore missing: %v", err)
+			}
+		})
+	}
+}
+
+// TestResumeTarget: a cloud agent's own session reopens the same agent while it
+// exists on this project's repository; otherwise the session is copied into a
+// new agent, unless the transcript is over the cap.
+func TestResumeTarget(t *testing.T) {
+	fx := loadFixture(t, "fixture-run")
+	agentID := fx.agent.agent.ID
+	withAgent := func(change func(map[string]any)) json.RawMessage {
+		var agent map[string]any
+		if err := json.Unmarshal(fx.agent.raw, &agent); err != nil {
+			t.Fatal(err)
+		}
+		change(agent)
+		raw, _ := json.Marshal(agent)
+		return raw
+	}
+	pending := func(source, prompt string) pendingResume {
+		return pendingResume{SourceAgentID: source, Name: "forth-mastermind", Prompt: prompt}
+	}
+	small := resumePromptHead + "\n\n## User\n\nhello"
+
+	tests := []struct {
+		name          string
+		agent         json.RawMessage // served by the API; nil serves none
+		mirrored      bool            // the agent's session is in the mirror
+		pending       *pendingResume  // resume through a pending launch, else by agent id
+		wantID        string
+		wantLaunch    bool
+		wantUnarchive bool
+		wantErr       string
+	}{
+		{name: "pending: source agent reopens", agent: fx.agent.raw, pending: ptr(pending(agentID, small)), wantID: agentID},
+		{name: "pending: source agent gone, copied", pending: ptr(pending(agentID, small)), wantID: launchedAgentID, wantLaunch: true},
+		{name: "pending: another agent's session, copied", agent: fx.agent.raw, pending: ptr(pending("", small)), wantID: launchedAgentID, wantLaunch: true},
+		{name: "pending: copy over the cap refused", pending: ptr(pending(agentID, strings.Repeat("x", maxResumePromptChars+1))), wantErr: "the limit is 1,000,000 characters"},
+		{name: "agent id: reopens", agent: fx.agent.raw, wantID: agentID},
+		{name: "agent id: archived agent unarchived", agent: withAgent(func(a map[string]any) { a["status"] = "ARCHIVED" }), wantID: agentID, wantUnarchive: true},
+		{name: "agent id: on another repository, copied from the mirror", agent: withAgent(func(a map[string]any) {
+			a["repos"] = []map[string]string{{"url": "https://github.com/specstoryai/another"}}
+		}), mirrored: true, wantID: launchedAgentID, wantLaunch: true},
+		{name: "agent id: gone and not mirrored", wantErr: "no copy of its session"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			useSettings(t, "test-key")
+			f := newFakeAPI(t)
+			if tt.agent != nil {
+				f.setAgent(tt.agent)
+			}
+			project := makeProject(t, t.TempDir(), testOrigin)
+			m, projectLocal := mirrorFor(project)
+			if err := m.ensureRoot(projectLocal); err != nil {
+				t.Fatal(err)
+			}
+			if tt.mirrored {
+				writeFixtureMirror(t, m, fx)
+			}
+			sessionID := agentID
+			if tt.pending != nil {
+				sessionID = pendingPrefix + "test"
+				raw, _ := json.Marshal(tt.pending)
+				if err := writeFileAtomic(m.pendingFile(sessionID+".json"), raw); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			got, err := resumeTarget(context.Background(), project, sessionID)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("err = %v, want %q", err, tt.wantErr)
+				}
+			} else if err != nil || got != tt.wantID {
+				t.Fatalf("resumeTarget = %q, %v; want %q", got, err, tt.wantID)
+			}
+			if launched := len(f.launches) > 0; launched != tt.wantLaunch {
+				t.Errorf("launched = %v, want %v", launched, tt.wantLaunch)
+			}
+			if tt.wantLaunch && !strings.HasPrefix(f.launches[0].Prompt.Text, resumePromptHead) {
+				t.Errorf("copy prompt does not carry the transcript: %.100q", f.launches[0].Prompt.Text)
+			}
+			if unarchived := f.count("/v1/agents/"+agentID+"/unarchive") > 0; unarchived != tt.wantUnarchive {
+				t.Errorf("unarchived = %v, want %v", unarchived, tt.wantUnarchive)
+			}
+			if tt.pending != nil {
+				if _, err := os.Stat(m.pendingFile(sessionID + ".json")); !os.IsNotExist(err) {
+					t.Error("the pending transcript was left in the mirror")
+				}
+			}
+		})
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
 
 func TestDebugOutput(t *testing.T) {
 	debugBase := t.TempDir()

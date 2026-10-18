@@ -121,7 +121,12 @@ type fakeAPI struct {
 	// convStatus, when set, makes GET /v0/agents/{id}/conversation fail with it.
 	convStatus int
 	requests   map[string]int
+	// launches records each POST /v1/agents body; launched answers them.
+	launches []launchRequest
 }
+
+// launchedAgentID is the id the fake API gives every launched agent.
+const launchedAgentID = "bc-0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
 
 // newFakeAPI starts a server, points the client at it and lifts the rate
 // limit so tests run at full speed.
@@ -207,8 +212,20 @@ func (f *fakeAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		data, _ := os.ReadFile(filepath.Join("testdata", "api", "me.json"))
 		_, _ = w.Write(data)
+	case r.URL.Path == "/v1/agents" && r.Method == http.MethodPost:
+		var launch launchRequest
+		if err := json.NewDecoder(r.Body).Decode(&launch); err != nil {
+			f.t.Errorf("decode launch: %v", err)
+		}
+		f.mu.Lock()
+		f.launches = append(f.launches, launch)
+		f.mu.Unlock()
+		w.WriteHeader(http.StatusCreated)
+		writeJSON(w, map[string]any{"agent": map[string]any{"id": launchedAgentID, "name": launch.Name}, "run": map[string]any{"id": "run-1"}})
 	case r.URL.Path == "/v1/agents":
 		f.serveAgentList(w, r)
+	case len(parts) == 4 && parts[0] == "v1" && parts[3] == "unarchive":
+		writeJSON(w, map[string]any{"id": parts[2]})
 	case len(parts) == 3 && parts[0] == "v1":
 		f.serveAgentPart(w, parts[2], "")
 	case len(parts) == 4 && parts[0] == "v1" && parts[3] == "runs":
@@ -504,7 +521,7 @@ func TestClientGivesUpAfterMaxRetries(t *testing.T) {
 // refused it (429), because a 5xx or a dropped connection may have started a
 // paid agent already, and resending would start a second.
 func TestLaunchAgentRetriesOnlyRefusals(t *testing.T) {
-	const created = `{"id":"bc-0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d","name":"SpecStory session","url":"https://cursor.com/agents/bc-0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"}`
+	const created = `{"agent":{"id":"bc-0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d","name":"SpecStory session"},"run":{"id":"run-1"}}`
 	tests := []struct {
 		name      string
 		first     func(w http.ResponseWriter)
@@ -524,10 +541,7 @@ func TestLaunchAgentRetriesOnlyRefusals(t *testing.T) {
 				_ = conn.Close()
 			}
 		}, wantCalls: 1, wantErr: true},
-		{name: "agent wrapped in the response", first: func(w http.ResponseWriter) {
-			_, _ = w.Write([]byte(`{"agent":` + created + `,"run":{"id":"run-1"}}`))
-		}, wantCalls: 1},
-		{name: "bare agent response", first: func(w http.ResponseWriter) {
+		{name: "created", first: func(w http.ResponseWriter) {
 			_, _ = w.Write([]byte(created))
 		}, wantCalls: 1},
 		{name: "response without an agent id", first: func(w http.ResponseWriter) {
@@ -559,7 +573,7 @@ func TestLaunchAgentRetriesOnlyRefusals(t *testing.T) {
 			c.baseURL = server.URL
 			c.throttle = &throttle{now: clock.Now, sleep: clock.Sleep}
 
-			launch := newLaunchRequest("https://github.com/o/r", "main")
+			launch := newLaunchRequest("https://github.com/o/r", "main", launchName, launchPromptText)
 			agent, err := c.launchAgent(context.Background(), launch)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)

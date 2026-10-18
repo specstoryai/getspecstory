@@ -342,21 +342,29 @@ func (c *apiClient) launchAgent(ctx context.Context, launch launchRequest) (apiA
 	if err != nil {
 		return apiAgent{}, fmt.Errorf("read launch response: %w", err)
 	}
-	// The created agent may come wrapped as {"agent": {...}, ...} or bare.
-	var wrapped struct {
-		Agent json.RawMessage `json:"agent"`
+	// The response carries the new agent and its first run.
+	var created struct {
+		Agent apiAgent `json:"agent"`
 	}
-	if json.Unmarshal(raw, &wrapped) == nil && len(wrapped.Agent) > 0 {
-		raw = wrapped.Agent
-	}
-	var agent apiAgent
-	if err := json.Unmarshal(raw, &agent); err != nil {
+	if err := json.Unmarshal(raw, &created); err != nil {
 		return apiAgent{}, fmt.Errorf("decode launch response: %w", err)
 	}
+	agent := created.Agent
 	if !validAgentID(agent.ID) {
 		return apiAgent{}, fmt.Errorf("launch response has no valid agent id (%q)", agent.ID)
 	}
 	return agent, nil
+}
+
+// unarchiveAgent restores an archived agent so it can take follow-up runs.
+func (c *apiClient) unarchiveAgent(ctx context.Context, agentID string) error {
+	resp, err := c.do(ctx, c.jsonHTTP, func(ctx context.Context) (*http.Request, error) {
+		return http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1/agents/"+url.PathEscape(agentID)+"/unarchive", nil)
+	})
+	if err != nil {
+		return err
+	}
+	return resp.Body.Close()
 }
 
 // listAgents returns every agent the key can see, newest first, following

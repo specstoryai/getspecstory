@@ -206,10 +206,11 @@ func buildSessionData(snap *agentSnapshot, workspaceRoot string) (*schema.Sessio
 		if exchange == nil {
 			continue
 		}
-		// The greeting `run` opens an agent with is not what the session is
-		// about, so the title and slug wait for the user's own first prompt,
-		// and an agent with only the greeting has nothing to save yet.
-		if text := firstUserText(exchange); firstPrompt == "" && strings.TrimSpace(text) != launchPromptText {
+		// The greeting `run` opens an agent with, and the transcript `resume`
+		// seeds one with, are not what the session is about, so the title and
+		// slug wait for the user's own first prompt, and an agent with only
+		// that opening prompt has nothing to save yet.
+		if text := firstUserText(exchange); firstPrompt == "" && !isSpecStoryPrompt(text) {
 			firstPrompt = text
 		}
 		if exchange.Metadata["source"] == v0Source {
@@ -545,6 +546,13 @@ func firstUserText(exchange *schema.Exchange) string {
 		}
 	}
 	return ""
+}
+
+// isSpecStoryPrompt reports whether a run's prompt is one SpecStory sent to
+// open an agent rather than one the user wrote.
+func isSpecStoryPrompt(text string) bool {
+	text = strings.TrimSpace(text)
+	return text == launchPromptText || strings.HasPrefix(text, resumePromptHead)
 }
 
 // sessionName prefers the agent's own name (Cursor sets one, derived from the

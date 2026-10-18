@@ -253,3 +253,12 @@ type PathSessionReader interface {
 type ProgressEnumerator interface {
 	ListAllAgentChatSessionsProgress(r *ScanReporter) ([]GlobalSessionRef, error)
 }
+
+// ResumeTargetNoter is implemented by a provider whose resume target carries a
+// caveat the user should see before choosing it, such as a cost. The picker
+// shows the note beside the provider's name; "" shows nothing. sourceAgent is
+// the provider ID of the session being resumed, because the caveat can depend
+// on where the session came from.
+type ResumeTargetNoter interface {
+	ResumeTargetNote(sourceAgent string) string
+}
