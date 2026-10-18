@@ -78,6 +78,13 @@ type GlobalSessionRef struct {
 	NativePath string // absolute path the provider opens to read this session
 	OriginCwd  string // working directory the session was launched from (-> project_id)
 
+	// OriginRepoURL is the git remote URL of the repository the session worked on,
+	// for a hosted agent that records a repository but never a local directory.
+	// When OriginCwd is empty, reindex derives the project from this URL with the
+	// same normalization and hash as a project's git_id, and parses the session's
+	// body through spi.PathSessionReader. Leave it empty when OriginCwd is known.
+	OriginRepoURL string
+
 	// Fingerprint is the provider's own freshness token for the session, for a
 	// store where NativePath is shared by every session (one SQLite database):
 	// that file's size and mtime move whenever any session changes, so a
@@ -245,4 +252,13 @@ type PathSessionReader interface {
 // feedback. reindex uses this to render a per-agent "Scanning agents…" display.
 type ProgressEnumerator interface {
 	ListAllAgentChatSessionsProgress(r *ScanReporter) ([]GlobalSessionRef, error)
+}
+
+// ResumeTargetNoter is implemented by a provider whose resume target carries a
+// caveat the user should see before choosing it, such as a cost. The picker
+// shows the note beside the provider's name; "" shows nothing. sourceAgent is
+// the provider ID of the session being resumed, because the caveat can depend
+// on where the session came from.
+type ResumeTargetNoter interface {
+	ResumeTargetNote(sourceAgent string) string
 }

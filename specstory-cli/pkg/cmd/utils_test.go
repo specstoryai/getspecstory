@@ -143,12 +143,12 @@ func TestResolveProviderIDs(t *testing.T) {
 		{
 			name:          "unknown provider ID is an error",
 			providersFlag: []string{"notaprovider"},
-			wantErrSubstr: "not a valid provider ID",
+			wantErrSubstr: "at least one valid provider ID.\nAvailable providers:",
 		},
 		{
-			name:          "unknown provider mixed with valid is still an error",
+			name:          "unknown provider mixed with valid is skipped",
 			providersFlag: []string{"claude", "notaprovider"},
-			wantErrSubstr: "not a valid provider ID",
+			wantIDs:       []string{"claude"},
 		},
 	}
 
@@ -201,7 +201,7 @@ func TestCheckFailurePresentation(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			result := spi.CheckResult{ErrorType: tt.errorType, ErrorMessage: "Reason\nRemediation"}
-			output := formatCheckFailure("Agent", result, tt.customCmd, tt.summary)
+			output := formatCheckFailure("agent", "Agent", result, tt.customCmd, tt.summary)
 			if strings.Contains(output, "ℹ️") != tt.informational || strings.Contains(output, "❌") == tt.informational {
 				t.Fatalf("wrong severity: %s", output)
 			}
@@ -211,6 +211,9 @@ func TestCheckFailurePresentation(t *testing.T) {
 				}
 				if tt.informational && (strings.Contains(output, "Error:") || !strings.Contains(output, "Optional")) {
 					t.Fatalf("missing optional agent reads as an error: %s", output)
+				}
+				if tt.informational && !strings.Contains(output, "`specstory check agent`") {
+					t.Fatalf("summary does not point at the detailed check: %s", output)
 				}
 			} else if !strings.Contains(output, "Remediation") {
 				t.Fatalf("detailed check lost help: %s", output)

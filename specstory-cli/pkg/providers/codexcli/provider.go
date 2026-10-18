@@ -796,6 +796,8 @@ func processSessionToAgentChat(sessionInfo *codexSessionInfo, workspaceRoot stri
 		slog.Error("Failed to generate SessionData", "sessionId", sessionInfo.SessionID, "error", err)
 		return nil, fmt.Errorf("failed to generate SessionData: %w", err)
 	}
+	// Resume titles a reconstructed session from SessionData's slug.
+	sessionData.Slug = slug
 
 	// Write provider-specific debug files if requested
 	if debugRaw {

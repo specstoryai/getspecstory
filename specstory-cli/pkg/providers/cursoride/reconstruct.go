@@ -104,7 +104,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		// database.
 		"_v":         17,
 		"composerId": newID,
-		"name":       spi.ResumedSessionTitle(data.Slug),
+		"name":       spi.ResumedSessionTitle(data),
 		// Visibility-critical fields: Cursor hides sessions where these are absent or wrong.
 		"hasLoaded":   true,
 		"isDraft":     false,
@@ -205,7 +205,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 
 	regMeta := ComposerHeadMeta{
 		ComposerID:    newID,
-		Name:          spi.ResumedSessionTitle(data.Slug),
+		Name:          spi.ResumedSessionTitle(data),
 		CreatedAt:     nowMs,
 		LastUpdatedAt: nowMs + int64(len(turns))*1000,
 		WorkspaceID:   workspace.ID,

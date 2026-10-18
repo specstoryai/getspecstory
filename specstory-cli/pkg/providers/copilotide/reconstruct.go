@@ -85,7 +85,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 
 	newID := uuid.NewString()
 	nowMs := time.Now().UnixMilli()
-	title := spi.ResumedSessionTitle(data.Slug)
+	title := spi.ResumedSessionTitle(data)
 
 	requests := buildRequestBlocks(turns, nowMs)
 	// Match the timestamp of the last request block (staggered 1s per request

@@ -140,13 +140,18 @@ func RFC3339Millis(t time.Time) string {
 	return t.Format(reconstructMillisLayout)
 }
 
-// ResumedSessionTitle returns the display title for a reconstructed session: the trimmed
-// source slug, or "Resumed session" when the slug is blank or whitespace-only. Centralizing
-// this keeps the trim (which a couple of serializers previously skipped) and the fallback
-// consistent across providers.
-func ResumedSessionTitle(slug string) string {
-	if title := strings.TrimSpace(slug); title != "" {
+// ResumedSessionTitle returns the display title for a session reconstructed from data: the
+// same readable title the source session shows in listings and in SpecStory Cloud (its first
+// user prompt, see ReadableTitleFromSessionData), else its trimmed slug, else "Resumed
+// session". Centralizing this keeps every target agent titling resumed sessions alike.
+func ResumedSessionTitle(data *schema.SessionData) string {
+	if title := ReadableTitleFromSessionData(data); title != "" {
 		return title
+	}
+	if data != nil {
+		if slug := strings.TrimSpace(data.Slug); slug != "" {
+			return slug
+		}
 	}
 	return "Resumed session"
 }

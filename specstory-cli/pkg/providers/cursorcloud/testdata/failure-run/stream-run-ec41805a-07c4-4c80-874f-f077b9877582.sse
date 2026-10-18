@@ -1,0 +1,1761 @@
+event: status
+data: {"runId":"run-ec41805a-07c4-4c80-874f-f077b9877582","status":"RUNNING"}
+
+event: heartbeat
+data: {}
+
+id: 1791909030775-0
+event: interaction_update
+data: {"type":"step-started","stepId":0}
+
+id: 1791909030790-0
+event: interaction_update
+data: {"type":"user-message-appended","userMessage":{"type":"user_message","session_id":"run-ec41805a-07c4-4c80-874f-f077b9877582","text":"Verification task for a transcript parser. Several steps are EXPECTED to fail; do not retry, work around, or fix any failure, just move on to the next step.\n1. Read the file does-not-exist.txt with your file reading tool (it does not exist).\n2. Run the shell command: cat /nonexistent-file\n3. Delete the file missing-file.txt with your delete tool (it does not exist).\n4. Use your grep/search tool to search for the pattern zzz in the path /nonexistent-path.\n5. Fetch the web page https://nonexistent.invalid/ with your web fetch tool.\n6. Run the shell command: echo done\nDo not commit or push. Finish with a one-sentence summary."}}
+
+id: 1791909033358-0
+event: thinking
+data: {"text":"The user wants me to run"}
+
+id: 1791909033358-0
+event: interaction_update
+data: {"type":"thinking-delta","text":"The user wants me to run"}
+
+id: 1791909033402-0
+event: interaction_update
+data: {"type":"token-delta","tokens":6}
+
+id: 1791909033405-0
+event: thinking
+data: {"text":" through"}
+
+id: 1791909033405-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" through"}
+
+id: 1791909033407-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909033410-0
+event: thinking
+data: {"text":" a series"}
+
+id: 1791909033410-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" a series"}
+
+id: 1791909033412-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909033455-0
+event: thinking
+data: {"text":" of verification steps"}
+
+id: 1791909033455-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" of verification steps"}
+
+id: 1791909033500-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909033503-0
+event: thinking
+data: {"text":","}
+
+id: 1791909033503-0
+event: interaction_update
+data: {"type":"thinking-delta","text":","}
+
+id: 1791909033506-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909033531-0
+event: thinking
+data: {"text":" where"}
+
+id: 1791909033531-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" where"}
+
+id: 1791909033533-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909033566-0
+event: thinking
+data: {"text":" most"}
+
+id: 1791909033566-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" most"}
+
+id: 1791909033568-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909033613-0
+event: thinking
+data: {"text":" are"}
+
+id: 1791909033613-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" are"}
+
+id: 1791909033616-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909033676-0
+event: thinking
+data: {"text":" expected to fail."}
+
+id: 1791909033676-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" expected to fail."}
+
+id: 1791909033678-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909033724-0
+event: thinking
+data: {"text":" I"}
+
+id: 1791909033724-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" I"}
+
+id: 1791909033813-0
+event: thinking
+data: {"text":" should"}
+
+id: 1791909033813-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" should"}
+
+id: 1791909033816-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909033819-0
+event: thinking
+data: {"text":" not"}
+
+id: 1791909033819-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" not"}
+
+id: 1791909033826-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909033865-0
+event: thinking
+data: {"text":" retry or"}
+
+id: 1791909033865-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" retry or"}
+
+id: 1791909033874-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909033919-0
+event: thinking
+data: {"text":" fix failures"}
+
+id: 1791909033919-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" fix failures"}
+
+id: 1791909033937-0
+event: interaction_update
+data: {"type":"token-delta","tokens":4}
+
+id: 1791909034010-0
+event: thinking
+data: {"text":", just move on to the next step"}
+
+id: 1791909034010-0
+event: interaction_update
+data: {"type":"thinking-delta","text":", just move on to the next step"}
+
+id: 1791909034068-0
+event: interaction_update
+data: {"type":"token-delta","tokens":7}
+
+id: 1791909034077-0
+event: thinking
+data: {"text":". Let me execute"}
+
+id: 1791909034077-0
+event: interaction_update
+data: {"type":"thinking-delta","text":". Let me execute"}
+
+id: 1791909034079-0
+event: interaction_update
+data: {"type":"token-delta","tokens":4}
+
+id: 1791909034110-0
+event: thinking
+data: {"text":" each"}
+
+id: 1791909034110-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" each"}
+
+id: 1791909034114-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909034159-0
+event: thinking
+data: {"text":" step in"}
+
+id: 1791909034159-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" step in"}
+
+id: 1791909034162-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909034206-0
+event: thinking
+data: {"text":" order"}
+
+id: 1791909034206-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" order"}
+
+id: 1791909034262-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909034265-0
+event: thinking
+data: {"text":".\n\n1"}
+
+id: 1791909034265-0
+event: interaction_update
+data: {"type":"thinking-delta","text":".\n\n1"}
+
+id: 1791909034267-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909034335-0
+event: thinking
+data: {"text":". Read"}
+
+id: 1791909034335-0
+event: interaction_update
+data: {"type":"thinking-delta","text":". Read"}
+
+id: 1791909034359-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909034362-0
+event: thinking
+data: {"text":" does"}
+
+id: 1791909034362-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" does"}
+
+id: 1791909034364-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909034427-0
+event: thinking
+data: {"text":"-not-exist.txt"}
+
+id: 1791909034427-0
+event: interaction_update
+data: {"type":"thinking-delta","text":"-not-exist.txt"}
+
+id: 1791909034461-0
+event: interaction_update
+data: {"type":"token-delta","tokens":3}
+
+id: 1791909034493-0
+event: thinking
+data: {"text":"\n2. Run shell command: cat /"}
+
+id: 1791909034493-0
+event: interaction_update
+data: {"type":"thinking-delta","text":"\n2. Run shell command: cat /"}
+
+id: 1791909034549-0
+event: interaction_update
+data: {"type":"token-delta","tokens":7}
+
+id: 1791909034555-0
+event: thinking
+data: {"text":"nonexistent-file\n3."}
+
+id: 1791909034555-0
+event: interaction_update
+data: {"type":"thinking-delta","text":"nonexistent-file\n3."}
+
+id: 1791909034557-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909034611-0
+event: thinking
+data: {"text":" Delete missing-file.txt\n4"}
+
+id: 1791909034611-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" Delete missing-file.txt\n4"}
+
+id: 1791909034613-0
+event: interaction_update
+data: {"type":"token-delta","tokens":7}
+
+id: 1791909034662-0
+event: thinking
+data: {"text":"."}
+
+id: 1791909034662-0
+event: interaction_update
+data: {"type":"thinking-delta","text":"."}
+
+id: 1791909034719-0
+event: thinking
+data: {"text":" Grep for pattern"}
+
+id: 1791909034719-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" Grep for pattern"}
+
+id: 1791909034722-0
+event: interaction_update
+data: {"type":"token-delta","tokens":4}
+
+id: 1791909034779-0
+event: thinking
+data: {"text":" zzz in /nonexistent"}
+
+id: 1791909034779-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" zzz in /nonexistent"}
+
+id: 1791909034782-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909034831-0
+event: thinking
+data: {"text":"-path\n5. Web"}
+
+id: 1791909034831-0
+event: interaction_update
+data: {"type":"thinking-delta","text":"-path\n5. Web"}
+
+id: 1791909034834-0
+event: interaction_update
+data: {"type":"token-delta","tokens":3}
+
+id: 1791909034884-0
+event: thinking
+data: {"text":" fetch https://nonexistent.invalid"}
+
+id: 1791909034884-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" fetch https://nonexistent.invalid"}
+
+id: 1791909034887-0
+event: interaction_update
+data: {"type":"token-delta","tokens":9}
+
+id: 1791909034942-0
+event: thinking
+data: {"text":"/\n6. Run"}
+
+id: 1791909034942-0
+event: interaction_update
+data: {"type":"thinking-delta","text":"/\n6. Run"}
+
+id: 1791909034946-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909035016-0
+event: thinking
+data: {"text":" shell command: echo done\n\nThen"}
+
+id: 1791909035016-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" shell command: echo done\n\nThen"}
+
+id: 1791909035029-0
+event: interaction_update
+data: {"type":"token-delta","tokens":7}
+
+id: 1791909035055-0
+event: thinking
+data: {"text":" provide"}
+
+id: 1791909035055-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" provide"}
+
+id: 1791909035067-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909035130-0
+event: thinking
+data: {"text":" a one-sentence summary."}
+
+id: 1791909035130-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" a one-sentence summary."}
+
+id: 1791909035144-0
+event: interaction_update
+data: {"type":"token-delta","tokens":6}
+
+id: 1791909035159-0
+event: thinking
+data: {"text":" I should"}
+
+id: 1791909035159-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" I should"}
+
+id: 1791909035170-0
+event: interaction_update
+data: {"type":"token-delta","tokens":3}
+
+id: 1791909035249-0
+event: thinking
+data: {"text":" not commit or push."}
+
+id: 1791909035249-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" not commit or push."}
+
+id: 1791909035257-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909035260-0
+event: thinking
+data: {"text":"\n\nLet me start by running"}
+
+id: 1791909035260-0
+event: interaction_update
+data: {"type":"thinking-delta","text":"\n\nLet me start by running"}
+
+id: 1791909035267-0
+event: interaction_update
+data: {"type":"token-delta","tokens":6}
+
+id: 1791909035310-0
+event: thinking
+data: {"text":" the independent"}
+
+id: 1791909035310-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" the independent"}
+
+id: 1791909035313-0
+event: interaction_update
+data: {"type":"token-delta","tokens":4}
+
+id: 1791909035365-0
+event: thinking
+data: {"text":" operations"}
+
+id: 1791909035365-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" operations"}
+
+id: 1791909035394-0
+event: interaction_update
+data: {"type":"token-delta","tokens":3}
+
+id: 1791909035418-0
+event: thinking
+data: {"text":"."}
+
+id: 1791909035418-0
+event: interaction_update
+data: {"type":"thinking-delta","text":"."}
+
+id: 1791909035462-0
+event: thinking
+data: {"text":" Actually"}
+
+id: 1791909035462-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" Actually"}
+
+id: 1791909035467-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909035516-0
+event: thinking
+data: {"text":", I should"}
+
+id: 1791909035516-0
+event: interaction_update
+data: {"type":"thinking-delta","text":", I should"}
+
+id: 1791909035583-0
+event: interaction_update
+data: {"type":"token-delta","tokens":3}
+
+id: 1791909035627-0
+event: thinking
+data: {"text":" do"}
+
+id: 1791909035627-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" do"}
+
+id: 1791909035629-0
+event: thinking
+data: {"text":" them"}
+
+id: 1791909035629-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" them"}
+
+id: 1791909035635-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909035670-0
+event: thinking
+data: {"text":" in order as"}
+
+id: 1791909035670-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" in order as"}
+
+id: 1791909035723-0
+event: interaction_update
+data: {"type":"token-delta","tokens":3}
+
+id: 1791909035779-0
+event: thinking
+data: {"text":" specified,"}
+
+id: 1791909035779-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" specified,"}
+
+id: 1791909035783-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909035787-0
+event: thinking
+data: {"text":" but"}
+
+id: 1791909035787-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" but"}
+
+id: 1791909035796-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909035825-0
+event: thinking
+data: {"text":" I can"}
+
+id: 1791909035825-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" I can"}
+
+id: 1791909035871-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909035878-0
+event: thinking
+data: {"text":" batch"}
+
+id: 1791909035878-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" batch"}
+
+id: 1791909035880-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909035926-0
+event: thinking
+data: {"text":" some"}
+
+id: 1791909035926-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" some"}
+
+id: 1791909035973-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909035983-0
+event: thinking
+data: {"text":" that"}
+
+id: 1791909035983-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" that"}
+
+id: 1791909035991-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909036038-0
+event: thinking
+data: {"text":" are independent."}
+
+id: 1791909036038-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" are independent."}
+
+id: 1791909036086-0
+event: interaction_update
+data: {"type":"token-delta","tokens":4}
+
+id: 1791909036095-0
+event: interaction_update
+data: {"type":"thinking-completed","thinkingDurationMs":2740}
+
+id: 1791909036101-0
+event: assistant
+data: {"text":"I'll run through each"}
+
+id: 1791909036101-0
+event: interaction_update
+data: {"type":"text-delta","text":"I'll run through each"}
+
+id: 1791909036107-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909036147-0
+event: assistant
+data: {"text":" verification step as"}
+
+id: 1791909036147-0
+event: interaction_update
+data: {"type":"text-delta","text":" verification step as"}
+
+id: 1791909036167-0
+event: interaction_update
+data: {"type":"token-delta","tokens":6}
+
+id: 1791909036194-0
+event: assistant
+data: {"text":" requested, expecting"}
+
+id: 1791909036194-0
+event: interaction_update
+data: {"type":"text-delta","text":" requested, expecting"}
+
+id: 1791909036196-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909036249-0
+event: assistant
+data: {"text":" most to fail."}
+
+id: 1791909036249-0
+event: interaction_update
+data: {"type":"text-delta","text":" most to fail."}
+
+id: 1791909036290-0
+event: interaction_update
+data: {"type":"token-delta","tokens":3}
+
+id: 1791909036621-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909036678-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909036724-0
+event: interaction_update
+data: {"type":"token-delta","tokens":3}
+
+id: 1791909036889-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909036943-0
+event: interaction_update
+data: {"type":"token-delta","tokens":4}
+
+id: 1791909037012-0
+event: interaction_update
+data: {"type":"token-delta","tokens":4}
+
+id: 1791909037156-0
+event: interaction_update
+data: {"type":"token-delta","tokens":6}
+
+id: 1791909037207-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909037261-0
+event: interaction_update
+data: {"type":"token-delta","tokens":3}
+
+id: 1791909037683-0
+event: interaction_update
+data: {"type":"token-delta","tokens":6}
+
+id: 1791909037853-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909037996-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909038008-0
+event: interaction_update
+data: {"type":"tool-requests-listed","callCount":3}
+
+id: 1791909042560-0
+event: tool_call
+data: {"callId":"toolu_01KWz379z9ahbBZeRffMoUYG","name":"get_mcp_tools","status":"running","args":{"toolCallId":"unknown-tool-call-id"},"result":{"error":{"error":"Invalid arguments"}}}
+
+id: 1791909042560-1
+event: tool_call
+data: {"callId":"toolu_015yYWAg1b9P6VSYgUbnHLTe","name":"read_file","status":"running","args":{"path":"/workspace/does-not-exist.txt"}}
+
+id: 1791909042560-1
+event: interaction_update
+data: {"type":"tool-call-started","callId":"toolu_015yYWAg1b9P6VSYgUbnHLTe","toolCall":{"type":"read","args":{"path":"/workspace/does-not-exist.txt"}},"modelCallId":"4e9a0156-1a8c-4501-93e9-1c51f3301015-0-vgex"}
+
+id: 1791909042585-0
+event: tool_call
+data: {"callId":"toolu_01QALzBNagBiPmhDCg1bZxZW","name":"run_terminal_cmd","status":"running","args":{"command":"cat /nonexistent-file","timeout":600000,"toolCallId":"toolu_01QALzBNagBiPmhDCg1bZxZW","simpleCommands":["cat"],"parsingResult":{"executableCommands":[{"name":"cat","args":[{"type":"word","value":"/nonexistent-file"}],"fullText":"cat /nonexistent-file"}]},"fileOutputThresholdBytes":"10000","timeoutBehavior":"TIMEOUT_BEHAVIOR_BACKGROUND","hardTimeout":86400000,"description":"cat nonexistent file","closeStdin":true,"conversationId":"bc-cac9a149-19d2-4250-8828-e9916e5bfc25","requestId":"4e9a0156-1a8c-4501-93e9-1c51f3301015"}}
+
+id: 1791909042585-0
+event: interaction_update
+data: {"type":"tool-call-started","callId":"toolu_01QALzBNagBiPmhDCg1bZxZW","toolCall":{"type":"shell","args":{"command":"cat /nonexistent-file","timeout":600000}},"modelCallId":"4e9a0156-1a8c-4501-93e9-1c51f3301015-0-9mqh"}
+
+id: 1791909043643-0
+event: tool_call
+data: {"callId":"toolu_01KWz379z9ahbBZeRffMoUYG","name":"get_mcp_tools","status":"running","args":{"server":"cursor","toolName":"Delete","toolCallId":"toolu_01KWz379z9ahbBZeRffMoUYG"}}
+
+id: 1791909043655-0
+event: tool_call
+data: {"callId":"toolu_015yYWAg1b9P6VSYgUbnHLTe","name":"read_file","status":"completed","args":{"path":"/workspace/does-not-exist.txt"},"result":{"error":{"errorMessage":"File not found"}}}
+
+id: 1791909043655-0
+event: interaction_update
+data: {"type":"tool-call-completed","callId":"toolu_015yYWAg1b9P6VSYgUbnHLTe","toolCall":{"type":"read","args":{"path":"/workspace/does-not-exist.txt"},"result":{"status":"error","error":{"message":"error"}}},"modelCallId":"4e9a0156-1a8c-4501-93e9-1c51f3301015-0-vgex"}
+
+id: 1791909043763-0
+event: tool_call
+data: {"callId":"toolu_01KWz379z9ahbBZeRffMoUYG","name":"get_mcp_tools","status":"completed","args":{"server":"cursor","toolName":"Delete","toolCallId":"toolu_01KWz379z9ahbBZeRffMoUYG"},"result":{"success":{"content":"{\n  \"tool\": \"Delete\",\n  \"description\": \"Deletes a file at the specified path. The operation will fail gracefully if:\\n    - The file doesn't exist\\n    - The operation is rejected for security reasons\\n    - The file cannot be deleted\",\n  \"inputSchema\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"path\": {\n        \"type\": \"string\",\n        \"description\": \"The absolute path of the file to delete\"\n      }\n    },\n    \"required\": [\n      \"path\"\n    ]\n  }\n}"}}}
+
+id: 1791909043871-0
+event: interaction_update
+data: {"type":"token-delta","tokens":115}
+
+id: 1791909043953-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909044537-0
+event: tool_call
+data: {"callId":"toolu_01QALzBNagBiPmhDCg1bZxZW","name":"run_terminal_cmd","status":"completed","args":{"command":"cat /nonexistent-file","timeout":600000,"toolCallId":"toolu_01QALzBNagBiPmhDCg1bZxZW","simpleCommands":["cat"],"parsingResult":{"executableCommands":[{"name":"cat","args":[{"type":"word","value":"/nonexistent-file"}],"fullText":"cat /nonexistent-file"}]},"fileOutputThresholdBytes":"10000","timeoutBehavior":"TIMEOUT_BEHAVIOR_BACKGROUND","hardTimeout":86400000,"description":"cat nonexistent file","closeStdin":true,"conversationId":"bc-cac9a149-19d2-4250-8828-e9916e5bfc25","requestId":"4e9a0156-1a8c-4501-93e9-1c51f3301015"},"result":{"failure":{"command":"cat /nonexistent-file","exitCode":1,"stderr":"cat: /nonexistent-file: No such file or directory\n","executionTime":3851,"interleavedOutput":"cat: /nonexistent-file: No such file or directory\n","localExecutionTimeMs":109},"isBackground":false}}
+
+id: 1791909044537-0
+event: interaction_update
+data: {"type":"tool-call-completed","callId":"toolu_01QALzBNagBiPmhDCg1bZxZW","toolCall":{"type":"shell","args":{"command":"cat /nonexistent-file","timeout":600000},"result":{"status":"success","value":{"exitCode":1,"signal":"","stdout":"","stderr":"cat: /nonexistent-file: No such file or directory\n","executionTime":3851}}},"modelCallId":"4e9a0156-1a8c-4501-93e9-1c51f3301015-0-9mqh"}
+
+id: 1791909044541-0
+event: interaction_update
+data: {"type":"token-delta","tokens":44}
+
+id: 1791909045461-0
+event: interaction_update
+data: {"type":"step-completed","stepId":0,"stepDurationMs":14686}
+
+id: 1791909045567-0
+event: interaction_update
+data: {"type":"step-started","stepId":127}
+
+id: 1791909046984-0
+event: thinking
+data: {"text":"Good"}
+
+id: 1791909046984-0
+event: interaction_update
+data: {"type":"thinking-delta","text":"Good"}
+
+id: 1791909046986-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909047566-0
+event: thinking
+data: {"text":", steps"}
+
+id: 1791909047566-0
+event: interaction_update
+data: {"type":"thinking-delta","text":", steps"}
+
+id: 1791909047578-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909047585-0
+event: thinking
+data: {"text":" 1 "}
+
+id: 1791909047585-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" 1 "}
+
+id: 1791909047590-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909047601-0
+event: thinking
+data: {"text":"and 2 failed"}
+
+id: 1791909047601-0
+event: interaction_update
+data: {"type":"thinking-delta","text":"and 2 failed"}
+
+id: 1791909047611-0
+event: interaction_update
+data: {"type":"token-delta","tokens":3}
+
+id: 1791909047622-0
+event: thinking
+data: {"text":" as expected. Now I need to:"}
+
+id: 1791909047622-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" as expected. Now I need to:"}
+
+id: 1791909047625-0
+event: interaction_update
+data: {"type":"token-delta","tokens":7}
+
+id: 1791909047636-0
+event: thinking
+data: {"text":"\n3"}
+
+id: 1791909047636-0
+event: interaction_update
+data: {"type":"thinking-delta","text":"\n3"}
+
+id: 1791909047643-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909047647-0
+event: thinking
+data: {"text":". Delete"}
+
+id: 1791909047647-0
+event: interaction_update
+data: {"type":"thinking-delta","text":". Delete"}
+
+id: 1791909047651-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909047654-0
+event: thinking
+data: {"text":" missing-file.txt\n4."}
+
+id: 1791909047654-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" missing-file.txt\n4."}
+
+id: 1791909047657-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909047661-0
+event: thinking
+data: {"text":" Grep for "}
+
+id: 1791909047661-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" Grep for "}
+
+id: 1791909047664-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909047667-0
+event: thinking
+data: {"text":"zzz in"}
+
+id: 1791909047667-0
+event: interaction_update
+data: {"type":"thinking-delta","text":"zzz in"}
+
+id: 1791909047723-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909047733-0
+event: thinking
+data: {"text":" /nonexistent-path\n5"}
+
+id: 1791909047733-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" /nonexistent-path\n5"}
+
+id: 1791909047739-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909047744-0
+event: thinking
+data: {"text":". Web fetch https://nonexistent"}
+
+id: 1791909047744-0
+event: interaction_update
+data: {"type":"thinking-delta","text":". Web fetch https://nonexistent"}
+
+id: 1791909047748-0
+event: interaction_update
+data: {"type":"token-delta","tokens":7}
+
+id: 1791909047763-0
+event: thinking
+data: {"text":".invalid/\n6. echo"}
+
+id: 1791909047763-0
+event: interaction_update
+data: {"type":"thinking-delta","text":".invalid/\n6. echo"}
+
+id: 1791909047786-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909048037-0
+event: thinking
+data: {"text":" done\n\nLet me get"}
+
+id: 1791909048037-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" done\n\nLet me get"}
+
+id: 1791909048086-0
+event: interaction_update
+data: {"type":"token-delta","tokens":4}
+
+id: 1791909048092-0
+event: thinking
+data: {"text":" the Web"}
+
+id: 1791909048092-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" the Web"}
+
+id: 1791909048097-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909048105-0
+event: thinking
+data: {"text":"Fetch tool schema"}
+
+id: 1791909048105-0
+event: interaction_update
+data: {"type":"thinking-delta","text":"Fetch tool schema"}
+
+id: 1791909048117-0
+event: interaction_update
+data: {"type":"token-delta","tokens":4}
+
+id: 1791909048123-0
+event: thinking
+data: {"text":" and"}
+
+id: 1791909048123-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" and"}
+
+id: 1791909048127-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909048131-0
+event: thinking
+data: {"text":" then run"}
+
+id: 1791909048131-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" then run"}
+
+id: 1791909048134-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909048139-0
+event: thinking
+data: {"text":" the remaining"}
+
+id: 1791909048139-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" the remaining"}
+
+id: 1791909048154-0
+event: interaction_update
+data: {"type":"token-delta","tokens":4}
+
+id: 1791909048158-0
+event: thinking
+data: {"text":" steps."}
+
+id: 1791909048158-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" steps."}
+
+id: 1791909048164-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909048335-0
+event: interaction_update
+data: {"type":"thinking-completed","thinkingDurationMs":1352}
+
+id: 1791909048441-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909048545-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909048796-0
+event: interaction_update
+data: {"type":"token-delta","tokens":9}
+
+id: 1791909048799-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909049069-0
+event: interaction_update
+data: {"type":"token-delta","tokens":4}
+
+id: 1791909049192-0
+event: interaction_update
+data: {"type":"token-delta","tokens":6}
+
+id: 1791909049227-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909049499-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909049649-0
+event: interaction_update
+data: {"type":"token-delta","tokens":6}
+
+id: 1791909049784-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909049945-0
+event: interaction_update
+data: {"type":"tool-requests-listed","callCount":3}
+
+id: 1791909050140-0
+event: tool_call
+data: {"callId":"toolu_01ARgzXHsRrbf8BSPvZqaGQb","name":"delete_file","status":"running"}
+
+id: 1791909050141-0
+event: tool_call
+data: {"callId":"toolu_01JARu3q5v82it6gTsh59ysf","name":"grep_search","status":"running"}
+
+id: 1791909050141-1
+event: tool_call
+data: {"callId":"toolu_01HPfFNWbLE6hZGHfnZLntuz","name":"get_mcp_tools","status":"running","args":{"toolCallId":"unknown-tool-call-id"},"result":{"error":{"error":"Invalid arguments"}}}
+
+id: 1791909050146-0
+event: tool_call
+data: {"callId":"toolu_01ARgzXHsRrbf8BSPvZqaGQb","name":"delete_file","status":"running","args":{"path":"/workspace/missing-file.txt","toolCallId":"toolu_01ARgzXHsRrbf8BSPvZqaGQb"}}
+
+id: 1791909050146-0
+event: interaction_update
+data: {"type":"tool-call-started","callId":"toolu_01ARgzXHsRrbf8BSPvZqaGQb","toolCall":{"type":"delete","args":{"path":"/workspace/missing-file.txt"}},"modelCallId":"4e9a0156-1a8c-4501-93e9-1c51f3301015-4-n6j2"}
+
+id: 1791909050147-0
+event: tool_call
+data: {"callId":"toolu_01JARu3q5v82it6gTsh59ysf","name":"grep_search","status":"running","args":{"pattern":"zzz","path":"/nonexistent-path","caseInsensitive":false,"multiline":false,"toolCallId":"toolu_01JARu3q5v82it6gTsh59ysf","offset":0}}
+
+id: 1791909050147-0
+event: interaction_update
+data: {"type":"tool-call-started","callId":"toolu_01JARu3q5v82it6gTsh59ysf","toolCall":{"type":"grep","args":{"pattern":"zzz","path":"/nonexistent-path","offset":0}},"modelCallId":"4e9a0156-1a8c-4501-93e9-1c51f3301015-5-zurq"}
+
+id: 1791909050147-1
+event: tool_call
+data: {"callId":"toolu_01HPfFNWbLE6hZGHfnZLntuz","name":"get_mcp_tools","status":"running","args":{"server":"cursor","toolName":"WebFetch","toolCallId":"toolu_01HPfFNWbLE6hZGHfnZLntuz"}}
+
+id: 1791909050153-0
+event: tool_call
+data: {"callId":"toolu_01HPfFNWbLE6hZGHfnZLntuz","name":"get_mcp_tools","status":"completed","args":{"server":"cursor","toolName":"WebFetch","toolCallId":"toolu_01HPfFNWbLE6hZGHfnZLntuz"},"result":{"success":{"content":"{\n  \"tool\": \"WebFetch\",\n  \"description\": \"Fetch content from a specified URL and return its contents in a readable markdown format. Use this tool when you need to retrieve and analyze webpage content.\\n\\n- The URL must be a fully-formed, valid URL.\\n- This tool is read-only and will not work for requests intended to have side effects.\\n- This fetch tries to return live results but may return previously cached content.\\n- Authentication is not supported, and an error will be returned if the URL requires authentication.\\n- If the URL is returning a non-200 status code, e.g. 404, the tool will not return the content and will instead return an error message.\\n- This fetch runs from an isolated server. Hosts like localhost or private IPs will not work.\\n- This tool does not support fetching binary content, e.g. media or PDFs.\\n- For static assets and non-webpage URLs, use the `Shell` tool instead.\",\n  \"inputSchema\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"url\": {\n        \"type\": \"string\",\n        \"description\": \"The URL to fetch. The content will be converted to a readable markdown format.\"\n      }\n    },\n    \"required\": [\n      \"url\"\n    ]\n  }\n}"}}}
+
+id: 1791909050158-0
+event: interaction_update
+data: {"type":"token-delta","tokens":292}
+
+id: 1791909050418-0
+event: tool_call
+data: {"callId":"toolu_01ARgzXHsRrbf8BSPvZqaGQb","name":"delete_file","status":"completed","args":{"path":"/workspace/missing-file.txt","toolCallId":"toolu_01ARgzXHsRrbf8BSPvZqaGQb"},"result":{"error":{"error":"File not found: /workspace/missing-file.txt"}}}
+
+id: 1791909050418-0
+event: interaction_update
+data: {"type":"tool-call-completed","callId":"toolu_01ARgzXHsRrbf8BSPvZqaGQb","toolCall":{"type":"delete","args":{"path":"/workspace/missing-file.txt"},"result":{"status":"error","error":{"message":"File not found: /workspace/missing-file.txt","path":""}}},"modelCallId":"4e9a0156-1a8c-4501-93e9-1c51f3301015-4-n6j2"}
+
+id: 1791909050422-0
+event: interaction_update
+data: {"type":"token-delta","tokens":16}
+
+id: 1791909050432-0
+event: tool_call
+data: {"callId":"toolu_01JARu3q5v82it6gTsh59ysf","name":"grep_search","status":"completed","args":{"pattern":"zzz","path":"/nonexistent-path","caseInsensitive":false,"multiline":false,"toolCallId":"toolu_01JARu3q5v82it6gTsh59ysf","offset":0},"result":{"error":{"error":"Path does not exist: /nonexistent-path"}}}
+
+id: 1791909050432-0
+event: interaction_update
+data: {"type":"tool-call-completed","callId":"toolu_01JARu3q5v82it6gTsh59ysf","toolCall":{"type":"grep","args":{"pattern":"zzz","path":"/nonexistent-path","offset":0},"result":{"status":"error","error":{"message":"Path does not exist: /nonexistent-path"}}},"modelCallId":"4e9a0156-1a8c-4501-93e9-1c51f3301015-5-zurq"}
+
+id: 1791909050435-0
+event: interaction_update
+data: {"type":"token-delta","tokens":14}
+
+id: 1791909050557-0
+event: interaction_update
+data: {"type":"step-completed","stepId":127,"stepDurationMs":4989}
+
+id: 1791909050769-0
+event: interaction_update
+data: {"type":"step-started","stepId":194}
+
+id: 1791909051786-0
+event: thinking
+data: {"text":"Steps"}
+
+id: 1791909051786-0
+event: interaction_update
+data: {"type":"thinking-delta","text":"Steps"}
+
+id: 1791909051790-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909052210-0
+event: thinking
+data: {"text":" 3 and 4 failed"}
+
+id: 1791909052210-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" 3 and 4 failed"}
+
+id: 1791909052213-0
+event: interaction_update
+data: {"type":"token-delta","tokens":4}
+
+id: 1791909052217-0
+event: thinking
+data: {"text":" as expected. Now let"}
+
+id: 1791909052217-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" as expected. Now let"}
+
+id: 1791909052220-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909052223-0
+event: thinking
+data: {"text":" me do"}
+
+id: 1791909052223-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" me do"}
+
+id: 1791909052226-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909052229-0
+event: thinking
+data: {"text":" steps"}
+
+id: 1791909052229-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" steps"}
+
+id: 1791909052232-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909052235-0
+event: thinking
+data: {"text":" 5 and 6."}
+
+id: 1791909052235-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" 5 and 6."}
+
+id: 1791909052238-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909052279-0
+event: interaction_update
+data: {"type":"thinking-completed","thinkingDurationMs":493}
+
+id: 1791909052387-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909052685-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909052688-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909052692-0
+event: interaction_update
+data: {"type":"token-delta","tokens":9}
+
+id: 1791909052703-0
+event: interaction_update
+data: {"type":"token-delta","tokens":5}
+
+id: 1791909052965-0
+event: interaction_update
+data: {"type":"token-delta","tokens":6}
+
+id: 1791909053123-0
+event: interaction_update
+data: {"type":"token-delta","tokens":6}
+
+id: 1791909053176-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909053285-0
+event: interaction_update
+data: {"type":"tool-requests-listed","callCount":2}
+
+id: 1791909053456-0
+event: tool_call
+data: {"callId":"toolu_012BphGo516gFGbeiN28TM7G","name":"web_fetch","status":"running"}
+
+id: 1791909053459-0
+event: tool_call
+data: {"callId":"toolu_01ETKK74H6GPRoJ3oZNe6pQq","name":"run_terminal_cmd","status":"running","args":{"command":"echo done","timeout":600000,"toolCallId":"toolu_01ETKK74H6GPRoJ3oZNe6pQq","simpleCommands":["echo"],"parsingResult":{"executableCommands":[{"name":"echo","args":[{"type":"word","value":"done"}],"fullText":"echo done"}]},"fileOutputThresholdBytes":"10000","timeoutBehavior":"TIMEOUT_BEHAVIOR_BACKGROUND","hardTimeout":86400000,"description":"echo done","closeStdin":true,"conversationId":"bc-cac9a149-19d2-4250-8828-e9916e5bfc25","requestId":"4e9a0156-1a8c-4501-93e9-1c51f3301015"}}
+
+id: 1791909053459-0
+event: interaction_update
+data: {"type":"tool-call-started","callId":"toolu_01ETKK74H6GPRoJ3oZNe6pQq","toolCall":{"type":"shell","args":{"command":"echo done","timeout":600000}},"modelCallId":"4e9a0156-1a8c-4501-93e9-1c51f3301015-11-0msq"}
+
+id: 1791909053465-0
+event: tool_call
+data: {"callId":"toolu_012BphGo516gFGbeiN28TM7G","name":"web_fetch","status":"running","args":{"url":"https://nonexistent.invalid/","toolCallId":"toolu_012BphGo516gFGbeiN28TM7G"}}
+
+id: 1791909053875-0
+event: tool_call
+data: {"callId":"toolu_01ETKK74H6GPRoJ3oZNe6pQq","name":"run_terminal_cmd","status":"completed","args":{"command":"echo done","timeout":600000,"toolCallId":"toolu_01ETKK74H6GPRoJ3oZNe6pQq","simpleCommands":["echo"],"parsingResult":{"executableCommands":[{"name":"echo","args":[{"type":"word","value":"done"}],"fullText":"echo done"}]},"fileOutputThresholdBytes":"10000","timeoutBehavior":"TIMEOUT_BEHAVIOR_BACKGROUND","hardTimeout":86400000,"description":"echo done","closeStdin":true,"conversationId":"bc-cac9a149-19d2-4250-8828-e9916e5bfc25","requestId":"4e9a0156-1a8c-4501-93e9-1c51f3301015"},"result":{"success":{"command":"echo done","stdout":"done\n","executionTime":415,"interleavedOutput":"done\n","localExecutionTimeMs":106},"isBackground":false}}
+
+id: 1791909053875-0
+event: interaction_update
+data: {"type":"tool-call-completed","callId":"toolu_01ETKK74H6GPRoJ3oZNe6pQq","toolCall":{"type":"shell","args":{"command":"echo done","timeout":600000},"result":{"status":"success","value":{"exitCode":0,"signal":"","stdout":"done\n","stderr":"","executionTime":415}}},"modelCallId":"4e9a0156-1a8c-4501-93e9-1c51f3301015-11-0msq"}
+
+id: 1791909053884-0
+event: interaction_update
+data: {"type":"token-delta","tokens":33}
+
+id: 1791909056298-0
+event: tool_call
+data: {"callId":"toolu_012BphGo516gFGbeiN28TM7G","name":"web_fetch","status":"completed","args":{"url":"https://nonexistent.invalid/","toolCallId":"toolu_012BphGo516gFGbeiN28TM7G"},"result":{"error":{"url":"https://nonexistent.invalid/","error":"Error fetching URL, status code: 500 Internal Server Error"}}}
+
+id: 1791909056301-0
+event: interaction_update
+data: {"type":"token-delta","tokens":26}
+
+id: 1791909056389-0
+event: interaction_update
+data: {"type":"step-completed","stepId":194,"stepDurationMs":5620}
+
+id: 1791909056810-0
+event: interaction_update
+data: {"type":"step-started","stepId":227}
+
+id: 1791909057775-0
+event: thinking
+data: {"text":"All"}
+
+id: 1791909057775-0
+event: interaction_update
+data: {"type":"thinking-delta","text":"All"}
+
+id: 1791909058261-0
+event: thinking
+data: {"text":" steps"}
+
+id: 1791909058261-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" steps"}
+
+id: 1791909058279-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909058284-0
+event: thinking
+data: {"text":" completed."}
+
+id: 1791909058284-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" completed."}
+
+id: 1791909058289-0
+event: interaction_update
+data: {"type":"token-delta","tokens":3}
+
+id: 1791909058292-0
+event: thinking
+data: {"text":" Steps"}
+
+id: 1791909058292-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" Steps"}
+
+id: 1791909058294-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909058297-0
+event: thinking
+data: {"text":" 1"}
+
+id: 1791909058297-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" 1"}
+
+id: 1791909058300-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909058304-0
+event: thinking
+data: {"text":"-5"}
+
+id: 1791909058304-0
+event: interaction_update
+data: {"type":"thinking-delta","text":"-5"}
+
+id: 1791909058306-0
+event: thinking
+data: {"text":" failed"}
+
+id: 1791909058306-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" failed"}
+
+id: 1791909058309-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909058312-0
+event: thinking
+data: {"text":" as"}
+
+id: 1791909058312-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" as"}
+
+id: 1791909058315-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909058318-0
+event: thinking
+data: {"text":" expected,"}
+
+id: 1791909058318-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" expected,"}
+
+id: 1791909058323-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909058326-0
+event: thinking
+data: {"text":" and"}
+
+id: 1791909058326-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" and"}
+
+id: 1791909058332-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909058335-0
+event: thinking
+data: {"text":" step 6 succeeded. Let"}
+
+id: 1791909058335-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" step 6 succeeded. Let"}
+
+id: 1791909058338-0
+event: interaction_update
+data: {"type":"token-delta","tokens":6}
+
+id: 1791909058372-0
+event: thinking
+data: {"text":" me summarize."}
+
+id: 1791909058372-0
+event: interaction_update
+data: {"type":"thinking-delta","text":" me summarize."}
+
+id: 1791909058374-0
+event: interaction_update
+data: {"type":"token-delta","tokens":3}
+
+id: 1791909058733-0
+event: interaction_update
+data: {"type":"thinking-completed","thinkingDurationMs":959}
+
+id: 1791909058738-0
+event: assistant
+data: {"text":"Completed"}
+
+id: 1791909058738-0
+event: interaction_update
+data: {"type":"text-delta","text":"Completed"}
+
+id: 1791909058746-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909058749-0
+event: assistant
+data: {"text":" all"}
+
+id: 1791909058749-0
+event: interaction_update
+data: {"type":"text-delta","text":" all"}
+
+id: 1791909058751-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909058754-0
+event: assistant
+data: {"text":" six"}
+
+id: 1791909058754-0
+event: interaction_update
+data: {"type":"text-delta","text":" six"}
+
+id: 1791909058761-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909058767-0
+event: assistant
+data: {"text":" verification"}
+
+id: 1791909058767-0
+event: interaction_update
+data: {"type":"text-delta","text":" verification"}
+
+id: 1791909058770-0
+event: interaction_update
+data: {"type":"token-delta","tokens":4}
+
+id: 1791909058773-0
+event: assistant
+data: {"text":" steps:"}
+
+id: 1791909058773-0
+event: interaction_update
+data: {"type":"text-delta","text":" steps:"}
+
+id: 1791909058776-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909058797-0
+event: assistant
+data: {"text":" the"}
+
+id: 1791909058797-0
+event: interaction_update
+data: {"type":"text-delta","text":" the"}
+
+id: 1791909058800-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909058844-0
+event: assistant
+data: {"text":" first"}
+
+id: 1791909058844-0
+event: interaction_update
+data: {"type":"text-delta","text":" first"}
+
+id: 1791909058847-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909058900-0
+event: assistant
+data: {"text":" five"}
+
+id: 1791909058900-0
+event: interaction_update
+data: {"type":"text-delta","text":" five"}
+
+id: 1791909058903-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909058950-0
+event: assistant
+data: {"text":" failed as expected (file"}
+
+id: 1791909058950-0
+event: interaction_update
+data: {"type":"text-delta","text":" failed as expected (file"}
+
+id: 1791909058953-0
+event: interaction_update
+data: {"type":"token-delta","tokens":6}
+
+id: 1791909059008-0
+event: assistant
+data: {"text":" read"}
+
+id: 1791909059008-0
+event: interaction_update
+data: {"type":"text-delta","text":" read"}
+
+id: 1791909059012-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909059057-0
+event: assistant
+data: {"text":","}
+
+id: 1791909059057-0
+event: interaction_update
+data: {"type":"text-delta","text":","}
+
+id: 1791909059117-0
+event: assistant
+data: {"text":" shell"}
+
+id: 1791909059117-0
+event: interaction_update
+data: {"type":"text-delta","text":" shell"}
+
+id: 1791909059127-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909059213-0
+event: assistant
+data: {"text":" cat"}
+
+id: 1791909059213-0
+event: interaction_update
+data: {"type":"text-delta","text":" cat"}
+
+id: 1791909059271-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909059283-0
+event: assistant
+data: {"text":", delete"}
+
+id: 1791909059283-0
+event: interaction_update
+data: {"type":"text-delta","text":", delete"}
+
+id: 1791909059288-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909059291-0
+event: assistant
+data: {"text":", grep, and"}
+
+id: 1791909059291-0
+event: interaction_update
+data: {"type":"text-delta","text":", grep, and"}
+
+id: 1791909059297-0
+event: interaction_update
+data: {"type":"token-delta","tokens":3}
+
+id: 1791909059334-0
+event: assistant
+data: {"text":" web"}
+
+id: 1791909059334-0
+event: interaction_update
+data: {"type":"text-delta","text":" web"}
+
+id: 1791909059370-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909059377-0
+event: assistant
+data: {"text":" fetch all"}
+
+id: 1791909059377-0
+event: interaction_update
+data: {"type":"text-delta","text":" fetch all"}
+
+id: 1791909059380-0
+event: interaction_update
+data: {"type":"token-delta","tokens":3}
+
+id: 1791909059421-0
+event: assistant
+data: {"text":" reported"}
+
+id: 1791909059421-0
+event: interaction_update
+data: {"type":"text-delta","text":" reported"}
+
+id: 1791909059424-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909059477-0
+event: assistant
+data: {"text":" errors for"}
+
+id: 1791909059477-0
+event: interaction_update
+data: {"type":"text-delta","text":" errors for"}
+
+id: 1791909059480-0
+event: interaction_update
+data: {"type":"token-delta","tokens":3}
+
+id: 1791909059528-0
+event: assistant
+data: {"text":" non"}
+
+id: 1791909059528-0
+event: interaction_update
+data: {"type":"text-delta","text":" non"}
+
+id: 1791909059532-0
+event: interaction_update
+data: {"type":"token-delta","tokens":1}
+
+id: 1791909060646-0
+event: assistant
+data: {"text":"existent resources"}
+
+id: 1791909060646-0
+event: interaction_update
+data: {"type":"text-delta","text":"existent resources"}
+
+id: 1791909060675-0
+event: interaction_update
+data: {"type":"token-delta","tokens":4}
+
+id: 1791909060730-0
+event: assistant
+data: {"text":"), and the"}
+
+id: 1791909060730-0
+event: interaction_update
+data: {"type":"text-delta","text":"), and the"}
+
+id: 1791909060737-0
+event: interaction_update
+data: {"type":"token-delta","tokens":3}
+
+id: 1791909060741-0
+event: assistant
+data: {"text":" final `"}
+
+id: 1791909060741-0
+event: interaction_update
+data: {"type":"text-delta","text":" final `"}
+
+id: 1791909060745-0
+event: interaction_update
+data: {"type":"token-delta","tokens":2}
+
+id: 1791909060750-0
+event: assistant
+data: {"text":"echo done` command succeeded."}
+
+id: 1791909060750-0
+event: interaction_update
+data: {"type":"text-delta","text":"echo done` command succeeded."}
+
+id: 1791909060753-0
+event: interaction_update
+data: {"type":"token-delta","tokens":7}
+
+id: 1791909060942-0
+event: interaction_update
+data: {"type":"turn-ended"}
+
+id: 1791909060951-0
+event: interaction_update
+data: {"type":"step-completed","stepId":227,"stepDurationMs":4132}
+
+event: status
+data: {"runId":"run-ec41805a-07c4-4c80-874f-f077b9877582","status":"FINISHED"}
+
+id: 1791909062447-0
+event: result
+data: {"runId":"run-ec41805a-07c4-4c80-874f-f077b9877582","status":"FINISHED","text":"Completed all six verification steps: the first five failed as expected (file read, shell cat, delete, grep, and web fetch all reported errors for nonexistent resources), and the final `echo done` command succeeded.","durationMs":55998,"git":{"branches":[{"repoUrl":"github.com/specstoryai/cloud-agent-test","branch":"cursor/specstory-failure-capture-1e05"}]}}
+
+id: 1791909062447-0
+event: done
+data: {}
+

@@ -877,11 +877,20 @@ func TestEnsureDefaultUserConfig(t *testing.T) {
 // TestDefaultConfigTemplateParsesWhenUncommented verifies the default config
 // template is valid TOML when all comment prefixes are removed. This guards
 // against template syntax rot. We process the template first to strip markers.
+// A key the template deliberately lists more than once (one URL opener per
+// operating system) is kept only the first time, because uncommenting every
+// alternative would be a duplicate-key error that no real user would write. Any
+// other repeated key is a template mistake and fails the test.
+// templateAlternativeKeys are the keys the template intentionally shows with
+// several example values.
+var templateAlternativeKeys = map[string]bool{"cursorcloud_cmd": true}
+
 func TestDefaultConfigTemplateParsesWhenUncommented(t *testing.T) {
 	// Process template to strip {u ...} / {p ...} markers before uncommenting
 	processed := processTemplate(defaultConfigTemplate, "user")
 
 	var uncommented strings.Builder
+	seenKeys := map[string]bool{}
 	for line := range strings.SplitSeq(processed, "\n") {
 		trimmed := strings.TrimSpace(line)
 		// Skip blank lines
@@ -897,6 +906,19 @@ func TestDefaultConfigTemplateParsesWhenUncommented(t *testing.T) {
 		isKeyValue := strings.Contains(stripped, " = ") && !strings.Contains(stripped, "(")
 		if strings.HasPrefix(trimmed, "#") && !isSection && !isKeyValue {
 			continue
+		}
+		if isSection {
+			seenKeys = map[string]bool{}
+		}
+		if isKeyValue {
+			key, _, _ := strings.Cut(stripped, " = ")
+			if seenKeys[key] {
+				if !templateAlternativeKeys[key] {
+					t.Errorf("default config template repeats key %q", key)
+				}
+				continue
+			}
+			seenKeys[key] = true
 		}
 		uncommented.WriteString(stripped)
 		uncommented.WriteString("\n")
@@ -1050,6 +1072,7 @@ func TestGetProviderCmd(t *testing.T) {
 			OpenCodeCmd:                   "opencode --auto",
 			PiCmd:                         "pi --model sonnet",
 			QwenCmd:                       "qwen --approval-mode yolo",
+			CursorCloudCmd:                "xdg-open",
 		},
 	}
 
@@ -1065,6 +1088,7 @@ func TestGetProviderCmd(t *testing.T) {
 		{"copilotide-vscodium-insiders", "codium-insiders"},
 		{"cursor", "cursor-agent --fast"},
 		{"cursoride", "cursor --wait"},
+		{"cursorcloud", "xdg-open"},
 		{"deepseek", "deepseek --model r1"},
 		{"droid", "droid --verbose"},
 		{"gemini", "gemini --model pro"},
@@ -1106,6 +1130,13 @@ func TestGetProviderCmd(t *testing.T) {
 // can discover it), and a GetProviderCmd case (so it takes effect). The provider id is
 // derived from the toml key, which also pins the naming convention every provider follows:
 // pi_cmd -> "pi", copilotide_insiders_cmd -> "copilotide-insiders".
+// nonCommandProviderSettings are [providers] keys that configure a provider without
+// being its launch command; pkg/cmd hands them to the provider at startup.
+var nonCommandProviderSettings = map[string]bool{
+	"cursor_api_key":         true,
+	"cursorcloud_mirror_dir": true,
+}
+
 func TestProvidersConfigIsFullyWired(t *testing.T) {
 	typ := reflect.TypeOf(ProvidersConfig{})
 
@@ -1130,6 +1161,15 @@ func TestProvidersConfigIsFullyWired(t *testing.T) {
 		t.Run(key, func(t *testing.T) {
 			if !strings.Contains(defaultConfigTemplate, key) {
 				t.Errorf("%s is missing from the config template, so no user can discover it", key)
+			}
+			// Provider settings that are not launch commands reach their provider through
+			// a setter at startup; nonCommandProviderSettings lists them so a new one is
+			// a deliberate choice rather than an unwired command.
+			if !strings.HasSuffix(key, "_cmd") {
+				if !nonCommandProviderSettings[key] {
+					t.Errorf("%s does not end in _cmd and is not a known provider setting, so it reaches no provider", key)
+				}
+				return
 			}
 			id := strings.ReplaceAll(strings.TrimSuffix(key, "_cmd"), "_", "-")
 			if got := cfg.GetProviderCmd(id); got != sentinels[key] {
@@ -1234,7 +1274,7 @@ claude_cmd = "claude --project-level"
 		for _, id := range []string{
 			"antigravity", "claude", "codex",
 			"copilotide", "copilotide-insiders", "copilotide-vscodium", "copilotide-vscodium-insiders",
-			"cursor", "cursoride", "deepseek", "droid", "gemini", "grok", "muse", "opencode", "pi", "qwen",
+			"cursor", "cursoride", "cursorcloud", "deepseek", "droid", "gemini", "grok", "muse", "opencode", "pi", "qwen",
 		} {
 			if got := cfg.GetProviderCmd(id); got != "" {
 				t.Errorf("GetProviderCmd(%s) = %q, want empty", id, got)
@@ -1289,5 +1329,77 @@ func TestGetResumeViewModeDefaults(t *testing.T) {
 	c.Resume.ViewMode = "sparse"
 	if c.GetResumeViewMode() != "sparse" {
 		t.Errorf("view mode not honored")
+	}
+}
+
+// TestLoadTightensUserConfigPermissions covers the upgrade case: a user config
+// created 0644 by an earlier release is tightened on load because it can hold
+// cursor_api_key, while a project config keeps whatever mode the project gave it.
+func TestLoadTightensUserConfigPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission bits do not exist on Windows")
+	}
+	tempHome := t.TempDir()
+	tempProject := t.TempDir()
+	testutil.SetHome(t, tempHome)
+	t.Chdir(tempProject)
+
+	userPath := createTempConfigFile(t, tempHome, "[providers]\ncursor_api_key = \"crsr_test\"\n")
+	projectPath := createTempConfigFile(t, tempProject, "[local_sync]\noutput_dir = \"/project/path\"\n")
+	for _, path := range []string{userPath, projectPath} {
+		if err := os.Chmod(path, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if _, err := Load(nil); err != nil {
+		t.Fatalf("Load() returned error: %v", err)
+	}
+
+	tests := []struct {
+		name string
+		path string
+		want os.FileMode
+	}{
+		{name: "user config tightened", path: userPath, want: 0o600},
+		{name: "project config untouched", path: projectPath, want: 0o644},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info, err := os.Stat(tt.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := info.Mode().Perm(); got != tt.want {
+				t.Errorf("mode = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestLoadTightensUserConfigPermissionsBeforeParsing: the mode is fixed even
+// when the file fails to parse, so a credential in a broken config is not left
+// readable until the syntax is repaired.
+func TestLoadTightensUserConfigPermissionsBeforeParsing(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission bits do not exist on Windows")
+	}
+	tempHome := t.TempDir()
+	testutil.SetHome(t, tempHome)
+	t.Chdir(t.TempDir())
+	userPath := createTempConfigFile(t, tempHome, "[providers\ncursor_api_key = \"crsr_test\"\n")
+	if err := os.Chmod(userPath, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Load(nil); err == nil {
+		t.Fatal("Load() accepted invalid TOML")
+	}
+	info, err := os.Stat(userPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Errorf("mode after a parse error = %v, want 0600", got)
 	}
 }

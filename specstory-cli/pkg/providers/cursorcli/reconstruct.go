@@ -82,7 +82,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	}
 
 	newID := uuid.NewString()
-	name := spi.ResumedSessionTitle(data.Slug)
+	name := spi.ResumedSessionTitle(data)
 
 	// No specstorySourceSessionId provenance back-link here, unlike claude/codex/droid/gemini/
 	// deepseek. Cursor's store is a content-addressed Merkle-DAG of fixed-shape blobs with no

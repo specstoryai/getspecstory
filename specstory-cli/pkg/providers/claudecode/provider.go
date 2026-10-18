@@ -86,6 +86,8 @@ func processSession(session Session, workspaceRoot string, debugRaw bool) *spi.A
 		slog.Error("Failed to generate SessionData", "sessionId", session.SessionUuid, "error", err)
 		return nil
 	}
+	// Resume titles a reconstructed session from SessionData's slug.
+	sessionData.Slug = slug
 
 	// Convert session records to JSONL format for raw data
 	// Note: Uses unfiltered session.Records (not filteredSession.Records) to preserve
