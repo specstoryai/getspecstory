@@ -1,0 +1,26 @@
+[
+  {
+    "name": "sync",
+    "exit": 0
+  },
+  {
+    "name": "sync-repeat",
+    "exit": 0
+  },
+  {
+    "name": "byte-identical-sync",
+    "pass": true
+  },
+  {
+    "name": "sync-symlink",
+    "exit": 0
+  },
+  {
+    "name": "list-symlink",
+    "exit": 0
+  },
+  {
+    "name": "listed-audit-session",
+    "pass": true
+  }
+]

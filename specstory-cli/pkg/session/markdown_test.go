@@ -1,6 +1,7 @@
 package session
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -117,6 +118,43 @@ func TestFormatTimestamp_LocalTimezone(t *testing.T) {
 			if result != expected {
 				t.Errorf("formatTimestamp(%q, false) = %q, want %q",
 					tt.timestamp, result, expected)
+			}
+		})
+	}
+}
+
+// TestGenerateMarkdown_SessionNotes: notes sit under the session comment, each
+// as its own comment, and cannot close their comment early.
+func TestGenerateMarkdown_SessionNotes(t *testing.T) {
+	const sessionComment = "<!-- Cursor Cloud Agent Session s1 (2026-10-06 14:24:04Z) -->\n\n"
+	const prompt = "_**User (2026-10-06 14:24:04Z)**_"
+	tests := []struct {
+		name  string
+		notes []string
+		want  string
+	}{
+		{name: "no notes", want: sessionComment + prompt},
+		{name: "one note", notes: []string{"Tool calls are gone."}, want: sessionComment + "<!-- Tool calls are gone. -->\n\n" + prompt},
+		{name: "comment terminator neutralized", notes: []string{"a --> b"}, want: sessionComment + "<!-- a -> b -->\n\n" + prompt},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sd := &SessionData{
+				Provider:  ProviderInfo{Name: "Cursor Cloud Agent"},
+				SessionID: "s1",
+				CreatedAt: "2026-10-06T14:24:04Z",
+				Notes:     tt.notes,
+				Exchanges: []Exchange{{
+					StartTime: "2026-10-06T14:24:04Z",
+					Messages:  []Message{{Role: "user", Timestamp: "2026-10-06T14:24:04Z", Content: []ContentPart{{Type: "text", Text: "hi"}}}},
+				}},
+			}
+			md, err := GenerateMarkdownFromAgentSession(sd, false, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(md, tt.want) {
+				t.Errorf("markdown does not contain %q:\n%s", tt.want, md)
 			}
 		})
 	}

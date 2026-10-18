@@ -756,6 +756,8 @@ _**User (2026-02-25 13:43:06Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-02-25 13:43:14Z)**_
 
 let's try 1 space and 8 -
@@ -777,6 +779,8 @@ The user doesn't want to proceed with this tool use. The tool use was rejected (
 _**User (2026-02-25 13:43:30Z)**_
 
 [Request interrupted by user for tool use]
+
+---
 
 _**User (2026-02-25 13:43:41Z)**_
 
@@ -1357,7 +1361,7 @@ _**Agent (claude-opus-4-6 2026-02-25 14:01:41Z)**_
 <summary>Tool use: **Task**</summary>
 Explore stats collector flow
 
-```text
+````text
 Perfect! I have all the information you need. Let me provide a comprehensive analysis of the `StatisticsCollector` and `syncProvider` flow.
 
 ## 1. **How `syncProvider` is called from both `syncAllProviders` and `syncSingleProvider`**
@@ -1491,7 +1495,7 @@ agentId: a022bf8 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 40744
 tool_uses: 2
 duration_ms: 14867</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-25 14:01:26Z)**_
@@ -3464,7 +3468,7 @@ _**Agent (claude-opus-4-6 2026-02-25 14:01:48Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+```markdown
 # Fix: Single stats write + single output message for `--only-stats`
 
 ## Context

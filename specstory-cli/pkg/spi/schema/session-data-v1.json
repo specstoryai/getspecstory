@@ -23,6 +23,10 @@
     "slug": { "type": "string" },
     "title": { "type": "string" },
     "workspaceRoot": { "type": "string" },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
     "exchanges": {
       "type": "array",
       "items": { "$ref": "#/$defs/exchange" }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/config"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
@@ -54,18 +55,32 @@ Specify a specific agent ID to check only a specific coding agent.`,
 
 			// Get custom command if provided via flag
 			customCmd, _ := cmd.Flags().GetString("command")
+			providersFlag, _ := cmd.Flags().GetStringSlice("providers")
 
-			// Validate that -c flag requires a provider
-			if customCmd != "" && len(args) == 0 {
-				registry := factory.GetRegistry()
-				ids := registry.ListIDs()
-				example := "specstory check <provider> -c \"/custom/path/to/agent\""
-				if len(ids) > 0 {
-					example = fmt.Sprintf("specstory check %s -c \"/custom/path/to/agent\"", ids[0])
+			// Apply per-provider user-data-dir overrides before any provider lookup runs.
+			userDataDirOverrides, _ := cmd.Flags().GetStringSlice("user-data-dir")
+			ApplyUserDataDirOverrides(userDataDirOverrides)
+
+			resolvedIDs, err := ResolveProviderIDs(registry, args, providersFlag)
+			if err != nil {
+				return err
+			}
+
+			// Validate that -c flag requires exactly one provider
+			if customCmd != "" {
+				if len(resolvedIDs) == 0 {
+					ids := registry.ListIDs()
+					example := "specstory check <provider> -c \"/custom/path/to/agent\""
+					if len(ids) > 0 {
+						example = fmt.Sprintf("specstory check %s -c \"/custom/path/to/agent\"", ids[0])
+					}
+					return utils.ValidationError{
+						Message: "The -c/--command flag requires a provider to be specified.\n" +
+							"Example: " + example,
+					}
 				}
-				return utils.ValidationError{
-					Message: "The -c/--command flag requires a provider to be specified.\n" +
-						"Example: " + example,
+				if len(resolvedIDs) > 1 {
+					return utils.ValidationError{Message: "The -c/--command flag can only be used with a single provider ID"}
 				}
 			}
 
@@ -74,12 +89,10 @@ Specify a specific agent ID to check only a specific coding agent.`,
 			printDivider()
 
 			var providerErr error
-			if len(args) == 0 {
-				// Check all providers
-				providerErr = checkAllProviders(registry)
+			if len(resolvedIDs) == 1 {
+				providerErr = checkSingleProvider(registry, resolvedIDs[0], customCmd)
 			} else {
-				// Check specific provider
-				providerErr = checkSingleProvider(registry, args[0], customCmd)
+				providerErr = checkAllProviders(registry, resolvedIDs)
 			}
 
 			// Fail if either config or provider checks failed
@@ -94,6 +107,8 @@ Specify a specific agent ID to check only a specific coding agent.`,
 	}
 
 	cmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
+	AddProvidersFlag(cmd)
+	AddUserDataDirFlag(cmd)
 
 	return cmd
 }
@@ -132,7 +147,11 @@ func checkSingleProvider(registry *factory.Registry, providerID, customCmd strin
 	// Display results with the nice formatting
 	if result.Success {
 		fmt.Printf("\n✨ %s is installed and ready! ✨\n\n", provider.Name())
-		fmt.Printf("  📦 Version: %s\n", result.Version)
+		// IDE-backed providers report no version (none is discoverable cheaply);
+		// omit the line rather than printing an empty value.
+		if result.Version != "" {
+			fmt.Printf("  📦 Version: %s\n", result.Version)
+		}
 		fmt.Printf("  📍 Location: %s\n", result.Location)
 		fmt.Printf("  ✅ Status: All systems go!\n\n")
 
@@ -144,18 +163,47 @@ func checkSingleProvider(registry *factory.Registry, providerID, customCmd strin
 
 		return nil
 	} else {
-		fmt.Printf("\n❌ %s check failed!\n", provider.Name())
-		if result.ErrorMessage != "" {
-			fmt.Printf("\n%s\n", result.ErrorMessage)
-		}
+		fmt.Print(formatCheckFailure(providerID, provider.Name(), result, customCmd, false))
 		return errors.New("check failed")
 	}
 }
 
-// checkAllProviders checks all registered providers
-func checkAllProviders(registry *factory.Registry) error {
-	// Sort for consistent output
+// formatCheckFailure softens missing optional agents without hiding broken
+// installs or an explicitly requested custom command that cannot be found.
+// Older providers with no classification retain the failure presentation.
+// The summary names the single-provider check, because "not found" alone does
+// not say what is missing: a binary for most providers, an API key for a
+// hosted one.
+func formatCheckFailure(id, name string, result spi.CheckResult, customCmd string, summary bool) string {
+	if result.ErrorType == spi.CheckErrorNotFound && strings.TrimSpace(customCmd) == "" {
+		message := fmt.Sprintf("\nℹ️  %s not found.\n", name)
+		if summary {
+			return message + fmt.Sprintf("   Optional — skipping. Run `specstory check %s` for setup.\n", id)
+		}
+		if result.ErrorMessage != "" {
+			message += "\n" + result.ErrorMessage + "\n"
+		}
+		return message
+	}
+	message := fmt.Sprintf("\n❌ %s check failed!\n", name)
+	if result.ErrorMessage != "" {
+		if summary {
+			firstLine := strings.SplitN(result.ErrorMessage, "\n", 2)[0]
+			message += "\n  Error: " + strings.TrimSpace(firstLine) + "\n"
+		} else {
+			message += "\n" + result.ErrorMessage + "\n"
+		}
+	}
+	return message
+}
+
+// checkAllProviders checks all (or a filtered subset of) registered providers.
+// filterIDs, if non-empty, limits which providers are checked; nil or empty means check all.
+func checkAllProviders(registry *factory.Registry, filterIDs []string) error {
 	ids := registry.ListIDs()
+	if len(filterIDs) > 0 {
+		ids = filterIDs
+	}
 
 	// Collect all provider names for analytics
 	var providerNames []string
@@ -189,16 +237,15 @@ func checkAllProviders(registry *factory.Registry) error {
 			anySuccess = true
 			successfulProviders = append(successfulProviders, providerInfo{id: id, name: provider.Name()})
 			fmt.Printf("\n✨ %s is installed and ready! ✨\n\n", provider.Name())
-			fmt.Printf("  📦 Version: %s\n", result.Version)
+			// IDE-backed providers report no version; omit the line rather than
+			// printing an empty value.
+			if result.Version != "" {
+				fmt.Printf("  📦 Version: %s\n", result.Version)
+			}
 			fmt.Printf("  📍 Location: %s\n", result.Location)
 			fmt.Printf("  ✅ Status: All systems go!\n")
 		} else {
-			fmt.Printf("\n❌ %s check failed!\n\n", provider.Name())
-			if result.ErrorMessage != "" {
-				// Show just first line of error for summary view
-				lines := strings.Split(result.ErrorMessage, "\n")
-				fmt.Printf("  Error: %s\n", strings.TrimSpace(lines[0]))
-			}
+			fmt.Print(formatCheckFailure(id, provider.Name(), result, "", true))
 		}
 	}
 

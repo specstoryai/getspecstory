@@ -1,6 +1,7 @@
 package spi
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -209,5 +210,107 @@ func BenchmarkSplitCommandLine_LongCommand(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		SplitCommandLine(input)
+	}
+}
+
+func TestEnsureResumeArgs(t *testing.T) {
+	tests := []struct {
+		name      string
+		args      []string
+		sessionID string
+		expected  []string
+	}{
+		{
+			name:      "no session id leaves args alone",
+			args:      []string{"--model", "x"},
+			sessionID: "",
+			expected:  []string{"--model", "x"},
+		},
+		{
+			name:      "resume is a subcommand, not a flag",
+			args:      nil,
+			sessionID: "abc-123",
+			expected:  []string{"resume", "abc-123"},
+		},
+		{
+			name:      "appended after existing flags",
+			args:      []string{"--model", "muse-spark-1.2"},
+			sessionID: "abc-123",
+			expected:  []string{"--model", "muse-spark-1.2", "resume", "abc-123"},
+		},
+		{
+			name:      "bare resume subcommand gets the id",
+			args:      []string{"resume"},
+			sessionID: "abc-123",
+			expected:  []string{"resume", "abc-123"},
+		},
+		{
+			name:      "resume followed by a flag gets the id inserted",
+			args:      []string{"resume", "--verbose"},
+			sessionID: "abc-123",
+			expected:  []string{"resume", "abc-123", "--verbose"},
+		},
+		{
+			// A pinned id in the configured command is a default; the requested
+			// one is this run's instruction and has to win, or the wrong
+			// conversation opens without a word.
+			name:      "requested session replaces one pinned in the command",
+			args:      []string{"resume", "existing-id"},
+			sessionID: "abc-123",
+			expected:  []string{"resume", "abc-123"},
+		},
+		{
+			name:      "pinned id is replaced without disturbing surrounding args",
+			args:      []string{"--model", "muse-spark-1.2", "resume", "existing-id", "--verbose"},
+			sessionID: "abc-123",
+			expected:  []string{"--model", "muse-spark-1.2", "resume", "abc-123", "--verbose"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := slices.Clone(tt.args)
+			got := EnsureResumeArgs(tt.args, "resume", tt.sessionID)
+
+			if !slices.Equal(got, tt.expected) {
+				t.Errorf("EnsureResumeArgs(%v, %q) = %v, want %v", tt.args, tt.sessionID, got, tt.expected)
+			}
+			// The caller's slice must survive: providers hand in a sub-slice of
+			// their parsed command line.
+			if !slices.Equal(tt.args, input) {
+				t.Errorf("input args mutated: %v, want %v", tt.args, input)
+			}
+		})
+	}
+}
+
+func TestEnsureResumeFlagArgs(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		args []string
+		id   string
+		want []string
+	}{
+		{"disabled", []string{"--resume", "old"}, "", []string{"--resume", "old"}},
+		{"append", []string{"--verbose"}, "new", []string{"--verbose", "--resume", "new"}},
+		{"pinned", []string{"--resume", "old"}, "new", []string{"--resume", "new"}},
+		{"bare", []string{"-r", "--verbose"}, "new", []string{"-r", "new", "--verbose"}},
+		{"empty", []string{"--resume", ""}, "new", []string{"--resume", "new"}},
+		{"equals", []string{"--resume=old", "-r="}, "new", []string{"--resume=new", "-r=new"}},
+		{"repeated", []string{"-r", "old", "--resume", "other"}, "new", []string{"-r", "new", "--resume", "new"}},
+		{"positional", []string{"--", "--resume", "prompt"}, "new", []string{"--resume", "new", "--", "--resume", "prompt"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			backing := make([]string, len(tt.args)+4)
+			copy(backing, tt.args)
+			before := slices.Clone(backing)
+			got := EnsureResumeFlagArgs(backing[:len(tt.args)], tt.id, "--resume", "-r")
+			if !slices.Equal(got, tt.want) {
+				t.Fatalf("got %q, want %q", got, tt.want)
+			}
+			if !slices.Equal(backing, before) {
+				t.Fatal("mutated caller's backing array")
+			}
+		})
 	}
 }

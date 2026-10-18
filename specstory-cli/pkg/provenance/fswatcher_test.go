@@ -184,31 +184,44 @@ func TestFSWatcher_FileEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Give fsnotify and the event loop time to process
-	time.Sleep(300 * time.Millisecond)
-
-	// Query unmatched file events from the store — should have at least one
-	since := time.Now().Add(-10 * time.Second)
-	until := time.Now().Add(10 * time.Second)
-	events, err := engine.store.QueryUnmatchedFileEvents(ctx, since, until)
-	if err != nil {
-		t.Fatal(err)
+	// Poll until the event lands — a fixed sleep proved too short on slow CI
+	// runners (the first Windows runs saw zero events within 300ms).
+	matched := waitForFileEvents(t, ctx, engine, testFile, 1)
+	if len(matched) == 0 {
+		// Include everything the store DOES hold: an empty store means events
+		// never arrived (watcher/delivery problem), while entries under a
+		// different spelling of the path mean a canonicalization mismatch.
+		all, _ := engine.store.QueryUnmatchedFileEvents(ctx,
+			time.Now().Add(-30*time.Second), time.Now().Add(10*time.Second))
+		t.Errorf("expected a file event for %s to be pushed to the engine; store holds %d events: %+v",
+			testFile, len(all), all)
 	}
+}
 
-	if len(events) == 0 {
-		t.Error("expected at least one file event to be pushed to the engine")
-	}
-
-	// Verify the event path matches
-	found := false
-	for _, e := range events {
-		if e.FilePath == testFile {
-			found = true
-			break
+// waitForFileEvents polls the store until at least min events exist for path or
+// a generous deadline passes, returning the matching events. Polling keeps these
+// tests fast on fast machines and correct on slow ones, where fsnotify delivery
+// plus the event loop plus the SQLite write can exceed any fixed sleep.
+func waitForFileEvents(t *testing.T, ctx context.Context, engine *Engine, path string, min int) []unmatchedEvent {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		since := time.Now().Add(-30 * time.Second)
+		until := time.Now().Add(10 * time.Second)
+		events, err := engine.store.QueryUnmatchedFileEvents(ctx, since, until)
+		if err != nil {
+			t.Fatal(err)
 		}
-	}
-	if !found {
-		t.Errorf("expected to find file event for %s, got events: %v", testFile, events)
+		var matched []unmatchedEvent
+		for _, e := range events {
+			if e.FilePath == NormalizePath(path) {
+				matched = append(matched, e)
+			}
+		}
+		if len(matched) >= min || time.Now().After(deadline) {
+			return matched
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
 }
 
@@ -290,21 +303,20 @@ func TestFSWatcher_Debounce(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Give fsnotify time to process
-	time.Sleep(300 * time.Millisecond)
-
-	// Query file events — debouncing should have collapsed rapid writes
-	since := time.Now().Add(-10 * time.Second)
+	// Poll until at least one event lands (fixed sleeps are too short on slow CI
+	// runners), then let the debounce window plus delivery slack pass and count:
+	// the second rapid write must have been collapsed, not merely be late.
+	waitForFileEvents(t, ctx, engine, testFile, 1)
+	time.Sleep(debounceWindow + 100*time.Millisecond)
+	since := time.Now().Add(-30 * time.Second)
 	until := time.Now().Add(10 * time.Second)
 	events, err := engine.store.QueryUnmatchedFileEvents(ctx, since, until)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	// Count events for our test file
 	count := 0
 	for _, e := range events {
-		if e.FilePath == testFile {
+		if e.FilePath == NormalizePath(testFile) {
 			count++
 		}
 	}

@@ -19,22 +19,22 @@ func TestEnsureResumeArgs(t *testing.T) {
 			expected:        []string{"--verbose"},
 		},
 		{
-			name:            "returns args unchanged when --resume already has value",
+			name:            "overrides pinned --resume value",
 			args:            []string{"--resume", "existing-session"},
 			resumeSessionID: "new-session",
-			expected:        []string{"--resume", "existing-session"},
+			expected:        []string{"--resume", "new-session"},
 		},
 		{
-			name:            "returns args unchanged when -r already has value",
+			name:            "overrides pinned -r value",
 			args:            []string{"-r", "existing-session"},
 			resumeSessionID: "new-session",
-			expected:        []string{"-r", "existing-session"},
+			expected:        []string{"-r", "new-session"},
 		},
 		{
-			name:            "returns args unchanged when --resume=value exists",
+			name:            "overrides pinned equals value",
 			args:            []string{"--resume=existing-session"},
 			resumeSessionID: "new-session",
-			expected:        []string{"--resume=existing-session"},
+			expected:        []string{"--resume=new-session"},
 		},
 		{
 			name:            "appends --resume when not present",
@@ -58,13 +58,13 @@ func TestEnsureResumeArgs(t *testing.T) {
 			name:            "appends when --resume flag exists but has no value",
 			args:            []string{"--resume"},
 			resumeSessionID: "new-session",
-			expected:        []string{"--resume", "--resume", "new-session"},
+			expected:        []string{"--resume", "new-session"},
 		},
 		{
 			name:            "appends when -r flag exists but has no value",
 			args:            []string{"-r"},
 			resumeSessionID: "new-session",
-			expected:        []string{"-r", "--resume", "new-session"},
+			expected:        []string{"-r", "new-session"},
 		},
 	}
 
