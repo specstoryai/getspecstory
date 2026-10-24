@@ -17,6 +17,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/antigravitycli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/copilotcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/copilotide"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/deepseektui"
@@ -99,6 +100,7 @@ func TestTerminalAgentExitStatus(t *testing.T) {
 	}{
 		{"claude", claudecode.ExecuteClaude},
 		{"codex", codexcli.ExecuteCodex},
+		{"copilot", copilotcli.ExecuteCopilot},
 		{"cursor", cursorcli.ExecuteCursorCLI},
 		{"gemini", geminicli.ExecuteGemini},
 		{"grok", func(command, id string) error { return grokbuild.ExecuteGrok(t.TempDir(), command, id) }},
@@ -290,7 +292,7 @@ func TestWatchAgentRestart(t *testing.T) {
 // filesystem/process failures, so one provider cannot silently soften a broken install.
 func TestCLIProviderCheckErrorTypes(t *testing.T) {
 	providers := []spi.Provider{
-		antigravitycli.NewProvider(), claudecode.NewProvider(), codexcli.NewProvider(),
+		antigravitycli.NewProvider(), claudecode.NewProvider(), codexcli.NewProvider(), copilotcli.NewProvider(),
 		cursorcli.NewProvider(), deepseektui.NewProvider(), droidcli.NewProvider(),
 		geminicli.NewProvider(), grokbuild.NewProvider(), musecode.NewProvider(), piagent.NewProvider(), qwencode.NewProvider(),
 	}
