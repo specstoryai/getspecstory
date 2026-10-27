@@ -82,6 +82,14 @@ type Session struct {
 	IsCloud     bool   // true = this row came from SpecStory Cloud, not the local index
 	DeviceID    string // cloud metadata.deviceId — stable machine id for the machine filter
 	MachineName string // cloud metadata.machineName — human machine label for the machine filter
+
+	// Owner attribution on a team-shared project: who synced this copy. Carried raw rather
+	// than pre-formatted so the "is this mine?" comparison happens once at render, against the
+	// signed-in user. Empty on local rows and on cloud rows from a deployment that predates
+	// attribution.
+	OwnerID    string
+	OwnerName  string
+	OwnerEmail string
 }
 
 // Fingerprint identifies an indexed session's freshness: the native file's size and
@@ -703,6 +711,14 @@ type ProjectSummary struct {
 	// rollups leave it false. AgentCounts is nil for these (the cloud list has no per-agent
 	// breakdown).
 	IsCloud bool
+
+	// Owner attribution for a team-shared project, on cloud-only rows only. OwnerID names
+	// the teammate whose copy this entry describes; ContributorCount is how many team members
+	// (including you) hold a copy the server collapsed into it.
+	OwnerID          string
+	OwnerName        string
+	OwnerEmail       string
+	ContributorCount int
 }
 
 // ListProjects returns one rolled-up summary per project, most recently active first.
