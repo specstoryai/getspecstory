@@ -650,7 +650,9 @@ func TestLoadComposerDataBatch_PagedHeaders(t *testing.T) {
 	const id = "396cc8c0-346d-4098-8e57-d15758197093"
 	dbPath := createTestGlobalDB(t, map[string]string{
 		"composerData:" + id: pagedComposerJSON(t, id, "CLI integration in monorepo"),
-		// Second page inserted first: ordering must come from the key, not insertion.
+		// Listed out of order, but map iteration and SQLite row order are both
+		// unspecified, so this alone cannot pin the ordering requirement; see
+		// TestMergeHeaderPages for the deterministic check.
 		"composerConvHeaders:" + id + ":000001": `[{"bubbleId":"u2","type":1,"createdAt":"2026-10-27T12:48:00.000Z"},{"bubbleId":"u2/s:0","type":2}]`,
 		"composerConvHeaders:" + id + ":000000": `[{"bubbleId":"u1","type":1,"grouping":{"isRenderable":true,"hasText":true}},{"bubbleId":"u1/s:0","type":2},{"bubbleId":"u1/s:1","type":2}]`,
 		"bubbleId:" + id + ":u1":                bubbleJSON("u1", 1, "first question"),
@@ -804,5 +806,74 @@ func TestLoadAllComposerDataLightweight_PagedHeaders(t *testing.T) {
 	}
 	if _, exists := composers["orphan"]; exists {
 		t.Errorf("a page without a composerData row must not create a composer")
+	}
+}
+
+// mergeHeaderPages must concatenate pages by their zero-padded suffix regardless of
+// the order the rows were scanned in, and must leave an inline header list alone.
+func TestMergeHeaderPages(t *testing.T) {
+	page := func(suffix string, ids ...string) headerPage {
+		headers := make([]ComposerConversationHeader, len(ids))
+		for i, id := range ids {
+			headers[i] = ComposerConversationHeader{BubbleID: id}
+		}
+		return headerPage{page: suffix, headers: headers}
+	}
+	headerIDs := func(headers []ComposerConversationHeader) []string {
+		ids := make([]string, len(headers))
+		for i, h := range headers {
+			ids[i] = h.BubbleID
+		}
+		return ids
+	}
+
+	tests := []struct {
+		name   string
+		inline []ComposerConversationHeader
+		pages  []headerPage
+		want   []string
+	}{
+		{
+			name:  "pages scanned in order",
+			pages: []headerPage{page("000000", "a", "b"), page("000001", "c")},
+			want:  []string{"a", "b", "c"},
+		},
+		{
+			name:  "pages scanned in reverse",
+			pages: []headerPage{page("000001", "c"), page("000000", "a", "b")},
+			want:  []string{"a", "b", "c"},
+		},
+		{
+			name:  "pages scanned shuffled, suffix order not insertion order",
+			pages: []headerPage{page("000010", "e"), page("000000", "a"), page("000002", "d"), page("000001", "b", "c")},
+			want:  []string{"a", "b", "c", "d", "e"},
+		},
+		{
+			name:   "inline headers win over pages",
+			inline: []ComposerConversationHeader{{BubbleID: "x"}},
+			pages:  []headerPage{page("000000", "a", "b")},
+			want:   []string{"x"},
+		},
+		{
+			name:  "empty page list leaves composer empty",
+			pages: nil,
+			want:  []string{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			composers := map[string]*ComposerData{"c": {ComposerID: "c", FullConversationHeadersOnly: tt.inline}}
+			pages := map[string][]headerPage{"c": tt.pages}
+			mergeHeaderPages(composers, pages)
+			got := headerIDs(composers["c"].FullConversationHeadersOnly)
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+			for i := range tt.want {
+				if got[i] != tt.want[i] {
+					t.Fatalf("got %v, want %v", got, tt.want)
+				}
+			}
+		})
 	}
 }
