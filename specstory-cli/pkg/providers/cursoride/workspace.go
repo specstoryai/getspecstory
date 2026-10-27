@@ -237,6 +237,17 @@ func scanWorkspaceDirForComposerPaths(workspaceStoragePath string) (map[string]s
 			continue
 		}
 
+		// A multi-root workspace resolves to its workspace file, not a project directory.
+		// Attribute its composers to the first listed folder instead: that is the folder
+		// the extension runs the CLI in, and the one FindWorkspaces matches back to this
+		// entry, so the path is one a sync can actually run from. Unreadable files
+		// (e.g. remote workspaces) keep the file path as before.
+		if workspaceJSON.Workspace != "" {
+			if firstFolder := vscode.FirstWorkspaceFolder(projectPath); firstFolder != "" {
+				projectPath = firstFolder
+			}
+		}
+
 		composerIDs, idsErr := LoadWorkspaceComposerIDs(dbPath)
 		if idsErr != nil {
 			slog.Warn("Failed to load composer IDs from workspace",

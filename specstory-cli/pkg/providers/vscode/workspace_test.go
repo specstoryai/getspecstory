@@ -485,3 +485,96 @@ func TestCodeWorkspaceContainsFolder(t *testing.T) {
 		})
 	}
 }
+
+// An untitled multi-root workspace is stored by the IDE as a plain workspace.json
+// under its own Workspaces directory (no .code-workspace suffix). Its folders must
+// match the same way a saved .code-workspace file's folders do.
+func TestFindWorkspaces_UntitledMultiRootWorkspace(t *testing.T) {
+	storageRoot := t.TempDir()
+	base := t.TempDir()
+	folderA := filepath.Join(base, "monorepo")
+	folderB := filepath.Join(base, "cli")
+	folderC := filepath.Join(base, "unrelated")
+	for _, dir := range []string{folderA, folderB, folderC} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	canonicalA, err := NormalizePathForComparison(folderA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonicalB, err := NormalizePathForComparison(folderB)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Mirror Cursor's layout: <user data>/Workspaces/<timestamp>/workspace.json with
+	// absolute folder paths.
+	untitledDir := filepath.Join(base, "Workspaces", "1793105102369")
+	if err := os.MkdirAll(untitledDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	untitledFile := filepath.Join(untitledDir, "workspace.json")
+	if err := os.WriteFile(untitledFile, []byte(`{"folders": [{"path": "`+canonicalA+`"}, {"path": "`+canonicalB+`"}], "settings": {}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	canonicalUntitled, err := NormalizePathForComparison(untitledFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeWorkspaceEntry(t, storageRoot, "untitled",
+		`{"workspace": "`+PathToFileURI(canonicalUntitled)+`"}`)
+
+	for _, folder := range []string{folderA, folderB} {
+		entries, err := FindWorkspaces(storageRoot, folder, MatchOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) != 1 || entries[0].ID != "untitled" {
+			t.Errorf("lookup for %s should match the untitled workspace entry, got %v", folder, entries)
+		}
+	}
+
+	entries, err := FindWorkspaces(storageRoot, folderC, MatchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("a folder the workspace does not list must not match, got %v", entries)
+	}
+}
+
+func TestFirstWorkspaceFolder(t *testing.T) {
+	base := t.TempDir()
+	first := filepath.Join(base, "first")
+	second := filepath.Join(base, "second")
+	for _, dir := range []string{first, second} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	canonicalFirst, err := NormalizePathForComparison(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wsFile := filepath.Join(base, "multi.code-workspace")
+	if err := os.WriteFile(wsFile, []byte(`{"folders": [{"path": "first"}, {"path": "`+second+`"}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := FirstWorkspaceFolder(wsFile); got != canonicalFirst {
+		t.Errorf("FirstWorkspaceFolder = %q, want %q", got, canonicalFirst)
+	}
+
+	emptyFile := filepath.Join(base, "empty.code-workspace")
+	if err := os.WriteFile(emptyFile, []byte(`{"folders": []}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := FirstWorkspaceFolder(emptyFile); got != "" {
+		t.Errorf("empty folder list should yield \"\", got %q", got)
+	}
+	if got := FirstWorkspaceFolder(filepath.Join(base, "missing.code-workspace")); got != "" {
+		t.Errorf("missing file should yield \"\", got %q", got)
+	}
+}

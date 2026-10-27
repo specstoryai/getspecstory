@@ -428,3 +428,48 @@ func TestCheckDatabaseFailures(t *testing.T) {
 		})
 	}
 }
+
+// A multi-root workspace entry (saved .code-workspace or untitled workspace.json)
+// resolves to its workspace file. Its composers must be attributed to the first
+// listed folder, the project directory the extension and FindWorkspaces use.
+func TestScanWorkspaceDirForComposerPaths_MultiRootUsesFirstFolder(t *testing.T) {
+	tmpDir := t.TempDir()
+	base := t.TempDir()
+	first := filepath.Join(base, "monorepo")
+	second := filepath.Join(base, "cli")
+	for _, dir := range []string{first, second} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	canonicalFirst, err := vscode.NormalizePathForComparison(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	untitledDir := filepath.Join(base, "Workspaces", "1793105102369")
+	if err := os.MkdirAll(untitledDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	untitledFile := filepath.Join(untitledDir, "workspace.json")
+	if err := os.WriteFile(untitledFile, []byte(`{"folders":[{"path":"`+first+`"},{"path":"`+second+`"}]}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	ws := filepath.Join(tmpDir, "ws-multi")
+	if err := os.Mkdir(ws, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws, "workspace.json"), []byte(`{"workspace":"`+vscode.PathToFileURI(untitledFile)+`"}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	createWorkspaceDB(t, filepath.Join(ws, "state.vscdb"), []string{"composer-multi"})
+
+	result, err := scanWorkspaceDirForComposerPaths(tmpDir)
+	if err != nil {
+		t.Fatalf("scanWorkspaceDirForComposerPaths: %v", err)
+	}
+	if got := result["composer-multi"]; got != canonicalFirst {
+		t.Errorf("composer-multi path = %q, want first folder %q", got, canonicalFirst)
+	}
+}
