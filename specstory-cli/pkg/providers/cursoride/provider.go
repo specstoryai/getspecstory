@@ -413,8 +413,9 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 	slog.Debug("ListAllAgentChatSessions: enumerating all Cursor IDE sessions")
 
-	// Build the fallback composerID → project path mapping from the workspace databases.
-	composerToPath, err := ScanAllWorkspaceComposerPaths()
+	// Resolve every workspace entry to a project directory, indexed by workspace ID
+	// (for the embedded workspaceIdentifier) and by referenced composer ID (fallback).
+	workspaceIndex, err := ScanAllWorkspacePaths()
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan workspaces: %w", err)
 	}
@@ -431,15 +432,9 @@ func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 
 	var refs []spi.GlobalSessionRef
 	for composerID, composer := range composers {
-		// Prefer the embedded workspaceIdentifier, then the workspace-DB scan. A
-		// composer with neither has no known project and can't be indexed.
-		projectPath := ""
-		if composer.WorkspaceIdentifier != nil && composer.WorkspaceIdentifier.URI != nil {
-			projectPath = composer.WorkspaceIdentifier.URI.FsPath
-		}
-		if projectPath == "" {
-			projectPath = composerToPath[composerID]
-		}
+		// A composer with neither an embedded workspaceIdentifier nor a workspace-DB
+		// reference has no known project and can't be indexed.
+		projectPath := resolveComposerProjectPath(composerID, composer, workspaceIndex)
 		if projectPath == "" {
 			slog.Debug("Composer has no known project association", "composerID", composerID)
 			continue

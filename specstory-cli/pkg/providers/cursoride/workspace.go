@@ -182,42 +182,63 @@ func LoadComposerIDsFromAllWorkspaces(workspaces []vscode.WorkspaceEntry) ([]str
 	return allIDs, nil
 }
 
-// ScanAllWorkspaceComposerPaths enumerates every Cursor IDE workspace directory and
-// returns a map of composerID → project path (the OriginCwd for each session).
-// When a composer appears in multiple workspaces (e.g. WSL/SSH setups), the first-seen
-// workspace path is used. Workspaces that cannot be read are silently skipped so a
-// single bad entry does not abort the whole enumeration.
-func ScanAllWorkspaceComposerPaths() (map[string]string, error) {
-	workspaceStoragePath, err := GetWorkspaceStoragePath()
-	if err != nil {
-		// No workspace storage directory means Cursor IDE has never been opened.
-		slog.Debug("Workspace storage not found, no Cursor IDE sessions", "error", err)
-		return map[string]string{}, nil
-	}
-	return scanWorkspaceDirForComposerPaths(workspaceStoragePath)
+// WorkspacePathIndex is the result of walking the workspace storage directory:
+// every workspace entry resolved to a project directory, keyed both by the
+// workspace storage ID (what a composer's embedded workspaceIdentifier carries)
+// and by the composer IDs the workspace database references.
+type WorkspacePathIndex struct {
+	// ByWorkspaceID maps a workspace storage directory name to its project path.
+	ByWorkspaceID map[string]string
+	// ByComposer maps a composer ID referenced by a workspace database to that
+	// workspace's project path. First-seen workspace wins for composers that
+	// appear in several (WSL/SSH setups).
+	ByComposer map[string]string
 }
 
-// scanWorkspaceDirForComposerPaths does the actual directory walk for
-// ScanAllWorkspaceComposerPaths. It is a separate function so tests can call it
-// directly with a temp directory rather than relying on the live Cursor installation.
+// ScanAllWorkspacePaths walks every workspace storage entry and resolves each one
+// to a project directory, indexed by workspace ID and by referenced composer ID.
+// Multi-root workspaces resolve to their first listed folder (see
+// scanWorkspaceDir). An empty index, not an error, when Cursor has no workspace
+// storage yet.
+func ScanAllWorkspacePaths() (*WorkspacePathIndex, error) {
+	workspaceStoragePath, err := GetWorkspaceStoragePath()
+	if err != nil {
+		slog.Debug("Workspace storage not found, no Cursor IDE sessions", "error", err)
+		return &WorkspacePathIndex{ByWorkspaceID: map[string]string{}, ByComposer: map[string]string{}}, nil
+	}
+	return scanWorkspaceDir(workspaceStoragePath)
+}
+
+// scanWorkspaceDirForComposerPaths is the composer-keyed view of scanWorkspaceDir,
+// kept for callers and tests that only need the composer mapping.
 func scanWorkspaceDirForComposerPaths(workspaceStoragePath string) (map[string]string, error) {
+	index, err := scanWorkspaceDir(workspaceStoragePath)
+	if err != nil {
+		return nil, err
+	}
+	return index.ByComposer, nil
+}
+
+// scanWorkspaceDir does the actual directory walk for ScanAllWorkspacePaths. It is
+// a separate function so tests can call it directly with a temp directory rather
+// than relying on the live Cursor installation.
+func scanWorkspaceDir(workspaceStoragePath string) (*WorkspacePathIndex, error) {
 	entries, err := os.ReadDir(workspaceStoragePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read workspace storage: %w", err)
 	}
 
-	composerToPath := make(map[string]string)
+	index := &WorkspacePathIndex{
+		ByWorkspaceID: make(map[string]string),
+		ByComposer:    make(map[string]string),
+	}
+	composerToPath := index.ByComposer
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
 
 		workspacePath := filepath.Join(workspaceStoragePath, entry.Name())
-		dbPath := filepath.Join(workspacePath, "state.vscdb")
-		if _, statErr := os.Stat(dbPath); statErr != nil {
-			continue // workspace directory has no database yet
-		}
-
 		workspaceJSON, jsonErr := vscode.ReadWorkspaceJSON(filepath.Join(workspacePath, "workspace.json"))
 		if jsonErr != nil {
 			slog.Debug("Skipping workspace (no valid workspace.json)",
@@ -247,6 +268,12 @@ func scanWorkspaceDirForComposerPaths(workspaceStoragePath string) (map[string]s
 				projectPath = firstFolder
 			}
 		}
+		index.ByWorkspaceID[entry.Name()] = projectPath
+
+		dbPath := filepath.Join(workspacePath, "state.vscdb")
+		if _, statErr := os.Stat(dbPath); statErr != nil {
+			continue // workspace directory has no database yet, so no composer references
+		}
 
 		composerIDs, idsErr := LoadWorkspaceComposerIDs(dbPath)
 		if idsErr != nil {
@@ -264,6 +291,27 @@ func scanWorkspaceDirForComposerPaths(workspaceStoragePath string) (map[string]s
 		}
 	}
 
-	slog.Debug("Scanned all workspaces for composer paths", "composerCount", len(composerToPath))
-	return composerToPath, nil
+	slog.Debug("Scanned all workspaces for project paths",
+		"workspaceCount", len(index.ByWorkspaceID), "composerCount", len(composerToPath))
+	return index, nil
+}
+
+// resolveComposerProjectPath picks the project directory a composer belongs to for
+// the global session listing, or "" when none is known. The embedded
+// workspaceIdentifier is the live association in Cursor >= 3.12, so its workspace
+// entry is consulted first: that resolves multi-root workspaces to their first
+// folder, and covers identifiers that carry only an ID (multi-root windows have no
+// single folder URI). The identifier's folder URI is next, for an entry that no
+// longer exists in workspace storage, and the workspace-DB reference last, for
+// composers that predate the embedded field.
+func resolveComposerProjectPath(composerID string, composer *ComposerData, index *WorkspacePathIndex) string {
+	if wi := composer.WorkspaceIdentifier; wi != nil {
+		if path := index.ByWorkspaceID[wi.ID]; path != "" {
+			return path
+		}
+		if wi.URI != nil && wi.URI.FsPath != "" {
+			return wi.URI.FsPath
+		}
+	}
+	return index.ByComposer[composerID]
 }

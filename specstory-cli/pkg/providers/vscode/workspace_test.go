@@ -516,7 +516,7 @@ func TestFindWorkspaces_UntitledMultiRootWorkspace(t *testing.T) {
 		t.Fatal(err)
 	}
 	untitledFile := filepath.Join(untitledDir, "workspace.json")
-	if err := os.WriteFile(untitledFile, []byte(`{"folders": [{"path": "`+canonicalA+`"}, {"path": "`+canonicalB+`"}], "settings": {}}`), 0o644); err != nil {
+	if err := os.WriteFile(untitledFile, []byte(`{"folders": [{"path": `+testutil.JSONString(canonicalA)+`}, {"path": `+testutil.JSONString(canonicalB)+`}], "settings": {}}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	canonicalUntitled, err := NormalizePathForComparison(untitledFile)
@@ -560,7 +560,7 @@ func TestFirstWorkspaceFolder(t *testing.T) {
 	}
 
 	wsFile := filepath.Join(base, "multi.code-workspace")
-	if err := os.WriteFile(wsFile, []byte(`{"folders": [{"path": "first"}, {"path": "`+second+`"}]}`), 0o644); err != nil {
+	if err := os.WriteFile(wsFile, []byte(`{"folders": [{"path": "first"}, {"path": `+testutil.JSONString(second)+`}]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if got := FirstWorkspaceFolder(wsFile); got != canonicalFirst {
