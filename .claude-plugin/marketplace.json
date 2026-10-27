@@ -9,6 +9,19 @@
   },
   "plugins": [
     {
+      "name": "specstory",
+      "source": "./specstory-plugin",
+      "version": "0.1.0",
+      "description": "Auto-save every AI coding session as git-friendly markdown in .specstory/history — lifecycle hooks run `specstory sync` after each turn. No prerequisites: if the specstory binary is missing, the plugin walks you through installing it (or run /specstory:setup).",
+      "author": {
+        "name": "SpecStory",
+        "url": "https://github.com/specstoryai"
+      },
+      "homepage": "https://github.com/specstoryai/getspecstory/tree/dev/specstory-plugin",
+      "license": "Apache-2.0",
+      "category": "productivity"
+    },
+    {
       "name": "lore",
       "source": "./lore",
       "version": "3.9.0",
