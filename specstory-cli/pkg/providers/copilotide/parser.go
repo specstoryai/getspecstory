@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -468,12 +467,6 @@ func ExtractFinalAgentMessage(metadata VSCodeResultMetadata) string {
 	return ""
 }
 
-// toolResultCap bounds how much tool output is pre-rendered into FormattedMarkdown.
-// Inputs are not capped — they carry what the agent chose to do (e.g. the full content
-// of a written file) — but results (file reads, command output) can be arbitrarily
-// large and matter less once the agent has already responded to them.
-const toolResultCap = 2000
-
 // FormatToolMarkdown pre-renders a tool call's Input/Output as markdown for
 // ToolInfo.FormattedMarkdown. The markdown generator would fall back to an equivalent
 // generic rendering on its own, but cross-agent resume would not: the flattener
@@ -487,46 +480,15 @@ func FormatToolMarkdown(tool *schema.ToolInfo) string {
 	if custom := formatCustomToolMarkdown(tool); custom != "" {
 		return custom
 	}
-
-	var b strings.Builder
-
-	// Input as key-value pairs, multiline values fenced (mirrors the generic renderer).
-	keys := make([]string, 0, len(tool.Input))
-	for key := range tool.Input {
-		// Skip internal fields like _cwd (matches the markdown generator).
-		if !strings.HasPrefix(key, "_") {
-			keys = append(keys, key)
-		}
-	}
-	sort.Strings(keys)
-	if len(keys) > 0 {
-		b.WriteString("\n**Input:**\n\n")
-		for _, key := range keys {
-			valueStr := inputValueString(tool.Input[key])
-			if strings.Contains(valueStr, "\n") {
-				fmt.Fprintf(&b, "- %s:\n\n%s\n\n", key, spi.CodeFence("", valueStr))
-			} else {
-				fmt.Fprintf(&b, "- %s: `%s`\n", key, valueStr)
-			}
-		}
-	}
-
-	b.WriteString(resultSection(tool))
-
-	return b.String()
+	return spi.RenderToolInputList(tool.Input) + resultSection(tool)
 }
 
 // resultSection renders the fenced **Result:** block from the output map
 // (BuildToolInfoFromInvocation stores it under "result"); "" when there is
-// none. Trailing blank lines are trimmed — terminal-style results carry dozens
-// of them and they only pad out the fenced block — and the result is capped.
+// none.
 func resultSection(tool *schema.ToolInfo) string {
-	result, ok := tool.Output["result"].(string)
-	if !ok || strings.TrimSpace(result) == "" {
-		return ""
-	}
-	capped := spi.CapRunes(strings.TrimRight(result, " \t\n"), toolResultCap)
-	return fmt.Sprintf("\n**Result:**\n\n%s\n", spi.CodeFence("", capped))
+	result, _ := tool.Output["result"].(string)
+	return spi.RenderToolResult(result)
 }
 
 // formatCustomToolMarkdown returns tool-specific markdown for tools whose
@@ -543,21 +505,16 @@ func formatCustomToolMarkdown(tool *schema.ToolInfo) string {
 	return ""
 }
 
-// formatTerminalMarkdown renders a terminal command the way it reads in a
-// shell session: the explanation as prose, the command in a bash fence
-// (uncapped — it is what the agent chose to run), then the fenced result.
+// formatTerminalMarkdown renders a terminal command with its explanation and
+// result through the shared shell layout.
 func formatTerminalMarkdown(tool *schema.ToolInfo) string {
 	command, _ := tool.Input["command"].(string)
 	if command == "" {
 		return ""
 	}
-	var b strings.Builder
-	if explanation, _ := tool.Input["explanation"].(string); explanation != "" {
-		fmt.Fprintf(&b, "\n%s\n", explanation)
-	}
-	fmt.Fprintf(&b, "\n%s\n", spi.CodeFence("bash", command))
-	b.WriteString(resultSection(tool))
-	return b.String()
+	explanation, _ := tool.Input["explanation"].(string)
+	result, _ := tool.Output["result"].(string)
+	return spi.RenderShellCall(explanation, command, result)
 }
 
 // formatTodoListMarkdown renders a todo-list write as a markdown checklist.
@@ -597,28 +554,6 @@ func formatTodoListMarkdown(tool *schema.ToolInfo) string {
 	}
 	b.WriteString(resultSection(tool))
 	return b.String()
-}
-
-// inputValueString renders one tool-input value for the markdown Input list.
-// Scalars print as-is; maps and slices marshal as JSON — Go's %v formatting
-// (map[args:[x] command:echo ...]) is meaningless to readers of the archive.
-// Compact JSON for short values, indented (which the caller fences) for long.
-func inputValueString(v any) string {
-	switch v.(type) {
-	case nil, string, bool, float64, int, int64:
-		return fmt.Sprintf("%v", v)
-	}
-	compact, err := json.Marshal(v)
-	if err != nil {
-		return fmt.Sprintf("%v", v)
-	}
-	if len(compact) <= 80 {
-		return string(compact)
-	}
-	if pretty, err := json.MarshalIndent(v, "", "  "); err == nil {
-		return string(pretty)
-	}
-	return string(compact)
 }
 
 // GenerateSlug creates a filesystem-safe slug from the composer title, name, or
