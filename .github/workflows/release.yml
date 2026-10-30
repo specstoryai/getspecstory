@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.27.2'
+          go-version: '1.27.3'
           cache-dependency-path: specstory-cli/go.sum
       - name: Extract version from tag
         id: version
@@ -88,22 +88,29 @@ jobs:
               --arg title "$TITLE" \
               --arg username "SpecStory Release Bot" \
               --arg icon ":specstory:" \
-              '{
+              '# Slack rejects a section whose text exceeds 3000 characters
+              # (invalid_attachments), so the changelog is split at line
+              # boundaries into sections of at most 2900, leaving headroom for
+              # characters Slack counts differently. A line longer than that is
+              # cut into pieces of that size.
+              def sections($max):
+                [ split("\n")[] | if length > $max then [range(0; length; $max) as $i | .[$i:$i + $max]][] else . end ]
+                | reduce .[] as $line ([""];
+                    if (.[-1] | length) > 0 and (.[-1] | length) + 1 + ($line | length) > $max
+                    then . + [$line]
+                    else .[-1] = (if .[-1] == "" then $line else .[-1] + "\n" + $line end)
+                    end)
+                | map(select(length > 0));
+              {
                 username: $username,
                 icon_emoji: $icon,
                 attachments: [
                   {
                     color: "#e35a2c",
-                    blocks: [
-                      {
-                        "type": "section",
-                        "text": { "type": "mrkdwn", "text": $title }
-                      },
-                      {
-                        "type": "section",
-                        "text": { "type": "mrkdwn", "text": $text }
-                      }
-                    ]
+                    blocks: (
+                      [ { "type": "section", "text": { "type": "mrkdwn", "text": $title } } ]
+                      + [ $text | sections(2900)[] | { "type": "section", "text": { "type": "mrkdwn", "text": . } } ]
+                    )
                   }
                 ]
               }' > payload.json
