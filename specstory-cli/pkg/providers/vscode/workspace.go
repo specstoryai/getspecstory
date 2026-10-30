@@ -37,8 +37,12 @@ func (e *WorkspaceEntry) MetadataPath() string {
 
 // WorkspaceJSON is the structure of a workspace storage entry's workspace.json.
 type WorkspaceJSON struct {
-	Workspace string `json:"workspace,omitempty"` // multi-root workspaces (.code-workspace file URI)
-	Folder    string `json:"folder,omitempty"`    // single-folder workspaces
+	// Workspace is set for multi-root workspaces: the URI of a saved .code-workspace
+	// file, or for an untitled workspace the workspace.json the IDE keeps under its
+	// own Workspaces directory (e.g. ~/Library/Application Support/Cursor/Workspaces/
+	// <id>/workspace.json). Both files share the same {"folders": [{"path": ...}]} layout.
+	Workspace string `json:"workspace,omitempty"`
+	Folder    string `json:"folder,omitempty"` // single-folder workspaces
 }
 
 // PrimaryURI returns the URI identifying the workspace, preferring the
@@ -87,7 +91,8 @@ type MatchOptions struct {
 //     unrelated projects sharing a directory name (e.g. two different
 //     "backend" folders) would otherwise match and export each other's
 //     sessions.
-//  3. The entry is a .code-workspace file that lists projectPath as a folder.
+//  3. The entry is a multi-root workspace (a saved .code-workspace file or an
+//     untitled workspace's workspace.json) that lists projectPath as a folder.
 //  4. projectPath is itself a .code-workspace file and the entry is one of the
 //     folders it lists.
 //
@@ -164,11 +169,13 @@ func FindWorkspaces(storageRoot, projectPath string, opts MatchOptions) ([]Works
 			}
 		}
 
-		// Method 3: the entry's .code-workspace file lists our folder.
-		if !isMatch && strings.HasSuffix(canonicalWorkspacePath, ".code-workspace") {
+		// Method 3: the entry's multi-root workspace file lists our folder. Keyed on
+		// the workspace URI being present rather than a .code-workspace suffix so
+		// untitled workspaces, which the IDE stores as a plain workspace.json, match too.
+		if !isMatch && workspaceJSON.Workspace != "" {
 			if codeWorkspaceContainsFolder(canonicalWorkspacePath, canonicalProjectPath, spi.IsRemoteURIRequiringBasenameMatch(workspaceURI)) {
 				isMatch = true
-				slog.Debug("Matched workspace by .code-workspace folder reference",
+				slog.Debug("Matched workspace by multi-root folder reference",
 					"workspaceID", workspaceID,
 					"workspaceFile", canonicalWorkspacePath,
 					"targetFolder", canonicalProjectPath)
@@ -258,9 +265,23 @@ func SelectPrimary(entries []WorkspaceEntry, projectPath string) *WorkspaceEntry
 	return &best
 }
 
-// collectCodeWorkspaceFolders reads a .code-workspace JSON file and returns the
-// canonical paths of all listed folders. Relative paths are resolved against
-// the workspace file's directory.
+// FirstWorkspaceFolder returns the canonical path of the first folder listed in a
+// multi-root workspace file (.code-workspace or an untitled workspace.json), or ""
+// when the file cannot be read or lists no folders. It is the folder the extension
+// treats as the project for a multi-root window, so callers use it to attribute a
+// multi-root workspace's sessions to a real project directory.
+func FirstWorkspaceFolder(workspaceFilePath string) string {
+	folders := collectCodeWorkspaceFolders(workspaceFilePath)
+	if len(folders) == 0 {
+		return ""
+	}
+	return folders[0]
+}
+
+// collectCodeWorkspaceFolders reads a multi-root workspace JSON file (a saved
+// .code-workspace or an untitled workspace.json, which share the same layout) and
+// returns the canonical paths of all listed folders. Relative paths are resolved
+// against the workspace file's directory.
 func collectCodeWorkspaceFolders(workspaceFilePath string) []string {
 	data, err := os.ReadFile(workspaceFilePath)
 	if err != nil {
