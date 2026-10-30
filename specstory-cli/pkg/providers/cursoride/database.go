@@ -845,10 +845,25 @@ func RegisterGlassProjectMembership(globalDbPath, composerID, workspaceID, works
 
 // LoadAllComposerDataLightweight loads composer records for all sessions in the global database.
 // Unlike LoadComposerDataBatch, it only reads composerData:* keys — no bubble records — so it
-// is fast enough for global enumeration (ListAllAgentChatSessions). Inline conversation turns
-// are included when present (Cursor 2 format); for Cursor 3 only the header list is returned
-// and slug/name derivation falls back to the composer Name field.
+// is fast enough to run on every watcher check. Inline conversation turns are included when
+// present (Cursor 2 format); for Cursor 3 only the inline header list is returned and
+// slug/name derivation falls back to the composer Name field. Cursor >= 3.27.14 composers
+// come back with an empty header list; callers that need to tell an empty composer from a
+// populated one must use LoadAllComposerDataWithHeaders instead.
 func LoadAllComposerDataLightweight(globalDbPath string) (map[string]*ComposerData, error) {
+	return loadAllComposerData(globalDbPath, false)
+}
+
+// LoadAllComposerDataWithHeaders is LoadAllComposerDataLightweight plus the paged
+// composerConvHeaders rows, merged into FullConversationHeadersOnly. It is kept separate
+// because the pages span the whole chat history: discovery and watcher seeding only need
+// workspace associations and timestamps, so they shouldn't pay to decode every page.
+func LoadAllComposerDataWithHeaders(globalDbPath string) (map[string]*ComposerData, error) {
+	return loadAllComposerData(globalDbPath, true)
+}
+
+// loadAllComposerData is the shared body of the two global loaders.
+func loadAllComposerData(globalDbPath string, withHeaderPages bool) (map[string]*ComposerData, error) {
 	db, err := OpenDatabase(globalDbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open global database: %w", err)
@@ -891,11 +906,13 @@ func LoadAllComposerDataLightweight(globalDbPath string) (map[string]*ComposerDa
 	// Cursor >= 3.27.14 leaves fullConversationHeadersOnly empty and pages the headers
 	// into composerConvHeaders rows. Without them, callers that use the header list to
 	// tell an empty composer from a populated one would skip every new session.
-	pages, err := loadAllHeaderPages(db)
-	if err != nil {
-		return nil, err
+	if withHeaderPages {
+		pages, err := loadAllHeaderPages(db)
+		if err != nil {
+			return nil, err
+		}
+		mergeHeaderPages(composers, pages)
 	}
-	mergeHeaderPages(composers, pages)
 
 	slog.Debug("Loaded lightweight composer data from global database", "count", len(composers))
 	return composers, nil

@@ -782,9 +782,10 @@ func TestLoadComposerDataBatch_EmptyComposerStaysEmpty(t *testing.T) {
 	}
 }
 
-// The lightweight loader feeds ListAllAgentChatSessions, which uses the header list to
-// tell an empty composer from a populated one, so it must see the paged headers too.
-func TestLoadAllComposerDataLightweight_PagedHeaders(t *testing.T) {
+// ListAllAgentChatSessions uses the header list to tell an empty composer from a
+// populated one, so its loader must see the paged headers too. The lightweight loader
+// must not, because it runs on every watcher check.
+func TestLoadAllComposerDataWithHeaders(t *testing.T) {
 	dbPath := createTestGlobalDB(t, map[string]string{
 		"composerData:paged":                pagedComposerJSON(t, "paged", "new chat"),
 		"composerConvHeaders:paged:000000":  `[{"bubbleId":"u1","type":1},{"bubbleId":"u1/s:0","type":2}]`,
@@ -794,9 +795,9 @@ func TestLoadAllComposerDataLightweight_PagedHeaders(t *testing.T) {
 		"composerConvHeaders:paged:bad":     `not json`,
 	})
 
-	composers, err := LoadAllComposerDataLightweight(dbPath)
+	composers, err := LoadAllComposerDataWithHeaders(dbPath)
 	if err != nil {
-		t.Fatalf("LoadAllComposerDataLightweight: %v", err)
+		t.Fatalf("LoadAllComposerDataWithHeaders: %v", err)
 	}
 	if got := len(composers["paged"].FullConversationHeadersOnly); got != 3 {
 		t.Errorf("paged composer: got %d headers, want 3", got)
@@ -806,6 +807,15 @@ func TestLoadAllComposerDataLightweight_PagedHeaders(t *testing.T) {
 	}
 	if _, exists := composers["orphan"]; exists {
 		t.Errorf("a page without a composerData row must not create a composer")
+	}
+
+	// The lightweight loader backs every watcher check, so it must stay metadata-only.
+	light, err := LoadAllComposerDataLightweight(dbPath)
+	if err != nil {
+		t.Fatalf("LoadAllComposerDataLightweight: %v", err)
+	}
+	if got := len(light["paged"].FullConversationHeadersOnly); got != 0 {
+		t.Errorf("lightweight loader: got %d headers, want 0 (pages must not be read)", got)
 	}
 }
 
