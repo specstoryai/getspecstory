@@ -39,11 +39,14 @@ Cursor IDE         ┐
 Copilot IDE        │
 Claude Code CLI    │
 Cursor CLI         │
+Cursor Cloud Agent │
 Codex CLI          ├──────►  .specstory/history/  ──────►  cloud.specstory.com
 Droid CLI          │          (Auto-Saved Locally)        (Search, Ask & Share)
 DeepSeek TUI       │
 Antigravity CLI    │
+Grok Build         │
 Muse Code          │
+OpenCode           │
 Pi                 │
 Qwen Code          ┘
 ```
@@ -71,6 +74,7 @@ SpecStory integrates seamlessly with your favorite AI coding tools, automaticall
 | [Claude Code](https://claude.ai/claude-code)                                  | CLI        | v1.0.27+     | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/claudecode)     | `brew tap specstoryai/tap`<br/>`brew install specstory`       |
 | [Codex CLI](https://www.openai.com/codex)                                     | CLI        | v0.42.0+     | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/codexcli)       | `brew tap specstoryai/tap`<br/>`brew install specstory`       |
 | [Cursor CLI](https://cursor.com/cli)                                          | CLI        | v2025.09.18+ | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/cursorcli)      | `brew tap specstoryai/tap`<br/>`brew install specstory`       |
+| [Cursor Cloud Agents](https://cursor.com/agents)                              | Cloud      |              | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/cursorcloud)    | `brew tap specstoryai/tap`<br/>`brew install specstory`       |
 | [Droid CLI](https://factory.ai/product/cli)                                   | CLI        | v0.56.3+     | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/droidcli)       | `brew tap specstoryai/tap`<br/>`brew install specstory`       |
 | [Gemini CLI](https://docs.cloud.google.com/gemini/docs/codeassist/gemini-cli) | CLI        | 0.15.1+      | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/geminicli)      | `brew tap specstoryai/tap`<br/>`brew install specstory`       |
 | [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)                        | CLI        | 0.8.39+      | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/deepseektui)    | `brew tap specstoryai/tap`<br/>`brew install specstory`       |
@@ -78,6 +82,8 @@ SpecStory integrates seamlessly with your favorite AI coding tools, automaticall
 | [Muse Code](https://developer.meta.com/ai/products/muse-code/)                | CLI        | 0.1.0+       | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/musecode)       | `brew tap specstoryai/tap`<br/>`brew install specstory`       |
 | [Qwen Code](https://github.com/QwenLM/qwen-code)                              | CLI        | 0.23.4+      | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/qwencode)       | `brew tap specstoryai/tap`<br/>`brew install specstory`       |
 | [Pi](https://pi.dev) | CLI | 0.85.1+ | **[SpecStory CLI](https://specstory.com/specstory-cli)** | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/piagent) | `brew tap specstoryai/tap`<br/>`brew install specstory` |
+| [Grok Build](https://x.ai/cli) | CLI | 1.0.34+ | **[SpecStory CLI](https://specstory.com/specstory-cli)** | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/grokbuild) | `brew tap specstoryai/tap`<br/>`brew install specstory` |
+| [OpenCode](https://opencode.ai/) | CLI | | **[SpecStory CLI](https://specstory.com/specstory-cli)** | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/opencode) | `brew tap specstoryai/tap`<br/>`brew install specstory` |
 | Any [Agent Skills](https://agentskills.io)                                    | Skill      | Node 22.5+   | **[Lore](./lore)** 📜                                             | [Open](./lore)                                                                                          | `npx skills add specstoryai/getspecstory --skill lore`        |
 
 > [!TIP]
@@ -88,7 +94,7 @@ SpecStory integrates seamlessly with your favorite AI coding tools, automaticall
 
 ### Terminal Coding Agents
 
-**One installation works with all terminal coding agents** - Claude Code, Cursor CLI, Codex, Droid, DeepSeek, Antigravity CLI, Qwen Code, and Pi:
+**One installation works with all terminal coding agents** - Claude Code, Cursor CLI, Codex, Droid, DeepSeek, Antigravity CLI, OpenCode, Qwen Code, and Pi - and with Cursor Cloud Agents, read from the Cursor API with your API key (set `CURSOR_API_KEY`, or `cursor_api_key` under `[providers]` in `~/.specstory/cli/config.toml`):
 
 ```bash
 # Check which agents are installed
@@ -97,11 +103,14 @@ specstory check
 # Launch your preferred agent with session auto-save
 specstory run claude       # Launch Claude Code
 specstory run cursor       # Launch Cursor CLI
+specstory run cursorcloud  # Start a Cursor Cloud Agent on this repo and save its sessions
 specstory run codex        # Launch Codex CLI
 specstory run droid        # Launch Droid CLI
 specstory run deepseek     # Launch DeepSeek TUI
 specstory run antigravity  # Launch Antigravity CLI
+specstory run grok         # Launch Grok Build
 specstory run muse         # Launch Muse Code
+specstory run opencode     # Launch OpenCode
 specstory run qwen         # Launch Qwen Code
 specstory run pi           # Launch Pi
 specstory run              # Launch the default agent (Claude Code)

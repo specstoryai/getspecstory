@@ -37,7 +37,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	newID := uuid.NewString()
 	now := deepseekTimestamp(time.Now().UTC())
 
-	title := spi.ResumedSessionTitle(data.Slug)
+	title := spi.ResumedSessionTitle(data)
 
 	messages := make([]map[string]interface{}, 0, len(turns))
 	for _, turn := range turns {

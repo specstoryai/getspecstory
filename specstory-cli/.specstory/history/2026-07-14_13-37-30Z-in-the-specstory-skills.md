@@ -26,8 +26,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:39:24Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "No skills generated yet" --include="*.go" . 2>/dev/null | grep -v .specstory`</summary>
+**Command:**
+```bash
+grep -rn "No skills generated yet" --include="*.go" . 2>/dev/null | grep -v .specstory
 ```
+
+```text
 ./pkg/cmd/skills.go:1516:		return styFaint.Render("  No skills generated yet. Keep coding with SpecStory syncing your sessions — skills will appear here.")
+
 ```
 </details></tool-use>
 
@@ -35,9 +41,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:39:26Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`./pkg/cmd/skills.go`
-
+**Path:**
+```text
+./pkg/cmd/skills.go
 ```
+
+**Offset (line):**
+```text
+1510
+```
+
+**Limit:**
+```text
+12
+```
+
+```go
+
 func (m skillsTUI) renderSkillRows() string {
 	if m.loading && len(m.all) == 0 {
 		return styFaint.Render("  " + m.spinner.View() + " Loading skills…")
@@ -58,10 +78,60 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:39:27Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`./pkg/cmd/skills.go`
+**Path:**
+```text
+./pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-return styFaint.Render("  No skills generated yet. Keep coding with SpecStory syncing your sessions — skills will appear here.")
++return styFaint.Render("  No generated skills yet. Skills will appear here once generated.")
+```
+
+```text
+Successfully replaced 1 block(s) in ./pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+ 1512 	if m.loading && len(m.all) == 0 {
+ 1513 		return styFaint.Render("  " + m.spinner.View() + " Loading skills…")
+ 1514 	}
+ 1515 	if len(m.all) == 0 {
+-1516 		return styFaint.Render("  No skills generated yet. Keep coding with SpecStory syncing your sessions — skills will appear here.")
++1516 		return styFaint.Render("  No generated skills yet. Skills will appear here once generated.")
+ 1517 	}
+ 1518 	if len(m.filtered) == 0 {
+ 1519 		return styFaint.Render("  No skills match this filter.")
+ 1520 	}
+      ...
+```
+
+**patch:**
+```diff
+--- ./pkg/cmd/skills.go
++++ ./pkg/cmd/skills.go
+@@ -1512,9 +1512,9 @@
+ 	if m.loading && len(m.all) == 0 {
+ 		return styFaint.Render("  " + m.spinner.View() + " Loading skills…")
+ 	}
+ 	if len(m.all) == 0 {
+-		return styFaint.Render("  No skills generated yet. Keep coding with SpecStory syncing your sessions — skills will appear here.")
++		return styFaint.Render("  No generated skills yet. Skills will appear here once generated.")
+ 	}
+ 	if len(m.filtered) == 0 {
+ 		return styFaint.Render("  No skills match this filter.")
+ 	}
 
 ```
-Successfully replaced 1 block(s) in ./pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 1516
+}
 ```
 </details></tool-use>
 
@@ -69,7 +139,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:39:30Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build ./... 2>&1`</summary>
+**Command:**
+```bash
+go build ./... 2>&1
 ```
+
+```text
 (no output)
 ```
 </details></tool-use>
@@ -108,7 +183,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:45:56Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "No runs yet\|Press 'n'\|mine your sessions\|run\b" pkg/cmd/skills.go | head -40`</summary>
+**Command:**
+```bash
+grep -n "No runs yet\|Press 'n'\|mine your sessions\|run\b" pkg/cmd/skills.go | head -40
 ```
+
+```text
 421:		Use:   "run",
 422:		Short: "Start a new run that mines your sessions for skills",
 436:			fprintf(cmd.OutOrStdout(), "Started run %s. Track it with 'specstory skills runs'.\n", runID)
@@ -140,6 +220,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:45:56Z)**_
 1774:// runStatusBadge renders a short colored run-status tag.
 1792:// fmtRunDuration renders how long a run took (or has been running). A terminal run freezes
 1793:// at endedAt (falling back to updatedAt); an in-progress run shows elapsed-from-start.
+
 ```
 </details></tool-use>
 
@@ -147,10 +228,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:45:57Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
-return m.startReject()
+
+**Offset (line):**
+```text
+875
+```
+
+**Limit:**
+```text
+15
+```
+
+```go
+		return m.startReject()
 	case "i": // install (ready rows)
 		return m.startInstall()
 	case "u": // uninstall (locally installed)
@@ -180,7 +274,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:45:59Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n '"n"\|case "n"\|"n run"\|switchTab\|tabRuns\|tabLibrary\|defaultTab\|activeTab\|m.tab ' pkg/cmd/skills.go | head -50`</summary>
+**Command:**
+```bash
+grep -n '"n"\|case "n"\|"n run"\|switchTab\|tabRuns\|tabLibrary\|defaultTab\|activeTab\|m.tab ' pkg/cmd/skills.go | head -50
 ```
+
+```text
 579:	tabLibrary skillsTab = iota // the mined skill library
 580:	tabRuns                     // run activity: past runs + kick off / watch a new one
 769:		case m.tab == tabRuns:
@@ -199,6 +298,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:45:59Z)**_
 1470:	runsTab := tabSty(m.tab == tabRuns, "Run Activity")
 1476:	left := tabSty(m.tab == tabLibrary, "Library") + "   " + runsTab
 1668:	keys := []string{"↑↓ move", "enter details", "n run", "r refresh", "tab library", "q quit"}
+
 ```
 </details></tool-use>
 
@@ -214,9 +314,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:46:04Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
+
+**Offset (line):**
+```text
+1120
+```
+
+**Limit:**
+```text
+40
+```
+
+```go
 // ---- runs tab ----
 
 // updateRuns handles keys on the Runs tab.
@@ -276,10 +389,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:46:10Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
-b.WriteString(m.renderRunRows())
+
+**Offset (line):**
+```text
+1655
+```
+
+**Limit:**
+```text
+25
+```
+
+```go
+	b.WriteString(m.renderRunRows())
 	b.WriteString("\n")
 	b.WriteString(strings.Repeat("─", m.skillsLineWidth()))
 	b.WriteString("\n")
@@ -319,7 +445,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:46:15Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n '"n run"\|"n"\|keys :=' pkg/cmd/skills.go | head; grep -n 'keys\b\|strings.Join' pkg/cmd/skills.go | head`</summary>
+**Command:**
+```bash
+grep -n '"n run"\|"n"\|keys :=' pkg/cmd/skills.go | head; grep -n 'keys\b\|strings.Join' pkg/cmd/skills.go | head
 ```
+
+```text
 882:	case "n": // new run (mine sessions for skills)
 945:	case "n", "N", "esc", "q":
 1146:	case "n":
@@ -335,6 +466,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:46:15Z)**_
 1122:// updateRuns handles keys on the Runs tab.
 1156:// updateRunDetail handles keys while a run's detail overlay is open.
 1395:	agents := strings.Join(s.InstalledAgents, ", ")
+
 ```
 </details></tool-use>
 
@@ -377,7 +509,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:46:36Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n 'tabLibrary\|m.tab =\|tab:\|skillsTUI{' pkg/cmd/skills.go | head -30`</summary>
+**Command:**
+```bash
+grep -n 'tabLibrary\|m.tab =\|tab:\|skillsTUI{' pkg/cmd/skills.go | head -30
 ```
+
+```text
 579:	tabLibrary skillsTab = iota // the mined skill library
 682:	m := skillsTUI{
 769:		case m.tab == tabRuns:
@@ -388,6 +525,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:46:36Z)**_
 1452:	case m.tab == tabRuns:
 1470:	runsTab := tabSty(m.tab == tabRuns, "Run Activity")
 1476:	left := tabSty(m.tab == tabLibrary, "Library") + "   " + runsTab
+
 ```
 </details></tool-use>
 
@@ -395,10 +533,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:46:37Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
-reload bool   // re-fetch the library after a successful mutation
+
+**Offset (line):**
+```text
+675
+```
+
+**Limit:**
+```text
+60
+```
+
+```go
+	reload bool   // re-fetch the library after a successful mutation
 	scope  string // install scope to remember as the new default, if any
 }
 
@@ -475,7 +626,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:46:41Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n 'loadCmd\|loadedMsg\|skillsLoaded\|m.loading = false\|m.all =\|case skillsLoaded\|case .*Loaded' pkg/cmd/skills.go | head -30`</summary>
+**Command:**
+```bash
+grep -n 'loadCmd\|loadedMsg\|skillsLoaded\|m.loading = false\|m.all =\|case skillsLoaded\|case .*Loaded' pkg/cmd/skills.go | head -30
 ```
+
+```text
 665:// skillsLoadedMsg carries the result of an async library fetch (initial load or refresh).
 666:type skillsLoadedMsg struct {
 708:	return tea.Batch(m.spinner.Tick, m.loadCmd())
@@ -488,6 +644,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:46:41Z)**_
 799:	m.all = msg.views
 825:		return m, m.loadCmd()
 1266:		cmds = append(cmds, m.loadCmd())
+
 ```
 </details></tool-use>
 
@@ -495,10 +652,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:46:42Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
-case skillsLoadedMsg:
+
+**Offset (line):**
+```text
+738
+```
+
+**Limit:**
+```text
+50
+```
+
+```go
+	case skillsLoadedMsg:
 		return m.applyLoaded(msg), nil
 	case actionResultMsg:
 		return m.applyActionResult(msg)
@@ -557,9 +727,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:46:42Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
+
+**Offset (line):**
+```text
+789
+```
+
+**Limit:**
+```text
+45
+```
+
+```go
 func (m skillsTUI) applyLoaded(msg skillsLoadedMsg) skillsTUI {
 	m.loading = false
 	if msg.err != nil {
@@ -626,7 +809,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:46:46Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n 'loadCmd\|m.loading = true\|case "r"\|refresh' pkg/cmd/skills.go | head -30`</summary>
+**Command:**
+```bash
+grep -n 'loadCmd\|m.loading = true\|case "r"\|refresh' pkg/cmd/skills.go | head -30
 ```
+
+```text
 269:		Short: "Reinstall a skill, refreshing it to the current cloud version",
 626:	// live-refreshed (runsPolling) while any run is in progress — mirroring the web
 659:// runsFetchedMsg carries a runs listing (initial load, refresh, or poll).
@@ -646,6 +834,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:46:46Z)**_
 1265:		m.status = "Run complete — refreshing your library…"
 1266:		cmds = append(cmds, m.loadCmd())
 1668:	keys := []string{"↑↓ move", "enter details", "n run", "r refresh", "tab library", "q quit"}
+
 ```
 </details></tool-use>
 
@@ -667,9 +856,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:46:50Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
+
+**Offset (line):**
+```text
+1171
+```
+
+**Limit:**
+```text
+25
+```
+
+```go
 // switchTab moves between Library and Runs, lazily loading the runs list the first time the
 // Runs tab is opened.
 func (m skillsTUI) switchTab(to skillsTab) (tea.Model, tea.Cmd) {
@@ -739,9 +941,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:46:56Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n 'func (m skillsTUI) Update\|func (m skillsTUI) applyLoaded\|loadedOnce\|firstLoad' pkg/cmd/skills.go`</summary>
+**Command:**
+```bash
+grep -n 'func (m skillsTUI) Update\|func (m skillsTUI) applyLoaded\|loadedOnce\|firstLoad' pkg/cmd/skills.go
 ```
+
+```text
 711:func (m skillsTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 789:func (m skillsTUI) applyLoaded(msg skillsLoadedMsg) skillsTUI {
+
 ```
 </details></tool-use>
 
@@ -753,10 +961,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:46:57Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
-// action (approve/install/...) is in flight. While either is true the spinner runs
+
+**Offset (line):**
+```text
+615
+```
+
+**Limit:**
+```text
+20
+```
+
+```go
+	// action (approve/install/...) is in flight. While either is true the spinner runs
 	// (spinning guards against starting a second tick loop) and list keys are ignored.
 	loading  bool
 	busy     bool
@@ -789,10 +1010,70 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:46:59Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-	// tab is the active top-level view (library or runs).
+-	tab skillsTab
++	// tab is the active top-level view (library or runs).
++	tab skillsTab
++
++	// loadedOnce marks that the initial library fetch has completed, so we only
++	// auto-redirect to the Runs tab on the very first load (not on later refreshes).
++	loadedOnce bool
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+  621 
+  622 	// tab is the active top-level view (library or runs).
+  623 	tab skillsTab
+  624 
++ 625 	// loadedOnce marks that the initial library fetch has completed, so we only
++ 626 	// auto-redirect to the Runs tab on the very first load (not on later refreshes).
++ 627 	loadedOnce bool
++ 628 
+  625 	// runs-tab state. The runs list is loaded lazily on first switch to the tab and
+  626 	// live-refreshed (runsPolling) while any run is in progress — mirroring the web
+  627 	// Activity panel. runID marks a run we just triggered so the cursor can land on it.
+  628 	runs           []cloud.Run
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -621,8 +621,12 @@
+ 
+ 	// tab is the active top-level view (library or runs).
+ 	tab skillsTab
+ 
++	// loadedOnce marks that the initial library fetch has completed, so we only
++	// auto-redirect to the Runs tab on the very first load (not on later refreshes).
++	loadedOnce bool
++
+ 	// runs-tab state. The runs list is loaded lazily on first switch to the tab and
+ 	// live-refreshed (runsPolling) while any run is in progress — mirroring the web
+ 	// Activity panel. runID marks a run we just triggered so the cursor can land on it.
+ 	runs           []cloud.Run
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 625
+}
 ```
 </details></tool-use>
 
@@ -800,10 +1081,62 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:47:01Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-	case "n": // new run (mine sessions for skills)
+-		return m.startRun()
++	case "m": // mine sessions for skills (start a new run)
++		return m.startRun()
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+  882 	case "u": // uninstall (locally installed)
+  883 		return m.startUninstall()
+  884 	case "R": // reinstall (locally installed)
+  885 		return m.startReinstall()
+- 886 	case "n": // new run (mine sessions for skills)
++ 886 	case "m": // mine sessions for skills (start a new run)
+  887 		return m.startRun()
+  888 	case "tab", "right", "l":
+  889 		return m.switchTab(tabRuns)
+  890 	}
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -882,9 +882,9 @@
+ 	case "u": // uninstall (locally installed)
+ 		return m.startUninstall()
+ 	case "R": // reinstall (locally installed)
+ 		return m.startReinstall()
+-	case "n": // new run (mine sessions for skills)
++	case "m": // mine sessions for skills (start a new run)
+ 		return m.startRun()
+ 	case "tab", "right", "l":
+ 		return m.switchTab(tabRuns)
+ 	}
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 886
+}
 ```
 </details></tool-use>
 
@@ -811,10 +1144,62 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:47:03Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-	case "n":
+-		return m.startRun()
++	case "m":
++		return m.startRun()
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+ 1146 	case "enter", " ", "space":
+ 1147 		if r := m.selectedRun(); r != nil {
+ 1148 			return m.openRunDetail(r)
+ 1149 		}
+-1150 	case "n":
++1150 	case "m":
+ 1151 		return m.startRun()
+ 1152 	case "r":
+ 1153 		// Manual refresh of the runs list.
+ 1154 		m.runsLoading = true
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -1146,9 +1146,9 @@
+ 	case "enter", " ", "space":
+ 		if r := m.selectedRun(); r != nil {
+ 			return m.openRunDetail(r)
+ 		}
+-	case "n":
++	case "m":
+ 		return m.startRun()
+ 	case "r":
+ 		// Manual refresh of the runs list.
+ 		m.runsLoading = true
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 1150
+}
 ```
 </details></tool-use>
 
@@ -822,10 +1207,60 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:47:07Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-	keys := []string{"↑↓ move", "enter details", "n run", "r refresh", "tab library", "q quit"}
++	keys := []string{"↑↓ move", "enter details", "m mine skills", "r refresh", "tab library", "q quit"}
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+ 1668 	if strings.TrimSpace(status) != "" {
+ 1669 		b.WriteString(styFaint.Render(status))
+ 1670 		b.WriteString("\n")
+ 1671 	}
+-1672 	keys := []string{"↑↓ move", "enter details", "n run", "r refresh", "tab library", "q quit"}
++1672 	keys := []string{"↑↓ move", "enter details", "m mine skills", "r refresh", "tab library", "q quit"}
+ 1673 	b.WriteString(styDim.Render(strings.Join(keys, " · ")))
+ 1674 	return b.String()
+ 1675 }
+ 1676 
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -1668,9 +1668,9 @@
+ 	if strings.TrimSpace(status) != "" {
+ 		b.WriteString(styFaint.Render(status))
+ 		b.WriteString("\n")
+ 	}
+-	keys := []string{"↑↓ move", "enter details", "n run", "r refresh", "tab library", "q quit"}
++	keys := []string{"↑↓ move", "enter details", "m mine skills", "r refresh", "tab library", "q quit"}
+ 	b.WriteString(styDim.Render(strings.Join(keys, " · ")))
+ 	return b.String()
+ }
+ 
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 1672
+}
 ```
 </details></tool-use>
 
@@ -833,10 +1268,60 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:47:08Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-		return styFaint.Render("  No runs yet. Press 'n' to mine your sessions for skills.")
++		return styFaint.Render("  No runs yet. Press 'm' to mine your sessions for skills.")
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+ 1678 	if m.runsLoading && len(m.runs) == 0 {
+ 1679 		return styFaint.Render("  " + m.spinner.View() + " Loading runs…")
+ 1680 	}
+ 1681 	if len(m.runs) == 0 {
+-1682 		return styFaint.Render("  No runs yet. Press 'n' to mine your sessions for skills.")
++1682 		return styFaint.Render("  No runs yet. Press 'm' to mine your sessions for skills.")
+ 1683 	}
+ 1684 	h := m.runsListHeight()
+ 1685 	end := min(m.runsTop+h, len(m.runs))
+ 1686 	var b strings.Builder
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -1678,9 +1678,9 @@
+ 	if m.runsLoading && len(m.runs) == 0 {
+ 		return styFaint.Render("  " + m.spinner.View() + " Loading runs…")
+ 	}
+ 	if len(m.runs) == 0 {
+-		return styFaint.Render("  No runs yet. Press 'n' to mine your sessions for skills.")
++		return styFaint.Render("  No runs yet. Press 'm' to mine your sessions for skills.")
+ 	}
+ 	h := m.runsListHeight()
+ 	end := min(m.runsTop+h, len(m.runs))
+ 	var b strings.Builder
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 1682
+}
 ```
 </details></tool-use>
 
@@ -848,10 +1333,92 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:47:11Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-	case skillsLoadedMsg:
+-		return m.applyLoaded(msg), nil
++	case skillsLoadedMsg:
++		m = m.applyLoaded(msg)
++		// On the first load, if the library is empty, land on the Runs tab so the user
++		// sees how to kick off mining instead of an empty library. Later refreshes
++		// (after dismissing skills, post-run, etc.) never jump the tab.
++		if !m.loadedOnce {
++			m.loadedOnce = true
++			if m.tab == tabLibrary && len(m.all) == 0 {
++				return m.switchTab(tabRuns)
++			}
++		}
++		return m, nil
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+  739 		}
+  740 		m.spinning = false
+  741 		return m, nil
+  742 	case skillsLoadedMsg:
+- 743 		return m.applyLoaded(msg), nil
++ 743 		m = m.applyLoaded(msg)
++ 744 		// On the first load, if the library is empty, land on the Runs tab so the user
++ 745 		// sees how to kick off mining instead of an empty library. Later refreshes
++ 746 		// (after dismissing skills, post-run, etc.) never jump the tab.
++ 747 		if !m.loadedOnce {
++ 748 			m.loadedOnce = true
++ 749 			if m.tab == tabLibrary && len(m.all) == 0 {
++ 750 				return m.switchTab(tabRuns)
++ 751 			}
++ 752 		}
++ 753 		return m, nil
+  744 	case actionResultMsg:
+  745 		return m.applyActionResult(msg)
+  746 	case runTriggeredMsg:
+  747 		return m.applyRunTriggered(msg)
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -739,9 +739,19 @@
+ 		}
+ 		m.spinning = false
+ 		return m, nil
+ 	case skillsLoadedMsg:
+-		return m.applyLoaded(msg), nil
++		m = m.applyLoaded(msg)
++		// On the first load, if the library is empty, land on the Runs tab so the user
++		// sees how to kick off mining instead of an empty library. Later refreshes
++		// (after dismissing skills, post-run, etc.) never jump the tab.
++		if !m.loadedOnce {
++			m.loadedOnce = true
++			if m.tab == tabLibrary && len(m.all) == 0 {
++				return m.switchTab(tabRuns)
++			}
++		}
++		return m, nil
+ 	case actionResultMsg:
+ 		return m.applyActionResult(msg)
+ 	case runTriggeredMsg:
+ 		return m.applyRunTriggered(msg)
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 743
+}
 ```
 </details></tool-use>
 
@@ -865,7 +1432,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:47:14Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build ./... 2>&1`</summary>
+**Command:**
+```bash
+go build ./... 2>&1
 ```
+
+```text
 (no output)
 ```
 </details></tool-use>
@@ -874,8 +1446,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:47:17Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `golangci-lint run 2>&1 | tail -20`</summary>
+**Command:**
+```bash
+golangci-lint run 2>&1 | tail -20
 ```
+
+```text
 0 issues.
+
 ```
 </details></tool-use>
 
@@ -883,7 +1461,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:47:20Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go test ./... 2>&1 | tail -20`</summary>
+**Command:**
+```bash
+go test ./... 2>&1 | tail -20
 ```
+
+```text
 ?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics	[no test files]
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.214s
@@ -904,6 +1487,7 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi	0.019s
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	0.040s
+
 ```
 </details></tool-use>
 
@@ -947,8 +1531,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:51:46Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn '"K keep"\|"X dismiss"\|"R reinstall"' --include="*.go" . | grep -v .specstory`</summary>
+**Command:**
+```bash
+grep -rn '"K keep"\|"X dismiss"\|"R reinstall"' --include="*.go" . | grep -v .specstory
 ```
+
+```text
 ./pkg/cmd/skills.go:1576:	keys := []string{"↑↓ move", "space preview", "a filter", "i install", "K keep", "X dismiss", "u uninstall", "R reinstall", "tab runs", "q quit"}
+
 ```
 </details></tool-use>
 
@@ -964,11 +1554,17 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:51:52Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n 'case "K"\|case "X"\|case "R"\|case "k"\|case "x"\|case "r"' pkg/cmd/skills.go | head -30`</summary>
+**Command:**
+```bash
+grep -n 'case "K"\|case "X"\|case "R"\|case "k"\|case "x"\|case "r"' pkg/cmd/skills.go | head -30
 ```
+
+```text
 886:	case "K": // approve (review rows)
 888:	case "X": // reject (review rows)
 894:	case "R": // reinstall (locally installed)
 1162:	case "r":
+
 ```
 </details></tool-use>
 
@@ -988,9 +1584,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:51:59Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
+
+**Offset (line):**
+```text
+845
+```
+
+**Limit:**
+```text
+40
+```
+
+```go
 // action and (re)starts the spinner if it isn't already running.
 func (m *skillsTUI) startAction(cmd tea.Cmd) tea.Cmd {
 	m.busy = true
@@ -1040,10 +1649,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:52:05Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
-} else {
+
+**Offset (line):**
+```text
+883
+```
+
+**Limit:**
+```text
+20
+```
+
+```go
+		} else {
 			m.viewMode = "sparse"
 		}
 	case "K": // approve (review rows)
@@ -1134,7 +1756,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:54:11Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n '"k"\|"j"\|case "K"\|case "X"\|case "R"\|startReinstall\|startInstall\|startApprove\|startReject' pkg/cmd/skills.go`</summary>
+**Command:**
+```bash
+grep -n '"k"\|"j"\|case "K"\|case "X"\|case "R"\|startReinstall\|startInstall\|startApprove\|startReject' pkg/cmd/skills.go
 ```
+
+```text
 860:	case "up", "k":
 862:	case "down", "j":
 886:	case "K": // approve (review rows)
@@ -1152,6 +1779,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:54:11Z)**_
 1066:func (m skillsTUI) startReinstall() (tea.Model, tea.Cmd) {
 1143:	case "up", "k":
 1145:	case "down", "j":
+
 ```
 </details></tool-use>
 
@@ -1159,9 +1787,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:54:12Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
+
+**Offset (line):**
+```text
+1020
+```
+
+**Limit:**
+```text
+90
+```
+
+```go
 func (m skillsTUI) startInstall() (tea.Model, tea.Cmd) {
 	sel := m.selectedSkill()
 	if sel == nil {
@@ -1275,9 +1916,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:54:15Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn 'func.*Install\b\|func.*Reinstall\b' pkg/skills/ | grep -v _test`</summary>
+**Command:**
+```bash
+grep -rn 'func.*Install\b\|func.*Reinstall\b' pkg/skills/ | grep -v _test
 ```
+
+```text
 pkg/skills/engine.go:141:func (e *Engine) Install(name string, opts InstallOptions) (InstallReport, error) {
 pkg/skills/engine.go:228:func (e *Engine) Reinstall(name string, opts InstallOptions, scopeExplicit bool) (InstallReport, error) {
+
 ```
 </details></tool-use>
 
@@ -1285,9 +1932,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:54:16Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/skills/engine.go`
-
+**Path:**
+```text
+pkg/skills/engine.go
 ```
+
+**Offset (line):**
+```text
+141
+```
+
+**Limit:**
+```text
+130
+```
+
+```go
 func (e *Engine) Install(name string, opts InstallOptions) (InstallReport, error) {
 	view, err := e.Get(name)
 	if err != nil {
@@ -1461,10 +2121,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:54:24Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
-case "esc", "q":
+
+**Offset (line):**
+```text
+920
+```
+
+**Limit:**
+```text
+20
+```
+
+```go
+	case "esc", "q":
 		m.mode = skillsModeList
 		m.pendingInstall = nil
 		return m, nil
@@ -1493,10 +2166,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:54:25Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
-switch msg.String() {
+
+**Offset (line):**
+```text
+1138
+```
+
+**Limit:**
+```text
+20
+```
+
+```go
+	switch msg.String() {
 	case "q", "ctrl+c", "esc":
 		return m, tea.Quit
 	case "tab", "left", "h":
@@ -1550,13 +2236,19 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:54:32Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n '"up", "k"\|"down", "j"\|"k"\|"j"' pkg/cmd/skills.go`</summary>
+**Command:**
+```bash
+grep -n '"up", "k"\|"down", "j"\|"k"\|"j"' pkg/cmd/skills.go
 ```
+
+```text
 860:	case "up", "k":
 862:	case "down", "j":
 926:	case "up", "k":
 930:	case "down", "j":
 1143:	case "up", "k":
 1145:	case "down", "j":
+
 ```
 </details></tool-use>
 
@@ -1575,10 +2267,138 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:54:36Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-	case "up", "k":
+-		m.moveSkillCursor(-1)
+-	case "down", "j":
+-		m.moveSkillCursor(1)
++	case "up":
++		m.moveSkillCursor(-1)
++	case "down":
++		m.moveSkillCursor(1)
+```
+
+**Edit 2:**
+```diff
+-	case "K": // approve (review rows)
+-		return m.startApprove()
+-	case "X": // reject (review rows)
+-		return m.startReject()
+-	case "i": // install (ready rows)
+-		return m.startInstall()
+-	case "u": // uninstall (locally installed)
+-		return m.startUninstall()
+-	case "R": // reinstall (locally installed)
+-		return m.startReinstall()
++	case "k": // keep/approve (review rows)
++		return m.startApprove()
++	case "x": // dismiss/reject (review rows)
++		return m.startReject()
++	case "i": // install (or reinstall if already installed)
++		return m.startInstall()
++	case "u": // uninstall (locally installed)
++		return m.startUninstall()
+```
+
+```text
+Successfully replaced 2 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+  856 func (m skillsTUI) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+  857 	switch msg.String() {
+  858 	case "q", "ctrl+c", "esc":
+  859 		return m, tea.Quit
+- 860 	case "up", "k":
++ 860 	case "up":
+  861 		m.moveSkillCursor(-1)
+- 862 	case "down", "j":
++ 862 	case "down":
+  863 		m.moveSkillCursor(1)
+  864 	case "pgup":
+  865 		m.moveSkillCursor(-m.skillsListHeight())
+  866 	case "pgdown":
+      ...
+  882 			m.viewMode = "dense"
+  883 		} else {
+  884 			m.viewMode = "sparse"
+  885 		}
+- 886 	case "K": // approve (review rows)
++ 886 	case "k": // keep/approve (review rows)
+  887 		return m.startApprove()
+- 888 	case "X": // reject (review rows)
++ 888 	case "x": // dismiss/reject (review rows)
+  889 		return m.startReject()
+- 890 	case "i": // install (ready rows)
++ 890 	case "i": // install (or reinstall if already installed)
+  891 		return m.startInstall()
+  892 	case "u": // uninstall (locally installed)
+  893 		return m.startUninstall()
+- 894 	case "R": // reinstall (locally installed)
+- 895 		return m.startReinstall()
+  896 	case "m": // mine sessions for skills (start a new run)
+  897 		return m.startRun()
+  898 	case "tab", "right", "l":
+  899 		return m.switchTab(tabRuns)
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -856,11 +856,11 @@
+ func (m skillsTUI) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+ 	switch msg.String() {
+ 	case "q", "ctrl+c", "esc":
+ 		return m, tea.Quit
+-	case "up", "k":
++	case "up":
+ 		m.moveSkillCursor(-1)
+-	case "down", "j":
++	case "down":
+ 		m.moveSkillCursor(1)
+ 	case "pgup":
+ 		m.moveSkillCursor(-m.skillsListHeight())
+ 	case "pgdown":
+@@ -882,18 +882,16 @@
+ 			m.viewMode = "dense"
+ 		} else {
+ 			m.viewMode = "sparse"
+ 		}
+-	case "K": // approve (review rows)
++	case "k": // keep/approve (review rows)
+ 		return m.startApprove()
+-	case "X": // reject (review rows)
++	case "x": // dismiss/reject (review rows)
+ 		return m.startReject()
+-	case "i": // install (ready rows)
++	case "i": // install (or reinstall if already installed)
+ 		return m.startInstall()
+ 	case "u": // uninstall (locally installed)
+ 		return m.startUninstall()
+-	case "R": // reinstall (locally installed)
+-		return m.startReinstall()
+ 	case "m": // mine sessions for skills (start a new run)
+ 		return m.startRun()
+ 	case "tab", "right", "l":
+ 		return m.switchTab(tabRuns)
 
 ```
-Successfully replaced 2 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 860
+}
 ```
 </details></tool-use>
 
@@ -1586,10 +2406,84 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:54:38Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-	case "up", "k":
+-		if m.installCursor > 0 {
+-			m.installCursor--
+-		}
+-	case "down", "j":
+-		if m.installCursor < len(m.detected) {
+-			m.installCursor++
+-		}
++	case "up":
++		if m.installCursor > 0 {
++			m.installCursor--
++		}
++	case "down":
++		if m.installCursor < len(m.detected) {
++			m.installCursor++
++		}
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+  920 		m.pendingInstall = nil
+  921 		return m, nil
+  922 	case "ctrl+c":
+  923 		return m, tea.Quit
+- 924 	case "up", "k":
++ 924 	case "up":
+  925 		if m.installCursor > 0 {
+  926 			m.installCursor--
+  927 		}
+- 928 	case "down", "j":
++ 928 	case "down":
+  929 		if m.installCursor < len(m.detected) {
+  930 			m.installCursor++
+  931 		}
+  932 	case " ", "space":
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -920,13 +920,13 @@
+ 		m.pendingInstall = nil
+ 		return m, nil
+ 	case "ctrl+c":
+ 		return m, tea.Quit
+-	case "up", "k":
++	case "up":
+ 		if m.installCursor > 0 {
+ 			m.installCursor--
+ 		}
+-	case "down", "j":
++	case "down":
+ 		if m.installCursor < len(m.detected) {
+ 			m.installCursor++
+ 		}
+ 	case " ", "space":
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 924
+}
 ```
 </details></tool-use>
 
@@ -1597,10 +2491,72 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:54:40Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-	case "up", "k":
+-		moveCursorWithin(&m.runsCursor, &m.runsTop, -1, len(m.runs), m.runsListHeight())
+-	case "down", "j":
+-		moveCursorWithin(&m.runsCursor, &m.runsTop, 1, len(m.runs), m.runsListHeight())
++	case "up":
++		moveCursorWithin(&m.runsCursor, &m.runsTop, -1, len(m.runs), m.runsListHeight())
++	case "down":
++		moveCursorWithin(&m.runsCursor, &m.runsTop, 1, len(m.runs), m.runsListHeight())
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+ 1137 	case "q", "ctrl+c", "esc":
+ 1138 		return m, tea.Quit
+ 1139 	case "tab", "left", "h":
+ 1140 		return m.switchTab(tabLibrary)
+-1141 	case "up", "k":
++1141 	case "up":
+ 1142 		moveCursorWithin(&m.runsCursor, &m.runsTop, -1, len(m.runs), m.runsListHeight())
+-1143 	case "down", "j":
++1143 	case "down":
+ 1144 		moveCursorWithin(&m.runsCursor, &m.runsTop, 1, len(m.runs), m.runsListHeight())
+ 1145 	case "pgup":
+ 1146 		moveCursorWithin(&m.runsCursor, &m.runsTop, -m.runsListHeight(), len(m.runs), m.runsListHeight())
+ 1147 	case "pgdown":
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -1137,11 +1137,11 @@
+ 	case "q", "ctrl+c", "esc":
+ 		return m, tea.Quit
+ 	case "tab", "left", "h":
+ 		return m.switchTab(tabLibrary)
+-	case "up", "k":
++	case "up":
+ 		moveCursorWithin(&m.runsCursor, &m.runsTop, -1, len(m.runs), m.runsListHeight())
+-	case "down", "j":
++	case "down":
+ 		moveCursorWithin(&m.runsCursor, &m.runsTop, 1, len(m.runs), m.runsListHeight())
+ 	case "pgup":
+ 		moveCursorWithin(&m.runsCursor, &m.runsTop, -m.runsListHeight(), len(m.runs), m.runsListHeight())
+ 	case "pgdown":
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 1141
+}
 ```
 </details></tool-use>
 
@@ -1612,10 +2568,60 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:54:41Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-	keys := []string{"↑↓ move", "space preview", "a filter", "i install", "K keep", "X dismiss", "u uninstall", "R reinstall", "tab runs", "q quit"}
++	keys := []string{"↑↓ move", "space preview", "a filter", "i install", "k keep", "x dismiss", "u uninstall", "tab runs", "q quit"}
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+ 1570 	return cursor + installed + state + " " + nameCol + " " + age + "  " + trigger
+ 1571 }
+ 1572 
+ 1573 func (m skillsTUI) renderSkillFooter() string {
+-1574 	keys := []string{"↑↓ move", "space preview", "a filter", "i install", "K keep", "X dismiss", "u uninstall", "R reinstall", "tab runs", "q quit"}
++1574 	keys := []string{"↑↓ move", "space preview", "a filter", "i install", "k keep", "x dismiss", "u uninstall", "tab runs", "q quit"}
+ 1575 	return styDim.Render(strings.Join(keys, " · "))
+ 1576 }
+ 1577 
+ 1578 func (m skillsTUI) renderSkillPreview() string {
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -1570,9 +1570,9 @@
+ 	return cursor + installed + state + " " + nameCol + " " + age + "  " + trigger
+ }
+ 
+ func (m skillsTUI) renderSkillFooter() string {
+-	keys := []string{"↑↓ move", "space preview", "a filter", "i install", "K keep", "X dismiss", "u uninstall", "R reinstall", "tab runs", "q quit"}
++	keys := []string{"↑↓ move", "space preview", "a filter", "i install", "k keep", "x dismiss", "u uninstall", "tab runs", "q quit"}
+ 	return styDim.Render(strings.Join(keys, " · "))
+ }
+ 
+ func (m skillsTUI) renderSkillPreview() string {
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 1574
+}
 ```
 </details></tool-use>
 
@@ -1627,10 +2633,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:54:42Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
-if sel == nil {
+
+**Offset (line):**
+```text
+1020
+```
+
+**Limit:**
+```text
+25
+```
+
+```go
+	if sel == nil {
 		return m, nil
 	}
 	if sel.State == cloud.SkillStateReview {
@@ -1664,10 +2683,77 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:54:44Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-	if sel.State == cloud.SkillStateReview {
+-		m.status = "Approve this skill before installing it."
+-		return m, nil
+-	}
++	if sel.State == cloud.SkillStateReview {
++		m.status = "Approve this skill before installing it."
++		return m, nil
++	}
++	// Already installed -> reinstall (refresh to current cloud version, reusing the prior
++	// scope and agent set). Otherwise open the install picker.
++	if sel.LocallyInstalled {
++		return m.startReinstall()
++	}
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+ 1023 	if sel.State == cloud.SkillStateReview {
+ 1024 		m.status = "Approve this skill before installing it."
+ 1025 		return m, nil
+ 1026 	}
++1027 	// Already installed -> reinstall (refresh to current cloud version, reusing the prior
++1028 	// scope and agent set). Otherwise open the install picker.
++1029 	if sel.LocallyInstalled {
++1030 		return m.startReinstall()
++1031 	}
+ 1027 	m.pendingInstall = sel
+ 1028 	m.installGlobal = m.defaultLocation != "project"
+ 1029 	m.detected = skills.DetectedAgents()
+ 1030 	m.agentSel = make([]bool, len(m.detected))
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -1023,8 +1023,13 @@
+ 	if sel.State == cloud.SkillStateReview {
+ 		m.status = "Approve this skill before installing it."
+ 		return m, nil
+ 	}
++	// Already installed -> reinstall (refresh to current cloud version, reusing the prior
++	// scope and agent set). Otherwise open the install picker.
++	if sel.LocallyInstalled {
++		return m.startReinstall()
++	}
+ 	m.pendingInstall = sel
+ 	m.installGlobal = m.defaultLocation != "project"
+ 	m.detected = skills.DetectedAgents()
+ 	m.agentSel = make([]bool, len(m.detected))
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 1027
+}
 ```
 </details></tool-use>
 
@@ -1681,8 +2767,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:54:51Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build ./... 2>&1 && golangci-lint run 2>&1 | tail -5`</summary>
+**Command:**
+```bash
+go build ./... 2>&1 && golangci-lint run 2>&1 | tail -5
 ```
+
+```text
 0 issues.
+
 ```
 </details></tool-use>
 
@@ -1690,12 +2782,18 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:54:53Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go test ./... 2>&1 | tail -5`</summary>
+**Command:**
+```bash
+go test ./... 2>&1 | tail -5
 ```
+
+```text
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi	0.021s
 ?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory	[no test files]
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	0.050s
+
 ```
 </details></tool-use>
 
@@ -1712,10 +2810,16 @@ Let me check if the README documents these hotkeys:
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:54:55Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
-<summary>Tool use: **bash** `grep -rn 'K keep\|X dismiss\|R reinstall\|reinstall\|vim\|`k`\|`j`' README.md 2>/dev/null | head`</summary>
+<summary>Tool use: **bash**</summary>
+**Command:**
+```bash
+grep -rn 'K keep\|X dismiss\|R reinstall\|reinstall\|vim\|`k`\|`j`' README.md 2>/dev/null | head
 ```
+
+```text
 README.md:90:#     ones, and uninstall/reinstall installed ones.
 README.md:111:specstory skills reinstall <name>            # refresh to the current cloud version
+
 ```
 </details></tool-use>
 
@@ -1758,7 +2862,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:57:59Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n 'reinstall\|Reinstall\|skillsReinstall\|"reinstall"' pkg/cmd/skills.go pkg/cmd/*.go 2>/dev/null | grep -v .specstory`</summary>
+**Command:**
+```bash
+grep -n 'reinstall\|Reinstall\|skillsReinstall\|"reinstall"' pkg/cmd/skills.go pkg/cmd/*.go 2>/dev/null | grep -v .specstory
 ```
+
+```text
 pkg/cmd/skills.go:34:// install, uninstall, reinstall, approve, reject, status) are the machine-readable surface.
 pkg/cmd/skills.go:41:skills can be uninstalled or reinstalled at any time.
 pkg/cmd/skills.go:85:		newSkillsReinstallCmd(),
@@ -1799,6 +2908,7 @@ pkg/cmd/skills.go:1083:		analytics.TrackEvent(analytics.EventSkillsInstalled, an
 pkg/cmd/skills.go:1084:		return actionResultMsg{status: fmt.Sprintf("Reinstalled %s.", name), reload: true}
 pkg/cmd/skills.go:1419:			Render("↑ update available — close this preview and press R to reinstall")
 pkg/cmd/skills.go:1554:	// is available (reinstall with R). Shown in both view modes.
+
 ```
 </details></tool-use>
 
@@ -1806,9 +2916,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:58:00Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
+
+**Offset (line):**
+```text
+230
+```
+
+**Limit:**
+```text
+40
+```
+
+```go
 func newSkillsInstallCmd() *cobra.Command {
 	var jsonOut, global, project bool
 	var agents []string
@@ -1858,9 +2981,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:58:01Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
+
+**Offset (line):**
+```text
+264
+```
+
+**Limit:**
+```text
+40
+```
+
+```go
 func newSkillsReinstallCmd() *cobra.Command {
 	var jsonOut, global, project bool
 	var agents []string
@@ -1960,10 +3096,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:58:08Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
-if agents == "" {
+
+**Offset (line):**
+```text
+1413
+```
+
+**Limit:**
+```text
+10
+```
+
+```go
+	if agents == "" {
 		agents = "canonical store only"
 	}
 	line := stySel.Render("● installed") + styDim.Render(fmt.Sprintf("  %s · %s", s.InstalledScope, agents))
@@ -1982,9 +3131,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:58:09Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
+
+**Offset (line):**
+```text
+1548
+```
+
+**Limit:**
+```text
+12
+```
+
+```go
 }
 
 func (m skillsTUI) skillRow(v skills.SkillView, selected bool) string {
@@ -2006,10 +3168,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:58:10Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
-// Mirrors resume: a hidden override the VS Code extension uses to point at a non-prod
+
+**Offset (line):**
+```text
+75
+```
+
+**Limit:**
+```text
+20
+```
+
+```go
+	// Mirrors resume: a hidden override the VS Code extension uses to point at a non-prod
 	// cloud. The root PersistentPreRunE calls SetAPIBaseURL from this shared var.
 	skillsCmd.PersistentFlags().StringVar(cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = skillsCmd.PersistentFlags().MarkHidden("cloud-url")
@@ -2042,10 +3217,81 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:58:13Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-	skillsCmd.AddCommand(
+-		newSkillsListCmd(),
+-		newSkillsShowCmd(),
+-		newSkillsInstallCmd(),
+-		newSkillsUninstallCmd(),
+-		newSkillsReinstallCmd(),
+-		newSkillsApproveCmd(),
+-		newSkillsRejectCmd(),
+-		newSkillsStatusCmd(),
+-		newSkillsRunCmd(),
+-		newSkillsRunsCmd(),
+-		newSkillsAgentsCmd(),
+-	)
++	skillsCmd.AddCommand(
++		newSkillsListCmd(),
++		newSkillsShowCmd(),
++		newSkillsInstallCmd(),
++		newSkillsUninstallCmd(),
++		newSkillsApproveCmd(),
++		newSkillsRejectCmd(),
++		newSkillsStatusCmd(),
++		newSkillsRunCmd(),
++		newSkillsRunsCmd(),
++		newSkillsAgentsCmd(),
++	)
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+   81 		newSkillsListCmd(),
+   82 		newSkillsShowCmd(),
+   83 		newSkillsInstallCmd(),
+   84 		newSkillsUninstallCmd(),
+-  85 		newSkillsReinstallCmd(),
+   86 		newSkillsApproveCmd(),
+   87 		newSkillsRejectCmd(),
+   88 		newSkillsStatusCmd(),
+   89 		newSkillsRunCmd(),
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -81,9 +81,8 @@
+ 		newSkillsListCmd(),
+ 		newSkillsShowCmd(),
+ 		newSkillsInstallCmd(),
+ 		newSkillsUninstallCmd(),
+-		newSkillsReinstallCmd(),
+ 		newSkillsApproveCmd(),
+ 		newSkillsRejectCmd(),
+ 		newSkillsStatusCmd(),
+ 		newSkillsRunCmd(),
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 85
+}
 ```
 </details></tool-use>
 
@@ -2053,10 +3299,281 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:58:21Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-func newSkillsInstallCmd() *cobra.Command {
+-	var jsonOut, global, project bool
+-	var agents []string
+-	cmd := &cobra.Command{
+-		Use:   "install <name>",
+-		Short: "Install a ready skill into your agents",
+-		Args:  cobra.ExactArgs(1),
+-		RunE: func(cmd *cobra.Command, args []string) error {
+-			if err := ensureSkillsAccess(); err != nil {
+-				return err
+-			}
+-			opts, err := installOptionsFromFlags(global, project, agents)
+-			if err != nil {
+-				return err
+-			}
+-			report, err := skills.NewEngine(mustGetwd()).Install(args[0], opts)
+-			if err != nil {
+-				return err
+-			}
+-			analytics.TrackEvent(analytics.EventSkillsInstalled, analytics.Properties{
+-				"scope": report.Scope, "agents": len(report.Agents),
+-			})
+-			_ = config.SaveSkillsPrefs("", report.Scope)
+-			if jsonOut {
+-				return printJSON(cmd.OutOrStdout(), report)
+-			}
+-			renderInstallReport(cmd.OutOrStdout(), report)
+-			return nil
+-		},
+-	}
+-	addInstallFlags(cmd, &jsonOut, &global, &project, &agents)
+-	return cmd
+-}
++func newSkillsInstallCmd() *cobra.Command {
++	var jsonOut, global, project bool
++	var agents []string
++	cmd := &cobra.Command{
++		Use:   "install <name>",
++		Short: "Install a skill, or reinstall it to refresh an installed copy",
++		Args:  cobra.ExactArgs(1),
++		RunE: func(cmd *cobra.Command, args []string) error {
++			if err := ensureSkillsAccess(); err != nil {
++				return err
++			}
++			opts, err := installOptionsFromFlags(global, project, agents)
++			if err != nil {
++				return err
++			}
++			// Reinstall delegates to Install when the skill isn't installed yet, and reuses
++			// the prior scope/agents when it is (unless --global/--project is explicit).
++			scopeExplicit := cmd.Flags().Changed("global") || cmd.Flags().Changed("project")
++			report, err := skills.NewEngine(mustGetwd()).Reinstall(args[0], opts, scopeExplicit)
++			if err != nil {
++				return err
++			}
++			analytics.TrackEvent(analytics.EventSkillsInstalled, analytics.Properties{
++				"scope": report.Scope, "agents": len(report.Agents),
++			})
++			_ = config.SaveSkillsPrefs("", report.Scope)
++			if jsonOut {
++				return printJSON(cmd.OutOrStdout(), report)
++			}
++			renderInstallReport(cmd.OutOrStdout(), report)
++			return nil
++		},
++	}
++	addInstallFlags(cmd, &jsonOut, &global, &project, &agents)
++	return cmd
++}
+```
+
+**Edit 2:**
+```diff
+-func newSkillsReinstallCmd() *cobra.Command {
+-	var jsonOut, global, project bool
+-	var agents []string
+-	cmd := &cobra.Command{
+-		Use:   "reinstall <name>",
+-		Short: "Reinstall a skill, refreshing it to the current cloud version",
+-		Args:  cobra.ExactArgs(1),
+-		RunE: func(cmd *cobra.Command, args []string) error {
+-			if err := ensureSkillsAccess(); err != nil {
+-				return err
+-			}
+-			opts, err := installOptionsFromFlags(global, project, agents)
+-			if err != nil {
+-				return err
+-			}
+-			scopeExplicit := cmd.Flags().Changed("global") || cmd.Flags().Changed("project")
+-			report, err := skills.NewEngine(mustGetwd()).Reinstall(args[0], opts, scopeExplicit)
+-			if err != nil {
+-				return err
+-			}
+-			analytics.TrackEvent(analytics.EventSkillsInstalled, analytics.Properties{
+-				"scope": report.Scope, "agents": len(report.Agents), "reinstall": true,
+-			})
+-			if jsonOut {
+-				return printJSON(cmd.OutOrStdout(), report)
+-			}
+-			renderInstallReport(cmd.OutOrStdout(), report)
+-			return nil
+-		},
+-	}
+-	addInstallFlags(cmd, &jsonOut, &global, &project, &agents)
+-	return cmd
+-}
+-
+-func newSkillsUninstallCmd() *cobra.Command {
++func newSkillsUninstallCmd() *cobra.Command {
+```
+
+```text
+Successfully replaced 2 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+  230 	var jsonOut, global, project bool
+  231 	var agents []string
+  232 	cmd := &cobra.Command{
+  233 		Use:   "install <name>",
+- 234 		Short: "Install a ready skill into your agents",
++ 234 		Short: "Install a skill, or reinstall it to refresh an installed copy",
+  235 		Args:  cobra.ExactArgs(1),
+  236 		RunE: func(cmd *cobra.Command, args []string) error {
+  237 			if err := ensureSkillsAccess(); err != nil {
+  238 				return err
+      ...
+  240 			opts, err := installOptionsFromFlags(global, project, agents)
+  241 			if err != nil {
+  242 				return err
+  243 			}
+- 244 			report, err := skills.NewEngine(mustGetwd()).Install(args[0], opts)
++ 244 			// Reinstall delegates to Install when the skill isn't installed yet, and reuses
++ 245 			// the prior scope/agents when it is (unless --global/--project is explicit).
++ 246 			scopeExplicit := cmd.Flags().Changed("global") || cmd.Flags().Changed("project")
++ 247 			report, err := skills.NewEngine(mustGetwd()).Reinstall(args[0], opts, scopeExplicit)
+  245 			if err != nil {
+  246 				return err
+  247 			}
+  248 			analytics.TrackEvent(analytics.EventSkillsInstalled, analytics.Properties{
+      ...
+  259 	addInstallFlags(cmd, &jsonOut, &global, &project, &agents)
+  260 	return cmd
+  261 }
+  262 
+- 263 func newSkillsReinstallCmd() *cobra.Command {
+- 264 	var jsonOut, global, project bool
+- 265 	var agents []string
+- 266 	cmd := &cobra.Command{
+- 267 		Use:   "reinstall <name>",
+- 268 		Short: "Reinstall a skill, refreshing it to the current cloud version",
+- 269 		Args:  cobra.ExactArgs(1),
+- 270 		RunE: func(cmd *cobra.Command, args []string) error {
+- 271 			if err := ensureSkillsAccess(); err != nil {
+- 272 				return err
+- 273 			}
+- 274 			opts, err := installOptionsFromFlags(global, project, agents)
+- 275 			if err != nil {
+- 276 				return err
+- 277 			}
+- 278 			scopeExplicit := cmd.Flags().Changed("global") || cmd.Flags().Changed("project")
+- 279 			report, err := skills.NewEngine(mustGetwd()).Reinstall(args[0], opts, scopeExplicit)
+- 280 			if err != nil {
+- 281 				return err
+- 282 			}
+- 283 			analytics.TrackEvent(analytics.EventSkillsInstalled, analytics.Properties{
+- 284 				"scope": report.Scope, "agents": len(report.Agents), "reinstall": true,
+- 285 			})
+- 286 			if jsonOut {
+- 287 				return printJSON(cmd.OutOrStdout(), report)
+- 288 			}
+- 289 			renderInstallReport(cmd.OutOrStdout(), report)
+- 290 			return nil
+- 291 		},
+- 292 	}
+- 293 	addInstallFlags(cmd, &jsonOut, &global, &project, &agents)
+- 294 	return cmd
+- 295 }
+- 296 
+  297 func newSkillsUninstallCmd() *cobra.Command {
+  298 	var jsonOut bool
+  299 	cmd := &cobra.Command{
+  300 		Use:   "uninstall <name>",
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -230,9 +230,9 @@
+ 	var jsonOut, global, project bool
+ 	var agents []string
+ 	cmd := &cobra.Command{
+ 		Use:   "install <name>",
+-		Short: "Install a ready skill into your agents",
++		Short: "Install a skill, or reinstall it to refresh an installed copy",
+ 		Args:  cobra.ExactArgs(1),
+ 		RunE: func(cmd *cobra.Command, args []string) error {
+ 			if err := ensureSkillsAccess(); err != nil {
+ 				return err
+@@ -240,9 +240,12 @@
+ 			opts, err := installOptionsFromFlags(global, project, agents)
+ 			if err != nil {
+ 				return err
+ 			}
+-			report, err := skills.NewEngine(mustGetwd()).Install(args[0], opts)
++			// Reinstall delegates to Install when the skill isn't installed yet, and reuses
++			// the prior scope/agents when it is (unless --global/--project is explicit).
++			scopeExplicit := cmd.Flags().Changed("global") || cmd.Flags().Changed("project")
++			report, err := skills.NewEngine(mustGetwd()).Reinstall(args[0], opts, scopeExplicit)
+ 			if err != nil {
+ 				return err
+ 			}
+ 			analytics.TrackEvent(analytics.EventSkillsInstalled, analytics.Properties{
+@@ -259,42 +262,8 @@
+ 	addInstallFlags(cmd, &jsonOut, &global, &project, &agents)
+ 	return cmd
+ }
+ 
+-func newSkillsReinstallCmd() *cobra.Command {
+-	var jsonOut, global, project bool
+-	var agents []string
+-	cmd := &cobra.Command{
+-		Use:   "reinstall <name>",
+-		Short: "Reinstall a skill, refreshing it to the current cloud version",
+-		Args:  cobra.ExactArgs(1),
+-		RunE: func(cmd *cobra.Command, args []string) error {
+-			if err := ensureSkillsAccess(); err != nil {
+-				return err
+-			}
+-			opts, err := installOptionsFromFlags(global, project, agents)
+-			if err != nil {
+-				return err
+-			}
+-			scopeExplicit := cmd.Flags().Changed("global") || cmd.Flags().Changed("project")
+-			report, err := skills.NewEngine(mustGetwd()).Reinstall(args[0], opts, scopeExplicit)
+-			if err != nil {
+-				return err
+-			}
+-			analytics.TrackEvent(analytics.EventSkillsInstalled, analytics.Properties{
+-				"scope": report.Scope, "agents": len(report.Agents), "reinstall": true,
+-			})
+-			if jsonOut {
+-				return printJSON(cmd.OutOrStdout(), report)
+-			}
+-			renderInstallReport(cmd.OutOrStdout(), report)
+-			return nil
+-		},
+-	}
+-	addInstallFlags(cmd, &jsonOut, &global, &project, &agents)
+-	return cmd
+-}
+-
+ func newSkillsUninstallCmd() *cobra.Command {
+ 	var jsonOut bool
+ 	cmd := &cobra.Command{
+ 		Use:   "uninstall <name>",
 
 ```
-Successfully replaced 2 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 234
+}
 ```
 </details></tool-use>
 
@@ -2068,10 +3585,90 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:58:23Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-			Render("↑ update available — close this preview and press R to reinstall")
++			Render("↑ update available — close this preview and press i to reinstall")
+```
+
+**Edit 2:**
+```diff
+-	// The install marker doubles as a drift indicator: ✓ installed, ↑ installed-but-an-update
+-	// is available (reinstall with R). Shown in both view modes.
++	// The install marker doubles as a drift indicator: ✓ installed, ↑ installed-but-an-update
++	// is available (reinstall with i). Shown in both view modes.
+```
+
+```text
+Successfully replaced 2 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+ 1383 	}
+ 1384 	line := stySel.Render("● installed") + styDim.Render(fmt.Sprintf("  %s · %s", s.InstalledScope, agents))
+ 1385 	if s.Drift {
+ 1386 		line += "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("214")).
+-1387 			Render("↑ update available — close this preview and press R to reinstall")
++1387 			Render("↑ update available — close this preview and press i to reinstall")
+ 1388 	}
+ 1389 	return line
+ 1390 }
+ 1391 
+      ...
+ 1518 func (m skillsTUI) skillRow(v skills.SkillView, selected bool) string {
+ 1519 	cursor := rowCursor(selected)
+ 1520 	state := skillStateBadge(v.State)
+ 1521 	// The install marker doubles as a drift indicator: ✓ installed, ↑ installed-but-an-update
+-1522 	// is available (reinstall with R). Shown in both view modes.
++1522 	// is available (reinstall with i). Shown in both view modes.
+ 1523 	installed := "  "
+ 1524 	switch {
+ 1525 	case v.LocallyInstalled && v.Drift:
+ 1526 		installed = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Render("↑ ")
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -1383,9 +1383,9 @@
+ 	}
+ 	line := stySel.Render("● installed") + styDim.Render(fmt.Sprintf("  %s · %s", s.InstalledScope, agents))
+ 	if s.Drift {
+ 		line += "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("214")).
+-			Render("↑ update available — close this preview and press R to reinstall")
++			Render("↑ update available — close this preview and press i to reinstall")
+ 	}
+ 	return line
+ }
+ 
+@@ -1518,9 +1518,9 @@
+ func (m skillsTUI) skillRow(v skills.SkillView, selected bool) string {
+ 	cursor := rowCursor(selected)
+ 	state := skillStateBadge(v.State)
+ 	// The install marker doubles as a drift indicator: ✓ installed, ↑ installed-but-an-update
+-	// is available (reinstall with R). Shown in both view modes.
++	// is available (reinstall with i). Shown in both view modes.
+ 	installed := "  "
+ 	switch {
+ 	case v.LocallyInstalled && v.Drift:
+ 		installed = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Render("↑ ")
 
 ```
-Successfully replaced 2 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 1387
+}
 ```
 </details></tool-use>
 
@@ -2083,9 +3680,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:58:24Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
+
+**Offset (line):**
+```text
+30
+```
+
+**Limit:**
+```text
+12
+```
+
+```go
 // sessions — plus non-interactive `--json` subcommands that expose the SAME engine so a
 // front end (e.g. the VS Code extension) can drive identical behavior by shelling out.
 //
@@ -2107,10 +3717,60 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:58:26Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-// install, uninstall, reinstall, approve, reject, status) are the machine-readable surface.
++// install, uninstall, approve, reject, status) are the machine-readable surface.
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+   30 // sessions — plus non-interactive `--json` subcommands that expose the SAME engine so a
+   31 // front end (e.g. the VS Code extension) can drive identical behavior by shelling out.
+   32 //
+   33 // Running `specstory skills` with no subcommand opens the TUI; the subcommands (list, show,
+-  34 // install, uninstall, reinstall, approve, reject, status) are the machine-readable surface.
++  34 // install, uninstall, approve, reject, status) are the machine-readable surface.
+   35 func CreateSkillsCommand(cloudURL *string) *cobra.Command {
+   36 	longDesc := `Browse, approve, and install skills generated from your coding sessions.
+   37 
+   38 SpecStory Cloud mines your synced sessions into reusable skills. 'skills' opens an
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -30,9 +30,9 @@
+ // sessions — plus non-interactive `--json` subcommands that expose the SAME engine so a
+ // front end (e.g. the VS Code extension) can drive identical behavior by shelling out.
+ //
+ // Running `specstory skills` with no subcommand opens the TUI; the subcommands (list, show,
+-// install, uninstall, reinstall, approve, reject, status) are the machine-readable surface.
++// install, uninstall, approve, reject, status) are the machine-readable surface.
+ func CreateSkillsCommand(cloudURL *string) *cobra.Command {
+ 	longDesc := `Browse, approve, and install skills generated from your coding sessions.
+ 
+ SpecStory Cloud mines your synced sessions into reusable skills. 'skills' opens an
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 34
+}
 ```
 </details></tool-use>
 
@@ -2122,9 +3782,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:58:27Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`README.md`
-
+**Path:**
+```text
+README.md
 ```
+
+**Offset (line):**
+```text
+85
+```
+
+**Limit:**
+```text
+15
+```
+
+````markdown
 SpecStory Cloud mines your synced sessions into reusable skills. The `skills` command lets you browse, approve, and install them into your coding agents. It requires a SpecStory Cloud login (`specstory login`) and a Pro plan.
 
 ```zsh
@@ -2142,16 +3815,29 @@ Installs default to global; pass `--project` to install into the current repo in
 
 
 [500 more lines in file. Use offset=100 to continue.]
-```
+````
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:58:28Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`README.md`
-
+**Path:**
+```text
+README.md
 ```
+
+**Offset (line):**
+```text
+100
+```
+
+**Limit:**
+```text
+20
+```
+
+````markdown
 Every action is also a non-interactive subcommand with `--json`, so a front end (e.g. the
 VS Code extension) can drive the same engine:
 
@@ -2174,17 +3860,127 @@ watch it live). Runs mine your synced sessions in the cloud and take a few minut
 
 
 [480 more lines in file. Use offset=120 to continue.]
-```
+````
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:58:32Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`README.md`
-
+**Path:**
+```text
+README.md
 ```
+
+**Edit 1:**
+```diff
+-#   • Library — preview skills, approve/reject those awaiting review, install ready
+-#     ones, and uninstall/reinstall installed ones.
+-#   • Run Activity — see past runs, kick one off (`n`), and watch it live.
++#   • Library — preview skills, approve/reject those awaiting review, install ready
++#     ones, and uninstall/reinstall installed ones.
++#   • Run Activity — see past runs, kick one off (`m`), and watch it live.
+```
+
+**Edit 2:**
+```diff
+-specstory skills install <name>              # install for all detected agents (global)
+-specstory skills install <name> --project --agents claude-code,codex
+-specstory skills uninstall <name>            # remove files, links, and lock entry
+-specstory skills reinstall <name>            # refresh to the current cloud version
++specstory skills install <name>              # install for all detected agents (global)
++specstory skills install <name> --project --agents claude-code,codex
++specstory skills uninstall <name>            # remove files, links, and lock entry
++specstory skills install <name>              # reinstall an installed skill to refresh it
+```
+
+**Edit 3:**
+```diff
+-To generate new skills, kick off a run (`specstory skills run`, or press `n` in the browser to
+-watch it live). Runs mine your synced sessions in the cloud and take a few minutes.
++To generate new skills, kick off a run (`specstory skills run`, or press `m` in the browser to
++watch it live). Runs mine your synced sessions in the cloud and take a few minutes.
+```
+
+```text
 Successfully replaced 3 block(s) in README.md.
+```
+
+**diff:**
+````diff
+     ...
+  87 ```zsh
+  88 # Interactive browser with two tabs (press `tab` to switch):
+  89 #   • Library — preview skills, approve/reject those awaiting review, install ready
+  90 #     ones, and uninstall/reinstall installed ones.
+- 91 #   • Run Activity — see past runs, kick one off (`n`), and watch it live.
++ 91 #   • Run Activity — see past runs, kick one off (`m`), and watch it live.
+  92 specstory skills
+  93 ```
+  94 
+  95 Skills install using the same layout as the public `npx skills` CLI: a canonical
+     ...
+ 107 specstory skills reject <name> --note "..."  # reject one
+ 108 specstory skills install <name>              # install for all detected agents (global)
+ 109 specstory skills install <name> --project --agents claude-code,codex
+ 110 specstory skills uninstall <name>            # remove files, links, and lock entry
+-111 specstory skills reinstall <name>            # refresh to the current cloud version
++111 specstory skills install <name>              # reinstall an installed skill to refresh it
+ 112 specstory skills status --json               # locally installed skills (no login needed)
+ 113 specstory skills run                         # mine your sessions for new skills
+ 114 specstory skills runs --json                 # recent runs and their status
+ 115 ```
+ 116 
+-117 To generate new skills, kick off a run (`specstory skills run`, or press `n` in the browser to
++117 To generate new skills, kick off a run (`specstory skills run`, or press `m` in the browser to
+ 118 watch it live). Runs mine your synced sessions in the cloud and take a few minutes.
+ 119 
+ 120 ### Targeting a non-production cloud
+ 121 
+     ...
+````
+
+**patch:**
+````diff
+--- README.md
++++ README.md
+@@ -87,9 +87,9 @@
+ ```zsh
+ # Interactive browser with two tabs (press `tab` to switch):
+ #   • Library — preview skills, approve/reject those awaiting review, install ready
+ #     ones, and uninstall/reinstall installed ones.
+-#   • Run Activity — see past runs, kick one off (`n`), and watch it live.
++#   • Run Activity — see past runs, kick one off (`m`), and watch it live.
+ specstory skills
+ ```
+ 
+ Skills install using the same layout as the public `npx skills` CLI: a canonical
+@@ -107,15 +107,15 @@
+ specstory skills reject <name> --note "..."  # reject one
+ specstory skills install <name>              # install for all detected agents (global)
+ specstory skills install <name> --project --agents claude-code,codex
+ specstory skills uninstall <name>            # remove files, links, and lock entry
+-specstory skills reinstall <name>            # refresh to the current cloud version
++specstory skills install <name>              # reinstall an installed skill to refresh it
+ specstory skills status --json               # locally installed skills (no login needed)
+ specstory skills run                         # mine your sessions for new skills
+ specstory skills runs --json                 # recent runs and their status
+ ```
+ 
+-To generate new skills, kick off a run (`specstory skills run`, or press `n` in the browser to
++To generate new skills, kick off a run (`specstory skills run`, or press `m` in the browser to
+ watch it live). Runs mine your synced sessions in the cloud and take a few minutes.
+ 
+ ### Targeting a non-production cloud
+ 
+
+````
+
+**Details:**
+```json
+{
+  "firstChangedLine": 91
+}
 ```
 </details></tool-use>
 
@@ -2192,8 +3988,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:58:36Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build ./... 2>&1 && golangci-lint run 2>&1 | tail -5`</summary>
+**Command:**
+```bash
+go build ./... 2>&1 && golangci-lint run 2>&1 | tail -5
 ```
+
+```text
 0 issues.
+
 ```
 </details></tool-use>
 
@@ -2201,7 +4003,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:58:38Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go test ./... 2>&1 | tail -8`</summary>
+**Command:**
+```bash
+go test ./... 2>&1 | tail -8
 ```
+
+```text
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/session	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/skills	(cached)
@@ -2210,6 +4017,7 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi	0.018s
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	(cached)
+
 ```
 </details></tool-use>
 
@@ -2221,8 +4029,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:58:40Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go run . skills install --help 2>&1 | head -20`</summary>
+**Command:**
+```bash
+go run . skills install --help 2>&1 | head -20
 ```
-Install a skill, or reinstall it to refresh an installed copy                                                         
+
+```text
+
+  Install a skill, or reinstall it to refresh an installed copy                                                         
          
   USAGE  
          
@@ -2241,6 +4055,7 @@ Install a skill, or reinstall it to refresh an installed copy
     --no-version-check    Skip checking for newer versions
     --project             Install into the current project (./.agents/skills)
     --silent              Suppress all non-error output
+
 ```
 </details></tool-use>
 
@@ -2252,10 +4067,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 13:58:42Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go run . skills --help 2>&1 | grep -i reinstall; echo "exit: $?"`</summary>
+**Command:**
+```bash
+go run . skills --help 2>&1 | grep -i reinstall; echo "exit: $?"
 ```
-skills can be uninstalled or reinstalled at any time.                                                                 
+
+```text
+  skills can be uninstalled or reinstalled at any time.                                                                 
     install <name> [--flags]    Install a skill, or reinstall it to refresh an installed copy
 exit: 0
+
 ```
 </details></tool-use>
 
@@ -2314,11 +4135,17 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:10:26Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n 'newSkillsAgentsCmd\|func.*Agents\|agentsCmd\|DisplayName\|AgentInfo' pkg/cmd/skills.go | head -20`</summary>
+**Command:**
+```bash
+grep -n 'newSkillsAgentsCmd\|func.*Agents\|agentsCmd\|DisplayName\|AgentInfo' pkg/cmd/skills.go | head -20
 ```
+
+```text
 90:		newSkillsAgentsCmd(),
 444:func newSkillsAgentsCmd() *cobra.Command {
 461:				fprintf(cmd.OutOrStdout(), "%s %-16s %s\n", mark, a.Name, a.DisplayName)
 1605:		b.WriteString(cursor + check + " " + a.DisplayName)
+
 ```
 </details></tool-use>
 
@@ -2326,9 +4153,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:10:27Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
+
+**Offset (line):**
+```text
+444
+```
+
+**Limit:**
+```text
+25
+```
+
+```go
 func newSkillsAgentsCmd() *cobra.Command {
 	var jsonOut bool
 	cmd := &cobra.Command{
@@ -2363,10 +4203,60 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:10:29Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-			fprintf(cmd.OutOrStdout(), "%s %-16s %s\n", mark, a.Name, a.DisplayName)
++			fprintf(cmd.OutOrStdout(), "%s %s\n", mark, a.DisplayName)
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+  457 				mark := " "
+  458 				if a.Detected {
+  459 					mark = "✓"
+  460 				}
+- 461 				fprintf(cmd.OutOrStdout(), "%s %-16s %s\n", mark, a.Name, a.DisplayName)
++ 461 				fprintf(cmd.OutOrStdout(), "%s %s\n", mark, a.DisplayName)
+  462 			}
+  463 			return nil
+  464 		},
+  465 	}
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -457,9 +457,9 @@
+ 				mark := " "
+ 				if a.Detected {
+ 					mark = "✓"
+ 				}
+-				fprintf(cmd.OutOrStdout(), "%s %-16s %s\n", mark, a.Name, a.DisplayName)
++				fprintf(cmd.OutOrStdout(), "%s %s\n", mark, a.DisplayName)
+ 			}
+ 			return nil
+ 		},
+ 	}
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 461
+}
 ```
 </details></tool-use>
 
@@ -2374,7 +4264,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:10:32Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build ./... 2>&1 && go run . skills agents 2>&1`</summary>
+**Command:**
+```bash
+go build ./... 2>&1 && go run . skills agents 2>&1
 ```
+
+```text
 ✓ Amp
 ✓ Claude Code
   Cline
@@ -2389,6 +4284,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:10:32Z)**_
   Qwen Code
   Roo Code
 ✓ Windsurf
+
 ```
 </details></tool-use>
 
@@ -2416,7 +4312,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:15:11Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn 'Registry\|AgentInfo\|DisplayName\|func.*Detected\|deepseek\|DeepSeek' pkg/skills/ | grep -v _test | grep -v .specstory | head -30`</summary>
+**Command:**
+```bash
+grep -rn 'Registry\|AgentInfo\|DisplayName\|func.*Detected\|deepseek\|DeepSeek' pkg/skills/ | grep -v _test | grep -v .specstory | head -30
 ```
+
+```text
 pkg/skills/agents.go:25:	// DisplayName is the human label (e.g. "Claude Code").
 pkg/skills/agents.go:26:	DisplayName string
 pkg/skills/agents.go:43:func (a Agent) Detected() bool {
@@ -2447,6 +4348,7 @@ pkg/skills/engine.go:242:type AgentInfo struct {
 pkg/skills/engine.go:244:	DisplayName string `json:"displayName"`
 pkg/skills/engine.go:249:func (e *Engine) Agents() []AgentInfo {
 pkg/skills/engine.go:250:	reg := Registry()
+
 ```
 </details></tool-use>
 
@@ -2454,9 +4356,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:15:14Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/skills/agents.go`
-
+**Path:**
+```text
+pkg/skills/agents.go
 ```
+
+**Offset (line):**
+```text
+1
+```
+
+**Limit:**
+```text
+135
+```
+
+```go
 // Package skills is the headless engine behind the `specstory skills` command. It
 // downloads SpecStory Cloud skills and installs them locally using the same layout and
 // semantics as the public `npx skills` CLI (a canonical .agents/skills store, symlinked
@@ -2558,8 +4473,8 @@ func buildRegistry(p hostPaths) []Agent {
 		{Name: "gemini", DisplayName: "Gemini CLI", ProjectDir: filepath.Join(".gemini", "skills"),
 			GlobalDir: filepath.Join(p.home, ".gemini", "skills"), ConfigDir: filepath.Join(p.home, ".gemini")},
 		{Name: "github-copilot", DisplayName: "GitHub Copilot", ProjectDir: canonicalRel,
-			GlobalDir: filepath.Join(p.home, ".copilot", "skills"), ConfigDir: f
-... (truncated)
+			GlobalDir: filepath.Join(p.home, ".copilot", "skills"), ConfigDir: fil
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -2575,7 +4490,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:15:20Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `ls pkg/providers/deepseektui/ && grep -rn 'config\|home\|dir\|\.deepseek\|DeepSeek\|path' pkg/providers/deepseektui/*.go | grep -v _test | grep -i 'dir\|home\|path\|config\|\.deepseek' | head -30`</summary>
+**Command:**
+```bash
+ls pkg/providers/deepseektui/ && grep -rn 'config\|home\|dir\|\.deepseek\|DeepSeek\|path' pkg/providers/deepseektui/*.go | grep -v _test | grep -i 'dir\|home\|path\|config\|\.deepseek' | head -30
 ```
+
+```text
 agent_session_test.go
 agent_session.go
 deepseek_exec_test.go
@@ -2619,6 +4539,7 @@ pkg/providers/deepseektui/markdown_tools.go:85:// extractPathHints surfaces file
 pkg/providers/deepseektui/markdown_tools.go:94:	pathFields := []string{
 pkg/providers/deepseektui/markdown_tools.go:95:		"path", "file_path", "filePath", "file",
 pkg/providers/deepseektui/markdown_tools.go:96:		"dir", "directory", "directory_path", "target_directory",
+
 ```
 </details></tool-use>
 
@@ -2626,7 +4547,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:15:26Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn 'deepseek\|DeepSeek\|DEEPSEEK' pkg/providers/deepseektui/path_utils.go pkg/providers/deepseektui/provider.go 2>/dev/null | grep -i 'dir\|home\|path\|config\|\.deepseek\|session' | head -30`</summary>
+**Command:**
+```bash
+grep -rn 'deepseek\|DeepSeek\|DEEPSEEK' pkg/providers/deepseektui/path_utils.go pkg/providers/deepseektui/provider.go 2>/dev/null | grep -i 'dir\|home\|path\|config\|\.deepseek\|session' | head -30
 ```
+
+```text
 pkg/providers/deepseektui/path_utils.go:1:package deepseektui
 pkg/providers/deepseektui/path_utils.go:15:	deepSeekRootDir     = ".deepseek"
 pkg/providers/deepseektui/path_utils.go:25:// resolveSessionsDir returns the path to DeepSeek TUI's sessions directory.
@@ -2649,6 +4575,7 @@ pkg/providers/deepseektui/provider.go:319:	log.UserMessage("Run DeepSeek TUI ins
 pkg/providers/deepseektui/provider.go:322:// ListAllAgentChatSessions enumerates every DeepSeek TUI session in
 pkg/providers/deepseektui/provider.go:323:// ~/.deepseek/sessions/. DeepSeek sessions are not project-scoped by directory; the
 pkg/providers/deepseektui/provider.go:339:			slog.Debug("reindex: failed to extract deepseek session metadata", "path", file.Path, "error", err)
+
 ```
 </details></tool-use>
 
@@ -2656,9 +4583,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:15:28Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/providers/deepseektui/path_utils.go`
-
+**Path:**
+```text
+pkg/providers/deepseektui/path_utils.go
 ```
+
+**Offset (line):**
+```text
+1
+```
+
+**Limit:**
+```text
+40
+```
+
+```go
 package deepseektui
 
 import (
@@ -2718,16 +4658,20 @@ Let me check the npx skills registry to see if DeepSeek TUI has a canonical skil
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:15:58Z)**_
 
-<tool-use data-tool-type="search" data-tool-name="web_search"><details>
+<tool-use data-tool-type="unknown" data-tool-name="web_search"><details>
 <summary>Tool use: **web_search**</summary>
-
 **Input:**
-
-- queries: `[npx skills CLI agent registry src/agents.ts deepseek skills CLI universal agents list deepseek TUI skills directory @specstory/skills agent registry deepseek]`
-
-**Result:**
-
+```json
+{
+  "queries": [
+    "npx skills CLI agent registry src/agents.ts deepseek",
+    "skills CLI universal agents list deepseek TUI skills directory",
+    "@specstory/skills agent registry deepseek"
+  ]
+}
 ```
+
+```text
 Summary based on the currently selected search results.
 
 - npx skills CLI agent registry src/agents.ts deepseek: Agent skills are reusable instruction sets that extend your coding agent's capabilities. They're defined in SKILL.md files with YAML frontmatter ...
@@ -2753,20 +4697,59 @@ Sources
 - https://github.com/specstoryai/getspecstory/tree/dev/lore
 - ... and 3 more
 ```
+
+````json
+{
+  "details": {
+    "curated": true,
+    "curatedFrom": 3,
+    "curatedQueries": [
+      {
+        "answer": "Agent skills are reusable instruction sets that extend your coding agent's capabilities. They're defined in SKILL.md files with YAML frontmatter ...\nSource: vercel-labs/skills: The open agent skills tool - npx skills (https://github.com/vercel-labs/skills)\n\nThis file provides guidance to AI coding agents working on the skills CLI codebase. Project Overview. skills is the CLI for the open agent skills ecosystem.\nSource: skills/AGENTS.md at main · vercel-labs/skills (https://github.com/vercel-labs/skills/blob/main/AGENTS.md)\n\nThis file provides guidance to AI coding agents working on the `skills` CLI codebase. ... `skills` is the CLI for the open agent skills ecosystem. ... ``` src/ ├── cli.ts # Main entry point, command routing, init/check/update/generate-lock ├── cli.test.ts # CLI tests ├── ... .ts # Core ... command logic ├── add.test.ts # Add command tests ... ├── list.ts # List installed skills command ├── list.test.ts # List command tests ├── agents.ts # Agent definitions and detection ├── installer.ts # Skill \nSource: AGENTS.md at 7775819cc798e2f37ab58fffa2f7c877c25f2665 · vercel-labs/skills (https://github.com/vercel-labs/skills/blob/7775819cc798e2f37ab58fffa2f7c877c25f2665/AGENTS.md)\n\n`add-skill` is a CLI tool that installs agent skills (reusable instruction sets in `SKILL.md` files) onto various coding agents. It supports 23+ agents including OpenCode, Claude Code, Cursor, Codex, and more. ... ```bash npx skills add \u003csource\u003e # Install a skill from GitHub, URL, or local path npx skills add \u003csource\u003e --global # Install globally for the current user npx skills list # List installed skills npx skills remove \u003cname\u003e # Remove an installed skill ``` ... ``` src/ ├── index.ts # CLI en\nSource: AGENTS.md at eaef5250a471f5bddd15617703b82ca56ac50836 · vinhnx/skills (https://github.com/vinhnx/skills/blob/eaef5250a471f5bddd15617703b82ca56ac50836/AGENTS.md)\n\nnpx skills` ... The CLI for the open agent skills ecosystem. ... ``` npx skills add vercel-labs/agent-skills ... | Option | Description | | --- | --- | | `-g, --global` | Install to user directory instead of project | | `-a, --agent \u003cagents...\u003e` | Target specific agents (e.g.,`claude-code`,`codex`). See Supported Agents | | `-s, --skill \u003cskills...\u003e` | Install specific skills by name (use`'*'` for all skills) | | `-l, --list` | List available skills without installing | | `--copy` | Copy files in\nSource: skills - npmx (https://npmx.dev/package/skills)",
+        "error": null,
+        "provider": "exa",
+        "query": "npx skills CLI agent registry src/agents.ts deepseek",
+        "sources": [
+          {
+            "title": "vercel-labs/skills: The open agent skills tool - npx skills",
+            "url": "https://github.com/vercel-labs/skills"
+          },
+          {
+            "title": "skills/AGENTS.md at main · vercel-labs/skills",
+            "url": "https://github.com/vercel-labs/skills/blob/main/AGENTS.md"
+          },
+          {
+            "title": "AGENTS.md at 7775819cc798e2f37ab58fffa2f7c877c25f2665 · vercel-labs/skills",
+            "url": "https://github.com/vercel-labs/skills/blob/7775819cc798e2f37ab58fffa2f7c877c25f2665/AGENTS.md"
+          },
+          {
+            "title": "AGENTS.md at eaef5250a471f5bddd15617703b82ca56ac50836 · vinhnx/skills",
+            "url": "https://github.com/vinhnx/skills/blob/eaef5250a471f5bddd15617703b82ca56ac50836/AGENTS.md"
+          },
+          {
+            "title": "skills - npmx",
+            "url": "https://npmx.dev/package/skills"
+          }
+        ]
+      },
+      {
+        "answer": "The CLI for the open agent skills ecosystem. Supports OpenCode, Claude Code, Codex, Cursor, and 69 more. skills.sh. Install a Skill.\nSource: skills (https://www.npmjs.com/package/skills)\n\n\u003e Browse, search, install, and manage Agent Skills (SKILL.md) from curated public registries — no authentication required. ... Agent Skills are the open standard ([agentskills.io](https://agentskills.io)) for reusable AI agent instructions. `skills-cli` gives you a single command-line tool to discover and install them across all major AI coding agents: VS Code Copilot, Claude Code, Codex CLI, Cursor, Gemini CLI, and more. ... - **Bundled curated registry** — seeded from `github/awesome-copilot`,\nSource: darrenr/skills-cli (https://github.com/darrenr/skills-cli)\n\n**Universal Skills** brings Anthropic's Skills feature to any AI coding agent that supports MCP. Skills are markdown files containing specialized knowledge that can be dynamically loaded into your agent's context only when needed. ... ## Skill Directory Structure ... Skills are automatically discovered from four directories in priority order (first match wins): 1. `yourproject/.agent/skills/` - Project-specific skills 2. `yourproject/.claude/skills/` - Project-specific skills 3. `~/.agent/skills\n
+… (output truncated)
+````
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:16:02Z)**_
 
-<tool-use data-tool-type="search" data-tool-name="fetch_content"><details>
+<tool-use data-tool-type="unknown" data-tool-name="fetch_content"><details>
 <summary>Tool use: **fetch_content**</summary>
-
 **Input:**
+```json
+{
+  "url": "https://github.com/vercel-labs/skills/blob/main/AGENTS.md"
+}
+```
 
-- url: `https://github.com/vercel-labs/skills/blob/main/AGENTS.md`
-
-**Result:**
-
-````
+````text
 Repository cloned to: /tmp/pi-github-repos/vercel-labs/skills@main
 
 ## AGENTS.md
@@ -2863,96 +4846,39 @@ tests/
 
 ### Lock File Compatibility
 
-The lock file format is v3. Key field: `skillFolderHash` (GitHub tree SHA for the skill folder).
-
-If reading an older lock file version, it's wiped. Users must reinstall skills to populate the new format.
-
-## Key Integration Points
-
-| Feature                    | Implementation                                                |
-| -------------------------- | ------------------------------------------------------------- |
-| `skills add`               | `src/add.ts` - full implementation                            |
-| `skills experimental_sync` | `src/sync.ts` - crawl node_modules                            |
-| `skills check`             | `src/cli.ts` + `fetchSkillFolderHash` in `src/skill-lock.ts`  |
-| `skills update`            | `src/cli.ts` direct hash compare + reinstall via `skills add` |
-
-## Development
-
-```bash
-# Install dependencies
-pnpm install
-
-# Build
-pnpm build
-
-# Test locally
-pnpm dev add vercel-labs/agent-skills --list
-pnpm dev experimental_sync
-pnpm dev check
-pnpm dev update
-pnpm dev init my-skill
-
-# Run all tests
-pnpm test
-
-# Run specific test file(s)
-pnpm test tests/sanitize-name.test.ts
-pnpm test tests/skill-matching.test.ts tests/source-parser.test.ts
-
-# Type check
-pnpm type-check
-
-# Format code
-pnpm format
-
-# Check formatting
-pnpm format:check
-
-# Validate and sync agent metadata/docs
-pnpm run -C scripts validate-agents.ts
-pnpm run -C scripts sync-agents.ts
-```
-
-## Code Style
-
-This project uses Prettier for code formatting. **Always run `pnpm format` before committing changes** to ensure consistent formatting.
-
-```bash
-# Format all files
-pnpm format
-
-# Check formatting without fixing
-pnpm format:check
-```
-
-CI will fail if code is not properly formatted.
-
-## Publishing
-
-```bash
-# 1. Bump version in package.json
-# 2. Build
-pnpm build
-# 3. Publish
-npm publish
-```
-
-## Adding a New Agent
-
-1. Add the agent definition to `src/agents.ts`
-2. Run `pnpm run -C scripts validate-agents.ts` to validate
-3. Run `pnpm run -C scripts sync-agents.ts` to update README.md and package keywords
-
-
-Use `read` and `bash` tools at the path above to explore further.
+The lock file format is v3. Key field: `skillFolderHash` (GitHub tree S
+… (output truncated)
 ````
+
+```json
+{
+  "details": {
+    "hasImage": false,
+    "imageCount": 0,
+    "responseId": "mrkqhws8v6cyvj",
+    "successful": 1,
+    "title": "vercel-labs/skills - AGENTS.md",
+    "totalChars": 7020,
+    "truncated": false,
+    "urlCount": 1,
+    "urls": [
+      "https://github.com/vercel-labs/skills/blob/main/AGENTS.md"
+    ]
+  }
+}
+```
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:16:04Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -in 'deepseek' /tmp/pi-github-repos/vercel-labs/skills@main/src/agents.ts 2>/dev/null | head`</summary>
+**Command:**
+```bash
+grep -in 'deepseek' /tmp/pi-github-repos/vercel-labs/skills@main/src/agents.ts 2>/dev/null | head
 ```
+
+```text
 (no output)
 ```
 </details></tool-use>
@@ -2961,7 +4887,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:16:05Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `ls /tmp/pi-github-repos/vercel-labs/skills@main/src/agents.ts && grep -in 'deepseek\|name:' /tmp/pi-github-repos/vercel-labs/skills@main/src/agents.ts | head -80`</summary>
+**Command:**
+```bash
+ls /tmp/pi-github-repos/vercel-labs/skills@main/src/agents.ts && grep -in 'deepseek\|name:' /tmp/pi-github-repos/vercel-labs/skills@main/src/agents.ts | head -80
 ```
+
+```text
 /tmp/pi-github-repos/vercel-labs/skills@main/src/agents.ts
 18:function packageJsonHasDependency(packageJsonPath: string, dependencyName: string): boolean {
 57:    name: 'aider-desk',
@@ -3043,6 +4974,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:16:05Z)**_
 408:    name: 'kiro-cli',
 409:    displayName: 'Kiro CLI',
 417:    name: 'kode',
+
 ```
 </details></tool-use>
 
@@ -3060,24 +4992,49 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:16:09Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -in 'deepseek' /tmp/pi-github-repos/vercel-labs/skills@main/src/agents.ts; echo "---"; grep -rn 'deepseek\|DeepSeek' /tmp/pi-github-repos/vercel-labs/skills@main/ --include="*.ts" 2>/dev/null | grep -v node_modules | head`</summary>
+**Command:**
+```bash
+grep -in 'deepseek' /tmp/pi-github-repos/vercel-labs/skills@main/src/agents.ts; echo "---"; grep -rn 'deepseek\|DeepSeek' /tmp/pi-github-repos/vercel-labs/skills@main/ --include="*.ts" 2>/dev/null | grep -v node_modules | head
 ```
+
+```text
 ---
+
 ```
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:16:11Z)**_
 
-<tool-use data-tool-type="search" data-tool-name="web_search"><details>
+<tool-use data-tool-type="unknown" data-tool-name="web_search"><details>
 <summary>Tool use: **web_search**</summary>
-
 **Input:**
-
-- queries: `[specstoryai skills CLI agent registry deepseek specstory skills agents list deepseek TUI install target]`
-
-**Result:**
-
+```json
+{
+  "queries": [
+    "specstoryai skills CLI agent registry deepseek",
+    "specstory skills agents list deepseek TUI install target"
+  ]
+}
 ```
+
+```text
 Search curation cancelled (user).
+```
+
+```json
+{
+  "details": {
+    "browserConnected": true,
+    "cancelReason": "user",
+    "cancelled": true,
+    "error": "Search curation cancelled (user).",
+    "extraLines": [
+      "curator: http://localhost:50689/?session=a3e0d0f1-d204-485a-bde5-107a1cdc3a42"
+    ],
+    "lastHeartbeatAgeMs": 793,
+    "queryCount": 2
+  }
+}
 ```
 </details></tool-use>
 
@@ -3106,16 +5063,20 @@ Let me research whether DeepSeek TUI actually supports a skills directory before
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:16:25Z)**_
 
-<tool-use data-tool-type="search" data-tool-name="web_search"><details>
+<tool-use data-tool-type="unknown" data-tool-name="web_search"><details>
 <summary>Tool use: **web_search**</summary>
-
 **Input:**
-
-- queries: `[DeepSeek TUI skills directory SKILL.md configuration deepseek TUI agent skills folder .deepseek/skills DeepSeek CLI TUI custom skills instructions directory]`
-
-**Result:**
-
+```json
+{
+  "queries": [
+    "DeepSeek TUI skills directory SKILL.md configuration",
+    "deepseek TUI agent skills folder .deepseek/skills",
+    "DeepSeek CLI TUI custom skills instructions directory"
+  ]
+}
 ```
+
+```text
 Summary based on the currently selected search results.
 
 - DeepSeek TUI skills directory SKILL.md configuration: The overlay is intentionally narrow — it covers the fields a repo maintainer is most likely to want to standardize across contributors. Other settings (skills_dir, hooks, capacity, retry, etc.) stay user-global. If your repo needs more, ...
@@ -3137,6 +5098,45 @@ Sources
 - https://github.com/amemiya02/deepseekcode/blob/main/docs/skills.md
 - https://github.com/Hmbown/DeepSeek-TUI/blob/f738f0175a0ce820d6ca6d9bd0a6c6d3959de0a4/README.md
 ```
+
+````json
+{
+  "details": {
+    "curated": true,
+    "curatedFrom": 3,
+    "curatedQueries": [
+      {
+        "answer": "The overlay is intentionally narrow — it covers the fields a repo maintainer is most likely to want to standardize across contributors. Other settings (skills_dir, hooks, capacity, retry, etc.) stay user-global. If your repo needs more, file an issue describing the specific use case. ... To bootstrap MCP and skills directories at their resolved paths, run`deepseek-tui setup`. To only scaffold MCP, run`deepseek-tui mcp init`. ... - `DEEPSEEK_SKILLS_DIR` - `DEEPSEEK_MCP_CONFIG` - `DEEPSEEK_NOTES_P\nSource: DeepSeek TUI Configuration Docs Guide (https://deepseek-tui.app/docs/configuration/)\n\nTo bootstrap MCP and skills directories at their resolved paths, run `deepseek setup`. To ... scaffold MCP, run `deepseek mcp init`. ... - `DEEPSEEK_API_KEY` - `DEEPSEEK_BASE_URL` - `DEEPSEEK_SKILLS_DIR` - `DEEPSEEK_MCP_CONFIG` - `DEEPSEEK_NOTES_PATH` - `DEEPSEEK_MEMORY_PATH` - `DEEPSEEK_ALLOW_SHELL` (`1`/`true` enables) - `DEEPSEEK_APPROVAL_POLICY` (`on-request|untrusted|never`) - `DEEPSEEK_SANDBOX_MODE ... -only| ... -write|danger-full-access|external-sandbox`) ... - `skills_dir` (string, opti\nSource: docs/CONFIGURATION.md at 6fedee021edbb130be5c9de98d4fb05aa1d7b85f · Hmbown/CodeWhale (https://github.com/Hmbown/DeepSeek-TUI/blob/6fedee021edbb130be5c9de98d4fb05aa1d7b85f/docs/CONFIGURATION.md)\n\nTo bootstrap MCP and skills directories at their resolved paths, run `deepseek-tui setup`. To only scaffold MCP, run `deepseek-tui mcp init`. ... - `DEEPSEEK_SKILLS_DIR` - `DEEPSEEK_MCP_CONFIG` - `DEEPSEEK_NOTES_PATH` - `DEEPSEEK_MEMORY_PATH` - ` ... EPSEEK_ ... LL` (` ... `/`true` ... - `skills_dir` (string, optional): defaults to `~/.deepseek/skills` (each skill is a directory containing `SKILL.md`). Workspace-local `.agents/skills` or `./skills` are preferred when present. ... `deepseek-tui d\nSource: docs/CONFIGURATION.md at 2787cdc7b93e484bc34a94b8afa353824693a283 · Hmbown/CodeWhale (https://github.com/hmbown/deepseek-tui/blob/2787cdc7b93e484bc34a94b8afa353824693a283/docs/CONFIGURATION.md)\n\n## Publishing Your Own Skill ... DeepSeek TUI discovers skills from workspace directories (`.agents/skills` → `skills` → `.opencode/skills` → `.claude/skills`) and the global `~/.deepseek/skills`. Each skill is a directory with a `SKILL.md` file: ... ```text ~/.deepseek/skills/my-skill/ └── SKILL.md ``` ... Frontmatter required: ... ```markdown --- name: my-skill description: Use this when DeepSeek should follow my custom workflow. --- # My Skill Instructions for the agent go here. ``` ... Comma\nSource: README.md at faeda74d6687a9fef6f10e6857a8e87b1867f3e8 · Hmbown/CodeWhale (https://github.com/Hmbown/DeepSeek-TUI/blob/faeda74d6687a9fef6f10e6857a8e87b1867f3e8/README.md)\n\n# Paths # ───────────────────────────────────────────────────────────────────────────────── skills_dir = \"~/.deepseek/skills\" mcp_config_path = \"~/.deepseek/mcp.json\" notes_path = \"~/.deepseek/notes.txt\" ... # TUI # ───────────────────────────────────────────────────────────────────────────────── [tui] alternate_screen = \"auto\" # auto | always | never\nSource: config.example.toml at 197e5dd441987357e81bd42bf8cebbe4c72ad94b · Hmbown/CodeWhale (https://github.com/Hmbown/DeepSeek-TUI/blob/197e5dd441987357e81bd42bf8cebbe4c72ad94b/config.example.toml)",
+        "error": null,
+        "provider": "exa",
+        "query": "DeepSeek TUI skills directory SKILL.md configuration",
+        "sources": [
+          {
+            "title": "DeepSeek TUI Configuration Docs Guide",
+            "url": "https://deepseek-tui.app/docs/configuration/"
+          },
+          {
+            "title": "docs/CONFIGURATION.md at 6fedee021edbb130be5c9de98d4fb05aa1d7b85f · Hmbown/CodeWhale",
+            "url": "https://github.com/Hmbown/DeepSeek-TUI/blob/6fedee021edbb130be5c9de98d4fb05aa1d7b85f/docs/CONFIGURATION.md"
+          },
+          {
+            "title": "docs/CONFIGURATION.md at 2787cdc7b93e484bc34a94b8afa353824693a283 · Hmbown/CodeWhale",
+            "url": "https://github.com/hmbown/deepseek-tui/blob/2787cdc7b93e484bc34a94b8afa353824693a283/docs/CONFIGURATION.md"
+          },
+          {
+            "title": "README.md at faeda74d6687a9fef6f10e6857a8e87b1867f3e8 · Hmbown/CodeWhale",
+            "url": "https://github.com/Hmbown/DeepSeek-TUI/blob/faeda74d6687a9fef6f10e6857a8e87b1867f3e8/README.md"
+          },
+          {
+            "title": "config.example.toml at 197e5dd441987357e81bd42bf8cebbe4c72ad94b · Hmbown/CodeWhale",
+            "url": "https://github.com/Hmbown/DeepSeek-TUI/blob/197e5dd441987357e81bd42bf8cebbe4c72ad94b/config.example.toml"
+          }
+        ]
+      },
+      {
+        "answer": "To bootstrap MCP and skills directories at their resolved paths, run`deepseek-tui setup`. To only scaffold MCP, run`deepseek-tui mcp init`. ... - `DEEPSEEK_SKILLS_DIR` - `DEEPSEEK_MCP_CONFIG` - `DEEPSEEK_NOTES_PATH` ... - `skills_dir`(string, optional): defaults to`~/.
+… (output truncated)
+````
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:16:27Z)**_
@@ -3145,16 +5145,16 @@ DeepSeek TUI does support a skills directory via `DEEPSEEK_SKILLS_DIR`. Let me g
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:16:30Z)**_
 
-<tool-use data-tool-type="search" data-tool-name="fetch_content"><details>
+<tool-use data-tool-type="unknown" data-tool-name="fetch_content"><details>
 <summary>Tool use: **fetch_content**</summary>
-
 **Input:**
+```json
+{
+  "url": "https://github.com/Hmbown/DeepSeek-TUI/blob/main/docs/CONFIGURATION.md"
+}
+```
 
-- url: `https://github.com/Hmbown/DeepSeek-TUI/blob/main/docs/CONFIGURATION.md`
-
-**Result:**
-
-````
+````text
 Repository cloned to: /tmp/pi-github-repos/Hmbown/DeepSeek-TUI@main
 
 ## docs/CONFIGURATION.md
@@ -3262,569 +5262,27 @@ Each repo can carry two distinct, complementary files:
 
   This is the **repo-local law** layer in CodeWhale's hierarchy: *bundled global
   Constitution* → *user-global constitution* (`$CODEWHALE_HOME/constitution.json`,
-  rendered as prose) → *repo constitution* (`.codewhale/constitution.json`, this
-  file) → *AGENTS/project instructions* → *memory and handoffs* → *current
-  request and live evidence for the active turn*. Runtime policy
-  (permissions/sandbox/cost limits enforced in code) is separate from all of
-  these prompt layers. The repo constitution gives project decision rules; it
-  does not replace the bundled Constitution, the user-global constitution, or
-  the current user request.
-
-> **`WHALE.md` is deprecated.** It overlapped confusingly with `AGENTS.md`.
-> CodeWhale no longer reads `WHALE.md` as project or global context. If one is
-> present, setup/context diagnostics report it as ignored so you can migrate it.
-> Move ordinary instructions to `AGENTS.md` and CodeWhale-specific authority
-> policy to `.codewhale/constitution.json`. Personal standing guidance belongs
-> in `/constitution` / `$CODEWHALE_HOME/constitution.json`. (The global
-> CodeWhale Constitution shipped in the model prompt is a separate thing and is
-> unaffected.)
-
-### Enforced repo-law invariants
-
-By default a `protected_invariants` entry is advisory prose: it is rendered into
-the prompt as guidance the agent should honor, but nothing stops a write. An
-entry written as an **object with `paths`** is different — it compiles into a
-mechanical write hold that the engine's tool gate evaluates before the write
-runs. The law becomes mechanism, not just a request.
-
-An enforced entry has this shape:
+  rendered as prose) → *re
+… (output truncated)
+````
 
 ```json
 {
-  "schema_version": 1,
-  "protected_invariants": [
-    "Keep DeepSeek support first-class.",
-    {
-      "text": "The wire format is frozen; protocol changes need a human.",
-      "paths": ["crates/protocol/**"],
-      "action": "block"
-    },
-    {
-      "text": "Release notes need human review.",
-      "paths": ["CHANGELOG.md"],
-      "action": "ask"
-    }
-  ]
+  "details": {
+    "hasImage": false,
+    "imageCount": 0,
+    "responseId": "mrkqiil88zry5v",
+    "successful": 1,
+    "title": "Hmbown/DeepSeek-TUI - docs/CONFIGURATION.md",
+    "totalChars": 96884,
+    "truncated": true,
+    "urlCount": 1,
+    "urls": [
+      "https://github.com/Hmbown/DeepSeek-TUI/blob/main/docs/CONFIGURATION.md"
+    ]
+  }
 }
 ```
-
-- `text` — required. The reason surfaced on the hold. An empty `text` is skipped.
-- `paths` — workspace-relative globs (globset syntax, e.g. `crates/protocol/**`,
-  `**/secrets.toml`, `CHANGELOG.md`). An object with no usable `paths` stays
-  advisory-only despite the object shape.
-- `action` — optional, defaults to `ask`. `ask` **force-prompts** for approval;
-  `block` **denies the write outright**.
-
-Semantics:
-
-- **Tighten-only.** The schema has no allow/widen shape, so law can only *add*
-  holds — a crafted constitution can never grant authority or weaken a gate
-  above it.
-- **Not bypassable by mode.** Like the built-in safety floor, an `ask` hold
-  force-prompts in every mode, including Full Access; `block` always denies. Mode
-  cannot turn a hold off.
-- **Repo-local only.** Only the repo's `.codewhale/constitution.json`
-  participates. The user-global constitution stays advisory prose and never
-  reaches this mechanism.
-- **Fails safe.** A missing file, parse error, or invalid glob degrades to
-  fewer or zero rules — never a hold on unprotected paths and never a poisoned
-  gate. Across matches the strongest action wins, so `block` outranks `ask`.
-- **Leaves a receipt.** Every hold emits a `tool.repo_law_decision` tool-audit
-  event naming the invariant, the matched path, and the source file; the
-  approval/denial reason names the invariant too.
-
-**Coverage is deliberately limited.** Holds are evaluated only for the write
-tools `write_file`, `edit_file`, `apply_patch`, and `fim_edit`, and only
-against the filesystem targets named in their inputs (`path`/`target`/
-`destination`/`file_path`, `changes[].path`, and unified-diff /
-`apply_patch`-envelope headers). A shell command that writes a protected path is **not** held by
-repo law — those writes are still governed by the ordinary approval, sandbox,
-and shell-write gates, not by this mechanism.
-
-### Expert full base-prompt override (#3638)
-
-The global Constitution (the base system prompt, normally compiled in from
-`prompts/constitution.md`) can be replaced per-user without rebuilding. This is
-an expert escape hatch, not the normal `/constitution` guided setup output.
-Because this is a prompt trust boundary, it takes **two deliberate steps** — a
-file alone is not enough:
-
-1. Drop the replacement at `~/.codewhale/prompts/constitution.md` (under
-   `$CODEWHALE_HOME` when set).
-2. Set the explicit opt-in flag `CODEWHALE_ALLOW_BASE_PROMPT_OVERRIDE=1`
-   (`true`/`on`/`yes` also accepted).
-
-If the file exists but the flag is unset, the override is **ignored** (with a
-log line pointing to the flag) and the bundled Constitution stays in place.
-This is intended for repurposing the TUI beyond software engineering — e.g.
-long-form writing or document review — where the engineering-oriented base
-prompt is a poor fit. It is loaded once at startup; a **missing or empty file
-is a no-op**, so existing installs keep the bundled prompt.
-
-Scope is deliberately narrow: only the byte-stable **base prompt segment** is
-overridable. Mode deltas, the approval policy, the tool taxonomy, Context
-Management, and the Compaction Relay are still owned by CodeWhale's runtime
-assembly, so an override **cannot remove safety-relevant guidance** (sandbox,
-approvals) — it only swaps the task/voice framing. To customize ordinary
-personal behavior, prefer `/constitution`; to customize per-repo behavior,
-prefer `AGENTS.md` + `.codewhale/constitution.json` above.
-
-## Where It Looks
-
-Default config path:
-
-- `~/.codewhale/config.toml`
-- Legacy fallback: `~/.deepseek/config.toml`
-
-Overrides:
-
-- CLI: `codewhale --config /path/to/config.toml`
-- Env: `CODEWHALE_CONFIG_PATH=/path/to/config.toml`
-- Legacy env alias: `DEEPSEEK_CONFIG_PATH=/path/to/config.toml`
-
-If both are set, `--config` wins. Environment variable overrides are applied after the file is loaded.
-
-### TUI editability audit
-
-Inside the TUI, run `/config audit` to see which documented keys can be changed
-from the current session, which ones can also be persisted, and which ones stay
-file-only or restart-only. The audit includes current values for the high-impact
-runtime controls such as `approval_policy`, `allow_shell`,
-`stream_chunk_timeout_secs`, `base_url`, `mcp_config_path`, and the
-`[subagents]` concurrency/depth/timeout keys.
-
-Use the command's "Command / reason" column as the source of truth before
-editing by hand. For example, `/config approval_mode on-request --save` writes
-top-level `approval_policy = "on-request"`, while provider base URLs are saved
-but still require restarting the model client.
-
-### User workspace entries
-
-Interactive Agent sessions expose shell tools by default with approval gating
-unless you explicitly disable them. For a shell opt-in that should live in the
-user's global config for noninteractive or durable-task profiles rather than in
-the repository, add a workspace-scoped entry:
-
-```toml
-[workspace.'/absolute/path/to/project']
-allow_shell = true
-```
-
-The entry applies only when the launched workspace path matches the table key.
-The legacy `[projects."/absolute/path/to/project"]` table is also accepted for
-this user-owned override.
-
-In interactive mode, the per-project overlay
-`<workspace>/.codewhale/config.toml` is applied after this user entry. A
-project-level `allow_shell = false` can still tighten the session; project-level
-`allow_shell = true` is ignored.
-
-### Per-project overlay (#485)
-
-When the TUI starts in a workspace that contains a regular-file
-`<workspace>/.codewhale/config.toml`, the safe values declared in that file are
-merged on top of the global config. Legacy
-`<workspace>/.deepseek/config.toml` files are still read when the CodeWhale path
-is absent. Symlinked project config files are rejected. This lets a repo suggest
-a model or tighten local safety posture without touching the user's
-`~/.codewhale/config.toml`. Pass `--no-project-config` to skip the overlay for
-one launch.
-
-Supported keys in the project overlay (top-level fields only):
-
-| Key | Effect |
-|---|---|
-| `model` | override `default_text_model` |
-| `reasoning_effort` | force `"high"` / `"max"` for a complex repo |
-| `approval_policy` | only values that tighten the user's current approval posture |
-| `sandbox_mode` | only values that tighten the user's current sandbox posture |
-| `notes_path` | keep notes in-repo |
-| `max_subagents` | clamp sub-agent concurrency for a constrained repo (clamped to 1..=20) |
-| `allow_shell` | `false` can disable shell access; `true` is ignored |
-
-The overlay is intentionally narrow — it covers the fields a repo
-maintainer is most likely to want to standardize across contributors.
-Credential, endpoint, provider-selection, MCP config, hooks, skills, capacity,
-retry, hotbar bindings, and `instructions = [...]` settings stay user-global.
-If a repo-local config declares `api_key`, `base_url`, `provider`,
-`mcp_config_path`, `hotbar`, `allow_shell = true`, or `instructions`,
-CodeWhale ignores that key and keeps the user's global setting.
-
-The `codewhale` facade and `codewhale-tui` binary share the same config file for
-DeepSeek auth and model defaults. `codewhale auth set --provider deepseek` (and
-the legacy `codewhale login --api-key ...` alias) saves the key to
-`~/.codewhale/config.toml` (migrating legacy `~/.deepseek/config.toml` on first
-launch when needed), and `codewhale --model deepseek-v4-flash` is forwarded to
-the TUI as `DEEPSEEK_MODEL`.
-
-Credential lookup uses `config -> keyring -> env` after any explicit CLI
-`--api-key`. Run `codewhale auth status` to inspect the active provider's config
-file, OS keyring backend, environment variable, winning source, and last-four
-label without printing the key itself. The command only probes the active
-provider's keyring entry.
-
-For hosted, generic OpenAI-compatible, self-hosted, OpenAI Responses, or native
-Anthropic providers, set `provider = "<id>"` or pass
-`codewhale --provider <id>`. The canonical provider IDs are `deepseek`,
-`nvidia-nim`, `openai`, `atlascloud`, `wanjie-ark`, `volcengine`,
-`openrouter`, `xiaomi-mimo`, `novita`, `fireworks`, `siliconflow`, `arcee`,
-`siliconflow-CN`, `moonshot`, `sglang`, `vllm`, `ollama`, `huggingface`,
-`together`, `qianfan`, `openai-codex`, `anthropic`, `openmodel`, `zai`,
-`stepfun`, `minimax`, and `deepinfra`.
-For the provider-by-provider registry, including wire protocol, auth variables,
-default base URLs, model IDs, and capability metadata, see
-[PROVIDERS.md](PROVIDERS.md).
-The facade saves provider credentials to the shared user config and forwards
-the resolved key, base URL, provider, and model to the TUI process. Use
-`codewhale auth set --provider nvidia-nim --api-key "YOUR_NVIDIA_API_KEY"` or
-`codewhale auth set --provider openai --api-key "YOUR_OPENAI_COMPATIBLE_API_KEY"` or
-`codewhale auth set --provider atlascloud --api-key "YOUR_ATLASCLOUD_API_KEY"` or
-`codewhale auth set --provider wanjie-ark --api-key "YOUR_WANJIE_API_KEY"` or
-`codewhale auth set --provider xiaomi-mimo --api-key "YOUR_XIAOMI_KEY"` or
-`codewhale auth set --provider fireworks --api-key "YOUR_FIREWORKS_API_KEY"` or
-`codewhale auth set --provider siliconflow --api-key "YOUR_SILICONFLOW_API_KEY"` or
-`codewhale auth set --provider arcee --api-key "YOUR_ARCEE_API_KEY"` or the
-matching provider ID from [PROVIDERS.md](PROVIDERS.md) to save provider keys
-through the facade. The generic `openai` provider defaults
-to `https://api.openai.com/v1`, accepts `OPENAI_BASE_URL`, and defaults to
-`deepseek-v4-pro` for OpenAI-compatible gateways. `atlascloud` defaults to
-`https://api.atlascloud.ai/v1`, accepts `ATLASCLOUD_BASE_URL`, and uses
-`deepseek-ai/deepseek-v4-flash` as its default model. `wanjie-ark` targets
-Wanjie Ark's OpenAI-compatible endpoint at
-`https://maas-openapi.wanjiedata.com/api/v1`, defaults to `deepseek-reasoner`,
-and passes model IDs through unchanged because Wanjie model access is
-account-scoped. SGLang, vLLM, and Ollama are
-self-hosted and can run without an API key by default. Ollama defaults to
-`http://localhost:11434/v1` and sends model tags such as `codewhale-coder:1.3b`
-or `qwen2.5-coder:7b` unchanged. Self-hosted providers and loopback custom
-URLs (`localhost`, `127.0.0.1`, `[::1]`, `0.0.0.0`) do not read the secret store
-unless API-key auth is explicitly requested; use an env var or config-file key
-when a local server does require bearer auth.
-SiliconFlow defaults to `https://api.siliconflow.com/v1`, accepts
-`SILICONFLOW_BASE_URL`, and uses `deepseek-ai/DeepSeek-V4-Pro` by default.
-`provider = "siliconflow-CN"` selects the China regional default
-`https://api.siliconflow.cn/v1` with the `[providers.siliconflow_cn]` table and
-`SILICONFLOW_API_KEY` credential slot.
-Arcee AI defaults to `https://api.arcee.ai/api/v1`, accepts `ARCEE_BASE_URL`,
-and uses `trinity-large-thinking` by default for CodeWhale agent work.
-`trinity-large-preview` is also listed as a direct Arcee API model; OpenRouter's
-`arcee-ai/trinity-large-thinking` remains the OpenRouter namespaced form, while
-the direct Arcee provider uses the bare `trinity-large-thinking` ID. Direct
-Arcee large-model API calls are tracked as 256K-context BF16 serving; Thinking
-is reasoning-capable, while Preview is not marked as a thinking model.
-
-### Custom OpenAI-Compatible Gateways
-
-For a single third-party service that implements the OpenAI Chat Completions
-API, the simplest setup is the built-in `openai` provider name pointed at the
-gateway:
-
-```toml
-provider = "openai"
-default_text_model = "your-model-id"
-
-[providers.openai]
-api_key = "YOUR_OPENAI_COMPATIBLE_API_KEY"
-base_url = "https://your-gateway.example/v1"
-```
-
-Put the endpoint under `[providers.openai]`, not the legacy top-level
-`base_url`, so the OpenAI-compatible provider receives it. `default_text_model`
-is the model ID sent to the gateway; `[providers.openai].model` can be used as
-the OpenAI-provider-specific override.
-
-If you keep several OpenAI-compatible gateways, or need a stable name for an
-AgentProfile provider pin, define a user-named custom provider table:
-
-```toml
-provider = "lm-studio"
-
-[providers.lm-studio]
-kind = "openai-compatible"
-base_url = "http://127.0.0.1:1234/v1"
-api_key = "lm-studio"
-model = "qwen-2.5-7b"
-```
-
-Custom provider names may be selected with `provider = "<name>"`,
-`--provider <name>`, or an AgentProfile `provider = "<name>"` when the matching
-`[providers.<name>]` table exists.
-
-StepFun has a first-class provider entry, so keep Coding Plan credentials and
-base URL scoped to `[providers.stepfun]`:
-
-```toml
-provider = "stepfun"
-
-[providers.stepfun]
-api_key = "YOUR_STEPFUN_API_KEY"
-base_url = "https://api.stepfun.ai/step_plan/v1"
-model = "step-3.7-flash"
-```
-
-Alibaba Bailian / Model Studio DashScope Qwen routes use the same OpenAI
-provider shape:
-
-```toml
-provider = "openai"
-
-[providers.openai]
-api_key = "YOUR_DASHSCOPE_API_KEY"
-base_url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
-model = "qwen-plus"
-context_window = 1000000
-```
-
-Use the regional DashScope `compatible-mode/v1` base URL that matches the
-region of your API key. CodeWhale keeps `qwen-plus` scoped to the `openai`
-provider route and does not infer a different provider from the model prefix.
-The same rule applies to all provider-prefixed model strings: a prefix such as
-`deepseek-ai/...` or `deepseek/...` is a provider-owned wire ID under the
-selected provider, not an automatic switch to the DeepSeek provider.
-Set `context_window` to the gateway/model's real total context window when it
-differs from CodeWhale's static model metadata.
-
-If the gateway accepts `POST /chat/completions` but rejects
-`/v1/chat/completions`, set a provider-local `path_suffix`:
-
-```toml
-[providers.openai]
-base_url = "https://your-gateway.example/v1"
-path_suffix = "/chat/completions"
-```
-
-The suffix applies only to chat-completion requests. Model listing and
-DeepSeek beta paths keep their built-in routing so a generic gateway override
-does not accidentally rewrite `/models` or `/beta/completions`.
-
-For private gateways with broken or intercepted certificates, use
-`SSL_CERT_FILE` with a trusted CA bundle. The legacy provider-table key
-`insecure_skip_tls_verify = true` is still parsed so `codewhale doctor` can
-report stale configs, but provider clients reject it instead of disabling TLS
-certificate verification.
-
-Local HTTP endpoints such as Ollama, SGLang, and vLLM are allowed by default
-when they use localhost or loopback addresses. For a non-local `http://`
-gateway, launch with `DEEPSEEK_ALLOW_INSECURE_HTTP=1` only on a trusted network:
-
-```bash
-DEEPSEEK_ALLOW_INSECURE_HTTP=1 codewhale
-```
-
-Third-party OpenAI-compatible gateways that need extra request headers can set
-`http_headers = { "X-Model-Provider-Id" = "your-model-provider" }` at the top
-level or under a provider table such as `[providers.deepseek]`. When configured,
-codewhale sends those custom headers on model API requests. The equivalent
-environment override is `DEEPSEEK_HTTP_HEADERS`, using comma-separated
-`name=value` pairs such as
-`X-Model-Provider-Id=your-model-provider,X-Gateway-Route=dev`. `Authorization`
-and `Content-Type` are managed by the client and are not overridden by this
-setting.
-
-### Vision Model
-
-CodeWhale's chat provider and `image_analyze` tool are configured separately.
-The main chat path remains the selected text/tool provider; image analysis runs
-through `[vision_model]` when the `vision_model` feature is enabled.
-
-Xiaomi's current image-understanding docs include `mimo-v2.5` for image input.
-To use MiMo for `image_analyze`, configure the vision model explicitly:
-
-```toml
-[features]
-vision_model = true
-
-[vision_model]
-model = "mimo-v2.5"
-api_key = "YOUR_XIAOMI_KEY"
-base_url = "https://api.xiaomimimo.com/v1"
-```
-
-The example above uses Xiaomi MiMo's pay-as-you-go OpenAI-compatible endpoint.
-If you are using a Token Plan key (`tp-...`) for `[vision_model]`, you must set
-`base_url` explicitly because this generic OpenAI-compatible block does not
-auto-select MiMo endpoints. Use
-`https://token-plan-sgp.xiaomimimo.com/v1` for Singapore accounts,
-`https://token-plan-cn.xiaomimimo.com/v1` for China-region accounts, or
-`https://token-plan-ams.xiaomimimo.com/v1` for Europe/Amsterdam accounts.
-
-To bootstrap MCP and skills directories at their resolved paths, run `codewhale-tui setup`.
-To only scaffold MCP, run `codewhale-tui mcp init`.
-
-Note: setup, doctor, mcp, features, sessions, resume/fork, exec, review, and eval
-are subcommands of the `codewhale-tui` binary. The `codewhale` dispatcher exposes a
-distinct set of commands (`auth`, `config`, `model`, `thread`, `sandbox`,
-`app-server`, `mcp-server`, `completion`) and forwards plain prompts to
-`codewhale-tui`.
-
-### Startup Update Checks
-
-By default, the TUI starts a background check for the latest stable CodeWhale
-release and shows a short toast only when a newer release is available and the
-official release assets are complete.
-
-Disable the startup check entirely for air-gapped, corporate-proxy, or managed
-desktop environments:
-
-```toml
-[update]
-check_for_updates = false
-```
-
-To redirect the startup check, set `update_uri` to an internal endpoint that
-returns GitHub-compatible latest-release JSON. Minimal mirror metadata with a
-`tag_name` field is accepted; if `assets` are present, CodeWhale requires the
-same uploaded asset set as the official release before showing the toast.
-
-```toml
-[update]
-check_for_updates = true
-update_uri = "https://internal.mirror.example/codewhale/releases/latest"
-```
-
-When `update_uri` is not set, startup checks honor release mirror environment
-variables such as `CODEWHALE_RELEASE_BASE_URL` before falling back to the
-official GitHub API endpoint. If a configured `update_uri` cannot be fetched or
-parsed and a release mirror env var is set, the TUI falls back to that mirror
-instead of failing startup.
-
-## Profiles
-
-You can define multiple profiles in the same file:
-
-```toml
-api_key = "PERSONAL_KEY"
-default_text_model = "deepseek-v4-pro"
-
-[profiles.work]
-api_key = "WORK_KEY"
-base_url = "https://api.deepseek.com/beta"
-
-[profiles.nvidia-nim]
-provider = "nvidia-nim"
-api_key = "NVIDIA_KEY"
-base_url = "https://integrate.api.nvidia.com/v1"
-default_text_model = "deepseek-ai/deepseek-v4-pro"
-
-[profiles.fireworks]
-provider = "fireworks"
-default_text_model = "accounts/fireworks/models/deepseek-v4-pro"
-
-[profiles.siliconflow]
-provider = "siliconflow"
-default_text_model = "deepseek-ai/DeepSeek-V4-Pro"
-
-[profiles.siliconflow.providers.siliconflow]
-base_url = "https://api.siliconflow.com/v1"
-
-[profiles.openai-compatible]
-provider = "openai"
-
-[profiles.openai-compatible.providers.openai]
-base_url = "https://openai-compatible.example/v4"
-model = "glm-5"
-
-[profiles.atlascloud]
-provider = "atlascloud"
-
-[profiles.atlascloud.providers.atlascloud]
-base_url = "https://api.atlascloud.ai/v1"
-model = "deepseek-ai/deepseek-v4-flash"
-
-[profiles.sglang]
-provider = "sglang"
-base_url = "http://localhost:30000/v1"
-default_text_model = "deepseek-ai/DeepSeek-V4-Pro"
-
-[profiles.vllm]
-provider = "vllm"
-base_url = "http://localhost:8000/v1"
-default_text_model = "deepseek-ai/DeepSeek-V4-Pro"
-
-[profiles.ollama]
-provider = "ollama"
-base_url = "http://localhost:11434/v1"
-default_text_model = "codewhale-coder:1.3b"
-```
-
-Select a profile with:
-
-- CLI: `codewhale --profile work`
-- Env: `DEEPSEEK_PROFILE=work`
-
-If a profile is selected but missing, codewhale exits with an error listing available profiles.
-
-## Harness Profiles
-
-v0.9 adds a config data model for model-specific harness posture. This is a
-preview schema: it can be parsed and tested, but runtime provider/model
-selection and prompt/tool behavior are wired in later v0.9 slices.
-When no configured profile matches, the resolver falls back to built-in seed
-profiles for the model families listed in the cutline doc. Configured profiles
-always take precedence over those seeds.
-
-```toml
-[[harness_profiles]]
-provider_route = "deepseek"
-model_pattern = "deepseek-v4.*"
-
-[harness_profiles.posture]
-kind = "cache-heavy"          # standard | cache-heavy | lean | custom
-max_subagents = 10            # 0 means runtime default
-prefer_codebase_search = false
-compaction_strategy = "prefix-cache" # default | prefix-cache | aggressive
-tool_surface = "full"              # full | read-only | auto
-safety_posture = "standard"        # standard | strict | permissive
-```
-
-Unknown posture names or unknown keys inside a harness profile fail config
-deserialization instead of silently becoming `custom`. That is intentional:
-once runtime wiring consumes these profiles, a typo should be visible.
-The v0.9 implementation order and automatic-creator boundary are documented in
-[`HARNESS_PROFILE_CUTLINE.md`](rfcs/HARNESS_PROFILE_CUTLINE.md).
-
-## Environment Variables
-
-Most runtime environment variables override config values. API-key variables are
-fallbacks after saved config and keyring credentials.
-
-The three user-facing slots — provider, model, base URL — expose `CODEWHALE_*`
-aliases. When both forms are set the `CODEWHALE_*` value wins; the
-`DEEPSEEK_*` form is kept for older shells:
-
-- `CODEWHALE_PROVIDER` (preferred) / `DEEPSEEK_PROVIDER` (legacy alias) —
-  `deepseek|deepseek-anthropic|nvidia-nim|openai|atlascloud|wanjie-ark|volcengine|openrouter|xiaomi-mimo|novita|fireworks|siliconflow|arcee|siliconflow-CN|moonshot|sglang|vllm|ollama|huggingface|together|qianfan|openai-codex|anthropic|openmodel|zai|stepfun|minimax|deepinfra`
-- `CODEWHALE_MODEL` (preferred) / `DEEPSEEK_MODEL` (legacy alias) — default model for the active provider
-- `CODEWHALE_BASE_URL` (preferred) / `DEEPSEEK_BASE_URL` (legacy alias) — base URL for the active provider
-
-Remaining variables:
-
-- `DEEPSEEK_API_KEY`
-- `DEEPSEEK_ANTHROPIC_BASE_URL`
-- `DEEPSEEK_HTTP_HEADERS` (custom model request headers, comma-separated `name=value` pairs)
-- `DEEPSEEK_DEFAULT_TEXT_MODEL` (extra legacy alias of `DEEPSEEK_MODEL`)
-- `DEEPSEEK_STREAM_IDLE_TIMEOUT_SECS` (stream idle timeout in seconds; default `900`, clamped to `1..=3600`)
-- `DEEPSEEK_STREAM_OPEN_TIMEOUT_SECS` (connection setup + response-header wait in seconds; default `45`, clamped to `5..=300`; distinct from the per-chunk idle timeout)
-- `CODEWHALE_CACHE_MAXIMAL` (`1`/`true`/`on`/`yes`) — cache-maximal context mode (#528). When on, the Repo Working Set block materializes the **full current contents** of the top active files into the system prompt each turn (deterministic order, byte-bounded), instead of only listing their paths. The block stays byte-stable while those files are unchanged so DeepSeek's KV prefix cache keeps hitting; editing a file cache-misses from its block onward. Off by default (path list only). Byte caps default to 24 KB per file / 96 KB total.
-- `NVIDIA_API_KEY` or `NVIDIA_NIM_API_KEY` (preferred when provider is `nvidia-nim`; falls back to `DEEPSEEK_API_KEY`)
-- `NVIDIA_NIM_BASE_URL`, `NIM_BASE_URL`, or `NVIDIA_BASE_URL`
-- `NVIDIA_NIM_MODEL`
-- `OPENAI_API_KEY`
-- `OPENAI_BASE_URL`
-- `OPENAI_MODEL`
-- `ATLASCLOUD_API_KEY`
-- `ATLASCLOUD_BASE_URL`
-- `ATLASCLOUD_MODEL`
-- `WANJIE_ARK_API_KEY`, `WANJIE_API_KEY`, or `WANJIE_MAAS_API_KEY`
-- `WANJIE_ARK_BASE_URL`, `WANJIE_BASE_URL`, or `WANJIE_MAAS_BASE_URL`
-- `WANJIE_ARK_MODEL`, `WANJIE_MODEL`, or `WANJIE_MAAS_MODEL`
-- `VOLCENGINE_API_KEY`, `VOLCENGINE_ARK_API_K
-
-[Content truncated...]
-
----
-Showing 30000 of 96884 chars. Use get_search_content({ responseId: "mrkqiil88zry5v", urlIndex: 0 }) for full content.
-````
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:16:33Z)**_
@@ -3839,7 +5297,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:16:33Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n -i 'skills_dir\|SKILLS_DIR\|skills directory\|skills dir\|\.deepseek/skills\|codewhale/skills\|DEEPSEEK_SKILLS' /tmp/pi-github-repos/Hmbown/DeepSeek-TUI@main/docs/CONFIGURATION.md | head -20`</summary>
+**Command:**
+```bash
+grep -n -i 'skills_dir\|SKILLS_DIR\|skills directory\|skills dir\|\.deepseek/skills\|codewhale/skills\|DEEPSEEK_SKILLS' /tmp/pi-github-repos/Hmbown/DeepSeek-TUI@main/docs/CONFIGURATION.md | head -20
 ```
+
+```text
 491:To bootstrap MCP and skills directories at their resolved paths, run `codewhale-tui setup`.
 725:- `DEEPSEEK_SKILLS_DIR`
 1414:- `skills_dir` (string, optional): defaults to `~/.codewhale/skills` (each skill is
@@ -3847,6 +5310,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:16:33Z)**_
 1427:  `skills_dir` override.
 1556:  `skills_dir`; it is not nested under `[memory]`.
 1720:checks use the resolved `mcp_config_path` / `skills_dir` (including env overrides).
+
 ```
 </details></tool-use>
 
@@ -3854,10 +5318,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:16:35Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`/tmp/pi-github-repos/Hmbown/DeepSeek-TUI@main/docs/CONFIGURATION.md`
-
+**Path:**
+```text
+/tmp/pi-github-repos/Hmbown/DeepSeek-TUI@main/docs/CONFIGURATION.md
 ```
-through to that provider. To route a child to a different provider than the
+
+**Offset (line):**
+```text
+1410
+```
+
+**Limit:**
+```text
+40
+```
+
+```markdown
+  through to that provider. To route a child to a different provider than the
   parent session, save a Fleet/AgentProfile with explicit `provider` and
   `model` fields (including user-named custom providers such as `lm-studio`)
   and call `agent(profile: "...")`; see [SUBAGENTS.md](SUBAGENTS.md).
@@ -3924,8 +5401,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:16:40Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn 'deepseek\|DeepSeek\|DEEPSEEK' pkg/cmd/*.go pkg/spi/*.go 2>/dev/null | grep -iv 'test\|slog\|debug\|error\|fmt\|path\|file\|dir\|session' | head -20`</summary>
+**Command:**
+```bash
+grep -rn 'deepseek\|DeepSeek\|DEEPSEEK' pkg/cmd/*.go pkg/spi/*.go 2>/dev/null | grep -iv 'test\|slog\|debug\|error\|fmt\|path\|file\|dir\|session' | head -20
 ```
+
+```text
 pkg/spi/reconstruct.go:134:// (DeepSeek uses microsecond precision and formats its own.)
+
 ```
 </details></tool-use>
 
@@ -3933,7 +5416,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:16:42Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn 'DeepSeek\|deepseek' pkg/cmd/providers.go pkg/providers/deepseektui/provider.go 2>/dev/null | grep -i 'name\|display\|register\|ProviderName\|"deepseek\|DeepSeek TUI' | head -15`</summary>
+**Command:**
+```bash
+grep -rn 'DeepSeek\|deepseek' pkg/cmd/providers.go pkg/providers/deepseektui/provider.go 2>/dev/null | grep -i 'name\|display\|register\|ProviderName\|"deepseek\|DeepSeek TUI' | head -15
 ```
+
+```text
 pkg/providers/deepseektui/provider.go:19:	defaultCommand = "deepseek"
 pkg/providers/deepseektui/provider.go:23:// Provider implements the spi.Provider interface for DeepSeek TUI.
 pkg/providers/deepseektui/provider.go:26:// NewProvider creates a new DeepSeek TUI provider instance.
@@ -3949,6 +5437,7 @@ pkg/providers/deepseektui/provider.go:105:// GetAgentChatSessions returns all av
 pkg/providers/deepseektui/provider.go:129:			slog.Debug("deepseek: skipping session", "path", file.Path, "error", err)
 pkg/providers/deepseektui/provider.go:162:// ExecAgentAndWatch executes DeepSeek TUI for the given project and watches
 pkg/providers/deepseektui/provider.go:165:	slog.Info("ExecAgentAndWatch: starting DeepSeek TUI execution and monitoring",
+
 ```
 </details></tool-use>
 
@@ -3956,10 +5445,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:16:44Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn 'deepseek\|DeepSeek' pkg/cmd/*.go 2>/dev/null | grep -i 'register\|provider\|map\|name\|"deepseek' | head; grep -rn '"deepseek"\|DeepSeek TUI' pkg/spi/factory/*.go 2>/dev/null | head`</summary>
+**Command:**
+```bash
+grep -rn 'deepseek\|DeepSeek' pkg/cmd/*.go 2>/dev/null | grep -i 'register\|provider\|map\|name\|"deepseek' | head; grep -rn '"deepseek"\|DeepSeek TUI' pkg/spi/factory/*.go 2>/dev/null | head
 ```
+
+```text
 pkg/cmd/session_tui_browser.go:211:	case "deepseek":
 pkg/spi/factory/registry.go:82:	r.providers["deepseek"] = deepseekProvider
 pkg/spi/factory/registry.go:83:	slog.Debug("Registered provider", "id", "deepseek", "name", deepseekProvider.Name())
+
 ```
 </details></tool-use>
 
@@ -4036,10 +5531,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:17:01Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rln 'buildRegistry\|Registry()\|func Test.*Agent\|func Test.*Regist' pkg/skills/ && grep -n 'func Test\|buildRegistry\|len(' pkg/skills/agents_test.go 2>/dev/null | head -30`</summary>
+**Command:**
+```bash
+grep -rln 'buildRegistry\|Registry()\|func Test.*Agent\|func Test.*Regist' pkg/skills/ && grep -n 'func Test\|buildRegistry\|len(' pkg/skills/agents_test.go 2>/dev/null | head -30
 ```
+
+```text
 pkg/skills/skills_test.go
 pkg/skills/agents.go
 pkg/skills/engine.go
+
 ```
 </details></tool-use>
 
@@ -4047,7 +5548,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:17:02Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n 'buildRegistry\|Registry\|deepseek\|codewhale\|len(\|func Test' pkg/skills/skills_test.go | head -30`</summary>
+**Command:**
+```bash
+grep -n 'buildRegistry\|Registry\|deepseek\|codewhale\|len(\|func Test' pkg/skills/skills_test.go | head -30
 ```
+
+```text
 10:func TestSanitizeName(t *testing.T) {
 35:func TestInstallAndRemove_ProjectScope(t *testing.T) {
 73:	if len(res.agents) != 1 || res.agents[0] != "claude-code" {
@@ -4062,6 +5568,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:17:02Z)**_
 203:		t.Errorf("got %d targets, want 2", len(got))
 212:func TestEngineAgents(t *testing.T) {
 247:func TestUniversalAgentDetection(t *testing.T) {
+
 ```
 </details></tool-use>
 
@@ -4069,9 +5576,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:17:03Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/skills/skills_test.go`
-
+**Path:**
+```text
+pkg/skills/skills_test.go
 ```
+
+**Offset (line):**
+```text
+195
+```
+
+**Limit:**
+```text
+90
+```
+
+```go
 func TestResolveTargets(t *testing.T) {
 	e := NewEngine(t.TempDir())
 
@@ -4134,6 +5654,7 @@ func TestUniversalAgentDetection(t *testing.T) {
 		t.Error("claude-code should not be universal (.claude/skills)")
 	}
 }
+
 ```
 </details></tool-use>
 
@@ -4209,7 +5730,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:27:31Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n 'GlobalDir\|Universal\|globalDir\|canonicalDir\|universal' pkg/skills/engine.go pkg/skills/install.go 2>/dev/null | head -30; ls pkg/skills/`</summary>
+**Command:**
+```bash
+grep -n 'GlobalDir\|Universal\|globalDir\|canonicalDir\|universal' pkg/skills/engine.go pkg/skills/install.go 2>/dev/null | head -30; ls pkg/skills/
 ```
+
+```text
 pkg/skills/engine.go:154:	// the canonical .agents/skills store — universal agents read it directly, and `npx skills`
 pkg/skills/engine.go:173:		CanonicalPath:   disk.canonicalDir,
 pkg/skills/engine.go:189:		CanonicalPath: disk.canonicalDir,
@@ -4234,6 +5760,7 @@ engine.go
 install.go
 lock.go
 skills_test.go
+
 ```
 </details></tool-use>
 
@@ -4241,10 +5768,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:27:33Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/skills/install.go`
-
+**Path:**
+```text
+pkg/skills/install.go
 ```
-}
+
+**Offset (line):**
+```text
+42
+```
+
+**Limit:**
+```text
+60
+```
+
+```go
+	}
 	return filepath.Join(projectDir, agentsDirName, skillsSubdir)
 }
 
@@ -4329,10 +5869,121 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:27:36Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/skills/agents.go`
+**Path:**
+```text
+pkg/skills/agents.go
+```
+
+**Edit 1:**
+```diff
+-	// ConfigDir is the absolute path whose existence means the agent is installed on this machine.
+-	ConfigDir string
+-}
++	// ConfigDir is the absolute path whose existence means the agent is installed on this machine.
++	ConfigDir string
++	// ConfigDirFallback is an optional legacy config dir also treated as "installed" when
++	// ConfigDir is absent (e.g. an agent renamed its config directory). Empty disables it.
++	ConfigDirFallback string
++}
+```
+
+**Edit 2:**
+```diff
+-// Detected reports whether this agent appears installed (its config dir exists).
+-func (a Agent) Detected() bool {
+-	return a.ConfigDir != "" && dirExists(a.ConfigDir)
+-}
++// Detected reports whether this agent appears installed (its config dir exists, or its
++// legacy fallback does when the agent renamed its config directory).
++func (a Agent) Detected() bool {
++	if a.ConfigDir != "" && dirExists(a.ConfigDir) {
++		return true
++	}
++	return a.ConfigDirFallback != "" && dirExists(a.ConfigDirFallback)
++}
+```
+
+```text
+Successfully replaced 2 block(s) in pkg/skills/agents.go.
+```
+
+**diff:**
+```diff
+     ...
+  29 	// GlobalDir is the absolute global skills directory, or "" if the agent has no global store.
+  30 	GlobalDir string
+  31 	// ConfigDir is the absolute path whose existence means the agent is installed on this machine.
+  32 	ConfigDir string
++ 33 	// ConfigDirFallback is an optional legacy config dir also treated as "installed" when
++ 34 	// ConfigDir is absent (e.g. an agent renamed its config directory). Empty disables it.
++ 35 	ConfigDirFallback string
+  33 }
+  34 
+  35 // Universal reports whether the agent reads the canonical ".agents/skills" store directly.
+  36 // Universal agents need no per-agent symlink (the canonical copy is already their store),
+     ...
+  38 func (a Agent) Universal() bool {
+  39 	return a.ProjectDir == filepath.Join(agentsDirName, skillsSubdir)
+  40 }
+  41 
+- 42 // Detected reports whether this agent appears installed (its config dir exists).
++ 45 // Detected reports whether this agent appears installed (its config dir exists, or its
++ 46 // legacy fallback does when the agent renamed its config directory).
+  43 func (a Agent) Detected() bool {
+- 44 	return a.ConfigDir != "" && dirExists(a.ConfigDir)
++ 48 	if a.ConfigDir != "" && dirExists(a.ConfigDir) {
++ 49 		return true
++ 50 	}
++ 51 	return a.ConfigDirFallback != "" && dirExists(a.ConfigDirFallback)
+  45 }
+  46 
+  47 const (
+  48 	agentsDirName = ".agents"
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/skills/agents.go
++++ pkg/skills/agents.go
+@@ -29,8 +29,11 @@
+ 	// GlobalDir is the absolute global skills directory, or "" if the agent has no global store.
+ 	GlobalDir string
+ 	// ConfigDir is the absolute path whose existence means the agent is installed on this machine.
+ 	ConfigDir string
++	// ConfigDirFallback is an optional legacy config dir also treated as "installed" when
++	// ConfigDir is absent (e.g. an agent renamed its config directory). Empty disables it.
++	ConfigDirFallback string
+ }
+ 
+ // Universal reports whether the agent reads the canonical ".agents/skills" store directly.
+ // Universal agents need no per-agent symlink (the canonical copy is already their store),
+@@ -38,11 +41,15 @@
+ func (a Agent) Universal() bool {
+ 	return a.ProjectDir == filepath.Join(agentsDirName, skillsSubdir)
+ }
+ 
+-// Detected reports whether this agent appears installed (its config dir exists).
++// Detected reports whether this agent appears installed (its config dir exists, or its
++// legacy fallback does when the agent renamed its config directory).
+ func (a Agent) Detected() bool {
+-	return a.ConfigDir != "" && dirExists(a.ConfigDir)
++	if a.ConfigDir != "" && dirExists(a.ConfigDir) {
++		return true
++	}
++	return a.ConfigDirFallback != "" && dirExists(a.ConfigDirFallback)
+ }
+ 
+ const (
+ 	agentsDirName = ".agents"
 
 ```
-Successfully replaced 2 block(s) in pkg/skills/agents.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 33
+}
 ```
 </details></tool-use>
 
@@ -4344,10 +5995,67 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:27:39Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/skills/agents.go`
+**Path:**
+```text
+pkg/skills/agents.go
+```
+
+**Edit 1:**
+```diff
+-		{Name: "cursor", DisplayName: "Cursor", ProjectDir: canonicalRel,
+-			GlobalDir: filepath.Join(p.home, ".cursor", "skills"), ConfigDir: filepath.Join(p.home, ".cursor")},
++		{Name: "cursor", DisplayName: "Cursor", ProjectDir: canonicalRel,
++			GlobalDir: filepath.Join(p.home, ".cursor", "skills"), ConfigDir: filepath.Join(p.home, ".cursor")},
++		{Name: "deepseek", DisplayName: "DeepSeek TUI", ProjectDir: canonicalRel,
++			GlobalDir: filepath.Join(p.home, ".codewhale", "skills"),
++			ConfigDir: filepath.Join(p.home, ".codewhale"), ConfigDirFallback: filepath.Join(p.home, ".deepseek")},
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/skills/agents.go.
+```
+
+**diff:**
+```diff
+     ...
+ 100 		{Name: "codex", DisplayName: "Codex", ProjectDir: canonicalRel,
+ 101 			GlobalDir: filepath.Join(p.codexHome, "skills"), ConfigDir: p.codexHome},
+ 102 		{Name: "cursor", DisplayName: "Cursor", ProjectDir: canonicalRel,
+ 103 			GlobalDir: filepath.Join(p.home, ".cursor", "skills"), ConfigDir: filepath.Join(p.home, ".cursor")},
++104 		{Name: "deepseek", DisplayName: "DeepSeek TUI", ProjectDir: canonicalRel,
++105 			GlobalDir: filepath.Join(p.home, ".codewhale", "skills"),
++106 			ConfigDir: filepath.Join(p.home, ".codewhale"), ConfigDirFallback: filepath.Join(p.home, ".deepseek")},
+ 104 		{Name: "droid", DisplayName: "Droid", ProjectDir: filepath.Join(".factory", "skills"),
+ 105 			GlobalDir: filepath.Join(p.home, ".factory", "skills"), ConfigDir: filepath.Join(p.home, ".factory")},
+ 106 		{Name: "gemini", DisplayName: "Gemini CLI", ProjectDir: filepath.Join(".gemini", "skills"),
+ 107 			GlobalDir: filepath.Join(p.home, ".gemini", "skills"), ConfigDir: filepath.Join(p.home, ".gemini")},
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/skills/agents.go
++++ pkg/skills/agents.go
+@@ -100,8 +100,11 @@
+ 		{Name: "codex", DisplayName: "Codex", ProjectDir: canonicalRel,
+ 			GlobalDir: filepath.Join(p.codexHome, "skills"), ConfigDir: p.codexHome},
+ 		{Name: "cursor", DisplayName: "Cursor", ProjectDir: canonicalRel,
+ 			GlobalDir: filepath.Join(p.home, ".cursor", "skills"), ConfigDir: filepath.Join(p.home, ".cursor")},
++		{Name: "deepseek", DisplayName: "DeepSeek TUI", ProjectDir: canonicalRel,
++			GlobalDir: filepath.Join(p.home, ".codewhale", "skills"),
++			ConfigDir: filepath.Join(p.home, ".codewhale"), ConfigDirFallback: filepath.Join(p.home, ".deepseek")},
+ 		{Name: "droid", DisplayName: "Droid", ProjectDir: filepath.Join(".factory", "skills"),
+ 			GlobalDir: filepath.Join(p.home, ".factory", "skills"), ConfigDir: filepath.Join(p.home, ".factory")},
+ 		{Name: "gemini", DisplayName: "Gemini CLI", ProjectDir: filepath.Join(".gemini", "skills"),
+ 			GlobalDir: filepath.Join(p.home, ".gemini", "skills"), ConfigDir: filepath.Join(p.home, ".gemini")},
 
 ```
-Successfully replaced 1 block(s) in pkg/skills/agents.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 104
+}
 ```
 </details></tool-use>
 
@@ -4363,7 +6071,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:27:44Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build ./... 2>&1 && go run . skills agents 2>&1`</summary>
+**Command:**
+```bash
+go build ./... 2>&1 && go run . skills agents 2>&1
 ```
+
+```text
 ✓ Amp
 ✓ Claude Code
   Cline
@@ -4379,6 +6092,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:27:44Z)**_
   Qwen Code
   Roo Code
 ✓ Windsurf
+
 ```
 </details></tool-use>
 
@@ -4394,7 +6108,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:27:50Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `golangci-lint run 2>&1 | tail -5 && go test ./... 2>&1 | tail -8`</summary>
+**Command:**
+```bash
+golangci-lint run 2>&1 | tail -5 && go test ./... 2>&1 | tail -8
 ```
+
+```text
 0 issues.
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/session	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex	(cached)
@@ -4404,6 +6123,7 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi	0.021s
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	(cached)
+
 ```
 </details></tool-use>
 
@@ -4415,7 +6135,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:27:51Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n 'Claude Code, Codex, Cursor\|detected agents\|install target\|Windsurf\|Droid' README.md | head`</summary>
+**Command:**
+```bash
+grep -n 'Claude Code, Codex, Cursor\|detected agents\|install target\|Windsurf\|Droid' README.md | head
 ```
+
+```text
 9:SpecStory CLI is a cross-platform command-line tool for saving AI coding coversations from terminal coding agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, etc.).
 31:| [Droid CLI](https://factory.ai/product/cli)               | [droidcli](pkg/providers/droidcli/)       | JSONL       | `~/.factory/sessions/`  |
 97:(Claude Code, Codex, Cursor, and more), tracked in the shared `~/.agents/.skill-lock.json`.
@@ -4426,6 +6151,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 14:27:51Z)**_
 387:| `specstory.session.tokens.cache_read`       | Cache read tokens (Claude Code, Droid CLI)     |
 393:| `specstory.session.tokens.thinking`         | Thinking tokens (Droid CLI)                    |
 413:| `specstory.exchange.tokens.cache_creation`   | Cache creation tokens (Claude Code, Droid CLI) |
+
 ```
 </details></tool-use>
 

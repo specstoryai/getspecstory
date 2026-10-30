@@ -22,6 +22,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/deepseektui"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/grokbuild"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/piagent"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/qwencode"
@@ -100,6 +101,7 @@ func TestTerminalAgentExitStatus(t *testing.T) {
 		{"codex", codexcli.ExecuteCodex},
 		{"cursor", cursorcli.ExecuteCursorCLI},
 		{"gemini", geminicli.ExecuteGemini},
+		{"grok", func(command, id string) error { return grokbuild.ExecuteGrok(t.TempDir(), command, id) }},
 		{"droid", droidcli.ExecuteDroid},
 		{"deepseek", deepseektui.ExecuteDeepSeek},
 		{"antigravity", antigravitycli.ExecuteAntigravity},
@@ -290,7 +292,7 @@ func TestCLIProviderCheckErrorTypes(t *testing.T) {
 	providers := []spi.Provider{
 		antigravitycli.NewProvider(), claudecode.NewProvider(), codexcli.NewProvider(),
 		cursorcli.NewProvider(), deepseektui.NewProvider(), droidcli.NewProvider(),
-		geminicli.NewProvider(), musecode.NewProvider(), piagent.NewProvider(), qwencode.NewProvider(),
+		geminicli.NewProvider(), grokbuild.NewProvider(), musecode.NewProvider(), piagent.NewProvider(), qwencode.NewProvider(),
 	}
 	for _, p := range providers {
 		t.Run(p.Name(), func(t *testing.T) {

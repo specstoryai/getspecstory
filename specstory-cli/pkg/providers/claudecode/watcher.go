@@ -130,7 +130,7 @@ func startProjectWatcher(claudeProjectDir string) error {
 	slog.Info("startProjectWatcher: Creating file watcher", "directory", claudeProjectDir)
 
 	// Create a new watcher
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return fmt.Errorf("failed to create file watcher: %v", err)
 	}
@@ -483,15 +483,15 @@ func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force
 // WatchForClaudeSetup watches for the creation of Claude directories
 func WatchForClaudeSetup() error {
 	slog.Info("WatchForClaudeSetup: Starting Claude directory setup watcher")
-	homeDir, err := os.UserHomeDir()
+	claudeDir, err := claudeConfigDir()
 	if err != nil {
-		return fmt.Errorf("failed to get user home directory: %v", err)
+		return err
 	}
-
-	claudeDir := filepath.Join(homeDir, ".claude")
+	// Watch the config dir's parent for its creation; for the default this is the home dir.
+	parentDir := filepath.Dir(claudeDir)
 	projectsDir := filepath.Join(claudeDir, "projects")
 	slog.Info("WatchForClaudeSetup: Directories",
-		"homeDir", homeDir,
+		"parentDir", parentDir,
 		"claudeDir", claudeDir,
 		"projectsDir", projectsDir)
 
@@ -500,24 +500,24 @@ func WatchForClaudeSetup() error {
 	var watchingFor string
 
 	if _, err := os.Stat(claudeDir); os.IsNotExist(err) {
-		// .claude doesn't exist, watch home directory
-		watchDir = homeDir
-		watchingFor = ".claude"
-		slog.Warn("WatchForClaudeSetup: .claude directory does not exist")
-		slog.Info("Claude directory not found, watching for creation of ~/.claude\n")
+		// The config dir doesn't exist, watch its parent
+		watchDir = parentDir
+		watchingFor = filepath.Base(claudeDir)
+		slog.Warn("WatchForClaudeSetup: Claude config directory does not exist", "claudeDir", claudeDir)
+		slog.Info("Claude directory not found, watching for its creation", "claudeDir", claudeDir)
 	} else {
-		// .claude exists but projects doesn't, watch .claude
+		// The config dir exists but projects doesn't, watch the config dir
 		watchDir = claudeDir
 		watchingFor = "projects"
-		slog.Warn("WatchForClaudeSetup: .claude directory exists, checking for projects")
-		slog.Info("Claude directory found, watching for creation of ~/.claude/projects\n")
+		slog.Warn("WatchForClaudeSetup: Claude config directory exists, checking for projects", "claudeDir", claudeDir)
+		slog.Info("Claude directory found, watching for creation of projects directory", "projectsDir", projectsDir)
 	}
 	slog.Info("WatchForClaudeSetup: Will watch directory",
 		"watchDir", watchDir,
 		"watchingFor", watchingFor)
 
 	// Create watcher
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		log.UserWarn("Failed to create file watcher: %v", err)
 		slog.Error("WatchForClaudeSetup: Failed to create file watcher", "error", err)
@@ -558,9 +558,9 @@ func WatchForClaudeSetup() error {
 					time.Sleep(1 * time.Second)
 
 					// Check what we should do next
-					if watchingFor == ".claude" {
-						slog.Info("WatchForClaudeSetup: .claude was created, checking if projects exists")
-						// We were watching for .claude, now check if projects exists
+					if watchingFor == filepath.Base(claudeDir) {
+						slog.Info("WatchForClaudeSetup: Claude config directory was created, checking if projects exists", "claudeDir", claudeDir)
+						// We were watching for the config dir, now check if projects exists
 						if _, err := os.Stat(projectsDir); os.IsNotExist(err) {
 							slog.Info("WatchForClaudeSetup: projects directory does not exist, switching watcher")
 							// Need to watch for projects directory
@@ -571,11 +571,11 @@ func WatchForClaudeSetup() error {
 								"watchDir", watchDir,
 								"watchingFor", watchingFor)
 							if err := watcher.Add(watchDir); err != nil {
-								log.UserWarn("Error switching to watch .claude directory: %v", err)
+								log.UserWarn("Error switching to watch Claude directory %s: %v", claudeDir, err)
 								slog.Error("WatchForClaudeSetup: Failed to switch watcher", "error", err)
 								return
 							}
-							slog.Info("Now watching for creation of ~/.claude/projects\n")
+							slog.Info("Now watching for creation of projects directory", "projectsDir", projectsDir)
 							continue
 						} else {
 							slog.Info("WatchForClaudeSetup: projects directory already exists!")
@@ -628,10 +628,12 @@ func convertToAgentChatSession(session Session, workspaceRoot string, debugRaw b
 	}
 
 	// Write debug files first (even for warmup-only sessions)
-	_ = make(map[int]int) // recordToFileNumber no longer needed
 	if debugRaw {
 		// Write debug files
-		writeDebugRawFiles(session)
+		if err := writeDebugRawFiles(session); err != nil {
+			slog.Warn("Failed to write debug raw files", "sessionId", session.SessionUuid,
+				"path", spi.GetDebugDir(session.SessionUuid), "error", err)
+		}
 	}
 
 	// Filter warmup messages
@@ -666,6 +668,8 @@ func convertToAgentChatSession(session Session, workspaceRoot string, debugRaw b
 		slog.Error("Failed to generate SessionData", "sessionId", session.SessionUuid, "error", err)
 		return nil
 	}
+	// Resume titles a reconstructed session from SessionData's slug.
+	sessionData.Slug = slug
 
 	// Convert session records to JSONL format for raw data
 	// Note: Uses unfiltered session.Records (not filteredSession.Records) to preserve

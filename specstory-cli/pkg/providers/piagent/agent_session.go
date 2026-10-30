@@ -391,7 +391,7 @@ func buildBashExecutionMessage(e rawEntry) *schema.Message {
 	if execution.Output != "" {
 		// Match the rendered output cap used for shell tools; RawData retains
 		// the original accepted record, including any omitted output.
-		output := spi.CapRunes(sanitizeShellOutput(execution.Output), 5000)
+		output := spi.CapRunes(spi.SanitizeShellOutput(execution.Output), 5000)
 		result = append(result, "Output:\n\n"+spi.CodeFence("text", output))
 	}
 	if execution.ExitCode != nil {

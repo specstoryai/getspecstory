@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
@@ -308,7 +309,7 @@ func (p *Provider) readAgentChatSession(hashDir, projectPath, sessionID string, 
 
 	if debugRaw {
 		if err := writeDebugOutput(sessionID, rawData, orphanRecords); err != nil {
-			slog.Debug("Failed to write debug output", "sessionID", sessionID, "error", err)
+			slog.Warn("Failed to write debug output", "sessionID", sessionID, "path", spi.GetDebugDir(sessionID), "error", err)
 		}
 	}
 
@@ -400,6 +401,38 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 	return ctx.Err()
 }
 
+// blobDebugName preserves DAG position and native row identity; index zero
+// names an orphan, which has no position in the connected conversation.
+func blobDebugName(index, rowID int) string {
+	if index == 0 {
+		return fmt.Sprintf("orphan-%d.json", rowID)
+	}
+	return fmt.Sprintf("%d-%d.json", index, rowID)
+}
+
+// isBlobDebugName accepts only names the writer generates. Round-tripping
+// through blobDebugName keeps cleanup in sync with the filename format.
+func isBlobDebugName(name string) bool {
+	stem, ok := strings.CutSuffix(name, ".json")
+	if !ok {
+		return false
+	}
+	prefix, row, ok := strings.Cut(stem, "-")
+	if !ok {
+		return false
+	}
+	index := 0
+	if prefix != "orphan" {
+		var err error
+		index, err = strconv.Atoi(prefix)
+		if err != nil || index <= 0 {
+			return false
+		}
+	}
+	rowID, err := strconv.Atoi(row)
+	return err == nil && name == blobDebugName(index, rowID)
+}
+
 // writeDebugOutput writes debug JSON files for a Cursor CLI session
 func writeDebugOutput(sessionID string, rawData string, orphanRecords []BlobRecord) error {
 	// Parse the JSON array
@@ -411,28 +444,25 @@ func writeDebugOutput(sessionID string, rawData string, orphanRecords []BlobReco
 	// Get the debug directory path
 	debugDir := spi.GetDebugDir(sessionID)
 
-	// Create the debug directory
-	if err := os.MkdirAll(debugDir, 0755); err != nil {
-		return fmt.Errorf("failed to create debug directory: %w", err)
+	if err := spi.PrepareDebugDir(debugDir, isBlobDebugName); err != nil {
+		return err
 	}
 
 	// Write each blob as a pretty-printed JSON file
 	for index, blob := range blobs {
 		// Create filename with DAG index and rowid (1-based index for readability)
-		filename := fmt.Sprintf("%d-%d.json", index+1, blob.RowID)
+		filename := blobDebugName(index+1, blob.RowID)
 		filepath := filepath.Join(debugDir, filename)
 
 		// Pretty print the blob
 		prettyJSON, err := json.MarshalIndent(blob, "", "  ")
 		if err != nil {
-			slog.Debug("Failed to marshal blob to JSON", "rowid", blob.RowID, "error", err)
-			continue
+			return fmt.Errorf("format debug file %s: %w", filepath, err)
 		}
 
 		// Write the file
 		if err := os.WriteFile(filepath, prettyJSON, 0644); err != nil {
-			slog.Debug("Failed to write debug file", "path", filepath, "error", err)
-			continue
+			return fmt.Errorf("write debug file %s: %w", filepath, err)
 		}
 
 		slog.Debug("Wrote debug file", "path", filepath, "rowid", blob.RowID)
@@ -441,20 +471,18 @@ func writeDebugOutput(sessionID string, rawData string, orphanRecords []BlobReco
 	// Write orphaned blobs as well
 	for _, blob := range orphanRecords {
 		// Create filename with orphan prefix and rowid
-		filename := fmt.Sprintf("orphan-%d.json", blob.RowID)
+		filename := blobDebugName(0, blob.RowID)
 		filepath := filepath.Join(debugDir, filename)
 
 		// Pretty print the blob
 		prettyJSON, err := json.MarshalIndent(blob, "", "  ")
 		if err != nil {
-			slog.Debug("Failed to marshal orphan blob to JSON", "rowid", blob.RowID, "error", err)
-			continue
+			return fmt.Errorf("format orphan debug file %s: %w", filepath, err)
 		}
 
 		// Write the file
 		if err := os.WriteFile(filepath, prettyJSON, 0644); err != nil {
-			slog.Debug("Failed to write orphan debug file", "path", filepath, "error", err)
-			continue
+			return fmt.Errorf("write orphan debug file %s: %w", filepath, err)
 		}
 
 		slog.Debug("Wrote orphan debug file", "path", filepath, "rowid", blob.RowID)

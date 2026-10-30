@@ -2165,7 +2165,7 @@ _**Agent (claude-opus-4-6 2026-02-21 14:41:22Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/markdown/markdown.go`
 
-```text
+````text
      1→package markdown
      2→
      3→import (
@@ -2456,7 +2456,7 @@ _**Agent (claude-opus-4-6 2026-02-21 14:41:22Z)**_
    288→	return currentRole != prevRole
    289→}
    290→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-21 14:41:23Z)**_
@@ -2616,7 +2616,7 @@ _**Agent (claude-opus-4-6 2026-02-21 14:41:24Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/geminicli/markdown_tools.go`
 
-```text
+````text
      1→package geminicli
      2→
      3→import (
@@ -2974,7 +2974,7 @@ _**Agent (claude-opus-4-6 2026-02-21 14:41:24Z)**_
    355→	return string(runes[:limit]) + "\n... (truncated)"
    356→}
    357→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-21 14:41:24Z)**_
@@ -2983,7 +2983,7 @@ _**Agent (claude-opus-4-6 2026-02-21 14:41:24Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/geminicli/markdown_tools_test.go`
 
-```text
+````text
      1→package geminicli
      2→
      3→import (
@@ -3235,7 +3235,7 @@ _**Agent (claude-opus-4-6 2026-02-21 14:41:24Z)**_
    249→	}
    250→}
    251→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-21 14:41:27Z)**_

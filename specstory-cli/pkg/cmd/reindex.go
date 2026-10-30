@@ -293,7 +293,7 @@ func dedupRefs(ids []string, provs []spi.Provider, perProvider [][]spi.GlobalSes
 				slog.Debug("reindex: skipping session with no id", "agent", id, "path", ref.NativePath)
 				continue
 			}
-			size, mtime := statNative(ref.NativePath)
+			size, mtime := refFingerprint(ref)
 			item := reindexItem{agent: id, prov: provs[i], ref: ref, size: size, mtime: mtime}
 			key := sessionindex.FingerprintKey(id, ref.SessionID)
 			if cur, ok := best[key]; ok {
@@ -321,7 +321,7 @@ func selectWork(order []string, best map[string]reindexItem, fingerprints map[st
 	for _, key := range order {
 		item := best[key]
 		if projectFilter != "" {
-			if pid, _ := cache.resolve(item.ref.OriginCwd); pid != projectFilter {
+			if pid, _ := cache.resolveRef(item.ref); pid != projectFilter {
 				continue
 			}
 		}
@@ -601,7 +601,7 @@ func (li *LiveIndexer) Close() {
 // dropped.
 func buildSession(item reindexItem, cache *projectIDCache, indexedAt string) sessionindex.Session {
 	ref := item.ref
-	projectID, projectName := cache.resolve(ref.OriginCwd)
+	projectID, projectName := cache.resolveRef(ref)
 
 	sess := sessionindex.Session{
 		ProjectID:    projectID,
@@ -621,7 +621,7 @@ func buildSession(item reindexItem, cache *projectIDCache, indexedAt string) ses
 		IsNew:        item.isNew,
 	}
 
-	if ref.OriginCwd == "" {
+	if ref.OriginCwd == "" && !canParseByRepo(item.prov, ref) {
 		return sess // cannot re-locate without a cwd → metadata-only
 	}
 	full, err := parseFullSession(item.prov, ref)
@@ -640,13 +640,22 @@ func buildSession(item reindexItem, cache *projectIDCache, indexedAt string) ses
 	return sess
 }
 
+// canParseByRepo reports whether a session with no cwd can still be parsed: a
+// hosted agent names its repository and is read from its known native path, which
+// needs no cwd to locate.
+func canParseByRepo(prov spi.Provider, ref spi.GlobalSessionRef) bool {
+	_, ok := prov.(spi.PathSessionReader)
+	return ok && ref.OriginRepoURL != "" && ref.NativePath != ""
+}
+
 // parseFullSession reads a session's full data for indexing. It prefers a provider's
 // path-keyed parse (spi.PathSessionReader) using the ref's already-known NativePath, which
 // avoids the provider's by-id discovery search — for Codex that search walks the entire
 // ~/.codex/sessions tree, so this is the difference between an O(N) and an O(N²) reindex.
 // Providers without the capability (or refs lacking a NativePath) fall back to the by-id
-// lookup. Parsing the known NativePath is also more consistent: the row's freshness
-// fingerprint is stat'd from NativePath, so the body now comes from that same file.
+// lookup. Parsing the known NativePath is also more consistent: a row's freshness
+// fingerprint is stat'd from NativePath (unless the provider supplied its own), so the
+// body now comes from that same file.
 func parseFullSession(prov spi.Provider, ref spi.GlobalSessionRef) (*spi.AgentChatSession, error) {
 	if pr, ok := prov.(spi.PathSessionReader); ok && ref.NativePath != "" {
 		return pr.GetAgentChatSessionByPath(ref.NativePath, ref.OriginCwd, false)
@@ -721,13 +730,34 @@ func lastTimestamp(data *schema.SessionData) string {
 	return last
 }
 
+// refFingerprint returns the freshness pair for a ref: the provider's own when it
+// supplied one (a store shared by every session cannot be fingerprinted by file),
+// otherwise the native file's size and mtime.
+func refFingerprint(ref spi.GlobalSessionRef) (size, mtimeMs int64) {
+	if ref.Fingerprint != nil {
+		return ref.Fingerprint.Size, ref.Fingerprint.Mtime
+	}
+	return statNative(ref.NativePath)
+}
+
 // statNative returns the native file's size (bytes) and mtime (epoch ms), or zeros.
+//
+// A SQLite store in WAL mode (OpenCode's opencode.db, Cursor IDE's state.vscdb)
+// commits to <path>-wal and folds that into <path> only at a checkpoint, so the
+// main file alone can keep its size and mtime while a session changes. A -wal
+// sibling's size and mtime are folded in so such a change still reads as one;
+// paths without a -wal sibling keep the fingerprint they always had.
 func statNative(path string) (size, mtimeMs int64) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return 0, 0
 	}
-	return info.Size(), info.ModTime().UnixMilli()
+	size, mtimeMs = info.Size(), info.ModTime().UnixMilli()
+	if wal, err := os.Stat(path + "-wal"); err == nil {
+		size += wal.Size()
+		mtimeMs = max(mtimeMs, wal.ModTime().UnixMilli())
+	}
+	return size, mtimeMs
 }
 
 // ---- project identity cache (cwd -> project id/name) ----
@@ -739,6 +769,27 @@ type projectIDName struct{ id, name string }
 type projectIDCache struct {
 	mu sync.Mutex
 	m  map[string]projectIDName
+}
+
+// resolveRef resolves a ref's project: from its originating cwd when known, else
+// from the repository URL a hosted agent records. Repository keys are prefixed so
+// they can never collide with a cwd in the cache.
+func (c *projectIDCache) resolveRef(ref spi.GlobalSessionRef) (string, string) {
+	if strings.TrimSpace(ref.OriginCwd) != "" || strings.TrimSpace(ref.OriginRepoURL) == "" {
+		return c.resolve(ref.OriginCwd)
+	}
+	key := "repo:" + ref.OriginRepoURL
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if v, ok := c.m[key]; ok {
+		return v.id, v.name
+	}
+	id, name, err := utils.ComputeProjectIDFromRemote(ref.OriginRepoURL)
+	if err != nil || id == "" {
+		id, name = unknownProjectID, ""
+	}
+	c.m[key] = projectIDName{id, name}
+	return id, name
 }
 
 func (c *projectIDCache) resolve(cwd string) (string, string) {

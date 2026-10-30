@@ -3,6 +3,9 @@ package spi
 import (
 	"fmt"
 	"strings"
+	"unicode"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // CodeFence wraps content in a fenced code block whose backtick fence is long
@@ -29,21 +32,54 @@ func CodeFence(lang, content string) string {
 // and always strictly greater than the longest run of consecutive backticks in
 // content, so no line inside content can act as a closing fence.
 func fenceLen(content string) int {
+	return max(longestBacktickRun(content)+1, 3)
+}
+
+// longestBacktickRun returns the length of the longest run of consecutive
+// backticks in text, which is what decides how long a fence or code span's
+// own backtick run must be to contain it.
+func longestBacktickRun(text string) int {
 	longest, run := 0, 0
-	for _, r := range content {
+	for _, r := range text {
 		if r == '`' {
 			run++
-			if run > longest {
-				longest = run
-			}
+			longest = max(longest, run)
 		} else {
 			run = 0
 		}
 	}
-	if n := longest + 1; n > 3 {
-		return n
+	return longest
+}
+
+// InlineCode wraps text in an inline code span whose backtick run is longer
+// than any inside text, so a path, tool name or schema value that contains
+// backticks cannot end the span early. A code span is a single line, so runs
+// of whitespace (including line breaks) collapse to one space.
+//
+// When text contains backticks the span is padded with one space on each
+// side: CommonMark strips one such space from each end, which is what lets
+// the content itself begin or end with a backtick.
+func InlineCode(text string) string {
+	text = strings.Join(strings.Fields(text), " ")
+	longest := longestBacktickRun(text)
+	if longest == 0 {
+		return "`" + text + "`"
 	}
-	return 3
+	fence := strings.Repeat("`", longest+1)
+	return fence + " " + text + " " + fence
+}
+
+// SanitizeShellOutput strips ANSI escape sequences and the remaining control
+// bytes from terminal output so it cannot corrupt the markdown fence it is
+// rendered in. Newlines and tabs are kept; CRLF line endings become LF.
+func SanitizeShellOutput(content string) string {
+	content = strings.ReplaceAll(content, "\r\n", "\n")
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) && r != '\n' && r != '\t' {
+			return -1
+		}
+		return r
+	}, ansi.Strip(content))
 }
 
 // CapRunes truncates s to at most max runes, marking the cut. Rune-based so a

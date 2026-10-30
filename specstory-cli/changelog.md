@@ -1,5 +1,62 @@
 # Specstory CLI Changelog
 
+## v2.16.0 2026-10-18
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports [Cursor Cloud Agents](https://cursor.com/docs/cloud-agent) (i.e. `cursorcloud`), Cursor's hosted agents launched from `https://cursor.com/agents`, Slack, GitHub, Linear, the Cursor apps, or the Cloud Agents API, for sessions read from Cloud Agents API version `1.0.0`. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI), [VS Code Copilot](https://code.visualstudio.com/docs/setup/copilot), [Muse Code](https://developer.meta.com/ai/products/muse-code/), [Pi](https://pi.dev), [Qwen Code](https://github.com/QwenLM/qwen-code), [Grok Build](https://x.ai/cli) and [OpenCode](https://opencode.ai/).
+- Cursor Cloud agent sessions are never written to your local machine by Cursor, so SpecStory reads them from the Cursor API with your Cursor API key (provide via the `CURSOR_API_KEY` ENV var, or `cursor_api_key` under `[providers]` in `~/.specstory/cli/config.toml`) and matches agents to your project by its git `origin`.
+- The Cursor API serves full session transcripts, including tool calls and their output, for only 24 hours after a run finishes; after that it returns only the conversation text. SpecStory keeps a local copy of each Cursor Cloud Agent transcript in `.specstory/cursorcloud/` in your project (or in the directory set by `cursorcloud_mirror_dir` in `~/.specstory/cli/config.toml`), so a session synced within those 24 hours keeps its tool calls. Run `specstory sync` at least every 24 hours, or keep `specstory watch` running, to capture the details of each run in time. Don't delete the `.specstory/cursorcloud/` directory in your project or a run older than 24 hours can only be rebuilt from the conversation text alone without its tool calls. The directory holds unredacted transcripts, so SpecStory adds a `.gitignore` file to that directory to keep it out of git.
+- You can resume a Cursor Cloud Agent session into another agent, and resume any agent's session into a Cursor Cloud Agent. Resuming a Cursor Cloud Agent session into Cursor Cloud reopens the same agent. Resuming any other session starts a new cloud agent, which is a new paid run, seeded with the session so far. Sessions over 1,000,000 characters are too large to resume into a Cursor Cloud Agent.
+
+### 🐛 Bug Fixes
+
+- A session resumed with `specstory resume` into an agent that shows session titles (Cursor CLI, Cursor IDE, Cursor Cloud Agents, VS Code Copilot, Droid, DeepSeek TUI or OpenCode) is now titled with the original session's first prompt, as it is in `specstory list` and SpecStory Cloud. Previously it was titled with a short filename slug such as `tell-me-all-about`, and sessions from Claude Code, Codex CLI, Gemini CLI and Pi were titled "Resumed session".
+
+## v2.15.1 2026-09-24
+
+### 🐛 Bug Fixes
+
+- Your answers to Codex CLI's `request_user_input` questions are now included in saved markdown. Previously the question and options were saved, but the selected option and any note were dropped, leaving an empty result. Each question is now shown with its options and your answer underneath, and questions you cancelled are marked as unanswered. Thanks to [daviddwlee84](https://github.com/daviddwlee84) for the detailed report and reproduction in [issue 333](https://github.com/specstoryai/getspecstory/issues/333).
+- For Codex tools that SpecStory doesn't have a dedicated format for, the tool's arguments are now also shown as JSON. Previously they were lost whenever the tool also returned output.
+- On Windows, `specstory run` and `specstory watch` no longer stop saving sessions partway through. Occasionally, when the agent created new session files while SpecStory was starting to watch a new directory, the file watcher could hang: no error was shown, and nothing more was saved to markdown or SpecStory Cloud until SpecStory was restarted. This could affect every supported agent.
+
+## v2.15.0 2026-09-23
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports [OpenCode](https://opencode.ai/) (i.e. `opencode`), the open source terminal coding agent, for sessions created from OpenCode version `2.0.14` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI), [VS Code Copilot](https://code.visualstudio.com/docs/setup/copilot), [Muse Code](https://developer.meta.com/ai/products/muse-code/), [Pi](https://pi.dev), [Qwen Code](https://github.com/QwenLM/qwen-code) and [Grok Build](https://x.ai/cli).
+- OpenCode is a cross-provider `specstory resume` target: you can resume any agent's session into OpenCode, and resume an OpenCode session into another agent. OpenCode's free Zen models decline to continue a conversation that was not produced through Zen, so a resumed session needs another configured model to continue. Thanks to [marton78](https://github.com/marton78) for the original OpenCode provider contribution in [PR 156](https://github.com/specstoryai/getspecstory/pull/156).
+
+### ✏️ Markdown Enhancements
+
+- Grok Build's image, video, workflow, scheduler, and feedback tools now render as readable fields in saved markdown, with prompts and workflow scripts in code blocks, instead of as raw JSON.
+- Grok Build's `search_tool` now lists each discovered tool's parameters (type, whether required, and description) instead of its full JSON schema. A single tool search can return hundreds of tools, so saved sessions that search connected integrations are now much shorter.
+- Grok Build shell commands, monitors, background-task lookups, images, workflows, scheduled tasks, and feedback drafts now show their command, prompt, name, or ID in the collapsed tool header, so a session can be scanned without expanding each tool.
+- Grok Build tool results no longer include Grok's notices about unrelated background tasks, or the wrapper tags around `grep` results. A background shell command's task ID, status, and output file now show as labeled fields.
+- Grok Build `use_tool` results that are JSON are now shown in a JSON code block, and several tool fields now have consistently capitalized labels (e.g. `URL`, `Query`, `Description`).
+
+## v2.14.1 2026-09-22
+
+### 🐛 Bug Fixes
+
+- Claude Code sessions are now found when `CLAUDE_CONFIG_DIR` is set. Claude Code uses this variable to run separate profiles (for example, a personal and a work account), each storing its sessions in `$CLAUDE_CONFIG_DIR/projects`, but SpecStory only read `~/.claude/projects`. As a result, `specstory sync` reported the sessions as not found, and `specstory run` and `specstory watch` silently saved nothing. SpecStory now reads from the same place Claude Code writes to, so `CLAUDE_CONFIG_DIR="$HOME/.claude-work" specstory run claude` saves that profile's sessions without symlinking its `projects` directory into `~/.claude`. Thanks to [simkimsia](https://github.com/simkimsia) for the detailed report in [issue 325](https://github.com/specstoryai/getspecstory/issues/325).
+- Codex CLI tool output from code mode `exec` calls is now included in saved markdown and SpecStory Cloud sessions. Previously this output was silently dropped because Codex writes it as a list of content parts rather than as text. Images in tool output are noted with an `[image]` marker rather than embedded.
+- Long Codex CLI tool output is now truncated after 5000 characters instead of 5000 bytes, so the cut no longer splits multi-byte characters (e.g. Chinese text or emoji) and leaves saved markdown as invalid UTF-8. Thanks to [daviddwlee84](https://github.com/daviddwlee84) for reporting the same problem with Codex custom-tool inputs in [issue 311](https://github.com/specstoryai/getspecstory/issues/311), which was resolved in v2.13.0.
+- Session names derived from a long first prompt are now shortened to 100 characters instead of 100 bytes. Prompts written without spaces, such as Chinese, no longer end in `��` replacement characters in `specstory list`, `specstory resume`, and SpecStory Cloud session titles.
+
+## v2.14.0 2026-09-22
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports [Grok Build](https://x.ai/cli) (i.e. `grok`, `agent`), SpaceXAI's terminal coding agent, for sessions created from Grok Build version `1.0.34` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI), [VS Code Copilot](https://code.visualstudio.com/docs/setup/copilot), [Muse Code](https://developer.meta.com/ai/products/muse-code/), [Pi](https://pi.dev) and [Qwen Code](https://github.com/QwenLM/qwen-code).
+- Grok is a cross-provider `specstory resume` target: you can resume any agent's session into Grok, and resume a Grok session into another agent.
+
+### 🐛 Bug Fixes
+
+- Bare `specstory run` launches Claude Code as documented, rather than choosing the first provider alphabetically. The help text and configured command now use the same default.
+- Muse Code sessions containing a single JSONL line larger than the 64MB limit now render with that line skipped, instead of failing to render the whole session.
+
 ## v2.13.0 2026-09-17
 
 ### ⚙️ Improvements

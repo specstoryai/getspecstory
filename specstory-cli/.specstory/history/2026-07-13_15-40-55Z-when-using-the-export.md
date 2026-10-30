@@ -27,12 +27,26 @@ Let me look at how SPECSTORY_CLOUD_URL is used in the codebase.
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:02Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
-<summary>Tool use: **bash** `grep -rn "SPECSTORY_CLOUD_URL" --include="*.go" . | grep -v .specstory`</summary>
-Error:
-```
+<summary>Tool use: **bash**</summary>
+**Error:**
+
+```text
 (no output)
 
 Command exited with code 1
+```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "command": "grep -rn \"SPECSTORY_CLOUD_URL\" --include=\"*.go\" . | grep -v .specstory"
+}
 ```
 </details></tool-use>
 
@@ -40,7 +54,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:02Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "CloudURL\|cloud_url\|CloudUrl\|cloudURL" --include="*.go" . | grep -v .specstory`</summary>
+**Command:**
+```bash
+grep -rn "CloudURL\|cloud_url\|CloudUrl\|cloudURL" --include="*.go" . | grep -v .specstory
 ```
+
+```text
 ./main.go:46:var cloudURL string    // custom cloud API URL (hidden flag)
 ./main.go:213:			if cloudURL != "" {
 ./main.go:214:				cloud.SetAPIBaseURL(cloudURL)
@@ -66,6 +85,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:02Z)**_
 ./pkg/cmd/watch.go:40:// cloudURL binds to the parent's --cloud-url flag so PersistentPreRunE can apply it.
 ./pkg/cmd/watch.go:42:func CreateWatchCommand(cloudURL *string, localTimeZone bool, debugDir string) *cobra.Command {
 ./pkg/cmd/watch.go:335:	watchCmd.Flags().StringVar(cloudURL, "cloud-url", "", "override the default cloud API base URL")
+
 ```
 </details></tool-use>
 
@@ -73,7 +93,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:04Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "SetAPIBaseURL\|APIBaseURL\|apiBaseURL\|APIBase\|env" --include="*.go" ./pkg/cloud | grep -v .specstory`</summary>
+**Command:**
+```bash
+grep -rn "SetAPIBaseURL\|APIBaseURL\|apiBaseURL\|APIBase\|env" --include="*.go" ./pkg/cloud | grep -v .specstory
 ```
+
+```text
 ./pkg/cloud/auth_test.go:16:	origHome := os.Getenv("HOME")
 ./pkg/cloud/auth_test.go:17:	if err := os.Setenv("HOME", tempDir); err != nil {
 ./pkg/cloud/auth_test.go:18:		t.Fatalf("Failed to set HOME env var: %v", err)
@@ -98,6 +123,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:04Z)**_
 ./pkg/cloud/sync.go:614:	if apiBaseURL == "" {
 ./pkg/cloud/sync.go:617:	return apiBaseURL
 ./pkg/cloud/sync.go:805:	apiURL := GetAPIBaseURL() + "/api/v1/projects/" + projectID + "/sessions/" + sessionID
+
 ```
 </details></tool-use>
 
@@ -105,12 +131,18 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:04Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `ls pkg/cloud/`</summary>
+**Command:**
+```bash
+ls pkg/cloud/
 ```
+
+```text
 auth_test.go
 auth.go
 sync_test.go
 sync_throttle_test.go
 sync.go
+
 ```
 </details></tool-use>
 
@@ -118,9 +150,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:05Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cloud/sync.go`
-
+**Path:**
+```text
+pkg/cloud/sync.go
 ```
+
+**Offset (line):**
+```text
+600
+```
+
+**Limit:**
+```text
+30
+```
+
+```go
 }
 
 // GetClientVersion returns the current client version
@@ -167,12 +212,26 @@ Let me check where the env var is read to set cloudURL.
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:06Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
-<summary>Tool use: **bash** `grep -rn "SPECSTORY_CLOUD_URL\|os.Getenv.*CLOUD\|cloudURL\s*=" --include="*.go" . | grep -v .specstory`</summary>
-Error:
-```
+<summary>Tool use: **bash**</summary>
+**Error:**
+
+```text
 (no output)
 
 Command exited with code 1
+```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "command": "grep -rn \"SPECSTORY_CLOUD_URL\\|os.Getenv.*CLOUD\\|cloudURL\\s*=\" --include=\"*.go\" . | grep -v .specstory"
+}
 ```
 </details></tool-use>
 
@@ -180,7 +239,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:07Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "SPECSTORY_CLOUD_URL\|Getenv" --include="*.go" . | grep -v .specstory`</summary>
+**Command:**
+```bash
+grep -rn "SPECSTORY_CLOUD_URL\|Getenv" --include="*.go" . | grep -v .specstory
 ```
+
+```text
 ./pkg/config/config.go:490:	if endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); endpoint != "" {
 ./pkg/config/config.go:494:	if serviceName := os.Getenv("OTEL_SERVICE_NAME"); serviceName != "" {
 ./pkg/config/config.go:707:	if disabled := os.Getenv("OTEL_SDK_DISABLED"); disabled == "true" || disabled == "1" {
@@ -204,6 +268,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:07Z)**_
 ./pkg/telemetry/telemetry.go:103:	envVal := os.Getenv("OTEL_RESOURCE_ATTRIBUTES")
 ./pkg/telemetry/telemetry.go:217:			"OTEL_RESOURCE_ATTRIBUTES", os.Getenv("OTEL_RESOURCE_ATTRIBUTES"),
 ./pkg/analytics/client.go:121:	username := os.Getenv("USER")
+
 ```
 </details></tool-use>
 
@@ -217,7 +282,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:09Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "cloud\|Cloud" --include="*.go" ./pkg/config/ | grep -v .specstory | head -50`</summary>
+**Command:**
+```bash
+grep -rn "cloud\|Cloud" --include="*.go" ./pkg/config/ | grep -v .specstory | head -50
 ```
+
+```text
 ./pkg/config/config.go:46:# enabled = false # equivalent to --only-cloud-sync
 ./pkg/config/config.go:55:[cloud_sync]
 ./pkg/config/config.go:56:# Sync session data to SpecStory Cloud. (default: true, when logged in to SpecStory Cloud)
@@ -262,6 +332,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:09Z)**_
 ./pkg/config/config_test.go:868:		if !cfg.IsCloudSyncEnabled() {
 ./pkg/config/config_test.go:869:			t.Errorf("IsCloudSyncEnabled() = false, want true")
 ./pkg/config/config_test.go:1039:[cloud_sync]
+
 ```
 </details></tool-use>
 
@@ -269,7 +340,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:09Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "cloud-url\|CloudURL\|cloud_url\|BindEnv\|Viper\|viper\|AutomaticEnv\|SetEnvPrefix" --include="*.go" . | grep -v .specstory | head -50`</summary>
+**Command:**
+```bash
+grep -rn "cloud-url\|CloudURL\|cloud_url\|BindEnv\|Viper\|viper\|AutomaticEnv\|SetEnvPrefix" --include="*.go" . | grep -v .specstory | head -50
 ```
+
+```text
 ./main.go:1509:	syncCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 ./main.go:1510:	_ = syncCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 ./main.go:1526:	runCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
@@ -286,6 +362,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:09Z)**_
 ./pkg/cmd/watch.go:40:// cloudURL binds to the parent's --cloud-url flag so PersistentPreRunE can apply it.
 ./pkg/cmd/watch.go:335:	watchCmd.Flags().StringVar(cloudURL, "cloud-url", "", "override the default cloud API base URL")
 ./pkg/cmd/watch.go:336:	_ = watchCmd.Flags().MarkHidden("cloud-url") // Hidden flag
+
 ```
 </details></tool-use>
 
@@ -293,10 +370,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:09Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`main.go`
-
+**Path:**
+```text
+main.go
 ```
-if err := log.SetupLogger(false, false, false, ""); err != nil {
+
+**Offset (line):**
+```text
+200
+```
+
+**Limit:**
+```text
+30
+```
+
+```go
+				if err := log.SetupLogger(false, false, false, ""); err != nil {
 					return err
 				}
 			}
@@ -335,9 +425,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:10Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`main.go`
-
+**Path:**
+```text
+main.go
 ```
+
+**Offset (line):**
+```text
+40
+```
+
+**Limit:**
+```text
+20
+```
+
+```go
 var localTimeZone bool  // flag to use local timezone instead of UTC
 // Sync Options
 var noCloudSync bool   // flag to disable cloud sync
@@ -373,7 +476,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:12Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "CLOUD_URL\|CLOUD\|SetEnvPrefix\|InitEnv\|envconfig" --include="*.go" . | grep -v .specstory | head -30`</summary>
+**Command:**
+```bash
+grep -rn "CLOUD_URL\|CLOUD\|SetEnvPrefix\|InitEnv\|envconfig" --include="*.go" . | grep -v .specstory | head -30
 ```
+
+```text
 (no output)
 ```
 </details></tool-use>
@@ -382,7 +490,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:13Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "SPECSTORY" --include="*.go" . | grep -v .specstory | head -30`</summary>
+**Command:**
+```bash
+grep -rn "SPECSTORY" --include="*.go" . | grep -v .specstory | head -30
 ```
+
+```text
 ./pkg/utils/path_utils_test.go:298:		if !strings.Contains(historyDir, SPECSTORY_DIR) || !strings.Contains(historyDir, HISTORY_DIR) {
 ./pkg/utils/path_utils_test.go:299:			t.Errorf("GetHistoryDir() = %v, want path containing %s/%s", historyDir, SPECSTORY_DIR, HISTORY_DIR)
 ./pkg/utils/path_utils_test.go:304:		if !strings.Contains(debugDir, SPECSTORY_DIR) || !strings.Contains(debugDir, DEBUG_DIR) {
@@ -393,6 +506,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:13Z)**_
 ./pkg/utils/path_utils.go:122:		return SPECSTORY_DIR
 ./pkg/utils/path_utils.go:124:	return filepath.Join(cwd, SPECSTORY_DIR)
 ./pkg/cloud/sync.go:1188:	configPath := filepath.Join(utils.SPECSTORY_DIR, utils.PROJECT_JSON_FILE)
+
 ```
 </details></tool-use>
 
@@ -406,7 +520,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:14Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "Getenv\|LookupEnv\|Environ\|SPECSTORY_CLOUD" --include="*.go" main.go pkg/cmd/ | head -30`</summary>
+**Command:**
+```bash
+grep -rn "Getenv\|LookupEnv\|Environ\|SPECSTORY_CLOUD" --include="*.go" main.go pkg/cmd/ | head -30
 ```
+
+```text
 (no output)
 ```
 </details></tool-use>
@@ -415,7 +534,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:15Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "Getenv\|LookupEnv\|Environ" --include="*.go" main.go pkg/ | grep -v _test | grep -v .specstory | head -40`</summary>
+**Command:**
+```bash
+grep -rn "Getenv\|LookupEnv\|Environ" --include="*.go" main.go pkg/ | grep -v _test | grep -v .specstory | head -40
 ```
+
+```text
 pkg/config/config.go:490:	if endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); endpoint != "" {
 pkg/config/config.go:494:	if serviceName := os.Getenv("OTEL_SERVICE_NAME"); serviceName != "" {
 pkg/config/config.go:707:	if disabled := os.Getenv("OTEL_SDK_DISABLED"); disabled == "true" || disabled == "1" {
@@ -428,6 +552,7 @@ pkg/providers/cursorcli/cursor_cli_exec.go:109:	cmd.Env = append(os.Environ(), "
 pkg/telemetry/telemetry.go:103:	envVal := os.Getenv("OTEL_RESOURCE_ATTRIBUTES")
 pkg/telemetry/telemetry.go:217:			"OTEL_RESOURCE_ATTRIBUTES", os.Getenv("OTEL_RESOURCE_ATTRIBUTES"),
 pkg/analytics/client.go:121:	username := os.Getenv("USER")
+
 ```
 </details></tool-use>
 
@@ -443,7 +568,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:17Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "CLOUD_URL\|cloud-url\|cloudURL\|SetEnv\|EnvPrefix\|EnvVar\|os.Environ" --include="*.go" main.go | head -40`</summary>
+**Command:**
+```bash
+grep -rn "CLOUD_URL\|cloud-url\|cloudURL\|SetEnv\|EnvPrefix\|EnvVar\|os.Environ" --include="*.go" main.go | head -40
 ```
+
+```text
 main.go:46:var cloudURL string    // custom cloud API URL (hidden flag)
 main.go:213:			if cloudURL != "" {
 main.go:214:				cloud.SetAPIBaseURL(cloudURL)
@@ -456,6 +586,7 @@ main.go:1509:	syncCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override th
 main.go:1510:	_ = syncCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 main.go:1526:	runCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 main.go:1527:	_ = runCmd.Flags().MarkHidden("cloud-url") // Hidden flag
+
 ```
 </details></tool-use>
 
@@ -463,10 +594,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:18Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`main.go`
-
+**Path:**
+```text
+main.go
 ```
-Long:              longDesc,
+
+**Offset (line):**
+```text
+160
+```
+
+**Limit:**
+```text
+60
+```
+
+```go
+		Long:              longDesc,
 		Example:           examples,
 		SilenceUsage:      true,
 		SilenceErrors:     true,
@@ -541,10 +685,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:19Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`main.go`
-
+**Path:**
+```text
+main.go
 ```
-// Set up logging early before creating commands (which access the registry)
+
+**Offset (line):**
+```text
+1440
+```
+
+**Limit:**
+```text
+60
+```
+
+```go
+	// Set up logging early before creating commands (which access the registry)
 	if console || logFile {
 		var logPath string
 		if logFile {
@@ -613,10 +770,24 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:20Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`main.go`
-
+**Path:**
+```text
+main.go
 ```
-// Command-specific flags
+
+**Offset (line):**
+```text
+1500
+```
+
+**Limit:**
+```text
+90
+```
+
+```go
+
+	// Command-specific flags
 	syncCmd.Flags().StringSliceP("session", "s", []string{}, "optional session IDs to sync (can be specified multiple times, provider-specific format)")
 	syncCmd.Flags().BoolVar(&printToStdout, "print", printToStdout, "output session markdown to stdout instead of saving (requires -s flag)")
 	syncCmd.Flags().StringVar(&outputDir, "output-dir", outputDir, "custom output directory for markdown files (default: ./.specstory/history)")
@@ -678,9 +849,8 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:20Z)**_
 		slog.Warn("Failed to initialize telemetry", "error", err)
 	}
 	// Shutdown flushes pending spans/metrics before closing providers.
-	defer func() {
-
-... (truncated)
+	defer func() 
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -694,10 +864,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:21Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`main.go`
-
+**Path:**
+```text
+main.go
 ```
-if strings.HasPrefix(arg, "--telemetry-endpoint=") {
+
+**Offset (line):**
+```text
+1380
+```
+
+**Limit:**
+```text
+60
+```
+
+```go
+		if strings.HasPrefix(arg, "--telemetry-endpoint=") {
 			telemetryEndpoint = strings.TrimPrefix(arg, "--telemetry-endpoint=")
 		}
 		// Handle --telemetry-service-name=value format
@@ -766,10 +949,24 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:22Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`main.go`
-
+**Path:**
+```text
+main.go
 ```
-// Track analytics
+
+**Offset (line):**
+```text
+1300
+```
+
+**Limit:**
+```text
+90
+```
+
+```go
+
+	// Track analytics
 	if syncErr != nil {
 		analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
 			"provider":      providerID,
@@ -872,12 +1069,26 @@ I don't see SPECSTORY_CLOUD_URL env var being read. Let me search the entire rep
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:24Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
-<summary>Tool use: **bash** `grep -rn "SPECSTORY_CLOUD_URL" . 2>/dev/null | grep -v .specstory | grep -v node_modules`</summary>
-Error:
-```
+<summary>Tool use: **bash**</summary>
+**Error:**
+
+```text
 (no output)
 
 Command exited with code 1
+```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "command": "grep -rn \"SPECSTORY_CLOUD_URL\" . 2\u003e/dev/null | grep -v .specstory | grep -v node_modules"
+}
 ```
 </details></tool-use>
 
@@ -891,7 +1102,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:26Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "CLOUD_URL\|cloud-url\|SPECSTORY_CLOUD\|cloud_url" README.md docs/ 2>/dev/null | head -30`</summary>
+**Command:**
+```bash
+grep -rn "CLOUD_URL\|cloud-url\|SPECSTORY_CLOUD\|cloud_url" README.md docs/ 2>/dev/null | head -30
 ```
+
+```text
 (no output)
 ```
 </details></tool-use>
@@ -899,12 +1115,26 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:26Z)**_
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:26Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
-<summary>Tool use: **bash** `grep -rn "CLOUD_URL\|cloud.*url\|cloudURL" --include="*.go" pkg/cloud/ | grep -v _test`</summary>
-Error:
-```
+<summary>Tool use: **bash**</summary>
+**Error:**
+
+```text
 (no output)
 
 Command exited with code 1
+```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "command": "grep -rn \"CLOUD_URL\\|cloud.*url\\|cloudURL\" --include=\"*.go\" pkg/cloud/ | grep -v _test"
+}
 ```
 </details></tool-use>
 
@@ -912,7 +1142,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:27Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rni "cloud.*url\|SPECSTORY_CLOUD\|cloud-url" README.md 2>/dev/null | head; echo "---"; ls docs 2>/dev/null; echo "---"; grep -rni "env" README.md 2>/dev/null | head -20`</summary>
+**Command:**
+```bash
+grep -rni "cloud.*url\|SPECSTORY_CLOUD\|cloud-url" README.md 2>/dev/null | head; echo "---"; ls docs 2>/dev/null; echo "---"; grep -rni "env" README.md 2>/dev/null | head -20
 ```
+
+```text
 ---
 AI-PROVENANCE.md
 BATCH-HEAD.md
@@ -939,6 +1174,7 @@ README.md:251:   export OTEL_RESOURCE_ATTRIBUTES="user_id_hash=user_name,env=dev
 README.md:282:| Option       | CLI Flag                   | Environment Variable          | Config Key               | Default         | Description                            |
 README.md:289:**Note**: Telemetry is enabled when an endpoint is configured unless the standard `OTEL_SDK_DISABLED` ENV var is set to `true` or `1`.
 README.md:374:- macOS development environment
+
 ```
 </details></tool-use>
 
@@ -946,10 +1182,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:28Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`README.md`
+**Path:**
+```text
+README.md
+```
 
+**Offset (line):**
+```text
+278
 ```
+
+**Limit:**
+```text
+30
 ```
+
+````markdown
+   ```
 
 ### Telemetry Configuration Options
 
@@ -981,7 +1230,7 @@ prompts = false
 ```
 
 [240 more lines in file. Use offset=308 to continue.]
-```
+````
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:30Z)**_
@@ -994,7 +1243,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:30Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rni "SPECSTORY_CLOUD\|CLOUD_URL\|cloud-url" docs/ 2>/dev/null | head`</summary>
+**Command:**
+```bash
+grep -rni "SPECSTORY_CLOUD\|CLOUD_URL\|cloud-url" docs/ 2>/dev/null | head
 ```
+
+```text
 (no output)
 ```
 </details></tool-use>
@@ -1016,12 +1270,26 @@ Let me double check by searching for "CLOUD" in all go files broadly.
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:32Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
-<summary>Tool use: **bash** `grep -rn "CLOUD_URL\|CLOUDURL\|CLOUD_BASE\|SPECSTORY_CLOUD\|specstory_cloud\|specstory.cloud" --include="*.go" . 2>/dev/null | grep -v .specstory`</summary>
-Error:
-```
+<summary>Tool use: **bash**</summary>
+**Error:**
+
+```text
 (no output)
 
 Command exited with code 1
+```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "command": "grep -rn \"CLOUD_URL\\|CLOUDURL\\|CLOUD_BASE\\|SPECSTORY_CLOUD\\|specstory_cloud\\|specstory.cloud\" --include=\"*.go\" . 2\u003e/dev/null | grep -v .specstory"
+}
 ```
 </details></tool-use>
 
@@ -1029,8 +1297,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:37Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rni "specstory_cloud_url\|SPECSTORY_CLOUD_URL" . 2>/dev/null | grep -v "\.specstory/" | grep -v "node_modules" | head`</summary>
+**Command:**
+```bash
+grep -rni "specstory_cloud_url\|SPECSTORY_CLOUD_URL" . 2>/dev/null | grep -v "\.specstory/" | grep -v "node_modules" | head
 ```
+
+```text
 Binary file ./specstory matches
+
 ```
 </details></tool-use>
 
@@ -1038,8 +1312,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:40Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `strings ./specstory | grep -i "SPECSTORY_CLOUD_URL\|CLOUD_URL" | head`</summary>
+**Command:**
+```bash
+strings ./specstory | grep -i "SPECSTORY_CLOUD_URL\|CLOUD_URL" | head
 ```
+
+```text
 Application SupportDevice login failedX-Session-Data-SizeSPECSTORY_CLOUD_URLspecstory-fallback-
+
 ```
 </details></tool-use>
 
@@ -1055,10 +1335,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:42Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `git log --oneline -S "SPECSTORY_CLOUD_URL" --all | head -20`</summary>
+**Command:**
+```bash
+git log --oneline -S "SPECSTORY_CLOUD_URL" --all | head -20
 ```
+
+```text
 2eaca35 Hotkey for upgrade from `specstory resume`.
 117f5d2 SpecStory histories.
 6573575 feat(cloud): SPECSTORY_CLOUD_URL env var to target a non-prod cloud
+
 ```
 </details></tool-use>
 
@@ -1066,7 +1352,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:43Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `git show 6573575 --stat | head -30`</summary>
+**Command:**
+```bash
+git show 6573575 --stat | head -30
 ```
+
+```text
 commit 65735754fc9a459dd3c0696816929b771e87043b
 Author: Greg Ceccarelli <gregce@gmail.com>
 Date:   Mon Jun 29 15:25:09 2026 -0400
@@ -1091,6 +1382,7 @@ Date:   Mon Jun 29 15:25:09 2026 -0400
  specstory-cli/pkg/cloud/sync.go         | 24 ++++++++++++++++++----
  specstory-cli/pkg/cmd/login.go          |  8 +++++++-
  4 files changed, 78 insertions(+), 5 deletions(-)
+
 ```
 </details></tool-use>
 
@@ -1103,9 +1395,10 @@ So this commit exists in git history. Let me check current branch and whether th
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:44Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
-<summary>Tool use: **bash** `git branch --show-current; git log --oneline -3; git log --oneline HEAD | grep 6573575`</summary>
-Error:
-```
+<summary>Tool use: **bash**</summary>
+**Error:**
+
+```text
 dev
 7a08679 fix(telemetry): probe collector reachability before init to avoid 10s exit stall
 982c152 Fix doc location.
@@ -1113,6 +1406,19 @@ dev
 
 
 Command exited with code 1
+```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "command": "git branch --show-current; git log --oneline -3; git log --oneline HEAD | grep 6573575"
+}
 ```
 </details></tool-use>
 
@@ -1126,8 +1432,13 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:45Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `git branch -a --contains 6573575 2>/dev/null | head; echo "---"; git log --oneline --all | grep -E "6573575|2eaca35|117f5d2" | head`</summary>
+**Command:**
+```bash
+git branch -a --contains 6573575 2>/dev/null | head; echo "---"; git log --oneline --all | grep -E "6573575|2eaca35|117f5d2" | head
 ```
-cloud-resume
+
+```text
+  cloud-resume
   skills-interface
   remotes/origin/cloud-resume
   remotes/origin/skills-interface
@@ -1135,6 +1446,7 @@ cloud-resume
 2eaca35 Hotkey for upgrade from `specstory resume`.
 117f5d2 SpecStory histories.
 6573575 feat(cloud): SPECSTORY_CLOUD_URL env var to target a non-prod cloud
+
 ```
 </details></tool-use>
 
@@ -1150,7 +1462,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:47Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `git show 6573575 -- specstory-cli/pkg/cloud/sync.go`</summary>
+**Command:**
+```bash
+git show 6573575 -- specstory-cli/pkg/cloud/sync.go
 ```
+
+```text
 commit 65735754fc9a459dd3c0696816929b771e87043b
 Author: Greg Ceccarelli <gregce@gmail.com>
 Date:   Mon Jun 29 15:25:09 2026 -0400
@@ -1169,6 +1486,7 @@ Date:   Mon Jun 29 15:25:09 2026 -0400
     env var can never silently point login at the wrong cloud.
     
     Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
 ```
 </details></tool-use>
 
@@ -1182,8 +1500,13 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:48Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `git show 6573575:specstory-cli/pkg/cloud/sync.go | sed -n '600,640p'`</summary>
+**Command:**
+```bash
+git show 6573575:specstory-cli/pkg/cloud/sync.go | sed -n '600,640p'
 ```
-clientVersion = version
+
+```text
+	clientVersion = version
 }
 
 // GetClientVersion returns the current client version
@@ -1223,6 +1546,8 @@ func GetAPIBaseURL() string {
 func GetUserAgent() string {
 	return fmt.Sprintf("%s/%s SpecStory, Inc.", ClientName, clientVersion)
 }
+
+
 ```
 </details></tool-use>
 
@@ -1255,9 +1580,10 @@ Actually, let me check whether the current `dev` branch's sync.go has the featur
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:54Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
-<summary>Tool use: **bash** `git status; echo "---current branch HEAD---"; git log --oneline -1; echo "---is SPECSTORY_CLOUD_URL in dev HEAD?---"; git grep -c "SPECSTORY_CLOUD_URL" HEAD -- '*.go' 2>/dev/null`</summary>
-Error:
-```
+<summary>Tool use: **bash**</summary>
+**Error:**
+
+```text
 On branch dev
 Your branch is up to date with 'origin/dev'.
 
@@ -1281,6 +1607,19 @@ no changes added to commit (use "git add" and/or "git commit -a")
 
 Command exited with code 1
 ```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "command": "git status; echo \"---current branch HEAD---\"; git log --oneline -1; echo \"---is SPECSTORY_CLOUD_URL in dev HEAD?---\"; git grep -c \"SPECSTORY_CLOUD_URL\" HEAD -- '*.go' 2\u003e/dev/null"
+}
+```
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:56Z)**_
@@ -1303,7 +1642,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:56Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `git log --oneline dev..cloud-resume | head -20; echo "--- merge base ---"; git merge-base dev cloud-resume | xargs git log --oneline -1`</summary>
+**Command:**
+```bash
+git log --oneline dev..cloud-resume | head -20; echo "--- merge base ---"; git merge-base dev cloud-resume | xargs git log --oneline -1
 ```
+
+```text
 1a3f28d Merge branch 'dev' into cloud-resume
 4daef66 SpecStory histories.
 139407d Minor CLI/TUI copy/UX changes.
@@ -1325,6 +1669,7 @@ dc16a5a feat(skills): add `skills agents --json` for install-target discovery
 4a55fc0 feat(skills): browse, approve, and install cloud skills
 --- merge base ---
 7a08679 fix(telemetry): probe collector reachability before init to avoid 10s exit stall
+
 ```
 </details></tool-use>
 
@@ -1344,7 +1689,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:41:58Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `git show 6573575:specstory-cli/pkg/cloud/baseurl_test.go`</summary>
+**Command:**
+```bash
+git show 6573575:specstory-cli/pkg/cloud/baseurl_test.go
 ```
+
+```text
 package cloud
 
 import "testing"
@@ -1381,6 +1731,7 @@ func TestGetAPIBaseURL_Precedence(t *testing.T) {
 		t.Errorf("whitespace env: got %q, want default", got)
 	}
 }
+
 ```
 </details></tool-use>
 
@@ -1487,9 +1838,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:43:52Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `git branch --show-current; git log --oneline -1`</summary>
+**Command:**
+```bash
+git branch --show-current; git log --oneline -1
 ```
+
+```text
 cloud-resume
 1a3f28d Merge branch 'dev' into cloud-resume
+
 ```
 </details></tool-use>
 
@@ -1497,10 +1854,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:43:53Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cloud/sync.go`
-
+**Path:**
+```text
+pkg/cloud/sync.go
 ```
-return true, nil
+
+**Offset (line):**
+```text
+600
+```
+
+**Limit:**
+```text
+40
+```
+
+```go
+			return true, nil
 		}
 
 		if localSize > serverSize {
@@ -1549,7 +1919,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:43:54Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "SetAPIBaseURL\|GetAPIBaseURL\|DefaultAPIBaseURL\|EnvCloudURL\|apiBaseURL" pkg/cloud/sync.go`</summary>
+**Command:**
+```bash
+grep -n "SetAPIBaseURL\|GetAPIBaseURL\|DefaultAPIBaseURL\|EnvCloudURL\|apiBaseURL" pkg/cloud/sync.go
 ```
+
+```text
 183:	apiBaseURL        string         // Base URL for API calls
 320:	apiURL := GetAPIBaseURL() + "/api/v1/projects/" + projectID + "/sessions/sizes"
 540:	apiURL := GetAPIBaseURL() + "/api/v1/projects/" + projectID + "/sessions/" + sessionID
@@ -1568,6 +1943,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:43:54Z)**_
 674:	if env := strings.TrimSpace(os.Getenv(EnvCloudURL)); env != "" {
 677:	return DefaultAPIBaseURL
 917:	apiURL := GetAPIBaseURL() + "/api/v1/projects/" + projectID + "/sessions/" + sessionID
+
 ```
 </details></tool-use>
 
@@ -1575,9 +1951,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:44:00Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cloud/sync.go`
-
+**Path:**
+```text
+pkg/cloud/sync.go
 ```
+
+**Offset (line):**
+```text
+650
+```
+
+**Limit:**
+```text
+30
+```
+
+```go
 }
 
 // SetAPIBaseURL sets the base URL for API requests
@@ -1625,10 +2014,112 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:44:02Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cloud/sync.go`
+**Path:**
+```text
+pkg/cloud/sync.go
+```
+
+**Edit 1:**
+```diff
+-// SetAPIBaseURL sets the base URL for API requests
+-func SetAPIBaseURL(url string) {
+-	apiBaseURL = url
+-}
++// SetAPIBaseURL sets the base URL for API requests. A trailing slash is stripped so
++// that callers can concatenate GetAPIBaseURL() + "/api/v1/..." without producing a
++// double slash (e.g. http://localhost:5173//api/v1/...).
++func SetAPIBaseURL(url string) {
++	apiBaseURL = strings.TrimRight(url, "/")
++}
+```
+
+**Edit 2:**
+```diff
+-	if env := strings.TrimSpace(os.Getenv(EnvCloudURL)); env != "" {
+-		return env
+-	}
+-	return DefaultAPIBaseURL
++	if env := strings.TrimSpace(os.Getenv(EnvCloudURL)); env != "" {
++		return strings.TrimRight(env, "/") // trim trailing slash so callers can append "/api/v1/..."
++	}
++	return DefaultAPIBaseURL
+```
+
+```text
+Successfully replaced 2 block(s) in pkg/cloud/sync.go.
+```
+
+**diff:**
+```diff
+      ...
+  648 func GetClientVersion() string {
+  649 	return clientVersion
+  650 }
+  651 
+- 652 // SetAPIBaseURL sets the base URL for API requests
++ 652 // SetAPIBaseURL sets the base URL for API requests. A trailing slash is stripped so
++ 653 // that callers can concatenate GetAPIBaseURL() + "/api/v1/..." without producing a
++ 654 // double slash (e.g. http://localhost:5173//api/v1/...).
+  653 func SetAPIBaseURL(url string) {
+- 654 	apiBaseURL = url
++ 656 	apiBaseURL = strings.TrimRight(url, "/")
+  655 }
+  656 
+  657 // DefaultAPIBaseURL is the production cloud API base URL used when neither the --cloud-url
+  658 // flag nor the SPECSTORY_CLOUD_URL env var is set.
+      ...
+  671 	if apiBaseURL != "" {
+  672 		return apiBaseURL // explicit --cloud-url flag wins
+  673 	}
+  674 	if env := strings.TrimSpace(os.Getenv(EnvCloudURL)); env != "" {
+- 675 		return env
++ 677 		return strings.TrimRight(env, "/") // trim trailing slash so callers can append "/api/v1/..."
+  676 	}
+  677 	return DefaultAPIBaseURL
+  678 }
+  679 
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cloud/sync.go
++++ pkg/cloud/sync.go
+@@ -648,11 +648,13 @@
+ func GetClientVersion() string {
+ 	return clientVersion
+ }
+ 
+-// SetAPIBaseURL sets the base URL for API requests
++// SetAPIBaseURL sets the base URL for API requests. A trailing slash is stripped so
++// that callers can concatenate GetAPIBaseURL() + "/api/v1/..." without producing a
++// double slash (e.g. http://localhost:5173//api/v1/...).
+ func SetAPIBaseURL(url string) {
+-	apiBaseURL = url
++	apiBaseURL = strings.TrimRight(url, "/")
+ }
+ 
+ // DefaultAPIBaseURL is the production cloud API base URL used when neither the --cloud-url
+ // flag nor the SPECSTORY_CLOUD_URL env var is set.
+@@ -671,9 +673,9 @@
+ 	if apiBaseURL != "" {
+ 		return apiBaseURL // explicit --cloud-url flag wins
+ 	}
+ 	if env := strings.TrimSpace(os.Getenv(EnvCloudURL)); env != "" {
+-		return env
++		return strings.TrimRight(env, "/") // trim trailing slash so callers can append "/api/v1/..."
+ 	}
+ 	return DefaultAPIBaseURL
+ }
+ 
 
 ```
-Successfully replaced 2 block(s) in pkg/cloud/sync.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 652
+}
 ```
 </details></tool-use>
 
@@ -1640,9 +2131,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:44:04Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cloud/baseurl_test.go`
-
+**Path:**
+```text
+pkg/cloud/baseurl_test.go
 ```
+
+```go
 package cloud
 
 import "testing"
@@ -1679,6 +2173,7 @@ func TestGetAPIBaseURL_Precedence(t *testing.T) {
 		t.Errorf("whitespace env: got %q, want default", got)
 	}
 }
+
 ```
 </details></tool-use>
 
@@ -1686,10 +2181,100 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:44:07Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cloud/baseurl_test.go`
+**Path:**
+```text
+pkg/cloud/baseurl_test.go
+```
+
+**Edit 1:**
+```diff
+-	// 4. Whitespace-only env is ignored, falling back to the default.
+-	apiBaseURL = ""
+-	t.Setenv(EnvCloudURL, "   ")
+-	if got := GetAPIBaseURL(); got != DefaultAPIBaseURL {
+-		t.Errorf("whitespace env: got %q, want default", got)
+-	}
+-}
++	// 4. Whitespace-only env is ignored, falling back to the default.
++	apiBaseURL = ""
++	t.Setenv(EnvCloudURL, "   ")
++	if got := GetAPIBaseURL(); got != DefaultAPIBaseURL {
++		t.Errorf("whitespace env: got %q, want default", got)
++	}
++
++	// 5. Trailing slash on the env var is stripped so callers can append "/api/v1/..."
++	// without producing a double slash (http://host:5173//api/v1/...).
++	t.Setenv(EnvCloudURL, "http://localhost:5173/")
++	if got := GetAPIBaseURL(); got != "http://localhost:5173" {
++		t.Errorf("trailing slash env: got %q, want %q", got, "http://localhost:5173")
++	}
++
++	// 6. SetAPIBaseURL (the --cloud-url flag path) also strips a trailing slash.
++	SetAPIBaseURL("http://localhost:5173/")
++	if got := GetAPIBaseURL(); got != "http://localhost:5173" {
++		t.Errorf("trailing slash flag: got %q, want %q", got, "http://localhost:5173")
++	}
++}
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cloud/baseurl_test.go.
+```
+
+**diff:**
+```diff
+    ...
+ 32 	t.Setenv(EnvCloudURL, "   ")
+ 33 	if got := GetAPIBaseURL(); got != DefaultAPIBaseURL {
+ 34 		t.Errorf("whitespace env: got %q, want default", got)
+ 35 	}
++36 
++37 	// 5. Trailing slash on the env var is stripped so callers can append "/api/v1/..."
++38 	// without producing a double slash (http://host:5173//api/v1/...).
++39 	t.Setenv(EnvCloudURL, "http://localhost:5173/")
++40 	if got := GetAPIBaseURL(); got != "http://localhost:5173" {
++41 		t.Errorf("trailing slash env: got %q, want %q", got, "http://localhost:5173")
++42 	}
++43 
++44 	// 6. SetAPIBaseURL (the --cloud-url flag path) also strips a trailing slash.
++45 	SetAPIBaseURL("http://localhost:5173/")
++46 	if got := GetAPIBaseURL(); got != "http://localhost:5173" {
++47 		t.Errorf("trailing slash flag: got %q, want %q", got, "http://localhost:5173")
++48 	}
+ 36 }
+```
+
+**patch:**
+```diff
+--- pkg/cloud/baseurl_test.go
++++ pkg/cloud/baseurl_test.go
+@@ -32,5 +32,18 @@
+ 	t.Setenv(EnvCloudURL, "   ")
+ 	if got := GetAPIBaseURL(); got != DefaultAPIBaseURL {
+ 		t.Errorf("whitespace env: got %q, want default", got)
+ 	}
++
++	// 5. Trailing slash on the env var is stripped so callers can append "/api/v1/..."
++	// without producing a double slash (http://host:5173//api/v1/...).
++	t.Setenv(EnvCloudURL, "http://localhost:5173/")
++	if got := GetAPIBaseURL(); got != "http://localhost:5173" {
++		t.Errorf("trailing slash env: got %q, want %q", got, "http://localhost:5173")
++	}
++
++	// 6. SetAPIBaseURL (the --cloud-url flag path) also strips a trailing slash.
++	SetAPIBaseURL("http://localhost:5173/")
++	if got := GetAPIBaseURL(); got != "http://localhost:5173" {
++		t.Errorf("trailing slash flag: got %q, want %q", got, "http://localhost:5173")
++	}
+ }
 
 ```
-Successfully replaced 1 block(s) in pkg/cloud/baseurl_test.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 36
+}
 ```
 </details></tool-use>
 
@@ -1701,7 +2286,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:44:08Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `gofmt -w pkg/cloud/sync.go pkg/cloud/baseurl_test.go`</summary>
+**Command:**
+```bash
+gofmt -w pkg/cloud/sync.go pkg/cloud/baseurl_test.go
 ```
+
+```text
 (no output)
 ```
 </details></tool-use>
@@ -1710,8 +2300,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:44:12Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `golangci-lint run 2>&1 | tail -30`</summary>
+**Command:**
+```bash
+golangci-lint run 2>&1 | tail -30
 ```
+
+```text
 0 issues.
+
 ```
 </details></tool-use>
 
@@ -1719,11 +2315,17 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:44:14Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go test -v -run "TestGetAPIBaseURL" ./pkg/cloud`</summary>
+**Command:**
+```bash
+go test -v -run "TestGetAPIBaseURL" ./pkg/cloud
 ```
+
+```text
 === RUN   TestGetAPIBaseURL_Precedence
 --- PASS: TestGetAPIBaseURL_Precedence (0.00s)
 PASS
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud	0.015s
+
 ```
 </details></tool-use>
 
@@ -1735,8 +2337,13 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:44:16Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go test -v ./pkg/cloud 2>&1 | tail -40`</summary>
+**Command:**
+```bash
+go test -v ./pkg/cloud 2>&1 | tail -40
 ```
---- PASS: TestRequiresSync_BulkSizesEdgeCases/zero_length_local,_non-zero_server,_has_SessionData_blob (0.00s)
+
+```text
+    --- PASS: TestRequiresSync_BulkSizesEdgeCases/zero_length_local,_non-zero_server,_has_SessionData_blob (0.00s)
     --- PASS: TestRequiresSync_BulkSizesEdgeCases/sizes_match_but_no_SessionData_blob_triggers_self-heal (0.00s)
     --- PASS: TestRequiresSync_BulkSizesEdgeCases/non-zero_local,_zero_server (0.00s)
     --- PASS: TestRequiresSync_BulkSizesEdgeCases/very_large_size_difference (0.00s)
@@ -1776,6 +2383,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:44:16Z)**_
 --- PASS: TestHTTPSemaphoreBlocksWhenFull (0.00s)
 PASS
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud	0.278s
+
 ```
 </details></tool-use>
 
@@ -1783,7 +2391,17 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:44:19Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go test ./... 2>&1 | tail -30`</summary>
+**Command:**
+```bash
+go test ./... 2>&1 | tail -30
 ```
+
+**Timeout (seconds):**
+```text
+120
+```
+
+```text
 ok  	github.com/specstoryai/getspecstory/specstory-cli	0.027s
 ?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics	[no test files]
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud	0.167s
@@ -1805,6 +2423,7 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi	0.052s
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	0.036s
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	0.043s
+
 ```
 </details></tool-use>
 
@@ -1816,7 +2435,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:44:21Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build -o specstory && ./specstory --version`</summary>
+**Command:**
+```bash
+go build -o specstory && ./specstory --version
 ```
+
+```text
 dev (SpecStory)
 ```
 </details></tool-use>
@@ -1825,9 +2449,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:44:22Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `SPECSTORY_CLOUD_URL=http://localhost:5173/ ./specstory --help >/dev/null 2>&1; echo "exit=$?"; echo "--- env trailing slash honored, no crash on startup ---"`</summary>
+**Command:**
+```bash
+SPECSTORY_CLOUD_URL=http://localhost:5173/ ./specstory --help >/dev/null 2>&1; echo "exit=$?"; echo "--- env trailing slash honored, no crash on startup ---"
 ```
+
+```text
 exit=0
 --- env trailing slash honored, no crash on startup ---
+
 ```
 </details></tool-use>
 
@@ -1947,10 +2577,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:47:43Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/worker/handlers/device_auth.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/worker/handlers/device_auth.ts
 ```
-// Validate JWT from Clerk
+
+**Offset (line):**
+```text
+650
+```
+
+**Limit:**
+```text
+90
+```
+
+```typescript
+    // Validate JWT from Clerk
     const authHeader = request.headers.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return new Response(
@@ -2053,7 +2696,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:47:45Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "supabaseClient\|createClient\|SUPABASE_URL\|supabaseUrl\|SUPABASE_ANON\|service_role" ../../specstory-sync/sync-cloud/worker/ --include="*.ts" | grep -v node_modules | head -30`</summary>
+**Command:**
+```bash
+grep -rn "supabaseClient\|createClient\|SUPABASE_URL\|supabaseUrl\|SUPABASE_ANON\|service_role" ../../specstory-sync/sync-cloud/worker/ --include="*.ts" | grep -v node_modules | head -30
 ```
+
+```text
 ../../specstory-sync/sync-cloud/worker/utils/cleanup.ts:1:import { supabaseClient } from "../../../shared/services/db";
 ../../specstory-sync/sync-cloud/worker/utils/cleanup.ts:21:      const { data: expiredCodes, error: fetchError } = await supabaseClient()
 ../../specstory-sync/sync-cloud/worker/utils/cleanup.ts:30:        const { error: deleteError } = await supabaseClient()
@@ -2084,6 +2732,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:47:45Z)**_
 ../../specstory-sync/sync-cloud/worker/supabase.ts:914:  const { error } = await supabaseClient()
 ../../specstory-sync/sync-cloud/worker/supabase.ts:927:  const { data: sessions, error: selectError } = await supabaseClient()
 ../../specstory-sync/sync-cloud/worker/supabase.ts:958:  const { data: deletedWorkspace, error: deleteError } = await supabaseClient()
+
 ```
 </details></tool-use>
 
@@ -2091,7 +2740,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:47:48Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `find ../../specstory-sync -path "*/services/db*" -not -path "*/node_modules/*" | head; echo "---"; grep -rn "createClient\|SUPABASE_URL\|supabaseUrl\|getEnv\|env\." ../../specstory-sync/shared/services/db* 2>/dev/null | head -30`</summary>
+**Command:**
+```bash
+find ../../specstory-sync -path "*/services/db*" -not -path "*/node_modules/*" | head; echo "---"; grep -rn "createClient\|SUPABASE_URL\|supabaseUrl\|getEnv\|env\." ../../specstory-sync/shared/services/db* 2>/dev/null | head -30
 ```
+
+```text
 ../../specstory-sync/shared/services/db_query_builder.ts
 ../../specstory-sync/shared/services/db.ts
 ---
@@ -2101,6 +2755,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:47:48Z)**_
 ../../specstory-sync/shared/services/db.ts:20:    env.SUPABASE_URL,
 ../../specstory-sync/shared/services/db.ts:21:    env.SUPABASE_SERVICE_ROLE_KEY,
 ../../specstory-sync/shared/services/db.ts:33:    [REDACTED:generic-credential-uri](process.env.SUPABASE_CONNECTION_URL!, {
+
 ```
 </details></tool-use>
 
@@ -2108,9 +2763,17 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:47:49Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/shared/services/db.ts`
-
+**Path:**
+```text
+../../specstory-sync/shared/services/db.ts
 ```
+
+**Limit:**
+```text
+60
+```
+
+```typescript
 // db.ts
 import [REDACTED:generic-credential-uri] from "[REDACTED:generic-credential-uri]";
 import { drizzle } from "drizzle-orm/[REDACTED:generic-credential-uri]-js";
@@ -2184,7 +2847,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:47:51Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `ls -la ../../specstory-sync/sync-cloud/ | grep -E "\.env|\.dev\.vars|wrangler"; echo "---"; find ../../specstory-sync/sync-cloud -maxdepth 2 -name ".dev.vars*" -o -name ".env*" -o -name "wrangler*" 2>/dev/null | grep -v node_modules`</summary>
+**Command:**
+```bash
+ls -la ../../specstory-sync/sync-cloud/ | grep -E "\.env|\.dev\.vars|wrangler"; echo "---"; find ../../specstory-sync/sync-cloud -maxdepth 2 -name ".dev.vars*" -o -name ".env*" -o -name "wrangler*" 2>/dev/null | grep -v node_modules
 ```
+
+```text
 -rw-r--r--   1 sean  staff     879 Jul  8 17:19 .env.development
 -rw-r--r--   1 sean  staff    1662 Jul  7 17:15 .env.example
 drwxr-xr-x   5 sean  staff     160 Jul  2 15:55 .wrangler
@@ -2193,6 +2861,7 @@ drwxr-xr-x   5 sean  staff     160 Jul  2 15:55 .wrangler
 ../../specstory-sync/sync-cloud/wrangler.jsonc
 ../../specstory-sync/sync-cloud/.env.example
 ../../specstory-sync/sync-cloud/.env.development
+
 ```
 </details></tool-use>
 
@@ -2200,9 +2869,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:47:52Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/.env.development`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/.env.development
 ```
+
+```development
 # Cloudflare Configuration
 CLOUDFLARE_ENV=development
 
@@ -2243,7 +2915,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:47:55Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:54321/auth/v1/health 2>&1; echo "---"; curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:54321/rest/v1/ 2>&1; echo "--- port 54321 listener? ---"; lsof -nP -iTCP:54321 -sTCP:LISTEN 2>/dev/null | head; echo "--- supabase status ---"; cd ../../specstory-sync/sync-cloud 2>/dev/null && (npx supabase status 2>&1 | head -20 || echo "supabase CLI not available / not running")`</summary>
+**Command:**
+```bash
+curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:54321/auth/v1/health 2>&1; echo "---"; curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:54321/rest/v1/ 2>&1; echo "--- port 54321 listener? ---"; lsof -nP -iTCP:54321 -sTCP:LISTEN 2>/dev/null | head; echo "--- supabase status ---"; cd ../../specstory-sync/sync-cloud 2>/dev/null && (npx supabase status 2>&1 | head -20 || echo "supabase CLI not available / not running")
 ```
+
+```text
 HTTP 000
 ---
 HTTP 000
@@ -2252,6 +2929,7 @@ HTTP 000
 Using workdir /Users/sean/Source/SpecStory/specstory-sync
 failed to inspect container health: Cannot connect to the Docker daemon at unix:///Users/sean/.docker/run/docker.sock. Is the docker daemon running?
 Try rerunning the command with --debug to troubleshoot the error.
+
 ```
 </details></tool-use>
 
@@ -2271,7 +2949,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:47:58Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `ls ../../specstory-sync/supabase/ 2>/dev/null | head; echo "---"; ls ../../specstory-sync/ | grep -i supabase; echo "--- docker ---"; which docker; docker info 2>&1 | head -3`</summary>
+**Command:**
+```bash
+ls ../../specstory-sync/supabase/ 2>/dev/null | head; echo "---"; ls ../../specstory-sync/ | grep -i supabase; echo "--- docker ---"; which docker; docker info 2>&1 | head -3
 ```
+
+```text
 config.toml
 migrations
 schema.sql
@@ -2282,6 +2965,7 @@ supabase
 Client:
  Version:    28.3.2
  Context:    desktop-linux
+
 ```
 </details></tool-use>
 
@@ -2289,9 +2973,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 15:47:59Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `docker info 2>&1 | grep -iE "server|cannot|error" | head -5`</summary>
+**Command:**
+```bash
+docker info 2>&1 | grep -iE "server|cannot|error" | head -5
 ```
+
+```text
 Server:
 Cannot connect to the Docker daemon at unix:///Users/sean/.docker/run/docker.sock. Is the docker daemon running?
+
 ```
 </details></tool-use>
 
@@ -2408,9 +3098,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:01:04Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`docs/CLOUD-RESUME.md`
-
+**Path:**
+```text
+docs/CLOUD-RESUME.md
 ```
+
+```markdown
 # Cloud Resume & Search
 
 Planning document for extending the CLI's `specstory resume` and `specstory search` to include sessions stored in SpecStory Cloud.
@@ -2433,8 +3126,16 @@ Extend the CLI's local-only `resume` and `search` functionality to also surface 
 - **D5 — A `session_data_size INTEGER` (nullable) column on `sessions` tracks blob presence** (byte count, set in `Session.upsert` when the push carries `sessionData`), mirroring the existing `markdown_size` / `raw_data_size` columns. `NULL` = legacy/no blob; `> 0` = cloud-resumable. Both read paths filter on it so browse/search only surface resumable cloud sessions — but the filter is **opt-in, not unconditional**: the list endpoint (`GET …/{projectId}/sessions`) is shared with the web app, and a blanket `WHERE session_data_size > 0` would hide every legacy session from cloud.specstory.com until re-synced (regressing a surface this feature doesn't own, contrary to §3's additive promise). So the CLI passes a new **`?resumable=true`** query param, which adds `WHERE session_data_size > 0`; without the param the endpoint behaves exactly as today. The aligned FTS search (D18) applies the same predicate on the `sessions` row unconditionally — it's a new resume-only surface, so no opt-in is needed there. Nullable represents the back-catalog with no backfill. This is metadata *about* the blob — consistent with D3, not a contents column.
 - **D6 — Back-catalog heals by re-sync, not backfill.** Legacy sessions (`session_data_size IS NULL`) are filtered out of resume browse/search (D5) until a new-enough CLI re-syncs them and populates `SessionData`. No server-side backfill job.
 - **D7 — Self-heal triggers via an explicit `session_data_size` signal.** The server exposes `session_data_size` on both sync-skip paths. **HEAD:** a new `X-Session-Data-Size` header (`NULL` coerced to `0`, so "legacy" and "no blob" read the same). **Bulk sizes:** the `GET …/sessions/sizes` response is a flat `{"<sessionID>": markdownSize}` map whose value type must stay a bare number for deployed CLIs — so rather than changing the shape (or minting a v2 endpoint), the server adds a **suffixed key per session**: `"<sessionID>:sessionData": <blob byte size>`, emitted only when `session_data_size` is non-`NULL`. This is backward-compatible by construction: old CLIs unmarshal the map fine (values are still numbers) and only ever do point lookups by plain sessionID, so the extra entries are inert; and `:` can't appear in a UUID, so keys can't collide. The new CLI reads `bulkSizes[sessionID+":sessionData"]` — Go's zero-value map lookup makes a missing key read as `0`, which is exactly the re-send signal, with no NULL handling anywhere. The CLI's `requiresSync` (`sync.go:460-595`) re-sends when **markdown is newer OR `serverSessionDataSize == 0`** (currently it compares markdown size only). `X-Markdown-Size` keeps its true meaning. Applies to both the HEAD path and the batch bulk-sizes path (so `specstory sync` heals too).
-- **D8 — Resume fetches the `SessionData` blob by streaming through the API**, not via a signed storage URL
-... (truncated)
+- **D8 — Resume fetches the `SessionData` blob by streaming through the API**, not via a signed storage URL. A new read (route or content-negotiated 
+… (output truncated)
+```
+
+```json
+{
+  "details": {
+    "truncation": {
+      "content": "# Cloud Resume \u0026 Search\n\nPlanning document for extending the CLI's `specstory resume` and `specstory search` to include sessions stored in SpecStory Cloud.\n\n\u003e Status: **DRAFT** — design converged (D1–D22), no open questions, implementation plan in §4 (three development chunks). Ready for review / build.\n\n## Goal\n\nExtend the CLI's local-only `resume` and `search` functionality to also surface sessions that live in SpecStory Cloud (pushed there by other machines via cloud sync). This spans:\n\n- **CLI** (this repo, `getspecstory` / `specstory-cli`)\n- **Cloud API** — the `specstory-sync` Cloudflare Worker (`sync-cloud/worker/`, Hono + Drizzle/Postgres + Supabase Storage). **Note:** this is *not* in `specstory-monorepo` (which holds the CLI, VSCode extension, and a web frontend that consumes the same API).\n\n## Decisions\n\n- **D1 — `SessionData` is the canonical cloud representation.** The CLI fetches `SessionData` from the cloud and reconstructs from it; the raw provider transcript (`rawData`) is never the cloud-resume path.\n- **D2 — The CLI pushes `SessionData` on sync.** The server stores it verbatim and serves it back, making `SessionData` the genuine source of truth end-to-end. Chosen over deriving `SessionData` server-side from parsed `exchanges` (rejected: reconstruction fidelity would be hostage to a markdown-oriented parse).\n- **D3 — `SessionData`'s *contents* are stored as a new object-storage blob only** (Supabase Storage, `{workspace}/{session}/session-data.json`), mirroring how `rawData` is stored today — **no column holds the blob contents** and nothing indexes into it. Its only reader is resume, which needs the whole blob. Small filterable fields (agent/provider) already ride in the `sessions.metadata` JSONB for list/dedup.\n- **D4 — `rawData` stays as-is.** It has a (new) consumer of its own, so it is untouched: the push keeps sending it and the server keeps writing `raw-data.json`. `SessionData` is **added alongside** `rawData`, not a replacement — the push gains a new `sessionData` field and the server writes a new `session-data.json` blob in addition to the existing writes.\n- **D5 — A `session_data_size INTEGER` (nullable) column on `sessions` tracks blob presence** (byte count, set in `Session.upsert` when the push carries `sessionData`), mirroring the existing `markdown_size` / `raw_data_size` columns. `NULL` = legacy/no blob; `\u003e 0` = cloud-resumable. Both read paths filter on it so browse/search only surface resumable cloud sessions — but the filter is **opt-in, not unconditional**: the list endpoint (`GET …/{projectId}/sessions`) is shared with the web app, and a blanket `WHERE session_data_size \u003e 0` would hide every legacy session from cloud.specstory.com until re-synced (regressing a surface this feature doesn't own, contrary to §3's additive promise). So the CLI passes a new **`?resumable=true`** query param, which adds `WHERE session_data_size \u003e 0`; without the param the endpoint behaves exactly as today. The aligned FTS search (D18) applies the same predicate on the `sessions` row unconditionally — it's a new resume-only surface, so no opt-in is needed there. Nullable represents the back-catalog with no backfill. This is metadata *about* the blob — consistent with D3, not a contents column.\n- **D6 — Back-catalog heals by re-sync, not backfill.** Legacy sessions (`session_data_size IS NULL`) are filtered out of resume browse/search (D5) until a new-enough CLI re-syncs them and populates `SessionData`. No server-side backfill job.\n- **D7 — Self-heal triggers via an explicit `session_data_size` signal.** The server exposes `session_data_size` on both sync-skip paths. **HEAD:** a new `X-Session-Data-Size` header (`NULL` coerced to `0`, so \"legacy\" and \"no blob\" read the same). **Bulk sizes:** the `GET …/sessions/sizes` response is a flat `{\"\u003csessionID\u003e\": markdownSize}` map whose value type must stay a bare number for deployed CLIs — so rather than changing the shape (or minting a v2 endpoint), the server adds a **suffixed key per session**: `\"\u003csessionID\u003e:sessionData\": \u003cblob byte size\u003e`, emitted only when `session_data_size` is non-`NULL`. This is backward-compatible by construction: old CLIs unmarshal the map fine (values are still numbers) and only ever do point lookups by plain sessionID, so the extra entries are inert; and `:` can't appear in a UUID, so keys can't collide. The new CLI reads `bulkSizes[sessionID+\":sessionData\"]` — Go's zero-value map lookup makes a missing key read as `0`, which is exactly the re-send signal, with no NULL handling anywhere. The CLI's `requiresSync` (`sync.go:460-595`) re-sends when **markdown is newer OR `serverSessionDataSize == 0`** (currently it compares markdown size only). `X-Markdown-Size` keeps its true meaning. Applies to both the HEAD path and the batch bulk-sizes path (so `specstory sync` heals too).\n- **D8 
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -2442,9 +3143,17 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:01:05Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`docs/CLOUD-RESUME.md`
-
+**Path:**
+```text
+docs/CLOUD-RESUME.md
 ```
+
+**Offset (line):**
+```text
+291
+```
+
+```markdown
 - **Server:** accept `sessionData` (`WriteSessionRequestSchema`) + `machineName` (`SessionMetadataSchema`, `shared/types.ts:71`; metadata block in `handleWriteSession`); write the `session-data.json` blob (D3); add + set the `sessions.session_data_size` column (D5); expose `X-Session-Data-Size` on HEAD and the suffixed `"<sessionID>:sessionData"` keys in `GET …/sessions/sizes` (D7); accept `Content-Encoding: gzip` on the PUT — **deploy this before the CLI ships** (D22).
 - **Validation:** push from two machines; confirm `session-data.json` blobs + `session_data_size`/`machineName` land; force a legacy session (no blob) and confirm re-sync heals it (size populates, no re-send once present); confirm a gzipped PUT round-trips and a no-header PUT (old-CLI shape) still works (D22). Purely additive — confirm existing web-app/markdown surfaces are unaffected.
 
@@ -2463,6 +3172,7 @@ Cross-machine full-text search, semantics-aligned to local, reusing Chunk 2's TU
 - **Server:** `exchanges.fts_simple` plain column + `BEFORE INSERT/UPDATE` trigger + GIN index (no backfill, D20); aligned search as a dedicated endpoint (own rate-limit bucket) — `to_tsquery('simple', …)` mirroring `ftsQuery` (D18), `ts_headline` snippets delimiter-matched to local (D19), recency sort + `limit 500` (D17/D21), `session_data_size > 0` filter.
 - **CLI:** call cloud search on its own fire-on-pause debounce (~600ms of typing silence, D11); merge into the search TUI reusing Chunk 2's dedup / machine filter / gating / async layering; render local + cloud snippets uniformly.
 - **Validation:** compare local vs cloud results for the same queries (stemming/stopword/prefix parity per D18); confirm snippets render identically, recency ordering across sources, the 500 cap, and that `fts_simple` populated via re-sync (no backfill run).
+
 ```
 </details></tool-use>
 
@@ -2478,9 +3188,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:01:07Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`/var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-07-13-11.52.18.png`
-
+**Path:**
+```text
+/var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-07-13-11.52.18.png
 ```
+
+```png
 Read image file [image/png]
 [Current model does not support images. The image will be omitted from this request.]
 ```
@@ -2490,9 +3203,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:01:07Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`/var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-07-13-11.55.54.png`
-
+**Path:**
+```text
+/var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-07-13-11.55.54.png
 ```
+
+```png
 Read image file [image/png]
 [Current model does not support images. The image will be omitted from this request.]
 ```
@@ -2510,7 +3226,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:01:15Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "modeProjects\|ListProjects\|listProjects\|cloud.*project\|Project.*cloud\|fetchCloudProjects\|CloudProject" --include="*.go" pkg/ | grep -v _test | grep -v .specstory | head -40`</summary>
+**Command:**
+```bash
+grep -rn "modeProjects\|ListProjects\|listProjects\|cloud.*project\|Project.*cloud\|fetchCloudProjects\|CloudProject" --include="*.go" pkg/ | grep -v _test | grep -v .specstory | head -40
 ```
+
+```text
 pkg/cmd/resume.go:54:	// cloud and reconstructs — even into the same agent. projectID is the cloud project to fetch
 pkg/cmd/resume.go:375:	raw, err := cloud.FetchSessionData(plan.projectID, plan.sessionID)
 pkg/cmd/session_tui_view.go:52:	case m.mode == modeProjects && m.globalActive:
@@ -2551,6 +3272,7 @@ pkg/cmd/session_tui_search.go:124:	kind tuiMode // modeList (project-scoped) or 
 pkg/cmd/session_tui_search.go:153:	if kind == modeProjects {
 pkg/cmd/session_tui_search.go:168:	if kind == modeProjects {
 pkg/cmd/session_tui_search.go:191:	if kind == modeProjects {
+
 ```
 </details></tool-use>
 
@@ -2558,10 +3280,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:01:16Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_browser.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_browser.go
 ```
-m.applyProjectFilter()
+
+**Offset (line):**
+```text
+340
+```
+
+**Limit:**
+```text
+170
+```
+
+```go
+		m.applyProjectFilter()
 		return m, nil
 	case "enter":
 		m.projSearching = false
@@ -2717,8 +3452,8 @@ func (m sessionTUI) projectRow(p sessionindex.ProjectSummary, selected bool) str
 	}
 	chips := m.agentCountChips(p.AgentCounts)
 	when := relativeTime(p.LastActivity)
-	return cursor + cloudMark(p.Is
-... (truncated)
+	return cursor + cloudMark(p.IsCloud) + " " + rende
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -2726,7 +3461,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:01:17Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "mergeCloudProjects\|ProjectSummary\|AgentCounts\|LastActivity\|IsCloud" pkg/cmd/session_tui_browser.go pkg/sessionindex/*.go | grep -v _test | head -40`</summary>
+**Command:**
+```bash
+grep -n "mergeCloudProjects\|ProjectSummary\|AgentCounts\|LastActivity\|IsCloud" pkg/cmd/session_tui_browser.go pkg/sessionindex/*.go | grep -v _test | head -40
 ```
+
+```text
 pkg/cmd/session_tui_browser.go:187:	fromCloud = s.IsCloud
 pkg/cmd/session_tui_browser.go:189:	if s.IsCloud {
 pkg/cmd/session_tui_browser.go:249:func (m *sessionTUI) drillInto(p sessionindex.ProjectSummary) {
@@ -2758,6 +3498,7 @@ pkg/sessionindex/store.go:712:		if last > ps.LastActivity {
 pkg/sessionindex/store.go:713:			ps.LastActivity = last
 pkg/sessionindex/store.go:720:	out := make([]ProjectSummary, 0, len(byID))
 pkg/sessionindex/store.go:724:	sort.Slice(out, func(i, j int) bool { return out[i].LastActivity > out[j].LastActivity })
+
 ```
 </details></tool-use>
 
@@ -2799,10 +3540,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:01:47Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/sessionindex/store.go`
-
+**Path:**
+```text
+pkg/sessionindex/store.go
 ```
-rows, err := s.db.Query(`SELECT `+sessionColumns+`
+
+**Offset (line):**
+```text
+660
+```
+
+**Limit:**
+```text
+80
+```
+
+```go
+	rows, err := s.db.Query(`SELECT `+sessionColumns+`
 		FROM sessions WHERE project_id = ? AND deleted = 0 ORDER BY updated_at DESC, created_at DESC`, projectID)
 	if err != nil {
 		return nil, err
@@ -2895,7 +3649,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:01:51Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "mergeCloudProjects\|cloudProjects\|FetchProjects\|ListCloudProjects\|fetchProjects\|handleListProjects" --include="*.go" pkg/ | grep -v _test | grep -v .specstory`</summary>
+**Command:**
+```bash
+grep -rn "mergeCloudProjects\|cloudProjects\|FetchProjects\|ListCloudProjects\|fetchProjects\|handleListProjects" --include="*.go" pkg/ | grep -v _test | grep -v .specstory
 ```
+
+```text
 pkg/cmd/session_tui.go:173:	cloudProjects []sessionindex.ProjectSummary // cloud-only projects, merged into the browser at filter time
 pkg/cmd/session_tui.go:346:	case cloudProjectsMsg:
 pkg/cmd/session_tui_browser.go:358:	if len(m.cloudProjects) > 0 {
@@ -2918,6 +3677,7 @@ pkg/cmd/session_tui_cloud.go:710:		m.cloudProjects = removeCloudProject(m.cloudP
 pkg/cloud/resume_client.go:69://   - id IS the project_id (git_id/workspace_id) — handleListProjects remaps `id := projectId`
 pkg/cloud/resume_client.go:159:// ListCloudProjects returns all projects the user has in the cloud, for blending cloud-only
 pkg/cloud/resume_client.go:161:func ListCloudProjects() ([]CloudProject, error) {
+
 ```
 </details></tool-use>
 
@@ -2925,10 +3685,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:01:53Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_cloud.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
 ```
-pro      bool
+
+**Offset (line):**
+```text
+180
+```
+
+**Limit:**
+```text
+120
+```
+
+```go
+	pro      bool
 }
 
 // cloudSessionsMsg carries a completed cloud fetch for a project. sessions is already converted
@@ -3057,9 +3830,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:01:54Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_cloud.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
 ```
+
+**Offset (line):**
+```text
+555
+```
+
+**Limit:**
+```text
+130
+```
+
+```go
+
 // applyCloudProjects records the cloud project list and, if the browser is showing, re-applies the
 // project filter so cloud-only projects appear immediately (preserving the highlighted project).
 func (m sessionTUI) applyCloudProjects(msg cloudProjectsMsg) (tea.Model, tea.Cmd) {
@@ -3202,10 +3989,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:01:56Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cloud/resume_client.go`
-
+**Path:**
+```text
+pkg/cloud/resume_client.go
 ```
-StartedAt string               `json:"startedAt"`
+
+**Offset (line):**
+```text
+60
+```
+
+**Limit:**
+```text
+130
+```
+
+```go
+	StartedAt string               `json:"startedAt"`
 	EndedAt   string               `json:"endedAt"`
 	Metadata  CloudSessionMetadata `json:"metadata"`
 }
@@ -3336,8 +4136,8 @@ func DeleteCloudSession(projectID, sessionID string) error {
 		return err
 	}
 
-[67 more lines 
-... (truncated)
+[67 more lines in file. Use 
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -3349,10 +4149,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:01:57Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "cloudToProjects" pkg/cmd/session_tui_cloud.go`</summary>
+**Command:**
+```bash
+grep -n "cloudToProjects" pkg/cmd/session_tui_cloud.go
 ```
+
+```text
 226:		return cloudProjectsMsg{projects: cloudToProjects(cp)}
 338:// cloudToProjects converts cloud project summaries to project rows for the blended browser. A
 343:func cloudToProjects(cs []cloud.CloudProject) []sessionindex.ProjectSummary {
+
 ```
 </details></tool-use>
 
@@ -3360,9 +4166,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:01:59Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_cloud.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
 ```
+
+**Offset (line):**
+```text
+338
+```
+
+**Limit:**
+```text
+40
+```
+
+```go
 // cloudToProjects converts cloud project summaries to project rows for the blended browser. A
 // project with zero sessions is skipped: a workspace can exist in the cloud with no sessions (e.g.
 // created on first push, its sessions since deleted), in which case last_session is null and its
@@ -3416,7 +4235,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:02:00Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "handleListProjects\|lastUpdated\|last_session\|sessionCount\|session_count\|/api/v1/projects\b" ../../specstory-sync/sync-cloud/worker/ --include="*.ts" | grep -v node_modules | head -30`</summary>
+**Command:**
+```bash
+grep -rn "handleListProjects\|lastUpdated\|last_session\|sessionCount\|session_count\|/api/v1/projects\b" ../../specstory-sync/sync-cloud/worker/ --include="*.ts" | grep -v node_modules | head -30
 ```
+
+```text
 ../../specstory-sync/sync-cloud/worker/routers/api/v1/projects_router.ts:5:  handleListProjects,
 ../../specstory-sync/sync-cloud/worker/routers/api/v1/projects_router.ts:16:    router.get("/api/v1/projects", async (request: ApiRequest) => {
 ../../specstory-sync/sync-cloud/worker/routers/api/v1/projects_router.ts:17:      return await handleListProjects(request);
@@ -3447,6 +4271,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:02:00Z)**_
 ../../specstory-sync/sync-cloud/worker/types.ts:460:          { name: "claude-sonnet-4", sessionCount: 98 },
 ../../specstory-sync/sync-cloud/worker/types.ts:461:          { name: "claude-opus-4", sessionCount: 44 },
 ../../specstory-sync/sync-cloud/worker/types.ts:464:          { name: "claude-code", version: "0.1.2", sessionCount: 120 },
+
 ```
 </details></tool-use>
 
@@ -3454,10 +4279,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:02:01Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "handleListProjects" ../../specstory-sync/sync-cloud/worker/handlers/projects.ts | head; echo "---"; wc -l ../../specstory-sync/sync-cloud/worker/handlers/projects.ts`</summary>
+**Command:**
+```bash
+grep -rn "handleListProjects" ../../specstory-sync/sync-cloud/worker/handlers/projects.ts | head; echo "---"; wc -l ../../specstory-sync/sync-cloud/worker/handlers/projects.ts
 ```
+
+```text
 ../../specstory-sync/sync-cloud/worker/handlers/projects.ts:26:export async function handleListProjects(
 ---
      359 ../../specstory-sync/sync-cloud/worker/handlers/projects.ts
+
 ```
 </details></tool-use>
 
@@ -3465,9 +4296,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:02:03Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/worker/handlers/projects.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/worker/handlers/projects.ts
 ```
+
+**Offset (line):**
+```text
+26
+```
+
+**Limit:**
+```text
+130
+```
+
+```typescript
 export async function handleListProjects(
   request: ApiRequest
 ): Promise<Response> {
@@ -3611,7 +4455,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:02:05Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "listWorkspaces\|lastUpdated\|last_session\|sessionCount\|lastSessionAt\|last_session_at" ../../specstory-sync/sync-cloud/worker/ ../../specstory-sync/shared/ --include="*.ts" 2>/dev/null | grep -v node_modules | grep -v types.ts | head -30`</summary>
+**Command:**
+```bash
+grep -rn "listWorkspaces\|lastUpdated\|last_session\|sessionCount\|lastSessionAt\|last_session_at" ../../specstory-sync/sync-cloud/worker/ ../../specstory-sync/shared/ --include="*.ts" 2>/dev/null | grep -v node_modules | grep -v types.ts | head -30
 ```
+
+```text
 ../../specstory-sync/sync-cloud/worker/supabase.ts:124:    sessionCount: 0, // Will be calculated when needed
 ../../specstory-sync/sync-cloud/worker/supabase.ts:125:    lastUpdated: workspace.updated_at as string,
 ../../specstory-sync/sync-cloud/worker/supabase.ts:130:export async function listWorkspaces(
@@ -3642,6 +4491,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:02:05Z)**_
 ../../specstory-sync/sync-cloud/worker/handlers/lore.ts:303:        ? body.sessionCount
 ../../specstory-sync/sync-cloud/worker/handlers/lore.ts:319:      sessionCount,
 ../../specstory-sync/sync-cloud/worker/handlers/lore.ts:1689:    const sessionsMined = rs.reduce((acc, s) => acc + (s.sessionCount ?? 0), 0);
+
 ```
 </details></tool-use>
 
@@ -3649,10 +4499,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:02:06Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/worker/supabase.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/worker/supabase.ts
 ```
-);
+
+**Offset (line):**
+```text
+110
+```
+
+**Limit:**
+```text
+60
+```
+
+```typescript
+    );
   }
 
   if (!workspace) {
@@ -3740,11 +4603,17 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:02:11Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rln "workspace_sessions_summary" ../../specstory-sync/supabase/migrations/ 2>/dev/null; echo "---"; grep -rn "workspace_sessions_summary" ../../specstory-sync/supabase/migrations/ 2>/dev/null | head`</summary>
+**Command:**
+```bash
+grep -rln "workspace_sessions_summary" ../../specstory-sync/supabase/migrations/ 2>/dev/null; echo "---"; grep -rn "workspace_sessions_summary" ../../specstory-sync/supabase/migrations/ 2>/dev/null | head
 ```
+
+```text
 ../../specstory-sync/supabase/migrations/20250815133818_add_icon_color_to_workspaces.sql
 ---
 ../../specstory-sync/supabase/migrations/20250815133818_add_icon_color_to_workspaces.sql:13:-- Update the workspace_sessions_summary view to include icon and color
 ../../specstory-sync/supabase/migrations/20250815133818_add_icon_color_to_workspaces.sql:14:CREATE OR REPLACE VIEW workspace_sessions_summary AS
+
 ```
 </details></tool-use>
 
@@ -3752,9 +4621,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:02:12Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/supabase/migrations/20250815133818_add_icon_color_to_workspaces.sql`
-
+**Path:**
+```text
+../../specstory-sync/supabase/migrations/20250815133818_add_icon_color_to_workspaces.sql
 ```
+
+```sql
 -- Add icon and color columns to workspaces table
 ALTER TABLE workspaces 
 ADD COLUMN IF NOT EXISTS icon TEXT,
@@ -3801,7 +4673,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:02:14Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "listResumableSessionsForWorkspace\|listSessionsForWorkspace" ../../specstory-sync/sync-cloud/worker/ --include="*.ts" | grep -v node_modules | head`</summary>
+**Command:**
+```bash
+grep -rn "listResumableSessionsForWorkspace\|listSessionsForWorkspace" ../../specstory-sync/sync-cloud/worker/ --include="*.ts" | grep -v node_modules | head
 ```
+
+```text
 ../../specstory-sync/sync-cloud/worker/supabase.ts:247:// Deliberately LEAN next to listSessionsForWorkspace below — no exchanges embed and, crucially,
 ../../specstory-sync/sync-cloud/worker/supabase.ts:251:export async function listResumableSessionsForWorkspace(
 ../../specstory-sync/sync-cloud/worker/supabase.ts:290:export async function listSessionsForWorkspace(
@@ -3811,6 +4688,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:02:14Z)**_
 ../../specstory-sync/sync-cloud/worker/handlers/projects.ts:14:  listResumableSessionsForWorkspace,
 ../../specstory-sync/sync-cloud/worker/handlers/projects.ts:128:      ? await listResumableSessionsForWorkspace(request, projectId, limit)
 ../../specstory-sync/sync-cloud/worker/handlers/projects.ts:129:      : await listSessionsForWorkspace(request, projectId, limit);
+
 ```
 </details></tool-use>
 
@@ -3818,9 +4696,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:02:16Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/worker/supabase.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/worker/supabase.ts
 ```
+
+**Offset (line):**
+```text
+247
+```
+
+**Limit:**
+```text
+95
+```
+
+```typescript
 // Deliberately LEAN next to listSessionsForWorkspace below — no exchanges embed and, crucially,
 // no per-session first-exchange lookup (up to `limit` — 500 for the CLI — SEQUENTIAL Supabase
 // round-trips there), which would make D11's "searching cloud…" pass chronically slow / time
@@ -3935,7 +4826,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:02:18Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "agentName\|machineName\|deviceId\|SessionMetadata" ../../specstory-sync/shared/types.ts | head -20; echo "--- toSessionSummary ---"; grep -n "toSessionSummary" ../../specstory-sync/sync-cloud/worker/supabase.ts`</summary>
+**Command:**
+```bash
+grep -n "agentName\|machineName\|deviceId\|SessionMetadata" ../../specstory-sync/shared/types.ts | head -20; echo "--- toSessionSummary ---"; grep -n "toSessionSummary" ../../specstory-sync/sync-cloud/worker/supabase.ts
 ```
+
+```text
 100:export const SessionMetadataSchema = z.object({
 103:  agentName: z.string().optional(),
 104:  deviceId: z.string().optional(),
@@ -3949,6 +4845,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:02:18Z)**_
 221:function toSessionSummary(
 287:  return sessions.map((session) => toSessionSummary(session, projectId, 0, ""));
 352:    toSessionSummary(
+
 ```
 </details></tool-use>
 
@@ -3956,9 +4853,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:02:21Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/worker/supabase.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/worker/supabase.ts
 ```
+
+**Offset (line):**
+```text
+221
+```
+
+**Limit:**
+```text
+30
+```
+
+```typescript
 function toSessionSummary(
   session: Record<string, unknown>,
   projectId: string,
@@ -4189,7 +5099,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:04:50Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "cloudResumeLimit\|ListAll\|AllSessions\|func (s \*Store)" pkg/cloud/resume_client.go pkg/sessionindex/store.go | grep -v _test | head -40`</summary>
+**Command:**
+```bash
+grep -n "cloudResumeLimit\|ListAll\|AllSessions\|func (s \*Store)" pkg/cloud/resume_client.go pkg/sessionindex/store.go | grep -v _test | head -40
 ```
+
+```text
 pkg/cloud/resume_client.go:18:	// cloudResumeLimit caps how many sessions the cloud contributes, matching local search's
 pkg/cloud/resume_client.go:20:	cloudResumeLimit = 500
 pkg/cloud/resume_client.go:101:// SessionData blob (?resumable=true), newest-first, capped at cloudResumeLimit.
@@ -4216,6 +5131,7 @@ pkg/sessionindex/store.go:755:func (s *Store) Search(query, projectID string) ([
 pkg/sessionindex/store.go:763:func (s *Store) SearchContext(ctx context.Context, query, projectID string) ([]Session, error) {
 pkg/sessionindex/store.go:792:func (s *Store) Snippets(query string, sessions []Session) (map[string]string, error) {
 pkg/sessionindex/store.go:799:func (s *Store) SnippetsContext(ctx context.Context, query string, sessions []Session) (map[string]string, error) {
+
 ```
 </details></tool-use>
 
@@ -4223,9 +5139,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:04:55Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/sessionindex/store.go`
-
+**Path:**
+```text
+pkg/sessionindex/store.go
 ```
+
+**Offset (line):**
+```text
+289
+```
+
+**Limit:**
+```text
+25
+```
+
+```go
 func (s *Store) Fingerprints() (map[string]Fingerprint, error) {
 	rows, err := s.db.Query(`SELECT agent, session_id, size, mtime, index_version, deleted FROM sessions`)
 	if err != nil {
@@ -4421,10 +5350,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:20:14Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/shared/types.ts`
-
+**Path:**
+```text
+../../specstory-sync/shared/types.ts
 ```
-rawDataSize: z.number(),
+
+**Offset (line):**
+```text
+200
+```
+
+**Limit:**
+```text
+60
+```
+
+```typescript
+  rawDataSize: z.number(),
   createdAt: z.string(),
   updatedAt: z.string(),
   startedAt: z.string().optional(),
@@ -4482,6 +5424,7 @@ export interface ChatHistory {
   role: "user" | "assistant";
   content: string;
 }
+
 ```
 </details></tool-use>
 
@@ -4489,9 +5432,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:20:14Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/worker/routers/api/v1/projects_router.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/worker/routers/api/v1/projects_router.ts
 ```
+
+```typescript
 import type { AutoRouterType } from "itty-router";
 import type { ApiRequest } from "../../../types";
 
@@ -4549,6 +5495,7 @@ export default class ProjectsRouter {
     );
   }
 }
+
 ```
 </details></tool-use>
 
@@ -4564,7 +5511,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:20:16Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "ListProjectsResponse\|ListSessionsResponse\|ProjectSummary\|Workspace " ../../specstory-sync/shared/types.ts | head; echo "---"; grep -n "interface Workspace\b\|type Workspace\b\|Workspace =\|export.*Workspace" ../../specstory-sync/sync-cloud/worker/supabase.ts ../../specstory-sync/shared/types.ts | grep -v node_modules | head`</summary>
+**Command:**
+```bash
+grep -n "ListProjectsResponse\|ListSessionsResponse\|ProjectSummary\|Workspace " ../../specstory-sync/shared/types.ts | head; echo "---"; grep -n "interface Workspace\b\|type Workspace\b\|Workspace =\|export.*Workspace" ../../specstory-sync/sync-cloud/worker/supabase.ts ../../specstory-sync/shared/types.ts | grep -v node_modules | head
 ```
+
+```text
 119:export const ProjectSummarySchema = z.object({
 168:  project: ProjectSummarySchema,
 191:export type Workspace = z.infer<typeof WorkspaceSchema>;
@@ -4579,6 +5531,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:20:16Z)**_
 ../../specstory-sync/sync-cloud/worker/supabase.ts:923:export async function deleteWorkspace(workspaceId: string): Promise<{
 ../../specstory-sync/shared/types.ts:174:export const WorkspaceSchema = z.object({
 ../../specstory-sync/shared/types.ts:191:export type Workspace = z.infer<typeof WorkspaceSchema>;
+
 ```
 </details></tool-use>
 
@@ -4586,9 +5539,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:20:17Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/shared/types.ts`
-
+**Path:**
+```text
+../../specstory-sync/shared/types.ts
 ```
+
+**Offset (line):**
+```text
+119
+```
+
+**Limit:**
+```text
+75
+```
+
+```typescript
 export const ProjectSummarySchema = z.object({
   id: z.string().optional(),
   name: z.string().optional(),
@@ -4673,10 +5639,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:20:18Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/shared/types.ts`
-
+**Path:**
+```text
+../../specstory-sync/shared/types.ts
 ```
-id: z.string().uuid(),
+
+**Offset (line):**
+```text
+194
+```
+
+**Limit:**
+```text
+25
+```
+
+```typescript
+  id: z.string().uuid(),
   clientId: z.string(), // native session id (== the CLI's local session_id); needed for cloud resume
   projectId: z.string(),
   name: z.string(),
@@ -4710,11 +5689,17 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:20:19Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "ListProjectsResponse\|ListSessionsResponse" ../../specstory-sync/sync-cloud/worker/types.ts ../../specstory-sync/shared/types.ts | head`</summary>
+**Command:**
+```bash
+grep -n "ListProjectsResponse\|ListSessionsResponse" ../../specstory-sync/sync-cloud/worker/types.ts ../../specstory-sync/shared/types.ts | head
 ```
+
+```text
 ../../specstory-sync/sync-cloud/worker/types.ts:269:export const ListProjectsResponseSchema = ApiResponse.extend({
 ../../specstory-sync/sync-cloud/worker/types.ts:285:export type ListProjectsResponse = z.infer<typeof ListProjectsResponseSchema>;
 ../../specstory-sync/sync-cloud/worker/types.ts:1215:export const ListSessionsResponseSchema = ApiResponse.extend({
 ../../specstory-sync/sync-cloud/worker/types.ts:1253:export type ListSessionsResponse = z.infer<typeof ListSessionsResponseSchema>;
+
 ```
 </details></tool-use>
 
@@ -4722,9 +5707,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:20:23Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/worker/types.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/worker/types.ts
 ```
+
+**Offset (line):**
+```text
+265
+```
+
+**Limit:**
+```text
+30
+```
+
+```typescript
 });
 
 export type ProjectDetailResponse = z.infer<typeof ProjectDetailResponseSchema>;
@@ -4764,7 +5762,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:20:25Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "ProjectSchema =\|ProjectSchema\b" ../../specstory-sync/sync-cloud/worker/types.ts | head; echo "---"; sed -n '220,265p' ../../specstory-sync/sync-cloud/worker/types.ts`</summary>
+**Command:**
+```bash
+grep -n "ProjectSchema =\|ProjectSchema\b" ../../specstory-sync/sync-cloud/worker/types.ts | head; echo "---"; sed -n '220,265p' ../../specstory-sync/sync-cloud/worker/types.ts
 ```
+
+```text
 249:export const ProjectSchema = WorkspaceSchema.extend({
 255:    project: ProjectSchema,
 271:    projects: z.array(ProjectSchema),
@@ -4816,6 +5819,7 @@ export const ProjectDetailResponseSchema = ApiResponse.extend({
     },
   },
 });
+
 ```
 </details></tool-use>
 
@@ -4831,9 +5835,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:20:27Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/worker/supabase.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/worker/supabase.ts
 ```
+
+**Offset (line):**
+```text
+46
+```
+
+**Limit:**
+```text
+25
+```
+
+```typescript
 export async function getAccessibleWorkspaceIds(
   userId: string,
   options?: { projectId?: string }
@@ -4900,9 +5917,17 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:20:31Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`docs/CLOUD-RESUME.md`
-
+**Path:**
+```text
+docs/CLOUD-RESUME.md
 ```
+
+**Offset (line):**
+```text
+288
+```
+
+```markdown
 Get `SessionData` flowing into the cloud and start healing the back-catalog. No user-facing change yet; everything downstream depends on this data existing.
 
 - **CLI:** thread `sessionData` through `SyncSessionToCloud → performSync → APIRequest`; add `metadata.machineName = os.Hostname()` (D2, D9). `rawData` untouched (D4). Extend `requiresSync` to re-send on `serverSessionDataSize == 0`, reading `X-Session-Data-Size` (HEAD) and the suffixed `"<sessionID>:sessionData"` bulk-sizes key (D7). Gzip the PUT body; raise the PUT timeout to 60s and `CloudSyncTimeout` to 180s (D22).
@@ -4924,6 +5949,7 @@ Cross-machine full-text search, semantics-aligned to local, reusing Chunk 2's TU
 - **Server:** `exchanges.fts_simple` plain column + `BEFORE INSERT/UPDATE` trigger + GIN index (no backfill, D20); aligned search as a dedicated endpoint (own rate-limit bucket) — `to_tsquery('simple', …)` mirroring `ftsQuery` (D18), `ts_headline` snippets delimiter-matched to local (D19), recency sort + `limit 500` (D17/D21), `session_data_size > 0` filter.
 - **CLI:** call cloud search on its own fire-on-pause debounce (~600ms of typing silence, D11); merge into the search TUI reusing Chunk 2's dedup / machine filter / gating / async layering; render local + cloud snippets uniformly.
 - **Validation:** compare local vs cloud results for the same queries (stemming/stopword/prefix parity per D18); confirm snippets render identically, recency ordering across sources, the 500 cap, and that `fts_simple` populated via re-sync (no backfill run).
+
 ```
 </details></tool-use>
 
@@ -4935,10 +5961,100 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:20:46Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`docs/CLOUD-RESUME.md`
-
+**Path:**
+```text
+docs/CLOUD-RESUME.md
 ```
+
+**Edit 1:**
+```diff
+-- **Validation:** compare local vs cloud results for the same queries (stemming/stopword/prefix parity per D18); confirm snippets render identically, recency ordering across sources, the 500 cap, and that `fts_simple` populated via re-sync (no backfill run).
++- **Validation:** compare local vs cloud results for the same queries (stemming/stopword/prefix parity per D18); confirm snippets render identically, recency ordering across sources, the 500 cap, and that `fts_simple` populated via re-sync (no backfill run).
++
++### Chunk 4 — Accurate all-projects rollup (projects-view data quality)
++
++The all-projects browser (`modeProjects`) blends cloud-only projects into the local list, but the rollup has three data-quality defects surfaced after Chunk 2 landed:
++
++1. **Date shows "now" instead of real activity on cloud rows.** `cloudToProjects` sets `LastActivity = c.LastUpdated`, and the server's `workspace_sessions_summary` view computes `last_session = MAX(s.updated_at)` — `updated_at` is the **sync/push** timestamp (reset to `now()` on every upsert), not real session activity. There is a stale TODO (`supabase.ts:158`) to use `GREATEST(ended_at, started_at, updated_at)`. The drill-in path doesn't have this bug: `listResumableSessionsForWorkspace` orders by `ended_at` and `cloudToSessions` uses `firstNonEmpty(EndedAt, StartedAt, UpdatedAt)`.
++2. **Cloud-only projects lose the agent/session chips.** `cloudToProjects` sets `AgentCounts = nil` (the `ProjectSummary` comment says so: "the cloud list has no per-agent breakdown"), and `projectRow` renders **only** `agentCountChips` — so a cloud-only project shows no chips at all. The server returns only a scalar `sessionCount`, no per-agent breakdown.
++3. **Shared projects (local + cloud) don't merge at the session level.** `mergeCloudProjects` is a pure "local wins, cloud-only appended" dedup keyed on `project_id` — for a project present in both stores, **all** its cloud sessions are discarded. If the cloud has sessions the local index doesn't (pruned locally, or never worked on this machine), they don't contribute to the chips or the total. The session **drill-in** view already merges correctly (`mergeCloudRows`, dedup by `(agent, session_id)`, local preferred, re-sort); the projects rollup does not.
++
++- **D23 — The all-projects rollup is computed client-side from per-session data, not a server rollup.** The CLI fetches the user's resumable cloud sessions **with their project attribution**, groups them by `project_id`, merges with the local per-project session-key set (dedup by `(agent, session_id)`, **local preferred** — identical rule to `mergeCloudRows`), and recomputes `AgentCounts` / `LastActivity` / `Sessions` from the union. This is the only option that fixes all three defects: cloud-only projects get real chips + a real date (from per-session `ended_at`), and shared projects reflect cloud-only sessions in their counts without double-counting overlaps. Chosen over a server-side per-agent rollup (which would fix the date and cloud-only chips but still leave shared projects' cloud-only sessions uncounted, because the client has no way to subtract local overlaps from a server count) and over a server rollup + fingerprint-set hybrid (a neither-fish-nor-fowl payload whose savings over the per-session shape are modest once the fingerprint tuples ride along). Machine provenance (`deviceId`/`machineName`) lands per session for free, matching D9 — not needed for v1's project row but available for a future machine badge/filter in this view.
++- **D24 — `GET /api/v1/projects?resumable=true` embeds each project's resumable sessions.** Extends the existing projects endpoint with an opt-in `?resumable=true` param, **Pro-gated only when the param is present** (mirroring the sibling `GET …/{projectId}/sessions?resumable=true` in D5 — without the param the endpoint behaves exactly as today, so the web app's ungated `listWorkspaces` listing is untouched). With the param, each project carries an embedded `sessions[]` of its resumable sessions (`SessionSummary` shape, already produced by `toSessionSummary`) — reusing the per-session `metadata` (agentName/machineName/deviceId) and real activity timestamps (`endedAt`/`startedAt`) that the drill-in path already returns. Projects with **zero** resumable sessions are dropped, killing the phantom-zero-session case `cloudToProjects` currently guards against with `SessionCount == 0`. Chosen over a new flat `GET /api/v1/sessions?resumable=true` (B2): keeps the projects endpoint as the single source for the projects view, the server naturally drops empty projects, and it mirrors the established `?resumable=true` pattern.
++- **D25 — No payload cap on the all-projects session fetch.** Accurate counts need **all** resumable sessions, not just the newest 500 — otherwise older projects' sessions vanish from the rollup (the drill-in's per-project `cloudResumeLimit = 500` is fine *inside* one project, but a 500 cap across all projects would silently hide most of them). The fetch is a one-shot on entering the browser; a compact `SessionSummary` tuple is small, and typical users have hundreds–low thousands of resumable sessions. Revisit with a high safety cap if heavy users show latency. Ordered by `ended_at` desc, `updated_at` desc (same ordering as the drill-in list).
++- **D26 — Fix `workspace_sessions_summary.last_session` to use real activity, for the web app's benefit.** While in the server, replace `MAX(s.updated_at)` with `MAX(COALESCE(s.ended_at, s.started_at, s.updated_at))` in the view (the stale TODO at `supabase.ts:158`). The CLI's cloud-projects path no longer reads `lastUpdated` under D23, so this is **not** required for the CLI fix — but the web app's `listWorkspaces` listing still consumes the view, and the sync-time-as-activity bug regresses that surface for any project whose sessions have been re-pushed. Purely additive (a view `CREATE OR REPLACE`), no data migration.
++
++#### Work items
++
++- **Server (`specstory-sync`):**
++  - `handleListProjects` — read `?resumable=true`; when present, run `requireFeature("resume")` (defense in depth, D10) and return projects with embedded resumable `sessions[]` (generalize `listResumableSessionsForWorkspace`'s query across all the user's accessible workspaces in one Supabase call, `in("workspace_id", …)` + `gt("session_data_size", 0)` + the existing `ended_at`/`updated_at` ordering, no `limit`); drop projects whose embedded session list is empty. Without the param, today's `listWorkspaces` path is unchanged.
++  - Migration: `CREATE OR REPLACE VIEW workspace_sessions_summary` with `MAX(COALESCE(s.ended_at, s.started_at, s.updated_at)) as last_session` (D26).
++- **CLI (`specstory-cli`):**
++  - `pkg/cloud/resume_client.go`: extend `ListCloudProjects` (or a new `ListCloudProjectsResumable`) to call `?resumable=true` and decode the embedded `sessions[]` per project (`CloudSession` shape, already used by the drill-in).
++  - `pkg/sessionindex/store.go`: add a query returning every local (non-deleted) session's `(project_id, agent, session_id, updated_at)` — the per-project key set the merge dedups against. (`Fingerprints()` enumerates all sessions but lacks `project_id`/`updated_at`.)
++  - `pkg/cmd/session_tui_cloud.go`: replace `cloudToProjects` + `mergeCloudProjects` with a session-level rollup — group cloud sessions by `project_id`, merge with the local per-project key set (dedup by `FingerprintKey(agent, session_id)`, local preferred), recompute `AgentCounts` (agent → count over the union), `LastActivity` (`max` over the union's activity times, parsed from RFC3339 so local + cloud timestamps compare correctly), `Sessions` (union length). `IsCloud = true` only for projects with **no** local sessions; shared projects keep `IsCloud = false` but now reflect cloud-only sessions. `LastActivity` per session uses `firstNonEmpty(EndedAt, StartedAt, UpdatedAt)` — identical to the drill-in `cloudToSessions`, which is what fixes the "now" date.
++  - `projectRow` needs no render change — `AgentCounts` is populated for every row now, so `agentCountChips` renders for cloud-only and shared projects alike. (Confirm the cloud-only row also reads correctly when `AgentCounts` is non-nil but `Sessions` differs from the chip sum — today's local rows show chips only, no total, so matching that is consistent.)
++- **Validation:**
++  - Cloud-only project (synced, then removed locally) → real per-agent chips + real activity date (not "now").
++  - Project present in both stores with cloud-only sessions → chips/total reflect the union, no double-count on overlapping sessions, real date.
++  - Cursor/selection preserved across the async merge (existing `applyCloudProjects` already preserves the highlighted project).
++  - Offline / not-logged-in / not-Pro → degrade-to-local / nudge unchanged (the `?resumable=true` request is skipped when ineligible, exactly as today).
++  - Web app's `listWorkspaces` listing shows real activity dates after the view fix (D26).
+```
+
+```text
 Successfully replaced 1 block(s) in docs/CLOUD-RESUME.md.
+```
+
+**diff:**
+```diff
+     ...
+ 305 
+ 306 - **Server:** `exchanges.fts_simple` plain column + `BEFORE INSERT/UPDATE` trigger + GIN index (no backfill, D20); aligned search as a dedicated endpoint (own rate-limit bucket) — `to_tsquery('simple', …)` mirroring `ftsQuery` (D18), `ts_headline` snippets delimiter-matched to local (D19), recency sort + `limit 500` (D17/D21), `session_data_size > 0` filter.
+ 307 - **CLI:** call cloud search on its own fire-on-pause debounce (~600ms of typing silence, D11); merge into the search TUI reusing Chunk 2's dedup / machine filter / gating / async layering; render local + cloud snippets uniformly.
+ 308 - **Validation:** compare local vs cloud results for the same queries (stemming/stopword/prefix parity per D18); confirm snippets render identically, recency ordering across sources, the 500 cap, and that `fts_simple` populated via re-sync (no backfill run).
++309 
++310 ### Chunk 4 — Accurate all-projects rollup (projects-view data quality)
++311 
++312 The all-projects browser (`modeProjects`) blends cloud-only projects into the local list, but the rollup has three data-quality defects surfaced after Chunk 2 landed:
++313 
++314 1. **Date shows "now" instead of real activity on cloud rows.** `cloudToProjects` sets `LastActivity = c.LastUpdated`, and the server's `workspace_sessions_summary` view computes `last_session = MAX(s.updated_at)` — `updated_at` is the **sync/push** timestamp (reset to `now()` on every upsert), not real session activity. There is a stale TODO (`supabase.ts:158`) to use `GREATEST(ended_at, started_at, updated_at)`. The drill-in path doesn't have this bug: `listResumableSessionsForWorkspace` orders by `ended_at` and `cloudToSessions` uses `firstNonEmpty(EndedAt, StartedAt, UpdatedAt)`.
++315 2. **Cloud-only projects lose the agent/session chips.** `cloudToProjects` sets `AgentCounts = nil` (the `ProjectSummary` comment says so: "the cloud list has no per-agent breakdown"), and `projectRow` renders **only** `agentCountChips` — so a cloud-only project shows no chips at all. The server returns only a scalar `sessionCount`, no per-agent breakdown.
++316 3. **Shared projects (local + cloud) don't merge at the session level.** `mergeCloudProjects` is a pure "local wins, cloud-only appended" dedup keyed on `project_id` — for a project present in both stores, **all** its cloud sessions are discarded. If the cloud has sessions the local index doesn't (pruned locally, or never worked on this machine), they don't contribute to the chips or the total. The session **drill-in** view already merges correctly (`mergeCloudRows`, dedup by `(agent, session_id)`, local preferred, re-sort); the projects rollup does not.
++317 
++318 - **D23 — The all-projects rollup is computed client-side from per-session data, not a server rollup.** The CLI fetches the user's resumable cloud sessions **with their project attribution**, groups them by `project_id`, merges with the local per-project session-key set (dedup by `(agent, session_id)`, **local preferred** — identical rule to `mergeCloudRows`), and recomputes `AgentCounts` / `LastActivity` / `Sessions` from the union. This is the only option that fixes all three defects: cloud-only projects get real chips + a real date (from per-session `ended_at`), and shared projects reflect cloud-only sessions in their counts without double-counting overlaps. Chosen over a server-side per-agent rollup (which would fix the date and cloud-only chips but still leave shared projects' cloud-only sessions uncounted, because the client has no way to subtract local overlaps from a server count) and over a server rollup + fingerprint-set hybrid (a neither-fish-nor-fowl payload whose savings over the per-session shape are modest once the fingerprint tuples ride along). Machine provenance (`deviceId`/`machineName`) lands per session for free, matching D9 — not needed for v1's project row but available for a future machine badge/filter in this view.
++319 - **D24 — `GET /api/v1/projects?resumable=true` embeds each project's resumable sessions.** Extends the existing projects endpoint with an opt-in `?resumable=true` param, **Pro-gated only when the param is present** (mirroring the sibling `GET …/{projectId}/sessions?resumable=true` in D5 — without the param the endpoint behaves exactly as today, so the web app's ungated `listWorkspaces` listing is untouched). With the param, each project carries an embedded `sessions[]` of its resumable sessions (`SessionSummary` shape, already produced by `toSessionSummary`) — reusing the per-session `metadata` (agentName/machineName/deviceId) and real activity timestamps (`endedAt`/`startedAt`) that the drill-in path already returns. Projects with **zero** resumable sessions are dropped, killing the phantom-zero-session case `cloudToProjects` currently guards against with `SessionCount == 0`. Chosen over a new flat `GET /api/v1/sessions?resumable=true` (B2): keeps the projects endpoint as the single source for the projects view, the server naturally
+… (output truncated)
+```
+
+**patch:**
+```diff
+--- docs/CLOUD-RESUME.md
++++ docs/CLOUD-RESUME.md
+@@ -305,4 +305,34 @@
+ 
+ - **Server:** `exchanges.fts_simple` plain column + `BEFORE INSERT/UPDATE` trigger + GIN index (no backfill, D20); aligned search as a dedicated endpoint (own rate-limit bucket) — `to_tsquery('simple', …)` mirroring `ftsQuery` (D18), `ts_headline` snippets delimiter-matched to local (D19), recency sort + `limit 500` (D17/D21), `session_data_size > 0` filter.
+ - **CLI:** call cloud search on its own fire-on-pause debounce (~600ms of typing silence, D11); merge into the search TUI reusing Chunk 2's dedup / machine filter / gating / async layering; render local + cloud snippets uniformly.
+ - **Validation:** compare local vs cloud results for the same queries (stemming/stopword/prefix parity per D18); confirm snippets render identically, recency ordering across sources, the 500 cap, and that `fts_simple` populated via re-sync (no backfill run).
++
++### Chunk 4 — Accurate all-projects rollup (projects-view data quality)
++
++The all-projects browser (`modeProjects`) blends cloud-only projects into the local list, but the rollup has three data-quality defects surfaced after Chunk 2 landed:
++
++1. **Date shows "now" instead of real activity on cloud rows.** `cloudToProjects` sets `LastActivity = c.LastUpdated`, and the server's `workspace_sessions_summary` view computes `last_session = MAX(s.updated_at)` — `updated_at` is the **sync/push** timestamp (reset to `now()` on every upsert), not real session activity. There is a stale TODO (`supabase.ts:158`) to use `GREATEST(ended_at, started_at, updated_at)`. The drill-in path doesn't have this bug: `listResumableSessionsForWorkspace` orders by `ended_at` and `cloudToSessions` uses `firstNonEmpty(EndedAt, StartedAt, UpdatedAt)`.
++2. **Cloud-only projects lose the agent/session chips.** `cloudToProjects` sets `AgentCounts = nil` (the `ProjectSummary` comment says so: "the cloud list has no per-agent breakdown"), and `projectRow` renders **only** `agentCountChips` — so a cloud-only project shows no chips at all. The server returns only a scalar `sessionCount`, no per-agent breakdown.
++3. **Shared projects (local + cloud) don't merge at the session level.** `mergeCloudProjects` is a pure "local wins, cloud-only appended" dedup keyed on `project_id` — for a project present in both stores, **all** its cloud sessions are discarded. If the cloud has sessions the local index doesn't (pruned locally, or never worked on this machine), they don't contribute to the chips or the total. The session **drill-in** view already merges correctly (`mergeCloudRows`, dedup by `(agent, session_id)`, local preferred, re-sort); the projects rollup does not.
++
++- **D23 — The all-projects rollup is computed client-side from per-session data, not a server rollup.** The CLI fetches the user's resumable cloud sessions **with their project attribution**, groups them by `project_id`, merges with the local per-project session-key set (dedup by `(agent, session_id)`, **local preferred** — identical rule to `mergeCloudRows`), and recomputes `AgentCounts` / `LastActivity` / `Sessions` from the union. This is the only option that fixes all three defects: cloud-only projects get real chips + a real date (from per-session `ended_at`), and shared projects reflect cloud-only sessions in their counts without double-counting overlaps. Chosen over a server-side per-agent rollup (which would fix the date and cloud-only chips but still leave shared projects' cloud-only sessions uncounted, because the client has no way to subtract local overlaps from a server count) and over a server rollup + fingerprint-set hybrid (a neither-fish-nor-fowl payload whose savings over the per-session shape are modest once the fingerprint tuples ride along). Machine provenance (`deviceId`/`machineName`) lands per session for free, matching D9 — not needed for v1's project row but available for a future machine badge/filter in this view.
++- **D24 — `GET /api/v1/projects?resumable=true` embeds each project's resumable sessions.** Extends the existing projects endpoint with an opt-in `?resumable=true` param, **Pro-gated only when the param is present** (mirroring the sibling `GET …/{projectId}/sessions?resumable=true` in D5 — without the param the endpoint behaves exactly as today, so the web app's ungated `listWorkspaces` listing is untouched). With the param, each project carries an embedded `sessions[]` of its resumable sessions (`SessionSummary` shape, already produced by `toSessionSummary`) — reusing the per-session `metadata` (agentName/machineName/deviceId) and real activity timestamps (`endedAt`/`startedAt`) that the drill-in path already returns. Projects with **zero** resumable sessions are dropped, killing the phantom-zero-session case `cloudToProjects` currently guards against with `SessionCount == 0`. Chosen over a new flat `GET /api/v1/sessions?resumable=true` (B2): keeps the projects endpoint as the single source for the projects view, the server natural
+… (output truncated)
+```
+
+**Details:**
+```json
+{
+  "firstChangedLine": 309
+}
 ```
 </details></tool-use>
 
@@ -4976,9 +6092,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:20:50Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "generateResponse" ../../specstory-sync/sync-cloud/worker/utils/*.ts ../../specstory-sync/sync-cloud/worker/*.ts 2>/dev/null | grep -v node_modules | head; echo "---def---"; grep -rln "export.*generateResponse\|function generateResponse" ../../specstory-sync/sync-cloud/ --include="*.ts" | grep -v node_modules`</summary>
+**Command:**
+```bash
+grep -rn "generateResponse" ../../specstory-sync/sync-cloud/worker/utils/*.ts ../../specstory-sync/sync-cloud/worker/*.ts 2>/dev/null | grep -v node_modules | head; echo "---def---"; grep -rln "export.*generateResponse\|function generateResponse" ../../specstory-sync/sync-cloud/ --include="*.ts" | grep -v node_modules
 ```
+
+```text
 ---def---
 ../../specstory-sync/sync-cloud/worker/handlers/shared.ts
+
 ```
 </details></tool-use>
 
@@ -4986,10 +6108,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:20:51Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "generateResponse" ../../specstory-sync/sync-cloud/worker/handlers/shared.ts`</summary>
+**Command:**
+```bash
+grep -n "generateResponse" ../../specstory-sync/sync-cloud/worker/handlers/shared.ts
 ```
+
+```text
 188:export function generateResponse(
 205:export function generateResponseWithETag(
 344:  return generateResponse(
+
 ```
 </details></tool-use>
 
@@ -4997,9 +6125,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:20:53Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/worker/handlers/shared.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/worker/handlers/shared.ts
 ```
+
+**Offset (line):**
+```text
+188
+```
+
+**Limit:**
+```text
+25
+```
+
+```typescript
 export function generateResponse(
   response: ApiResponse,
   status: number,
@@ -5071,9 +6212,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:20:59Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/worker/supabase.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/worker/supabase.ts
 ```
+
+**Offset (line):**
+```text
+1
+```
+
+**Limit:**
+```text
+30
+```
+
+```typescript
 import type { Database } from "../../shared/database.types";
 
 import type {
@@ -5113,9 +6267,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:21:03Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "requireFeature\|import.*billing" ../../specstory-sync/sync-cloud/worker/handlers/projects.ts`</summary>
+**Command:**
+```bash
+grep -n "requireFeature\|import.*billing" ../../specstory-sync/sync-cloud/worker/handlers/projects.ts
 ```
+
+```text
 19:import { requireFeature } from "./billing";
 123:      const denied = await requireFeature("resume")(request);
+
 ```
 </details></tool-use>
 
@@ -5127,9 +6287,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:21:05Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/shared/types.ts`
-
+**Path:**
+```text
+../../specstory-sync/shared/types.ts
 ```
+
+**Offset (line):**
+```text
+99
+```
+
+**Limit:**
+```text
+12
+```
+
+```typescript
+
 export const SessionMetadataSchema = z.object({
   clientName: z.string().optional(),
   clientVersion: z.string().optional(),
@@ -5171,10 +6345,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:21:09Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/worker/supabase.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/worker/supabase.ts
 ```
-}));
+
+**Offset (line):**
+```text
+175
+```
+
+**Limit:**
+```text
+12
+```
+
+```typescript
+  }));
 }
 
 export async function updateWorkspace(
@@ -5195,11 +6382,29 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:21:16Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/worker/supabase.ts`
+**Error:**
 
-Error:
-```
+```text
 Could not find the exact text in ../../specstory-sync/sync-cloud/worker/supabase.ts. The old text must match exactly including all whitespace and newlines.
+```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "edits": [
+    {
+      "newText": "  }))\n}\n\n// listWorkspacesWithResumableSessions returns the user's projects each carrying its cloud-\n// resumable sessions (session_data_size \u003e 0), for the CLI's all-projects browser rollup (D23/D24).\n// Unlike listWorkspaces above, this groups per-session data so the CLI can dedup against its local\n// index and recompute accurate per-agent chips + real activity dates client-side. Projects with no\n// resumable sessions are dropped (no phantom zero-session rows). No limit (D25) — accurate counts\n// need every resumable session; the fetch is a one-shot on entering the browser. Ordered by real\n// activity (ended_at, then updated_at) so the client's recency sort matches the drill-in path.\nexport async function listWorkspacesWithResumableSessions(\n  request: ApiRequest\n): Promise\u003cWorkspace[]\u003e {\n  const workspaceIds = await getAccessibleWorkspaceIds(request.userId!);\n  if (workspaceIds.length === 0) {\n    return [];\n  }\n\n  // Workspace metadata (id/project_id/name/icon/color) for the projects the sessions roll up to.\n  const { data: workspaces, error: wsError } = await supabaseClient()\n    .from(\"workspaces\")\n    .select(\"id, project_id, name, icon, color, created_at, updated_at\")\n    .in(\"id\", workspaceIds);\n  if (wsError \u0026\u0026 wsError.message) {\n    throw new Error(`Failed to list workspaces: ${wsError.message}`);\n  }\n  if (!workspaces || workspaces.length === 0) {\n    return [];\n  }\n\n  const workspaceById = new Map\u003cstring, (typeof workspaces)[number]\u003e();\n  for (const w of workspaces) {\n    workspaceById.set(w.id as string, w);\n  }\n\n  // All resumable sessions across the user's workspaces in one query — same lean select as\n  // listResumableSessionsForWorkspace (no exchanges embed, no per-session first-exchange lookup).\n  const { data: sessions, error: sessError } = await supabaseClient()\n    .from(\"sessions\")\n    .select(\n      \"id, client_id, workspace_id, name, user_title, markdown_size, raw_data_size, session_data_size, created_at, updated_at, started_at, ended_at, metadata\"\n    )\n    .in(\"workspace_id\", workspaceIds)\n    .gt(\"session_data_size\", 0)\n    .order(\"ended_at\", { ascending: false, nullsFirst: false })\n    .order(\"updated_at\", { ascending: false });\n  if (sessError \u0026\u0026 sessError.message) {\n    throw new Error(`Failed to list resumable sessions: ${sessError.message}`);\n  }\n  if (!sessions || sessions.length === 0) {\n    return []; // no resumable sessions anywhere -\u003e no projects to show from the cloud\n  }\n\n  // Group sessions by workspace, then emit one Workspace per workspace that has sessions.\n  // toSessionSummary takes the projectId; we resolve it from the workspace row (sessions have no\n  // project_id column, only workspace_id).\n  const sessionsByWorkspace = new Map\u003c\n    string,\n    { projectId: string; sessions: SessionSummary[] }\n  \u003e();\n  for (const session of sessions) {\n    const workspaceId = session.workspace_id as string;\n    const workspace = workspaceById.get(workspaceId);\n    if (!workspace) {\n      continue; // session's workspace not in the accessible set — skip (shouldn't happen)\n    }\n    const projectId = workspace.project_id as string;\n    let bucket = sessionsByWorkspace.get(workspaceId);\n    if (!bucket) {\n      bucket = { projectId, sessions: [] };\n      sessionsByWorkspace.set(workspaceId, bucket);\n    }\n    bucket.sessions.push(\n      toSessionSummary(session, projectId, 0, \"\")\n    );\n  }\n\n  const out: Workspace[] = [];\n  for (const [workspaceId, bucket] of sessionsByWorkspace) {\n    const workspace = workspaceById.get(workspaceId)!;\n    out.push({\n      id: workspaceId,\n      projectId: workspace.project_id as string,\n      ownerId: request.userId!,\n      name: workspace.name as string,\n      icon: (workspace.icon as string) || \"FolderKanban\",\n      color: (workspace.color as string) || \"blue\",\n      createdAt:\n        (workspace.created_at as string) || new Date().toISOString(),\n      updatedAt:\n        (workspace.updated_at as string) || new Date().toISOString(),\n      sessionCount: bucket.sessions.length,\n      // Real activity across this project's resumable sessions — max of ended_at/started_at/updated_at\n      // (NOT workspace.updated_at, which is the sync time). The CLI re-derives this per session anyway,\n      // but lastUpdated is kept honest for any other consumer.\n      lastUpdated: bucket.sessions.reduce((latest, s) =\u003e {\n        const t = s.endedAt || s.startedAt || s.updatedAt;\n        return t \u0026\u0026 (!latest || t \u003e latest) ? t : latest;\n      }, \"\" as string),\n      sessions: bucket.sessions,\n    });\n  }\n  return out;\n}\n\nexport async function updateWorkspace(",
+      "oldText": "  }))\n}\n\nexport async function updateWorkspace("
+    }
+  ],
+  "path": "../../specstory-sync/sync-cloud/worker/supabase.ts"
+}
 ```
 </details></tool-use>
 
@@ -5207,10 +6412,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:21:18Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/worker/supabase.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/worker/supabase.ts
 ```
-lastActivityDate:
+
+**Offset (line):**
+```text
+170
+```
+
+**Limit:**
+```text
+8
+```
+
+```typescript
+    lastActivityDate:
       (workspace.last_session as string) || new Date().toISOString(),
     lastSyncDate:
       (workspace.last_session as string) || new Date().toISOString(),
@@ -5227,10 +6445,348 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:21:23Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/worker/supabase.ts`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/worker/supabase.ts
+```
+
+**Edit 1:**
+```diff
+-    totalMarkdownSize: (workspace.total_markdown_size as number) || 0,
+-  }));
+-}
++    totalMarkdownSize: (workspace.total_markdown_size as number) || 0,
++  }));
++}
++
++// listWorkspacesWithResumableSessions returns the user's projects each carrying its cloud-
++// resumable sessions (session_data_size > 0), for the CLI's all-projects browser rollup (D23/D24).
++// Unlike listWorkspaces above, this groups per-session data so the CLI can dedup against its local
++// index and recompute accurate per-agent chips + real activity dates client-side. Projects with no
++// resumable sessions are dropped (no phantom zero-session rows). No limit (D25) — accurate counts
++// need every resumable session; the fetch is a one-shot on entering the browser. Ordered by real
++// activity (ended_at, then updated_at) so the client's recency sort matches the drill-in path.
++export async function listWorkspacesWithResumableSessions(
++  request: ApiRequest
++): Promise<Workspace[]> {
++  const workspaceIds = await getAccessibleWorkspaceIds(request.userId!);
++  if (workspaceIds.length === 0) {
++    return [];
++  }
++
++  // Workspace metadata (id/project_id/name/icon/color) for the projects the sessions roll up to.
++  const { data: workspaces, error: wsError } = await supabaseClient()
++    .from("workspaces")
++    .select("id, project_id, name, icon, color, created_at, updated_at")
++    .in("id", workspaceIds);
++  if (wsError && wsError.message) {
++    throw new Error(`Failed to list workspaces: ${wsError.message}`);
++  }
++  if (!workspaces || workspaces.length === 0) {
++    return [];
++  }
++
++  const workspaceById = new Map<string, (typeof workspaces)[number]>();
++  for (const w of workspaces) {
++    workspaceById.set(w.id as string, w);
++  }
++
++  // All resumable sessions across the user's workspaces in one query — same lean select as
++  // listResumableSessionsForWorkspace (no exchanges embed, no per-session first-exchange lookup).
++  const { data: sessions, error: sessError } = await supabaseClient()
++    .from("sessions")
++    .select(
++      "id, client_id, workspace_id, name, user_title, markdown_size, raw_data_size, session_data_size, created_at, updated_at, started_at, ended_at, metadata"
++    )
++    .in("workspace_id", workspaceIds)
++    .gt("session_data_size", 0)
++    .order("ended_at", { ascending: false, nullsFirst: false })
++    .order("updated_at", { ascending: false });
++  if (sessError && sessError.message) {
++    throw new Error(`Failed to list resumable sessions: ${sessError.message}`);
++  }
++  if (!sessions || sessions.length === 0) {
++    return []; // no resumable sessions anywhere -> no projects to show from the cloud
++  }
++
++  // Group sessions by workspace, then emit one Workspace per workspace that has sessions.
++  // toSessionSummary takes the projectId; we resolve it from the workspace row (sessions have no
++  // project_id column, only workspace_id).
++  const sessionsByWorkspace = new Map<
++    string,
++    { projectId: string; sessions: SessionSummary[] }
++  >();
++  for (const session of sessions) {
++    const workspaceId = session.workspace_id as string;
++    const workspace = workspaceById.get(workspaceId);
++    if (!workspace) {
++      continue; // session's workspace not in the accessible set — skip (shouldn't happen)
++    }
++    const projectId = workspace.project_id as string;
++    let bucket = sessionsByWorkspace.get(workspaceId);
++    if (!bucket) {
++      bucket = { projectId, sessions: [] };
++      sessionsByWorkspace.set(workspaceId, bucket);
++    }
++    bucket.sessions.push(toSessionSummary(session, projectId, 0, ""));
++  }
++
++  const out: Workspace[] = [];
++  for (const [workspaceId, bucket] of sessionsByWorkspace) {
++    const workspace = workspaceById.get(workspaceId)!;
++    out.push({
++      id: workspaceId,
++      projectId: workspace.project_id as string,
++      ownerId: request.userId!,
++      name: workspace.name as string,
++      icon: (workspace.icon as string) || "FolderKanban",
++      color: (workspace.color as string) || "blue",
++      createdAt:
++        (workspace.created_at as string) || new Date().toISOString(),
++      updatedAt:
++        (workspace.updated_at as string) || new Date().toISOString(),
++      sessionCount: bucket.sessions.length,
++      // Real activity across this project's resumable sessions — max of ended_at/started_at/updated_at
++      // (NOT workspace.updated_at, which is the sync time). The CLI re-derives this per session anyway,
++      // but lastUpdated is kept honest for any other consumer.
++      lastUpdated: bucket.sessions.reduce((latest, s) => {
++        const t = s.endedAt || s.startedAt || s.updatedAt;
++        return t && (!latest || t > latest) ? t : latest;
++      }, "" as string),
++      sessions: bucket.sessions,
++    });
++  }
++  return out;
++}
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/worker/supabase.ts.
+```
+
+**diff:**
+```diff
+      ...
+  174     totalMarkdownSize: (workspace.total_markdown_size as number) || 0,
+  175   }));
+  176 }
+  177 
++ 178 // listWorkspacesWithResumableSessions returns the user's projects each carrying its cloud-
++ 179 // resumable sessions (session_data_size > 0), for the CLI's all-projects browser rollup (D23/D24).
++ 180 // Unlike listWorkspaces above, this groups per-session data so the CLI can dedup against its local
++ 181 // index and recompute accurate per-agent chips + real activity dates client-side. Projects with no
++ 182 // resumable sessions are dropped (no phantom zero-session rows). No limit (D25) — accurate counts
++ 183 // need every resumable session; the fetch is a one-shot on entering the browser. Ordered by real
++ 184 // activity (ended_at, then updated_at) so the client's recency sort matches the drill-in path.
++ 185 export async function listWorkspacesWithResumableSessions(
++ 186   request: ApiRequest
++ 187 ): Promise<Workspace[]> {
++ 188   const workspaceIds = await getAccessibleWorkspaceIds(request.userId!);
++ 189   if (workspaceIds.length === 0) {
++ 190     return [];
++ 191   }
++ 192 
++ 193   // Workspace metadata (id/project_id/name/icon/color) for the projects the sessions roll up to.
++ 194   const { data: workspaces, error: wsError } = await supabaseClient()
++ 195     .from("workspaces")
++ 196     .select("id, project_id, name, icon, color, created_at, updated_at")
++ 197     .in("id", workspaceIds);
++ 198   if (wsError && wsError.message) {
++ 199     throw new Error(`Failed to list workspaces: ${wsError.message}`);
++ 200   }
++ 201   if (!workspaces || workspaces.length === 0) {
++ 202     return [];
++ 203   }
++ 204 
++ 205   const workspaceById = new Map<string, (typeof workspaces)[number]>();
++ 206   for (const w of workspaces) {
++ 207     workspaceById.set(w.id as string, w);
++ 208   }
++ 209 
++ 210   // All resumable sessions across the user's workspaces in one query — same lean select as
++ 211   // listResumableSessionsForWorkspace (no exchanges embed, no per-session first-exchange lookup).
++ 212   const { data: sessions, error: sessError } = await supabaseClient()
++ 213     .from("sessions")
++ 214     .select(
++ 215       "id, client_id, workspace_id, name, user_title, markdown_size, raw_data_size, session_data_size, created_at, updated_at, started_at, ended_at, metadata"
++ 216     )
++ 217     .in("workspace_id", workspaceIds)
++ 218     .gt("session_data_size", 0)
++ 219     .order("ended_at", { ascending: false, nullsFirst: false })
++ 220     .order("updated_at", { ascending: false });
++ 221   if (sessError && sessError.message) {
++ 222     throw new Error(`Failed to list resumable sessions: ${sessError.message}`);
++ 223   }
++ 224   if (!sessions || sessions.length === 0) {
++ 225     return []; // no resumable sessions anywhere -> no projects to show from the cloud
++ 226   }
++ 227 
++ 228   // Group sessions by workspace, then emit one Workspace per workspace that has sessions.
++ 229   // toSessionSummary takes the projectId; we resolve it from the workspace row (sessions have no
++ 230   // project_id column, only workspace_id).
++ 231   const sessionsByWorkspace = new Map<
++ 232     string,
++ 233     { projectId: string; sessions: SessionSummary[] }
++ 234   >();
++ 235   for (const session of sessions) {
++ 236     const workspaceId = session.workspace_id as string;
++ 237     const workspace = workspaceById.get(workspaceId);
++ 238     if (!workspace) {
++ 239       continue; // session's workspace not in the accessible set — skip (shouldn't happen)
++ 240     }
++ 241     const projectId = workspace.project_id as string;
++ 242     let bucket = sessionsByWorkspace.get(workspaceId);
++ 243     if (!bucket) {
++ 244       bucket = { projectId, sessions: [] };
++ 245       sessionsByWorkspace.set(workspaceId, bucket);
++ 246     }
++ 247     bucket.sessions.push(toSessionSummary(session, projectId, 0, ""));
++ 248   }
++ 249 
++ 250   const out: Workspace[] = [];
++ 251   for (const [workspaceId, bucket] of sessionsByWorkspace) {
++ 252     const workspace = workspaceById.get(workspaceId)!;
++ 253     out.push({
++ 254       id: workspaceId,
++ 255       projectId: workspace.project_id as string,
++ 256       ownerId: request.userId!,
++ 257       name: workspace.name as string,
++ 258       icon: (workspace.icon as string) || "FolderKanban",
++ 259       color: (workspace.color as string) || "blue",
++ 260       createdAt:
++ 261         (workspace.created_at as string) || new Date().toISOString(),
++ 262       updatedAt:
++ 263         (workspace.updated_at as string) || new Date().toISOString(),
++ 264       sessionCount: bucket.sessions.length,
++ 265       // Real activity across this project's resumable sessions — max of ended_at/started_at/updated_at
++ 266       // (NOT workspace.updated_at, which is the sync time). The CLI re-derives this per session anyway,
++ 267       // but lastUpdated is kept honest for any other consumer.
++ 268       lastUpdated: bucket.sessions.reduce((latest, s) => {
++ 269        
+… (output truncated)
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/worker/supabase.ts
++++ ../../specstory-sync/sync-cloud/worker/supabase.ts
+@@ -174,8 +174,108 @@
+     totalMarkdownSize: (workspace.total_markdown_size as number) || 0,
+   }));
+ }
+ 
++// listWorkspacesWithResumableSessions returns the user's projects each carrying its cloud-
++// resumable sessions (session_data_size > 0), for the CLI's all-projects browser rollup (D23/D24).
++// Unlike listWorkspaces above, this groups per-session data so the CLI can dedup against its local
++// index and recompute accurate per-agent chips + real activity dates client-side. Projects with no
++// resumable sessions are dropped (no phantom zero-session rows). No limit (D25) — accurate counts
++// need every resumable session; the fetch is a one-shot on entering the browser. Ordered by real
++// activity (ended_at, then updated_at) so the client's recency sort matches the drill-in path.
++export async function listWorkspacesWithResumableSessions(
++  request: ApiRequest
++): Promise<Workspace[]> {
++  const workspaceIds = await getAccessibleWorkspaceIds(request.userId!);
++  if (workspaceIds.length === 0) {
++    return [];
++  }
++
++  // Workspace metadata (id/project_id/name/icon/color) for the projects the sessions roll up to.
++  const { data: workspaces, error: wsError } = await supabaseClient()
++    .from("workspaces")
++    .select("id, project_id, name, icon, color, created_at, updated_at")
++    .in("id", workspaceIds);
++  if (wsError && wsError.message) {
++    throw new Error(`Failed to list workspaces: ${wsError.message}`);
++  }
++  if (!workspaces || workspaces.length === 0) {
++    return [];
++  }
++
++  const workspaceById = new Map<string, (typeof workspaces)[number]>();
++  for (const w of workspaces) {
++    workspaceById.set(w.id as string, w);
++  }
++
++  // All resumable sessions across the user's workspaces in one query — same lean select as
++  // listResumableSessionsForWorkspace (no exchanges embed, no per-session first-exchange lookup).
++  const { data: sessions, error: sessError } = await supabaseClient()
++    .from("sessions")
++    .select(
++      "id, client_id, workspace_id, name, user_title, markdown_size, raw_data_size, session_data_size, created_at, updated_at, started_at, ended_at, metadata"
++    )
++    .in("workspace_id", workspaceIds)
++    .gt("session_data_size", 0)
++    .order("ended_at", { ascending: false, nullsFirst: false })
++    .order("updated_at", { ascending: false });
++  if (sessError && sessError.message) {
++    throw new Error(`Failed to list resumable sessions: ${sessError.message}`);
++  }
++  if (!sessions || sessions.length === 0) {
++    return []; // no resumable sessions anywhere -> no projects to show from the cloud
++  }
++
++  // Group sessions by workspace, then emit one Workspace per workspace that has sessions.
++  // toSessionSummary takes the projectId; we resolve it from the workspace row (sessions have no
++  // project_id column, only workspace_id).
++  const sessionsByWorkspace = new Map<
++    string,
++    { projectId: string; sessions: SessionSummary[] }
++  >();
++  for (const session of sessions) {
++    const workspaceId = session.workspace_id as string;
++    const workspace = workspaceById.get(workspaceId);
++    if (!workspace) {
++      continue; // session's workspace not in the accessible set — skip (shouldn't happen)
++    }
++    const projectId = workspace.project_id as string;
++    let bucket = sessionsByWorkspace.get(workspaceId);
++    if (!bucket) {
++      bucket = { projectId, sessions: [] };
++      sessionsByWorkspace.set(workspaceId, bucket);
++    }
++    bucket.sessions.push(toSessionSummary(session, projectId, 0, ""));
++  }
++
++  const out: Workspace[] = [];
++  for (const [workspaceId, bucket] of sessionsByWorkspace) {
++    const workspace = workspaceById.get(workspaceId)!;
++    out.push({
++      id: workspaceId,
++      projectId: workspace.project_id as string,
++      ownerId: request.userId!,
++      name: workspace.name as string,
++      icon: (workspace.icon as string) || "FolderKanban",
++      color: (workspace.color as string) || "blue",
++      createdAt:
++        (workspace.created_at as string) || new Date().toISOString(),
++      updatedAt:
++        (workspace.updated_at as string) || new Date().toISOString(),
++      sessionCount: bucket.sessions.length,
++      // Real activity across this project's resumable sessions — max of ended_at/started_at/updated_at
++      // (NOT workspace.updated_at, which is the sync time). The CLI re-derives this per session anyway,
++      // but lastUpdated is kept honest for any other consumer.
++      lastUpdated: bucket.sessions.reduce((latest, s) => {
++        const t = s.endedAt || s.startedAt || s.updatedAt;
++        return t && (!latest || t > latest) ? t : latest;
++      }, "" as string),
++      sessions: bucket.sessions,
++    });
++  }
++  return out;
++}
++
+ export async function updateWorkspace(
+   request: ApiRequest,
+   workspaceId: string,
+   icon: string | undefined,
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/worker/supabase.ts.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 178
+}
 ```
 </details></tool-use>
 
@@ -5246,9 +6802,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:21:25Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/shared/types.ts`
-
+**Path:**
+```text
+../../specstory-sync/shared/types.ts
 ```
+
+**Offset (line):**
+```text
+174
+```
+
+**Limit:**
+```text
+18
+```
+
+```typescript
 export const WorkspaceSchema = z.object({
   id: z.string().uuid(),
   projectId: z.string(),
@@ -5276,9 +6845,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:21:28Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "SessionSummarySchema\b" ../../specstory-sync/shared/types.ts | head`</summary>
+**Command:**
+```bash
+grep -n "SessionSummarySchema\b" ../../specstory-sync/shared/types.ts | head
 ```
+
+```text
 193:export const SessionSummarySchema = z.object({
 211:export type SessionSummary = z.infer<typeof SessionSummarySchema>;
+
 ```
 </details></tool-use>
 
@@ -5323,9 +6898,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:21:32Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/shared/types.ts`
-
+**Path:**
+```text
+../../specstory-sync/shared/types.ts
 ```
+
+**Offset (line):**
+```text
+174
+```
+
+**Limit:**
+```text
+40
+```
+
+```typescript
 export const WorkspaceSchema = z.object({
   id: z.string().uuid(),
   projectId: z.string(),
@@ -5375,10 +6963,240 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:21:38Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/shared/types.ts`
+**Path:**
+```text
+../../specstory-sync/shared/types.ts
+```
+
+**Edit 1:**
+```diff
+-export const WorkspaceSchema = z.object({
+-  id: z.string().uuid(),
+-  projectId: z.string(),
+-  ownerId: z.string(),
+-  name: z.string(),
+-  icon: z.string(),
+-  color: z.string(),
+-  // Optional fields
+-  createdAt: z.string().optional(),
+-  updatedAt: z.string().optional(),
+-  sessionCount: z.number().optional(),
+-  lastUpdated: z.string().optional(),
+-  lastActivityDate: z.string().optional(),
+-  lastSyncDate: z.string().optional(),
+-  totalMarkdownSize: z.number().optional(),
+-});
+-
+-export type Workspace = z.infer<typeof WorkspaceSchema>;
+-
+-export const SessionSummarySchema = z.object({
+-  id: z.string().uuid(),
+-  clientId: z.string(), // native session id (== the CLI's local session_id); needed for cloud resume
+-  projectId: z.string(),
+-  name: z.string(),
+-  userTitle: z.string().optional(), // User-customized title (takes priority over summary)
+-  markdownSize: z.number(),
+-  rawDataSize: z.number(),
+-  createdAt: z.string(),
+-  updatedAt: z.string(),
+-  startedAt: z.string().optional(),
+-  endedAt: z.string().optional(),
+-  sessionDataSize: z.number().nullish(), // byte size of the SessionData blob; null/absent = not cloud-resumable
+-  metadata: SessionMetadataSchema,
+-  exchangeCount: z.number(),
+-  firstExchangeContent: z.string(),
+-});
+-
+-export type SessionSummary = z.infer<typeof SessionSummarySchema>;
+-
+-export interface CreateSessionData {
++export const SessionSummarySchema = z.object({
++  id: z.string().uuid(),
++  clientId: z.string(), // native session id (== the CLI's local session_id); needed for cloud resume
++  projectId: z.string(),
++  name: z.string(),
++  userTitle: z.string().optional(), // User-customized title (takes priority over summary)
++  markdownSize: z.number(),
++  rawDataSize: z.number(),
++  createdAt: z.string(),
++  updatedAt: z.string(),
++  startedAt: z.string().optional(),
++  endedAt: z.string().optional(),
++  sessionDataSize: z.number().nullish(), // byte size of the SessionData blob; null/absent = not cloud-resumable
++  metadata: SessionMetadataSchema,
++  exchangeCount: z.number(),
++  firstExchangeContent: z.string(),
++});
++
++export type SessionSummary = z.infer<typeof SessionSummarySchema>;
++
++export const WorkspaceSchema = z.object({
++  id: z.string().uuid(),
++  projectId: z.string(),
++  ownerId: z.string(),
++  name: z.string(),
++  icon: z.string(),
++  color: z.string(),
++  // Optional fields
++  createdAt: z.string().optional(),
++  updatedAt: z.string().optional(),
++  sessionCount: z.number().optional(),
++  lastUpdated: z.string().optional(),
++  lastActivityDate: z.string().optional(),
++  lastSyncDate: z.string().optional(),
++  totalMarkdownSize: z.number().optional(),
++  // Per-project resumable sessions, embedded only by GET /api/v1/projects?resumable=true (D24).
++  // Absent on the default (web-app) listing. Defined here (after SessionSummarySchema) so the
++  // forward reference resolves without z.lazy.
++  sessions: SessionSummarySchema.array().optional(),
++});
++
++export type Workspace = z.infer<typeof WorkspaceSchema>;
++
++export interface CreateSessionData {
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/shared/types.ts.
+```
+
+**diff:**
+```diff
+     ...
+ 170 });
+ 171 
+ 172 export type SessionDetail = z.infer<typeof SessionDetailSchema>;
+ 173 
+-174 export const WorkspaceSchema = z.object({
+-175   id: z.string().uuid(),
+-176   projectId: z.string(),
+-177   ownerId: z.string(),
+-178   name: z.string(),
+-179   icon: z.string(),
+-180   color: z.string(),
+-181   // Optional fields
+-182   createdAt: z.string().optional(),
+-183   updatedAt: z.string().optional(),
+-184   sessionCount: z.number().optional(),
+-185   lastUpdated: z.string().optional(),
+-186   lastActivityDate: z.string().optional(),
+-187   lastSyncDate: z.string().optional(),
+-188   totalMarkdownSize: z.number().optional(),
+-189 });
+-190 
+-191 export type Workspace = z.infer<typeof WorkspaceSchema>;
+-192 
+ 193 export const SessionSummarySchema = z.object({
+ 194   id: z.string().uuid(),
+ 195   clientId: z.string(), // native session id (== the CLI's local session_id); needed for cloud resume
+ 196   projectId: z.string(),
+     ...
+ 209 });
+ 210 
+ 211 export type SessionSummary = z.infer<typeof SessionSummarySchema>;
+ 212 
++194 export const WorkspaceSchema = z.object({
++195   id: z.string().uuid(),
++196   projectId: z.string(),
++197   ownerId: z.string(),
++198   name: z.string(),
++199   icon: z.string(),
++200   color: z.string(),
++201   // Optional fields
++202   createdAt: z.string().optional(),
++203   updatedAt: z.string().optional(),
++204   sessionCount: z.number().optional(),
++205   lastUpdated: z.string().optional(),
++206   lastActivityDate: z.string().optional(),
++207   lastSyncDate: z.string().optional(),
++208   totalMarkdownSize: z.number().optional(),
++209   // Per-project resumable sessions, embedded only by GET /api/v1/projects?resumable=true (D24).
++210   // Absent on the default (web-app) listing. Defined here (after SessionSummarySchema) so the
++211   // forward reference resolves without z.lazy.
++212   sessions: SessionSummarySchema.array().optional(),
++213 });
++214 
++215 export type Workspace = z.infer<typeof WorkspaceSchema>;
++216 
+ 213 export interface CreateSessionData {
+ 214   sessionId: string; // string for session identifier
+ 215   workspaceId: UUID; // UUID for workspace identifier
+ 216   name: string;
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/shared/types.ts
++++ ../../specstory-sync/shared/types.ts
+@@ -170,27 +170,8 @@
+ });
+ 
+ export type SessionDetail = z.infer<typeof SessionDetailSchema>;
+ 
+-export const WorkspaceSchema = z.object({
+-  id: z.string().uuid(),
+-  projectId: z.string(),
+-  ownerId: z.string(),
+-  name: z.string(),
+-  icon: z.string(),
+-  color: z.string(),
+-  // Optional fields
+-  createdAt: z.string().optional(),
+-  updatedAt: z.string().optional(),
+-  sessionCount: z.number().optional(),
+-  lastUpdated: z.string().optional(),
+-  lastActivityDate: z.string().optional(),
+-  lastSyncDate: z.string().optional(),
+-  totalMarkdownSize: z.number().optional(),
+-});
+-
+-export type Workspace = z.infer<typeof WorkspaceSchema>;
+-
+ export const SessionSummarySchema = z.object({
+   id: z.string().uuid(),
+   clientId: z.string(), // native session id (== the CLI's local session_id); needed for cloud resume
+   projectId: z.string(),
+@@ -209,8 +190,31 @@
+ });
+ 
+ export type SessionSummary = z.infer<typeof SessionSummarySchema>;
+ 
++export const WorkspaceSchema = z.object({
++  id: z.string().uuid(),
++  projectId: z.string(),
++  ownerId: z.string(),
++  name: z.string(),
++  icon: z.string(),
++  color: z.string(),
++  // Optional fields
++  createdAt: z.string().optional(),
++  updatedAt: z.string().optional(),
++  sessionCount: z.number().optional(),
++  lastUpdated: z.string().optional(),
++  lastActivityDate: z.string().optional(),
++  lastSyncDate: z.string().optional(),
++  totalMarkdownSize: z.number().optional(),
++  // Per-project resumable sessions, embedded only by GET /api/v1/projects?resumable=true (D24).
++  // Absent on the default (web-app) listing. Defined here (after SessionSummarySchema) so the
++  // forward reference resolves without z.lazy.
++  sessions: SessionSummarySchema.array().optional(),
++});
++
++export type Workspace = z.infer<typeof WorkspaceSchema>;
++
+ export interface CreateSessionData {
+   sessionId: string; // string for session identifier
+   workspaceId: UUID; // UUID for workspace identifier
+   name: string;
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/shared/types.ts.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 174
+}
 ```
 </details></tool-use>
 
@@ -5394,12 +7212,18 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:21:46Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "SessionSummarySchema\|SessionSummary\b" ../../specstory-sync/shared/types.ts | head`</summary>
+**Command:**
+```bash
+grep -n "SessionSummarySchema\|SessionSummary\b" ../../specstory-sync/shared/types.ts | head
 ```
+
+```text
 133:export function getSessionSummary(metadata: unknown): string | undefined {
 174:export const SessionSummarySchema = z.object({
 192:export type SessionSummary = z.infer<typeof SessionSummarySchema>;
 210:  // Absent on the default (web-app) listing. Defined here (after SessionSummarySchema) so the
 212:  sessions: SessionSummarySchema.array().optional(),
+
 ```
 </details></tool-use>
 
@@ -5417,9 +7241,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:21:51Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/worker/handlers/projects.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/worker/handlers/projects.ts
 ```
+
+**Offset (line):**
+```text
+1
+```
+
+**Limit:**
+```text
+25
+```
+
+```typescript
 import {
   type ApiRequest,
   type ListProjectsResponse,
@@ -5454,10 +7291,164 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:21:59Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/worker/handlers/projects.ts`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/worker/handlers/projects.ts
+```
+
+**Edit 1:**
+```diff
+-import {
+-  listWorkspaces,
+-  listSessionsForWorkspace,
+-  listResumableSessionsForWorkspace,
+-  deleteWorkspace,
+-  updateWorkspace,
+-} from "../supabase";
++import {
++  listWorkspaces,
++  listWorkspacesWithResumableSessions,
++  listSessionsForWorkspace,
++  listResumableSessionsForWorkspace,
++  deleteWorkspace,
++  updateWorkspace,
++} from "../supabase";
+```
+
+**Edit 2:**
+```diff
+-export async function handleListProjects(
+-  request: ApiRequest
+-): Promise<Response> {
+-  try {
+-    const rawWorkspaces = await listWorkspaces(request);
+-
+-    // Ensure all required fields are present for the response type
+-    const workspaces = rawWorkspaces.map(({ projectId, ...workspace }) => ({
+-      ...workspace,
+-      id: projectId,
+-      createdAt: workspace.createdAt || new Date().toISOString(),
+-      updatedAt: workspace.updatedAt || new Date().toISOString(),
+-    }));
++export async function handleListProjects(
++  request: ApiRequest
++): Promise<Response> {
++  try {
++    const url = new URL(request.url);
++    // Opt-in cloud-resume rollup: the CLI passes ?resumable=true to get each project with its
++    // resumable sessions embedded (D24), so it can dedup against its local index and recompute
++    // accurate per-agent chips + real activity dates client-side (D23). Pro-only — gated ONLY
++    // when the param is present, since this endpoint is shared with the web app's ungated listing.
++    const resumable = url.searchParams.get("resumable") === "true";
++    if (resumable) {
++      const denied = await requireFeature("resume")(request);
++      if (denied) return denied;
++    }
++
++    const rawWorkspaces = resumable
++      ? await listWorkspacesWithResumableSessions(request)
++      : await listWorkspaces(request);
++
++    // Ensure all required fields are present for the response type
++    const workspaces = rawWorkspaces.map(({ projectId, ...workspace }) => ({
++      ...workspace,
++      id: projectId,
++      createdAt: workspace.createdAt || new Date().toISOString(),
++      updatedAt: workspace.updatedAt || new Date().toISOString(),
++    }));
+```
+
+```text
+Successfully replaced 2 block(s) in ../../specstory-sync/sync-cloud/worker/handlers/projects.ts.
+```
+
+**diff:**
+```diff
+     ...
+   9   type GetProjectSessionSizesResponse,
+  10 } from "../types";
+  11 import {
+  12   listWorkspaces,
++ 13   listWorkspacesWithResumableSessions,
+  13   listSessionsForWorkspace,
+  14   listResumableSessionsForWorkspace,
+  15   deleteWorkspace,
+  16   updateWorkspace,
+     ...
+  26 export async function handleListProjects(
+  27   request: ApiRequest
+  28 ): Promise<Response> {
+  29   try {
+- 30     const rawWorkspaces = await listWorkspaces(request);
++ 31     const url = new URL(request.url);
++ 32     // Opt-in cloud-resume rollup: the CLI passes ?resumable=true to get each project with its
++ 33     // resumable sessions embedded (D24), so it can dedup against its local index and recompute
++ 34     // accurate per-agent chips + real activity dates client-side (D23). Pro-only — gated ONLY
++ 35     // when the param is present, since this endpoint is shared with the web app's ungated listing.
++ 36     const resumable = url.searchParams.get("resumable") === "true";
++ 37     if (resumable) {
++ 38       const denied = await requireFeature("resume")(request);
++ 39       if (denied) return denied;
++ 40     }
+  31 
++ 42     const rawWorkspaces = resumable
++ 43       ? await listWorkspacesWithResumableSessions(request)
++ 44       : await listWorkspaces(request);
++ 45 
+  32     // Ensure all required fields are present for the response type
+  33     const workspaces = rawWorkspaces.map(({ projectId, ...workspace }) => ({
+  34       ...workspace,
+  35       id: projectId,
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/worker/handlers/projects.ts
++++ ../../specstory-sync/sync-cloud/worker/handlers/projects.ts
+@@ -9,8 +9,9 @@
+   type GetProjectSessionSizesResponse,
+ } from "../types";
+ import {
+   listWorkspaces,
++  listWorkspacesWithResumableSessions,
+   listSessionsForWorkspace,
+   listResumableSessionsForWorkspace,
+   deleteWorkspace,
+   updateWorkspace,
+@@ -26,10 +27,23 @@
+ export async function handleListProjects(
+   request: ApiRequest
+ ): Promise<Response> {
+   try {
+-    const rawWorkspaces = await listWorkspaces(request);
++    const url = new URL(request.url);
++    // Opt-in cloud-resume rollup: the CLI passes ?resumable=true to get each project with its
++    // resumable sessions embedded (D24), so it can dedup against its local index and recompute
++    // accurate per-agent chips + real activity dates client-side (D23). Pro-only — gated ONLY
++    // when the param is present, since this endpoint is shared with the web app's ungated listing.
++    const resumable = url.searchParams.get("resumable") === "true";
++    if (resumable) {
++      const denied = await requireFeature("resume")(request);
++      if (denied) return denied;
++    }
+ 
++    const rawWorkspaces = resumable
++      ? await listWorkspacesWithResumableSessions(request)
++      : await listWorkspaces(request);
++
+     // Ensure all required fields are present for the response type
+     const workspaces = rawWorkspaces.map(({ projectId, ...workspace }) => ({
+       ...workspace,
+       id: projectId,
 
 ```
-Successfully replaced 2 block(s) in ../../specstory-sync/sync-cloud/worker/handlers/projects.ts.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 13
+}
 ```
 </details></tool-use>
 
@@ -5473,7 +7464,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:01Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `ls ../../specstory-sync/supabase/migrations/ | tail -5; echo "---last timestamp---"; ls ../../specstory-sync/supabase/migrations/ | grep -oE '^[0-9]+' | sort -n | tail -1`</summary>
+**Command:**
+```bash
+ls ../../specstory-sync/supabase/migrations/ | tail -5; echo "---last timestamp---"; ls ../../specstory-sync/supabase/migrations/ | grep -oE '^[0-9]+' | sort -n | tail -1
 ```
+
+```text
 20260630120000_CreateSessionTokenUsage.sql
 20260630130000_CreateSpecScoreAndRollup.sql
 20260701120000_AddSpecScoreLLMColumns.sql
@@ -5481,6 +7477,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:01Z)**_
 20260709120000_AddExchangesFtsSimple.sql
 ---last timestamp---
 20260709120000
+
 ```
 </details></tool-use>
 
@@ -5488,9 +7485,13 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:06Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="write"><details>
 <summary>Tool use: **write**</summary>
-`../../specstory-sync/supabase/migrations/20260713120000_FixWorkspaceSessionsSummaryLastSession.sql`
-
+**Path:**
+```text
+../../specstory-sync/supabase/migrations/20260713120000_FixWorkspaceSessionsSummaryLastSession.sql
 ```
+
+**Content:**
+```sql
 -- Fix workspace_sessions_summary.last_session to reflect real session activity instead of the
 -- sync/push timestamp. The old view used MAX(s.updated_at), which the server resets to now() on
 -- every upsert — so a freshly re-synced project's "last activity" read as today regardless of when
@@ -5520,7 +7521,7 @@ GROUP BY w.id, w.project_id, w.owner_id, w.name, w.icon, w.color, w.created_at, 
 
 ```
 
-```
+```text
 Successfully wrote 1231 bytes to ../../specstory-sync/supabase/migrations/20260713120000_FixWorkspaceSessionsSummaryLastSession.sql
 ```
 </details></tool-use>
@@ -5533,7 +7534,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:08Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync && (npx tsc --noEmit -p sync-cloud/tsconfig.json 2>&1 | head -40) || echo "(no tsconfig or tsc unavailable, trying broader)"`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync && (npx tsc --noEmit -p sync-cloud/tsconfig.json 2>&1 | head -40) || echo "(no tsconfig or tsc unavailable, trying broader)"
 ```
+
+```text
 (no output)
 ```
 </details></tool-use>
@@ -5541,9 +7547,10 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:08Z)**_
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:14Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
-<summary>Tool use: **bash** `cd ../../specstory-sync && ls sync-cloud/tsconfig.json 2>/dev/null; echo "---"; cat sync-cloud/tsconfig.json 2>/dev/null | head -20; echo "--- try check ---"; cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -40`</summary>
-Error:
-```
+<summary>Tool use: **bash**</summary>
+**Error:**
+
+```text
 sync-cloud/tsconfig.json
 ---
 {
@@ -5560,14 +7567,33 @@ sync-cloud/tsconfig.json
 
 Command exited with code 1
 ```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "command": "cd ../../specstory-sync \u0026\u0026 ls sync-cloud/tsconfig.json 2\u003e/dev/null; echo \"---\"; cat sync-cloud/tsconfig.json 2\u003e/dev/null | head -20; echo \"--- try check ---\"; cd ../../specstory-sync/sync-cloud \u0026\u0026 npx tsc --noEmit 2\u003e\u00261 | head -40"
+}
+```
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:18Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -40; echo "exit=$?"`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -40; echo "exit=$?"
 ```
+
+```text
 exit=0
+
 ```
 </details></tool-use>
 
@@ -5581,16 +7607,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:20Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `npx tsc --noEmit 2>&1 | head -40; echo "exit=$?"`</summary>
+**Command:**
+```bash
+npx tsc --noEmit 2>&1 | head -40; echo "exit=$?"
 ```
-[41m                                                                               [0m
-[41m[37m                This is not the tsc command you are looking for                [0m
-[41m                                                                               [0m
 
-To get access to the TypeScript compiler, [34mtsc[0m, from the command line either:
+```text
 
-- Use [1mnpm install typescript[0m to first add TypeScript to your project [1mbefore[0m using npx
-- Use [1myarn[0m to avoid accidentally running code from un-installed packages
+                                                                               
+                This is not the tsc command you are looking for                
+                                                                               
+
+To get access to the TypeScript compiler, tsc, from the command line either:
+
+- Use npm install typescript to first add TypeScript to your project before using npx
+- Use yarn to avoid accidentally running code from un-installed packages
 exit=0
+
 ```
 </details></tool-use>
 
@@ -5598,10 +7631,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:22Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd /Users/sean/Source/SpecStory/specstory-sync/sync-cloud && cat package.json | grep -A2 '"check"\|"typecheck"\|"build"' | head -15`</summary>
+**Command:**
+```bash
+cd /Users/sean/Source/SpecStory/specstory-sync/sync-cloud && cat package.json | grep -A2 '"check"\|"typecheck"\|"build"' | head -15
 ```
-"build": "tsc -b && vite build",
+
+```text
+    "build": "tsc -b && vite build",
     "build:staging": "npm run build -- --mode staging",
     "deploy:staging": "wrangler deploy",
+
 ```
 </details></tool-use>
 
@@ -5609,16 +7648,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:23Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `npx tsc -b 2>&1 | head -40; echo "exit=${PIPESTATUS[0]}"`</summary>
+**Command:**
+```bash
+npx tsc -b 2>&1 | head -40; echo "exit=${PIPESTATUS[0]}"
 ```
-[41m                                                                               [0m
-[41m[37m                This is not the tsc command you are looking for                [0m
-[41m                                                                               [0m
 
-To get access to the TypeScript compiler, [34mtsc[0m, from the command line either:
+```text
 
-- Use [1mnpm install typescript[0m to first add TypeScript to your project [1mbefore[0m using npx
-- Use [1myarn[0m to avoid accidentally running code from un-installed packages
+                                                                               
+                This is not the tsc command you are looking for                
+                                                                               
+
+To get access to the TypeScript compiler, tsc, from the command line either:
+
+- Use npm install typescript to first add TypeScript to your project before using npx
+- Use yarn to avoid accidentally running code from un-installed packages
 exit=1
+
 ```
 </details></tool-use>
 
@@ -5626,22 +7672,42 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:25Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `ls node_modules/.bin/tsc 2>/dev/null; ls node_modules/typescript/bin/tsc 2>/dev/null; echo "---"; find . -maxdepth 3 -name tsc -path "*/node_modules/*" 2>/dev/null | head -3`</summary>
+**Command:**
+```bash
+ls node_modules/.bin/tsc 2>/dev/null; ls node_modules/typescript/bin/tsc 2>/dev/null; echo "---"; find . -maxdepth 3 -name tsc -path "*/node_modules/*" 2>/dev/null | head -3
 ```
+
+```text
 ---
+
 ```
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:28Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
-<summary>Tool use: **bash** `ls node_modules/typescript 2>/dev/null && echo "TS present" || echo "TS NOT installed in sync-cloud"; echo "---"; ls ../../node_modules/.bin/tsc 2>/dev/null && echo "root TS present"`</summary>
-Error:
-```
+<summary>Tool use: **bash**</summary>
+**Error:**
+
+```text
 TS NOT installed in sync-cloud
 ---
 
 
 Command exited with code 1
+```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "command": "ls node_modules/typescript 2\u003e/dev/null \u0026\u0026 echo \"TS present\" || echo \"TS NOT installed in sync-cloud\"; echo \"---\"; ls ../../node_modules/.bin/tsc 2\u003e/dev/null \u0026\u0026 echo \"root TS present\""
+}
 ```
 </details></tool-use>
 
@@ -5655,11 +7721,17 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:31Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `ls package-lock.json pnpm-lock.yaml yarn.lock 2>/dev/null; echo "---workspace root---"; ls /Users/sean/Source/SpecStory/specstory-sync/package-lock.json /Users/sean/Source/SpecStory/specstory-sync/pnpm-lock.yaml /Users/sean/Source/SpecStory/specstory-sync/yarn.lock 2>/dev/null; echo "---node_modules at root---"; ls -d /Users/sean/Source/SpecStory/specstory-sync/node_modules 2>/dev/null`</summary>
+**Command:**
+```bash
+ls package-lock.json pnpm-lock.yaml yarn.lock 2>/dev/null; echo "---workspace root---"; ls /Users/sean/Source/SpecStory/specstory-sync/package-lock.json /Users/sean/Source/SpecStory/specstory-sync/pnpm-lock.yaml /Users/sean/Source/SpecStory/specstory-sync/yarn.lock 2>/dev/null; echo "---node_modules at root---"; ls -d /Users/sean/Source/SpecStory/specstory-sync/node_modules 2>/dev/null
 ```
+
+```text
 ---workspace root---
 /Users/sean/Source/SpecStory/specstory-sync/package-lock.json
 ---node_modules at root---
 /Users/sean/Source/SpecStory/specstory-sync/node_modules
+
 ```
 </details></tool-use>
 
@@ -5667,11 +7739,17 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:33Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `ls /Users/sean/Source/SpecStory/specstory-sync/node_modules/.bin/tsc 2>/dev/null && echo "root tsc present"; ls /Users/sean/Source/SpecStory/specstory-sync/node_modules/typescript/bin/tsc 2>/dev/null && echo "root typescript present"`</summary>
+**Command:**
+```bash
+ls /Users/sean/Source/SpecStory/specstory-sync/node_modules/.bin/tsc 2>/dev/null && echo "root tsc present"; ls /Users/sean/Source/SpecStory/specstory-sync/node_modules/typescript/bin/tsc 2>/dev/null && echo "root typescript present"
 ```
+
+```text
 /Users/sean/Source/SpecStory/specstory-sync/node_modules/.bin/tsc
 root tsc present
 /Users/sean/Source/SpecStory/specstory-sync/node_modules/typescript/bin/tsc
 root typescript present
+
 ```
 </details></tool-use>
 
@@ -5679,9 +7757,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:35Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd /Users/sean/Source/SpecStory/specstory-sync && ./node_modules/.bin/tsc -b 2>&1 | head -50; echo "exit=${PIPESTATUS[0]}"`</summary>
+**Command:**
+```bash
+cd /Users/sean/Source/SpecStory/specstory-sync && ./node_modules/.bin/tsc -b 2>&1 | head -50; echo "exit=${PIPESTATUS[0]}"
 ```
+
+```text
 error TS5083: Cannot read file '/Users/sean/Source/SpecStory/specstory-sync/tsconfig.json'.
 exit=1
+
 ```
 </details></tool-use>
 
@@ -5689,8 +7773,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:43Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd /Users/sean/Source/SpecStory/specstory-sync/sync-cloud && /Users/sean/Source/SpecStory/specstory-sync/node_modules/.bin/tsc -b 2>&1 | head -60; echo "exit=${PIPESTATUS[0]}"`</summary>
+**Command:**
+```bash
+cd /Users/sean/Source/SpecStory/specstory-sync/sync-cloud && /Users/sean/Source/SpecStory/specstory-sync/node_modules/.bin/tsc -b 2>&1 | head -60; echo "exit=${PIPESTATUS[0]}"
 ```
+
+```text
 exit=0
+
 ```
 </details></tool-use>
 
@@ -5702,9 +7792,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:45Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cloud/resume_client.go`
-
+**Path:**
+```text
+pkg/cloud/resume_client.go
 ```
+
+**Offset (line):**
+```text
+1
+```
+
+**Limit:**
+```text
+45
+```
+
+```go
 package cloud
 
 import (
@@ -5759,10 +7862,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:46Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cloud/resume_client.go`
-
+**Path:**
+```text
+pkg/cloud/resume_client.go
 ```
-ClientID  string `json:"clientId"`  // native session id (== local session_id)
+
+**Offset (line):**
+```text
+46
+```
+
+**Limit:**
+```text
+25
+```
+
+```go
+	ClientID  string `json:"clientId"`  // native session id (== local session_id)
 	ProjectID string `json:"projectId"` // git_id / workspace_id
 	// ProjectName is the workspace's display name. Returned by the search endpoint (which shows a
 	// project column in cross-project results); the per-project list omits it (context supplies it).
@@ -5796,9 +7912,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:47Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cloud/resume_client.go`
-
+**Path:**
+```text
+pkg/cloud/resume_client.go
 ```
+
+**Offset (line):**
+```text
+71
+```
+
+**Limit:**
+```text
+35
+```
+
+```go
 //     the wire. So dedup-by-project_id keys on ID.
 //   - lastUpdated is the real recency signal (last session activity). The response also carries
 //     createdAt/updatedAt, but those are server-defaulted to "now" per request — NOT real
@@ -5847,11 +7976,37 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:54Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cloud/resume_client.go`
+**Error:**
 
-Error:
-```
+```text
 Could not find edits[0] in pkg/cloud/resume_client.go. The oldText must match exactly including all whitespace and newlines.
+```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "edits": [
+    {
+      "newText": "// CloudProject is a project (workspace) known to the cloud (server type: Project). Used to blend\n// cloud-only projects into the all-projects browser.\n//\n// Field notes, verified against the live GET /api/v1/projects response:\n//   - id IS the project_id (git_id/workspace_id) — handleListProjects remaps `id := projectId`\n//     (its `{ ...workspace, id: projectId }` override wins), and `projectId` itself is absent on\n//     the wire. So dedup-by-project_id keys on ID.\n//   - lastUpdated is the real recency signal (last session activity). The response also carries\n//     createdAt/updatedAt, but those are server-defaulted to \"now\" per request — NOT real\n//     timestamps — so blended recency sort must use LastUpdated. (Under ?resumable=true the server\n//     now derives lastUpdated from per-session ended_at/started_at — D24/D26 — but the CLI's\n//     rollup re-derives activity per session anyway, so this field is informational only.)\n//   - sessions is populated only when the request passes ?resumable=true (D24). Each entry is a\n//     CloudSession carrying agentName/machineName/deviceId + real activity times, which the CLI\n//     groups by project and merges with its local index to produce accurate per-agent chips and\n//     dates (D23). Absent on the web-app's ungated listing.\ntype CloudProject struct {\n\tID           string          `json:\"id\"`\n\tName         string          `json:\"name\"`\n\tIcon         string          `json:\"icon\"`\n\tColor        string          `json:\"color\"`\n\tLastUpdated  string          `json:\"lastUpdated\"`\n\tSessionCount int             `json:\"sessionCount\"`\n\tSessions     []CloudSession  `json:\"sessions\"` // populated only with ?resumable=true (D24)\n}",
+      "oldText": "// CloudProject is a project (workspace) known to the cloud (server type: Project). Used to blend\n// cloud-only projects into the all-projects browser.\n//\n// Field notes, verified against the live GET /api/v1/projects response:\n//   - id IS the project_id (git_id/workspace_id) — handleListProjects remaps `id := projectId`\n//     (its `{ ...workspace, id: projectId }` override wins), and `projectId` itself is absent on\n//     the wire. So dedup-by-project_id keys on ID.\n//   - lastUpdated is the real recency signal (last session activity). The response also carries\n//     createdAt/updatedAt, but those are server-defaulted to \"now\" per request — NOT real\n//     timestamps — so blended recency sort must use LastUpdated.\ntype CloudProject struct {\n\tID           string `json:\"id\"`\n\tName         string          `json:\"name\"`\n\tIcon         string          `json:\"icon\"`\n\tColor        string          `json:\"color\"`\n\tLastUpdated  string          `json:\"lastUpdated\"`\n\tSessionCount int             `json:\"sessionCount\"`\n}"
+    },
+    {
+      "newText": "// ListCloudProjects returns all projects the user has in the cloud, for blending cloud-only\n// projects into the all-projects browser. It passes ?resumable=true so each project carries its\n// resumable sessions embedded (D24); the CLI groups those sessions by project and merges with its\n// local index to produce accurate per-agent chips + real activity dates (D23). Projects with no\n// resumable sessions are dropped server-side, so every returned project has Sessions len \u003e 0.",
+      "oldText": "// ListCloudProjects returns all projects the user has in the cloud, for blending cloud-only\n// projects into the all-projects browser."
+    },
+    {
+      "newText": "\tif err := skillsAPIRequest(http.MethodGet, \"/api/v1/projects?resumable=true\", nil, \u0026resp); err != nil {",
+      "oldText": "\tif err := skillsAPIRequest(http.MethodGet, \"/api/v1/projects\", nil, \u0026resp); err != nil {"
+    }
+  ],
+  "path": "pkg/cloud/resume_client.go"
+}
 ```
 </details></tool-use>
 
@@ -5865,9 +8020,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:56Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `sed -n '63,80p' pkg/cloud/resume_client.go | cat -A | head -25`</summary>
+**Command:**
+```bash
+sed -n '63,80p' pkg/cloud/resume_client.go | cat -A | head -25
 ```
+
+```text
 cat: illegal option -- A
 usage: cat [-belnstuv] [file ...]
+
 ```
 </details></tool-use>
 
@@ -5875,7 +8036,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:59Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `awk 'NR>=63 && NR<=80 {gsub(/\t/,"<TAB>"); print NR": "$0}' pkg/cloud/resume_client.go`</summary>
+**Command:**
+```bash
+awk 'NR>=63 && NR<=80 {gsub(/\t/,"<TAB>"); print NR": "$0}' pkg/cloud/resume_client.go
 ```
+
+```text
 63: }
 64: 
 65: // CloudProject is a project (workspace) known to the cloud (server type: Project). Used to blend
@@ -5894,6 +8060,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:22:59Z)**_
 78: <TAB>Icon         string `json:"icon"`
 79: <TAB>Color        string `json:"color"`
 80: <TAB>LastUpdated  string `json:"lastUpdated"`
+
 ```
 </details></tool-use>
 
@@ -5901,9 +8068,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:23:00Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cloud/resume_client.go`
-
+**Path:**
+```text
+pkg/cloud/resume_client.go
 ```
+
+**Offset (line):**
+```text
+75
+```
+
+**Limit:**
+```text
+8
+```
+
+```go
 type CloudProject struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
@@ -5921,10 +8101,184 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:23:04Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cloud/resume_client.go`
+**Path:**
+```text
+pkg/cloud/resume_client.go
+```
+
+**Edit 1:**
+```diff
+-//   - lastUpdated is the real recency signal (last session activity). The response also carries
+-//     createdAt/updatedAt, but those are server-defaulted to "now" per request — NOT real
+-//     timestamps — so blended recency sort must use LastUpdated.
+-type CloudProject struct {
+-	ID           string `json:"id"`
+-	Name         string `json:"name"`
+-	Icon         string `json:"icon"`
+-	Color        string `json:"color"`
+-	LastUpdated  string `json:"lastUpdated"`
+-	SessionCount int    `json:"sessionCount"`
+-}
++//   - lastUpdated is the real recency signal (last session activity). The response also carries
++//     createdAt/updatedAt, but those are server-defaulted to "now" per request — NOT real
++//     timestamps — so blended recency sort must use LastUpdated. (Under ?resumable=true the server
++//     now derives lastUpdated from per-session ended_at/started_at — D24/D26 — but the CLI's
++//     rollup re-derives activity per session anyway, so this field is informational only.)
++//   - sessions is populated only when the request passes ?resumable=true (D24). Each entry is a
++//     CloudSession carrying agentName/machineName/deviceId + real activity times, which the CLI
++//     groups by project and merges with its local index to produce accurate per-agent chips and
++//     dates (D23). Absent on the web-app's ungated listing.
++type CloudProject struct {
++	ID           string `json:"id"`
++	Name         string `json:"name"`
++	Icon         string `json:"icon"`
++	Color        string `json:"color"`
++	LastUpdated  string `json:"lastUpdated"`
++	SessionCount int             `json:"sessionCount"`
++	Sessions     []CloudSession  `json:"sessions"` // populated only with ?resumable=true (D24)
++}
+```
+
+**Edit 2:**
+```diff
+-// ListCloudProjects returns all projects the user has in the cloud, for blending cloud-only
+-// projects into the all-projects browser.
++// ListCloudProjects returns all projects the user has in the cloud, for blending cloud-only
++// projects into the all-projects browser. It passes ?resumable=true so each project carries its
++// resumable sessions embedded (D24); the CLI groups those sessions by project and merges with its
++// local index to produce accurate per-agent chips + real activity dates (D23). Projects with no
++// resumable sessions are dropped server-side, so every returned project has Sessions len > 0.
+```
+
+**Edit 3:**
+```diff
+-	if err := skillsAPIRequest(http.MethodGet, "/api/v1/projects", nil, &resp); err != nil {
++	if err := skillsAPIRequest(http.MethodGet, "/api/v1/projects?resumable=true", nil, &resp); err != nil {
+```
+
+```text
+Successfully replaced 3 block(s) in pkg/cloud/resume_client.go.
+```
+
+**diff:**
+```diff
+     ...
+  70 //     (its `{ ...workspace, id: projectId }` override wins), and `projectId` itself is absent on
+  71 //     the wire. So dedup-by-project_id keys on ID.
+  72 //   - lastUpdated is the real recency signal (last session activity). The response also carries
+  73 //     createdAt/updatedAt, but those are server-defaulted to "now" per request — NOT real
+- 74 //     timestamps — so blended recency sort must use LastUpdated.
++ 74 //     timestamps — so blended recency sort must use LastUpdated. (Under ?resumable=true the server
++ 75 //     now derives lastUpdated from per-session ended_at/started_at — D24/D26 — but the CLI's
++ 76 //     rollup re-derives activity per session anyway, so this field is informational only.)
++ 77 //   - sessions is populated only when the request passes ?resumable=true (D24). Each entry is a
++ 78 //     CloudSession carrying agentName/machineName/deviceId + real activity times, which the CLI
++ 79 //     groups by project and merges with its local index to produce accurate per-agent chips and
++ 80 //     dates (D23). Absent on the web-app's ungated listing.
+  75 type CloudProject struct {
+  76 	ID           string `json:"id"`
+  77 	Name         string `json:"name"`
+  78 	Icon         string `json:"icon"`
+  79 	Color        string `json:"color"`
+  80 	LastUpdated  string `json:"lastUpdated"`
+- 81 	SessionCount int    `json:"sessionCount"`
++ 87 	SessionCount int             `json:"sessionCount"`
++ 88 	Sessions     []CloudSession  `json:"sessions"` // populated only with ?resumable=true (D24)
+  82 }
+  83 
+  84 // ResumeEligibility reports whether cross-machine cloud resume is available to the user, for
+  85 // the TUI's soft gate + nudge. This is a NETWORK call (fetches entitlement) and MUST run
+     ...
+ 156 	return resp.Data.Results, nil
+ 157 }
+ 158 
+ 159 // ListCloudProjects returns all projects the user has in the cloud, for blending cloud-only
+-160 // projects into the all-projects browser.
++167 // projects into the all-projects browser. It passes ?resumable=true so each project carries its
++168 // resumable sessions embedded (D24); the CLI groups those sessions by project and merges with its
++169 // local index to produce accurate per-agent chips + real activity dates (D23). Projects with no
++170 // resumable sessions are dropped server-side, so every returned project has Sessions len > 0.
+ 161 func ListCloudProjects() ([]CloudProject, error) {
+ 162 	var resp struct {
+ 163 		Success bool `json:"success"`
+ 164 		Data    struct {
+     ...
+ 166 		} `json:"data"`
+ 167 		Error string `json:"error"`
+ 168 	}
+ 169 
+-170 	if err := skillsAPIRequest(http.MethodGet, "/api/v1/projects", nil, &resp); err != nil {
++180 	if err := skillsAPIRequest(http.MethodGet, "/api/v1/projects?resumable=true", nil, &resp); err != nil {
+ 171 		return nil, err
+ 172 	}
+ 173 	if !resp.Success {
+ 174 		return nil, fmt.Errorf("list cloud projects failed: %s", resp.Error)
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cloud/resume_client.go
++++ pkg/cloud/resume_client.go
+@@ -70,16 +70,23 @@
+ //     (its `{ ...workspace, id: projectId }` override wins), and `projectId` itself is absent on
+ //     the wire. So dedup-by-project_id keys on ID.
+ //   - lastUpdated is the real recency signal (last session activity). The response also carries
+ //     createdAt/updatedAt, but those are server-defaulted to "now" per request — NOT real
+-//     timestamps — so blended recency sort must use LastUpdated.
++//     timestamps — so blended recency sort must use LastUpdated. (Under ?resumable=true the server
++//     now derives lastUpdated from per-session ended_at/started_at — D24/D26 — but the CLI's
++//     rollup re-derives activity per session anyway, so this field is informational only.)
++//   - sessions is populated only when the request passes ?resumable=true (D24). Each entry is a
++//     CloudSession carrying agentName/machineName/deviceId + real activity times, which the CLI
++//     groups by project and merges with its local index to produce accurate per-agent chips and
++//     dates (D23). Absent on the web-app's ungated listing.
+ type CloudProject struct {
+ 	ID           string `json:"id"`
+ 	Name         string `json:"name"`
+ 	Icon         string `json:"icon"`
+ 	Color        string `json:"color"`
+ 	LastUpdated  string `json:"lastUpdated"`
+-	SessionCount int    `json:"sessionCount"`
++	SessionCount int             `json:"sessionCount"`
++	Sessions     []CloudSession  `json:"sessions"` // populated only with ?resumable=true (D24)
+ }
+ 
+ // ResumeEligibility reports whether cross-machine cloud resume is available to the user, for
+ // the TUI's soft gate + nudge. This is a NETWORK call (fetches entitlement) and MUST run
+@@ -156,9 +163,12 @@
+ 	return resp.Data.Results, nil
+ }
+ 
+ // ListCloudProjects returns all projects the user has in the cloud, for blending cloud-only
+-// projects into the all-projects browser.
++// projects into the all-projects browser. It passes ?resumable=true so each project carries its
++// resumable sessions embedded (D24); the CLI groups those sessions by project and merges with its
++// local index to produce accurate per-agent chips + real activity dates (D23). Projects with no
++// resumable sessions are dropped server-side, so every returned project has Sessions len > 0.
+ func ListCloudProjects() ([]CloudProject, error) {
+ 	var resp struct {
+ 		Success bool `json:"success"`
+ 		Data    struct {
+@@ -166,9 +176,9 @@
+ 		} `json:"data"`
+ 		Error string `json:"error"`
+ 	}
+ 
+-	if err := skillsAPIRequest(http.MethodGet, "/api/v1/projects", nil, &resp); err != nil {
++	if err := skillsAPIRequest(http.MethodGet, "/api/v1/projects?resumable=true", nil, &resp); err != nil {
+ 		return nil, err
+ 	}
+ 	if !resp.Success {
+ 		return nil, fmt.Errorf("list cloud projects failed: %s", resp.Error)
 
 ```
-Successfully replaced 3 block(s) in pkg/cloud/resume_client.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 74
+}
 ```
 </details></tool-use>
 
@@ -5940,10 +8294,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:23:07Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/sessionindex/store.go`
-
+**Path:**
+```text
+pkg/sessionindex/store.go
 ```
-Slug         string
+
+**Offset (line):**
+```text
+60
+```
+
+**Limit:**
+```text
+30
+```
+
+```go
+	Slug         string
 	Name         string
 	NativePath   string // absolute path the provider opens to read this session
 	OriginCwd    string // working directory the session was launched from
@@ -5982,10 +8349,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:23:08Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/sessionindex/store.go`
-
+**Path:**
+```text
+pkg/sessionindex/store.go
 ```
-"busy_timeout=15000",
+
+**Offset (line):**
+```text
+40
+```
+
+**Limit:**
+```text
+12
+```
+
+```go
+	"busy_timeout=15000",
 	"journal_mode(WAL)",
 	"synchronous=NORMAL",
 	"cache_size=-64000",
@@ -6006,10 +8386,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:23:11Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/sessionindex/store.go`
-
+**Path:**
+```text
+pkg/sessionindex/store.go
 ```
-ProjectID    string // resolved git_id (else workspace_id)
+
+**Offset (line):**
+```text
+52
+```
+
+**Limit:**
+```text
+15
+```
+
+```go
+	ProjectID    string // resolved git_id (else workspace_id)
 	ProjectName  string
 	Agent        string // provider id: claude, codex, gemini, droid, deepseek, cursor
 	SessionID    string // native session id (uuid)
@@ -6037,9 +8430,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:23:13Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/sessionindex/store.go`
-
+**Path:**
+```text
+pkg/sessionindex/store.go
 ```
+
+**Offset (line):**
+```text
+726
+```
+
+**Limit:**
+```text
+8
+```
+
+```go
 }
 
 // SessionBody returns the full-text conversation body for a session (for the preview
@@ -6057,10 +8463,162 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:23:18Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/sessionindex/store.go`
+**Path:**
+```text
+pkg/sessionindex/store.go
+```
+
+**Edit 1:**
+```diff
+-}
+-
+-// SessionBody returns the full-text conversation body for a session (for the preview
++}
++
++// ProjectSessionKey identifies one local session within a project for the all-projects rollup
++// merge (D23): the (agent, session_id) fingerprint the cloud rows dedup against, plus the row's
++// activity time so the merged project's LastActivity can take the max across local + cloud.
++type ProjectSessionKey struct {
++	Agent     string // provider id: claude, codex, …
++	SessionID string // native session id
++	UpdatedAt string // ISO 8601, last activity (max of created/updated for robustness)
++}
++
++// ListAllSessionKeysByProject returns every non-deleted local session keyed by project_id, for
++// the all-projects browser's session-level merge with cloud rows (D23). Unlike ListProjects (a
++// rollup), this returns the per-session fingerprint set so the caller can dedup cloud rows against
++// local by (agent, session_id) — local preferred — and recompute accurate per-agent chips / totals /
++// last activity from the union. Used only by the cloud-projects blend; the local-only path keeps
++// using ListProjects (a single grouped query is cheaper than enumerating then rolling up client-side).
++func (s *Store) ListAllSessionKeysByProject() (map[string][]ProjectSessionKey, error) {
++	rows, err := s.db.Query(`SELECT project_id, agent, session_id, updated_at
++		FROM sessions WHERE deleted = 0`)
++	if err != nil {
++		return nil, err
++	}
++	defer func() { _ = rows.Close() }()
++
++	out := make(map[string][]ProjectSessionKey)
++	for rows.Next() {
++		var pid, agent, sid, updated string
++		if err := rows.Scan(&pid, &agent, &sid, &updated); err != nil {
++			return nil, err
++		}
++		out[pid] = append(out[pid], ProjectSessionKey{Agent: agent, SessionID: sid, UpdatedAt: updated})
++	}
++	return out, rows.Err()
++}
++
++// SessionBody returns the full-text conversation body for a session (for the preview
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/sessionindex/store.go.
+```
+
+**diff:**
+```diff
+     ...
+ 724 	sort.Slice(out, func(i, j int) bool { return out[i].LastActivity > out[j].LastActivity })
+ 725 	return out, nil
+ 726 }
+ 727 
++728 // ProjectSessionKey identifies one local session within a project for the all-projects rollup
++729 // merge (D23): the (agent, session_id) fingerprint the cloud rows dedup against, plus the row's
++730 // activity time so the merged project's LastActivity can take the max across local + cloud.
++731 type ProjectSessionKey struct {
++732 	Agent     string // provider id: claude, codex, …
++733 	SessionID string // native session id
++734 	UpdatedAt string // ISO 8601, last activity (max of created/updated for robustness)
++735 }
++736 
++737 // ListAllSessionKeysByProject returns every non-deleted local session keyed by project_id, for
++738 // the all-projects browser's session-level merge with cloud rows (D23). Unlike ListProjects (a
++739 // rollup), this returns the per-session fingerprint set so the caller can dedup cloud rows against
++740 // local by (agent, session_id) — local preferred — and recompute accurate per-agent chips / totals /
++741 // last activity from the union. Used only by the cloud-projects blend; the local-only path keeps
++742 // using ListProjects (a single grouped query is cheaper than enumerating then rolling up client-side).
++743 func (s *Store) ListAllSessionKeysByProject() (map[string][]ProjectSessionKey, error) {
++744 	rows, err := s.db.Query(`SELECT project_id, agent, session_id, updated_at
++745 		FROM sessions WHERE deleted = 0`)
++746 	if err != nil {
++747 		return nil, err
++748 	}
++749 	defer func() { _ = rows.Close() }()
++750 
++751 	out := make(map[string][]ProjectSessionKey)
++752 	for rows.Next() {
++753 		var pid, agent, sid, updated string
++754 		if err := rows.Scan(&pid, &agent, &sid, &updated); err != nil {
++755 			return nil, err
++756 		}
++757 		out[pid] = append(out[pid], ProjectSessionKey{Agent: agent, SessionID: sid, UpdatedAt: updated})
++758 	}
++759 	return out, rows.Err()
++760 }
++761 
+ 728 // SessionBody returns the full-text conversation body for a session (for the preview
+ 729 // pane), or "" if the session has no indexed body (e.g. Cursor, metadata-only).
+ 730 func (s *Store) SessionBody(agent, sessionID string) (string, error) {
+ 731 	var body string
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/sessionindex/store.go
++++ pkg/sessionindex/store.go
+@@ -724,8 +724,42 @@
+ 	sort.Slice(out, func(i, j int) bool { return out[i].LastActivity > out[j].LastActivity })
+ 	return out, nil
+ }
+ 
++// ProjectSessionKey identifies one local session within a project for the all-projects rollup
++// merge (D23): the (agent, session_id) fingerprint the cloud rows dedup against, plus the row's
++// activity time so the merged project's LastActivity can take the max across local + cloud.
++type ProjectSessionKey struct {
++	Agent     string // provider id: claude, codex, …
++	SessionID string // native session id
++	UpdatedAt string // ISO 8601, last activity (max of created/updated for robustness)
++}
++
++// ListAllSessionKeysByProject returns every non-deleted local session keyed by project_id, for
++// the all-projects browser's session-level merge with cloud rows (D23). Unlike ListProjects (a
++// rollup), this returns the per-session fingerprint set so the caller can dedup cloud rows against
++// local by (agent, session_id) — local preferred — and recompute accurate per-agent chips / totals /
++// last activity from the union. Used only by the cloud-projects blend; the local-only path keeps
++// using ListProjects (a single grouped query is cheaper than enumerating then rolling up client-side).
++func (s *Store) ListAllSessionKeysByProject() (map[string][]ProjectSessionKey, error) {
++	rows, err := s.db.Query(`SELECT project_id, agent, session_id, updated_at
++		FROM sessions WHERE deleted = 0`)
++	if err != nil {
++		return nil, err
++	}
++	defer func() { _ = rows.Close() }()
++
++	out := make(map[string][]ProjectSessionKey)
++	for rows.Next() {
++		var pid, agent, sid, updated string
++		if err := rows.Scan(&pid, &agent, &sid, &updated); err != nil {
++			return nil, err
++		}
++		out[pid] = append(out[pid], ProjectSessionKey{Agent: agent, SessionID: sid, UpdatedAt: updated})
++	}
++	return out, rows.Err()
++}
++
+ // SessionBody returns the full-text conversation body for a session (for the preview
+ // pane), or "" if the session has no indexed body (e.g. Cursor, metadata-only).
+ func (s *Store) SessionBody(agent, sessionID string) (string, error) {
+ 	var body string
 
 ```
-Successfully replaced 1 block(s) in pkg/sessionindex/store.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 728
+}
 ```
 </details></tool-use>
 
@@ -6080,7 +8638,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:23:21Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "agentIDByName\|agentIDBy" pkg/cmd/*.go | grep -v _test | head`</summary>
+**Command:**
+```bash
+grep -rn "agentIDByName\|agentIDBy" pkg/cmd/*.go | grep -v _test | head
 ```
+
+```text
 pkg/cmd/session_tui_cloud.go:207:// index rows. agentIDByName resolves each row's display agent name back to a provider id.
 pkg/cmd/session_tui_cloud.go:208:func cloudFetchCmd(projectID string, agentIDByName map[string]string) tea.Cmd {
 pkg/cmd/session_tui_cloud.go:214:		return cloudSessionsMsg{projectID: projectID, sessions: cloudToSessions(cs, agentIDByName)}
@@ -6091,6 +8654,7 @@ pkg/cmd/session_tui_cloud.go:393:func cloudSearchCmd(query string, seq int, kind
 pkg/cmd/session_tui_cloud.go:399:		sessions, snippets := cloudSearchHitsToSessions(hits, agentIDByName)
 pkg/cmd/session_tui_cloud.go:407:	hits []cloud.CloudSearchHit, agentIDByName map[string]string,
 pkg/cmd/session_tui_cloud.go:412:		agentID, ok := agentIDByName[h.Metadata.AgentName]
+
 ```
 </details></tool-use>
 
@@ -6098,9 +8662,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:23:23Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "agentIDByName\s*[:=]\|m.agentIDByName" pkg/cmd/session_tui.go pkg/cmd/session_tui_browser.go pkg/cmd/resume.go | grep -v _test | head`</summary>
+**Command:**
+```bash
+grep -rn "agentIDByName\s*[:=]\|m.agentIDByName" pkg/cmd/session_tui.go pkg/cmd/session_tui_browser.go pkg/cmd/resume.go | grep -v _test | head
 ```
+
+```text
 pkg/cmd/session_tui.go:251:	m.agentIDByName = make(map[string]string, len(agents))
 pkg/cmd/session_tui.go:253:		m.agentIDByName[meta.name] = id
+
 ```
 </details></tool-use>
 
@@ -6108,10 +8678,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:23:25Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui.go
 ```
-installed:       installed,
+
+**Offset (line):**
+```text
+240
+```
+
+**Limit:**
+```text
+20
+```
+
+```go
+		installed:       installed,
 		presetTo:        opts.presetTo,
 		lastAgent:       opts.lastAgent,
 		all:             sessions,
@@ -6140,9 +8723,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:23:26Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_cloud.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
 ```
+
+**Offset (line):**
+```text
+525
+```
+
+**Limit:**
+```text
+20
+```
+
+```go
 // eligible — starts the first cloud fetch for the active (home) project's sessions and the user's
 // cloud project list (for the blended all-projects browser).
 func (m sessionTUI) applyCloudEligibility(msg cloudEligibilityMsg) (tea.Model, tea.Cmd) {
@@ -6235,10 +8831,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:23:36Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "cloudProjectsFetchCmd" pkg/cmd/*.go | grep -v _test`</summary>
+**Command:**
+```bash
+grep -rn "cloudProjectsFetchCmd" pkg/cmd/*.go | grep -v _test
 ```
+
+```text
 pkg/cmd/session_tui_cloud.go:218:// cloudProjectsFetchCmd lists the user's cloud projects off the UI thread for blending cloud-only
 pkg/cmd/session_tui_cloud.go:220:func cloudProjectsFetchCmd() tea.Cmd {
 pkg/cmd/session_tui_cloud.go:544:		cloudProjectsFetchCmd(),
+
 ```
 </details></tool-use>
 
@@ -6246,7 +8848,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:23:38Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "m.store\b\|store \*sessionindex" pkg/cmd/session_tui.go | head; echo "---"; grep -n "cloudProjectsFetchCmd\|requestVisibleSnippets\|cloudProjectsMsg" pkg/cmd/session_tui_browser.go | head`</summary>
+**Command:**
+```bash
+grep -rn "m.store\b\|store \*sessionindex" pkg/cmd/session_tui.go | head; echo "---"; grep -n "cloudProjectsFetchCmd\|requestVisibleSnippets\|cloudProjectsMsg" pkg/cmd/session_tui_browser.go | head
 ```
+
+```text
 pkg/cmd/session_tui.go:219:func newSessionTUI(store *sessionindex.Store, registry *factory.Registry, projectID, projectName string,
 pkg/cmd/session_tui.go:397:	sessions, err := m.store.ListByProject(m.homeProjectID)
 pkg/cmd/session_tui.go:583:// project drops out immediately, without a restart. The read handle (m.store) sees the writer's
@@ -6261,6 +8868,7 @@ pkg/cmd/session_tui.go:920:		m.searchRaw, _ = m.store.Search(ftsQuery(m.searchQu
 646:		return m, m.requestVisibleSnippets(modeProjects)
 650:		return m, m.requestVisibleSnippets(modeProjects)
 667:		return m, m.requestVisibleSnippets(modeProjects)
+
 ```
 </details></tool-use>
 
@@ -6327,9 +8935,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:23:50Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_cloud.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
 ```
+
+**Offset (line):**
+```text
+191
+```
+
+**Limit:**
+```text
+15
+```
+
+```go
 // cloudProjectsMsg carries the completed cloud project list, already converted to project rows
 // (IsCloud=true) with zero-session ghosts filtered out; err set = silent degrade.
 type cloudProjectsMsg struct {
@@ -6354,9 +8975,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:23:52Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_cloud.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
 ```
+
+**Offset (line):**
+```text
+218
+```
+
+**Limit:**
+```text
+12
+```
+
+```go
 // cloudProjectsFetchCmd lists the user's cloud projects off the UI thread for blending cloud-only
 // projects into the all-projects browser.
 func cloudProjectsFetchCmd() tea.Cmd {
@@ -6378,9 +9012,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:23:54Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_cloud.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
 ```
+
+**Offset (line):**
+```text
+338
+```
+
+**Limit:**
+```text
+22
+```
+
+```go
 // cloudToProjects converts cloud project summaries to project rows for the blended browser. A
 // project with zero sessions is skipped: a workspace can exist in the cloud with no sessions (e.g.
 // created on first push, its sessions since deleted), in which case last_session is null and its
@@ -6416,12 +9063,18 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:23:56Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "cloudProjects\b\|cloudLocalKeys\|agentIDByName\b" pkg/cmd/session_tui.go | head`</summary>
+**Command:**
+```bash
+grep -n "cloudProjects\b\|cloudLocalKeys\|agentIDByName\b" pkg/cmd/session_tui.go | head
 ```
+
+```text
 162:	// agentIDByName reverse-maps a cloud row's display agent name ("Claude Code") back to
 173:	cloudProjects []sessionindex.ProjectSummary // cloud-only projects, merged into the browser at filter time
 174:	agentIDByName map[string]string             // agent display name -> provider id
 251:	m.agentIDByName = make(map[string]string, len(agents))
 253:		m.agentIDByName[meta.name] = id
+
 ```
 </details></tool-use>
 
@@ -6429,10 +9082,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:23:58Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui.go
 ```
-// checked once, async, off the UI thread; cloudEligible gates fetches; cloudPending drives the
+
+**Offset (line):**
+```text
+160
+```
+
+**Limit:**
+```text
+18
+```
+
+```go
+	// checked once, async, off the UI thread; cloudEligible gates fetches; cloudPending drives the
 	// "searching cloud…" indicator; cloudNudge is the footer invitation shown to ineligible users.
 	// agentIDByName reverse-maps a cloud row's display agent name ("Claude Code") back to
 	// the provider id ("claude") that dedup and the resume/reconstruct path key on.
@@ -6477,10 +9143,75 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:02Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui.go`
+**Path:**
+```text
+pkg/cmd/session_tui.go
+```
+
+**Edit 1:**
+```diff
+-	cloudAll      []sessionindex.Session
+-	cloudProjects []sessionindex.ProjectSummary // cloud-only projects, merged into the browser at filter time
+-	agentIDByName map[string]string             // agent display name -> provider id
++	cloudAll      []sessionindex.Session
++	cloudProjects []sessionindex.ProjectSummary // cloud-only projects, merged into the browser at filter time
++	// cloudLocalKeys is the local per-project session fingerprint set (D23), fetched alongside
++	// cloudProjects so the all-projects rollup can dedup cloud sessions against local by
++	// (agent, session_id) — local preferred — and recompute accurate per-agent chips / totals / last
++	// activity from the union. Nil until the first cloud-projects fetch completes.
++	cloudLocalKeys map[string][]sessionindex.ProjectSessionKey
++	agentIDByName map[string]string             // agent display name -> provider id
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/session_tui.go.
+```
+
+**diff:**
+```diff
+      ...
+  170 	// which would discard anything merged into it. Instead they're merged with m.all at filter time
+  171 	// (refilterCurrentAgent), so a local re-query can't wipe them.
+  172 	cloudAll      []sessionindex.Session
+  173 	cloudProjects []sessionindex.ProjectSummary // cloud-only projects, merged into the browser at filter time
++ 174 	// cloudLocalKeys is the local per-project session fingerprint set (D23), fetched alongside
++ 175 	// cloudProjects so the all-projects rollup can dedup cloud sessions against local by
++ 176 	// (agent, session_id) — local preferred — and recompute accurate per-agent chips / totals / last
++ 177 	// activity from the union. Nil until the first cloud-projects fetch completes.
++ 178 	cloudLocalKeys map[string][]sessionindex.ProjectSessionKey
+  174 	agentIDByName map[string]string             // agent display name -> provider id
+  175 
+  176 	// Machine filter (the `m` key), modeled on the agent filter: cycle all → "local only" → each
+  177 	// remote machine. Only meaningful once cloud rows from OTHER machines are present, so the ring
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui.go
++++ pkg/cmd/session_tui.go
+@@ -170,8 +170,13 @@
+ 	// which would discard anything merged into it. Instead they're merged with m.all at filter time
+ 	// (refilterCurrentAgent), so a local re-query can't wipe them.
+ 	cloudAll      []sessionindex.Session
+ 	cloudProjects []sessionindex.ProjectSummary // cloud-only projects, merged into the browser at filter time
++	// cloudLocalKeys is the local per-project session fingerprint set (D23), fetched alongside
++	// cloudProjects so the all-projects rollup can dedup cloud sessions against local by
++	// (agent, session_id) — local preferred — and recompute accurate per-agent chips / totals / last
++	// activity from the union. Nil until the first cloud-projects fetch completes.
++	cloudLocalKeys map[string][]sessionindex.ProjectSessionKey
+ 	agentIDByName map[string]string             // agent display name -> provider id
+ 
+ 	// Machine filter (the `m` key), modeled on the agent filter: cycle all → "local only" → each
+ 	// remote machine. Only meaningful once cloud rows from OTHER machines are present, so the ring
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/session_tui.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 174
+}
 ```
 </details></tool-use>
 
@@ -6492,10 +9223,181 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:06Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui_cloud.go`
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
+```
+
+**Edit 1:**
+```diff
+-// cloudProjectsMsg carries the completed cloud project list, already converted to project rows
+-// (IsCloud=true) with zero-session ghosts filtered out; err set = silent degrade.
+-type cloudProjectsMsg struct {
+-	projects []sessionindex.ProjectSummary
+-	err      error
+-}
++// cloudProjectsMsg carries the completed cloud project list (each with its resumable sessions
++// embedded) plus the local per-project session fingerprint set, so the all-projects rollup can
++// dedup cloud vs. local at the session level (D23). err set = silent degrade to local-only.
++type cloudProjectsMsg struct {
++	projects  []cloud.CloudProject
++	localKeys map[string][]sessionindex.ProjectSessionKey
++	err       error
++}
+```
+
+**Edit 2:**
+```diff
+-// cloudProjectsFetchCmd lists the user's cloud projects off the UI thread for blending cloud-only
+-// projects into the all-projects browser.
+-func cloudProjectsFetchCmd() tea.Cmd {
+-	return func() tea.Msg {
+-		cp, err := cloud.ListCloudProjects()
+-		if err != nil {
+-			return cloudProjectsMsg{err: err}
+-		}
+-		return cloudProjectsMsg{projects: cloudToProjects(cp)}
+-	}
+-}
++// cloudProjectsFetchCmd lists the user's cloud projects (with embedded resumable sessions,
++// D24) AND the local per-project session fingerprint set off the UI thread, for the all-projects
++// browser's session-level merge (D23). Both reads happen here so the UI thread only stores results.
++func (m sessionTUI) cloudProjectsFetchCmd() tea.Cmd {
++	return func() tea.Msg {
++		cp, err := cloud.ListCloudProjects()
++		if err != nil {
++			return cloudProjectsMsg{err: err}
++		}
++		localKeys, err := m.store.ListAllSessionKeysByProject()
++		if err != nil {
++			slog.Debug("cloud resume: local session-key fetch failed, cloud counts may over-count overlaps",
++				"error", err)
++			localKeys = nil // degrade: merge still works, but overlaps with local won't be subtracted
++		}
++		return cloudProjectsMsg{projects: cp, localKeys: localKeys}
++	}
++}
+```
+
+```text
+Successfully replaced 2 block(s) in pkg/cmd/session_tui_cloud.go.
+```
+
+**diff:**
+```diff
+     ...
+ 187 	sessions  []sessionindex.Session
+ 188 	err       error
+ 189 }
+ 190 
+-191 // cloudProjectsMsg carries the completed cloud project list, already converted to project rows
+-192 // (IsCloud=true) with zero-session ghosts filtered out; err set = silent degrade.
++191 // cloudProjectsMsg carries the completed cloud project list (each with its resumable sessions
++192 // embedded) plus the local per-project session fingerprint set, so the all-projects rollup can
++193 // dedup cloud vs. local at the session level (D23). err set = silent degrade to local-only.
+ 193 type cloudProjectsMsg struct {
+-194 	projects []sessionindex.ProjectSummary
+-195 	err      error
++195 	projects  []cloud.CloudProject
++196 	localKeys map[string][]sessionindex.ProjectSessionKey
++197 	err       error
+ 196 }
+ 197 
+ 198 // cloudEligibilityCmd runs the (networked) eligibility check off the UI thread.
+ 199 func cloudEligibilityCmd() tea.Cmd {
+     ...
+ 214 		return cloudSessionsMsg{projectID: projectID, sessions: cloudToSessions(cs, agentIDByName)}
+ 215 	}
+ 216 }
+ 217 
+-218 // cloudProjectsFetchCmd lists the user's cloud projects off the UI thread for blending cloud-only
+-219 // projects into the all-projects browser.
+-220 func cloudProjectsFetchCmd() tea.Cmd {
++220 // cloudProjectsFetchCmd lists the user's cloud projects (with embedded resumable sessions,
++221 // D24) AND the local per-project session fingerprint set off the UI thread, for the all-projects
++222 // browser's session-level merge (D23). Both reads happen here so the UI thread only stores results.
++223 func (m sessionTUI) cloudProjectsFetchCmd() tea.Cmd {
+ 221 	return func() tea.Msg {
+ 222 		cp, err := cloud.ListCloudProjects()
+ 223 		if err != nil {
+ 224 			return cloudProjectsMsg{err: err}
+ 225 		}
+-226 		return cloudProjectsMsg{projects: cloudToProjects(cp)}
++229 		localKeys, err := m.store.ListAllSessionKeysByProject()
++230 		if err != nil {
++231 			slog.Debug("cloud resume: local session-key fetch failed, cloud counts may over-count overlaps",
++232 				"error", err)
++233 			localKeys = nil // degrade: merge still works, but overlaps with local won't be subtracted
++234 		}
++235 		return cloudProjectsMsg{projects: cp, localKeys: localKeys}
+ 227 	}
+ 228 }
+ 229 
+ 230 // cloudToSessions converts cloud session summaries to local index rows for blending. Rows whose
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui_cloud.go
++++ pkg/cmd/session_tui_cloud.go
+@@ -187,13 +187,15 @@
+ 	sessions  []sessionindex.Session
+ 	err       error
+ }
+ 
+-// cloudProjectsMsg carries the completed cloud project list, already converted to project rows
+-// (IsCloud=true) with zero-session ghosts filtered out; err set = silent degrade.
++// cloudProjectsMsg carries the completed cloud project list (each with its resumable sessions
++// embedded) plus the local per-project session fingerprint set, so the all-projects rollup can
++// dedup cloud vs. local at the session level (D23). err set = silent degrade to local-only.
+ type cloudProjectsMsg struct {
+-	projects []sessionindex.ProjectSummary
+-	err      error
++	projects  []cloud.CloudProject
++	localKeys map[string][]sessionindex.ProjectSessionKey
++	err       error
+ }
+ 
+ // cloudEligibilityCmd runs the (networked) eligibility check off the UI thread.
+ func cloudEligibilityCmd() tea.Cmd {
+@@ -214,17 +216,24 @@
+ 		return cloudSessionsMsg{projectID: projectID, sessions: cloudToSessions(cs, agentIDByName)}
+ 	}
+ }
+ 
+-// cloudProjectsFetchCmd lists the user's cloud projects off the UI thread for blending cloud-only
+-// projects into the all-projects browser.
+-func cloudProjectsFetchCmd() tea.Cmd {
++// cloudProjectsFetchCmd lists the user's cloud projects (with embedded resumable sessions,
++// D24) AND the local per-project session fingerprint set off the UI thread, for the all-projects
++// browser's session-level merge (D23). Both reads happen here so the UI thread only stores results.
++func (m sessionTUI) cloudProjectsFetchCmd() tea.Cmd {
+ 	return func() tea.Msg {
+ 		cp, err := cloud.ListCloudProjects()
+ 		if err != nil {
+ 			return cloudProjectsMsg{err: err}
+ 		}
+-		return cloudProjectsMsg{projects: cloudToProjects(cp)}
++		localKeys, err := m.store.ListAllSessionKeysByProject()
++		if err != nil {
++			slog.Debug("cloud resume: local session-key fetch failed, cloud counts may over-count overlaps",
++				"error", err)
++			localKeys = nil // degrade: merge still works, but overlaps with local won't be subtracted
++		}
++		return cloudProjectsMsg{projects: cp, localKeys: localKeys}
+ 	}
+ }
+ 
+ // cloudToSessions converts cloud session summaries to local index rows for blending. Rows whose
 
 ```
-Successfully replaced 2 block(s) in pkg/cmd/session_tui_cloud.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 191
+}
 ```
 </details></tool-use>
 
@@ -6507,10 +9409,62 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:10Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui_cloud.go`
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
+```
+
+**Edit 1:**
+```diff
+-		cloudFetchCmd(m.projectID, m.agentIDByName),
+-		cloudProjectsFetchCmd(),
++		cloudFetchCmd(m.projectID, m.agentIDByName),
++		m.cloudProjectsFetchCmd(),
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/session_tui_cloud.go.
+```
+
+**diff:**
+```diff
+     ...
+ 549 	}
+ 550 	m.cloudPending = true
+ 551 	cmds := []tea.Cmd{
+ 552 		cloudFetchCmd(m.projectID, m.agentIDByName),
+-553 		cloudProjectsFetchCmd(),
++553 		m.cloudProjectsFetchCmd(),
+ 554 	}
+ 555 	// Opened straight into search with a pre-seeded query (`specstory search foo`): now that we know
+ 556 	// we're eligible, kick the cloud search too (the per-keystroke path only fires on later typing).
+ 557 	if m.globalActive && queryReady(m.globalQuery) {
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui_cloud.go
++++ pkg/cmd/session_tui_cloud.go
+@@ -549,9 +549,9 @@
+ 	}
+ 	m.cloudPending = true
+ 	cmds := []tea.Cmd{
+ 		cloudFetchCmd(m.projectID, m.agentIDByName),
+-		cloudProjectsFetchCmd(),
++		m.cloudProjectsFetchCmd(),
+ 	}
+ 	// Opened straight into search with a pre-seeded query (`specstory search foo`): now that we know
+ 	// we're eligible, kick the cloud search too (the per-keystroke path only fires on later typing).
+ 	if m.globalActive && queryReady(m.globalQuery) {
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/session_tui_cloud.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 553
+}
 ```
 </details></tool-use>
 
@@ -6522,10 +9476,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:12Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_cloud.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
 ```
-}
+
+**Offset (line):**
+```text
+561
+```
+
+**Limit:**
+```text
+20
+```
+
+```go
+	}
 	return m, tea.Batch(cmds...)
 }
 
@@ -6562,7 +9529,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:16Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "m.cloudProjects\|cloudProjects\b\|removeCloudProject\|indexOfProject" pkg/cmd/*.go | grep -v _test | grep -v "cloudProjectsMsg\|cloudProjectsFetchCmd\|cloudLocalKeys"`</summary>
+**Command:**
+```bash
+grep -rn "m.cloudProjects\|cloudProjects\b\|removeCloudProject\|indexOfProject" pkg/cmd/*.go | grep -v _test | grep -v "cloudProjectsMsg\|cloudProjectsFetchCmd\|cloudLocalKeys"
 ```
+
+```text
 pkg/cmd/session_tui_browser.go:358:	if len(m.cloudProjects) > 0 {
 pkg/cmd/session_tui_browser.go:359:		src = mergeCloudProjects(m.projects, m.cloudProjects)
 pkg/cmd/session_tui_cloud.go:572:	m.cloudProjects = msg.projects
@@ -6578,6 +9550,7 @@ pkg/cmd/session_tui_cloud.go:758:// indexOfProject returns the position of the p
 pkg/cmd/session_tui_cloud.go:760:func indexOfProject(list []sessionindex.ProjectSummary, id string) int {
 pkg/cmd/session_tui.go:173:	cloudProjects []sessionindex.ProjectSummary // cloud-only projects, merged into the browser at filter time
 pkg/cmd/session_tui.go:175:	// cloudProjects so the all-projects rollup can dedup cloud sessions against local by
+
 ```
 </details></tool-use>
 
@@ -6593,10 +9566,60 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:19Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui.go`
+**Path:**
+```text
+pkg/cmd/session_tui.go
+```
+
+**Edit 1:**
+```diff
+-	cloudProjects []sessionindex.ProjectSummary // cloud-only projects, merged into the browser at filter time
++	cloudProjects []cloud.CloudProject               // cloud projects with embedded resumable sessions (D24), merged into the browser at filter time
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/session_tui.go.
+```
+
+**diff:**
+```diff
+      ...
+  169 	// in m.all: the background index warm and post-delete refresh both do `m.all = ListByProject()`,
+  170 	// which would discard anything merged into it. Instead they're merged with m.all at filter time
+  171 	// (refilterCurrentAgent), so a local re-query can't wipe them.
+  172 	cloudAll      []sessionindex.Session
+- 173 	cloudProjects []sessionindex.ProjectSummary // cloud-only projects, merged into the browser at filter time
++ 173 	cloudProjects []cloud.CloudProject               // cloud projects with embedded resumable sessions (D24), merged into the browser at filter time
+  174 	// cloudLocalKeys is the local per-project session fingerprint set (D23), fetched alongside
+  175 	// cloudProjects so the all-projects rollup can dedup cloud sessions against local by
+  176 	// (agent, session_id) — local preferred — and recompute accurate per-agent chips / totals / last
+  177 	// activity from the union. Nil until the first cloud-projects fetch completes.
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui.go
++++ pkg/cmd/session_tui.go
+@@ -169,9 +169,9 @@
+ 	// in m.all: the background index warm and post-delete refresh both do `m.all = ListByProject()`,
+ 	// which would discard anything merged into it. Instead they're merged with m.all at filter time
+ 	// (refilterCurrentAgent), so a local re-query can't wipe them.
+ 	cloudAll      []sessionindex.Session
+-	cloudProjects []sessionindex.ProjectSummary // cloud-only projects, merged into the browser at filter time
++	cloudProjects []cloud.CloudProject               // cloud projects with embedded resumable sessions (D24), merged into the browser at filter time
+ 	// cloudLocalKeys is the local per-project session fingerprint set (D23), fetched alongside
+ 	// cloudProjects so the all-projects rollup can dedup cloud sessions against local by
+ 	// (agent, session_id) — local preferred — and recompute accurate per-agent chips / totals / last
+ 	// activity from the union. Nil until the first cloud-projects fetch completes.
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/session_tui.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 173
+}
 ```
 </details></tool-use>
 
@@ -6604,7 +9627,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:21Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "cloud\b\|\"github.com.*cloud\"" pkg/cmd/session_tui.go | head; echo "---check cloud import in session_tui_cloud.go---"; grep -n "cloud \"" pkg/cmd/session_tui_cloud.go | head`</summary>
+**Command:**
+```bash
+grep -n "cloud\b\|\"github.com.*cloud\"" pkg/cmd/session_tui.go | head; echo "---check cloud import in session_tui_cloud.go---"; grep -n "cloud \"" pkg/cmd/session_tui_cloud.go | head
 ```
+
+```text
 14:	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
 55:	projectID string // project target (deleteFromProjects); also the cloud project for a cloud session
 143:	// previewSeq is bumped on every openPreview. A cloud preview loads its markdown off-thread
@@ -6616,6 +9644,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:21Z)**_
 177:	// activity from the union. Nil until the first cloud-projects fetch completes.
 182:	// remote machine. Only meaningful once cloud rows from OTHER machines are present, so the ring
 ---check cloud import in session_tui_cloud.go---
+
 ```
 </details></tool-use>
 
@@ -6623,7 +9652,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:22Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "import\|cloud\.\|sessionindex\.\|slog" pkg/cmd/session_tui_cloud.go | head -20`</summary>
+**Command:**
+```bash
+grep -n "import\|cloud\.\|sessionindex\.\|slog" pkg/cmd/session_tui_cloud.go | head -20
 ```
+
+```text
 3:import (
 6:	"log/slog"
 34:	addMachine := func(rows []sessionindex.Session) {
@@ -6644,6 +9678,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:22Z)**_
 302:func cloudPreviewCmd(s sessionindex.Session, seq int) tea.Cmd {
 304:		raw, err := cloud.FetchSessionData(s.ProjectID, s.SessionID)
 306:			slog.Debug("cloud preview: fetch failed", "sessionId", s.SessionID, "error", err)
+
 ```
 </details></tool-use>
 
@@ -6661,10 +9696,99 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:26Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui_cloud.go`
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
+```
+
+**Edit 1:**
+```diff
+-// applyCloudProjects records the cloud project list and, if the browser is showing, re-applies the
+-// project filter so cloud-only projects appear immediately (preserving the highlighted project).
+-func (m sessionTUI) applyCloudProjects(msg cloudProjectsMsg) (tea.Model, tea.Cmd) {
+-	if msg.err != nil {
+-		slog.Debug("cloud resume: list projects failed, showing local only", "error", msg.err)
+-		return m, nil
+-	}
+-	m.cloudProjects = msg.projects
++// applyCloudProjects records the cloud project list (with embedded sessions) and the local
++// per-project session fingerprint set, then — if the browser is showing — re-applies the project
++// filter so cloud-only projects (and cloud-only sessions in shared projects) appear immediately
++// (preserving the highlighted project).
++func (m sessionTUI) applyCloudProjects(msg cloudProjectsMsg) (tea.Model, tea.Cmd) {
++	if msg.err != nil {
++		slog.Debug("cloud resume: list projects failed, showing local only", "error", msg.err)
++		return m, nil
++	}
++	m.cloudProjects = msg.projects
++	m.cloudLocalKeys = msg.localKeys
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/session_tui_cloud.go.
+```
+
+**diff:**
+```diff
+     ...
+ 561 	}
+ 562 	return m, tea.Batch(cmds...)
+ 563 }
+ 564 
+-565 // applyCloudProjects records the cloud project list and, if the browser is showing, re-applies the
+-566 // project filter so cloud-only projects appear immediately (preserving the highlighted project).
++565 // applyCloudProjects records the cloud project list (with embedded sessions) and the local
++566 // per-project session fingerprint set, then — if the browser is showing — re-applies the project
++567 // filter so cloud-only projects (and cloud-only sessions in shared projects) appear immediately
++568 // (preserving the highlighted project).
+ 567 func (m sessionTUI) applyCloudProjects(msg cloudProjectsMsg) (tea.Model, tea.Cmd) {
+ 568 	if msg.err != nil {
+ 569 		slog.Debug("cloud resume: list projects failed, showing local only", "error", msg.err)
+ 570 		return m, nil
+ 571 	}
+ 572 	m.cloudProjects = msg.projects
++575 	m.cloudLocalKeys = msg.localKeys
+ 573 	if m.mode == modeProjects {
+ 574 		selID := ""
+ 575 		if m.projCursor >= 0 && m.projCursor < len(m.projFiltered) {
+ 576 			selID = m.projFiltered[m.projCursor].ProjectID
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui_cloud.go
++++ pkg/cmd/session_tui_cloud.go
+@@ -561,16 +561,19 @@
+ 	}
+ 	return m, tea.Batch(cmds...)
+ }
+ 
+-// applyCloudProjects records the cloud project list and, if the browser is showing, re-applies the
+-// project filter so cloud-only projects appear immediately (preserving the highlighted project).
++// applyCloudProjects records the cloud project list (with embedded sessions) and the local
++// per-project session fingerprint set, then — if the browser is showing — re-applies the project
++// filter so cloud-only projects (and cloud-only sessions in shared projects) appear immediately
++// (preserving the highlighted project).
+ func (m sessionTUI) applyCloudProjects(msg cloudProjectsMsg) (tea.Model, tea.Cmd) {
+ 	if msg.err != nil {
+ 		slog.Debug("cloud resume: list projects failed, showing local only", "error", msg.err)
+ 		return m, nil
+ 	}
+ 	m.cloudProjects = msg.projects
++	m.cloudLocalKeys = msg.localKeys
+ 	if m.mode == modeProjects {
+ 		selID := ""
+ 		if m.projCursor >= 0 && m.projCursor < len(m.projFiltered) {
+ 			selID = m.projFiltered[m.projCursor].ProjectID
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/session_tui_cloud.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 565
+}
 ```
 </details></tool-use>
 
@@ -6676,9 +9800,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:28Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_cloud.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
 ```
+
+**Offset (line):**
+```text
+651
+```
+
+**Limit:**
+```text
+50
+```
+
+```go
 // mergeCloudProjects blends cloud-only projects into the local project list: dedup by project_id
 // with the local rollup preferred (it has the real per-agent chips and resumes offline), then
 // re-sort the union by recency (LastActivity desc). Same shape as mergeCloudRows for sessions.
@@ -6738,9 +9875,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:30Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_cloud.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
 ```
+
+**Offset (line):**
+```text
+700
+```
+
+**Limit:**
+```text
+30
+```
+
+```go
+
 // applyCloudDeleteResult removes the deleted cloud row/project from the cached cloud data and
 // refreshes the view, or surfaces a transient error notice if the delete failed.
 func (m sessionTUI) applyCloudDeleteResult(msg cloudDeleteResultMsg) (tea.Model, tea.Cmd) {
@@ -6779,10 +9930,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:32Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_cloud.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
 ```
-m.cursor = clampIndex(m.cursor, len(m.filtered))
+
+**Offset (line):**
+```text
+744
+```
+
+**Limit:**
+```text
+25
+```
+
+```go
+	m.cursor = clampIndex(m.cursor, len(m.filtered))
 	m.clampScroll()
 	return m, m.requestVisibleSnippets(modeList)
 }
@@ -6896,7 +10060,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:39Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `sed -n '3,15p' pkg/cmd/session_tui_cloud.go`</summary>
+**Command:**
+```bash
+sed -n '3,15p' pkg/cmd/session_tui_cloud.go
 ```
+
+```text
 import (
 	"encoding/json"
 	"fmt"
@@ -6910,6 +10079,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/session"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
+
 ```
 </details></tool-use>
 
@@ -6921,10 +10091,375 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:47Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui_cloud.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
 ```
+
+**Edit 1:**
+```diff
+-// mergeCloudProjects blends cloud-only projects into the local project list: dedup by project_id
+-// with the local rollup preferred (it has the real per-agent chips and resumes offline), then
+-// re-sort the union by recency (LastActivity desc). Same shape as mergeCloudRows for sessions.
+-func mergeCloudProjects(local, cloudProjects []sessionindex.ProjectSummary) []sessionindex.ProjectSummary {
+-	seen := make(map[string]bool, len(local))
+-	for _, p := range local {
+-		seen[p.ProjectID] = true
+-	}
+-	merged := make([]sessionindex.ProjectSummary, 0, len(local)+len(cloudProjects))
+-	merged = append(merged, local...)
+-	for _, c := range cloudProjects {
+-		if seen[c.ProjectID] {
+-			continue // local wins
+-		}
+-		merged = append(merged, c)
+-	}
+-	sort.SliceStable(merged, func(i, j int) bool {
+-		return projectActivityTime(merged[i]).After(projectActivityTime(merged[j]))
+-	})
+-	return merged
+-}
++// mergeCloudProjects blends cloud projects (each carrying its resumable sessions, D24) into the
++// local project list at the SESSION level (D23): dedup by (agent, session_id) with the LOCAL copy
++// preferred (it resumes offline/instantly), then recompute AgentCounts / Sessions / LastActivity
++// from the union so a shared project's cloud-only sessions still contribute to its chips and date.
++// Cloud-only projects (no local sessions) get IsCloud=true; shared projects keep IsCloud=false but
++// gain cloud-only sessions in their counts. Re-sort the union by recency (LastActivity desc).
++//
++// localKeys may be nil (e.g. the local session-key query failed): the merge degrades to counting
++// ALL cloud sessions in shared projects (over-counting overlaps with local) — logged at fetch time.
++// agentIDByName resolves each cloud session's display agent name to the provider id the chips key on;
++// sessions whose agent can't be resolved are skipped (they can't be resumed here anyway).
++func mergeCloudProjects(local []sessionindex.ProjectSummary, localKeys map[string][]sessionindex.ProjectSessionKey, cloudProjs []cloud.CloudProject, agentIDByName map[string]string) []sessionindex.ProjectSummary {
++	// Index local projects by project_id so shared ones can be augmented in place. Clone each
++	// AgentCounts map first so we never mutate the caller's (m.projects) map.
++	byID := make(map[string]*sessionindex.ProjectSummary, len(local))
++	merged := make([]sessionindex.ProjectSummary, 0, len(local)+len(cloudProjs))
++	for i := range local {
++		p := local[i]
++		counts := make(map[string]int, len(p.AgentCounts))
++		for k, v := range p.AgentCounts {
++			counts[k] = v
++		}
++		p.AgentCounts = counts
++		byID[p.ProjectID] = &p
++		merged = append(merged, p)
++	}
++
++	// Local fingerprint set per project — the dedup boundary (local preferred).
++	localSeen := make(map[string]map[string]bool, len(localKeys))
++	for pid, keys := range localKeys {
++		s := make(map[string]bool, len(keys))
++		for _, k := range keys {
++			s[sessionindex.FingerprintKey(k.Agent, k.SessionID)] = true
++		}
++		localSeen[pid] = s
++	}
++
++	for _, c := range cloudProjs {
++		pid := c.ID
++		// Resolve this project's cloud sessions to (agentID, sessionID, activity); skip unknown
++		// agents — they can't be reconstructed/resumed here, so counting them would lie.
++		type cloudSess struct {
++			agentID  string
++			sessionID string
++			activity string // firstNonEmpty(ended_at, started_at, updated_at) — real activity, not sync time
++		}
++		resolved := make([]cloudSess, 0, len(c.Sessions))
++		for _, s := range c.Sessions {
++			agentID, ok := agentIDByName[s.Metadata.AgentName]
++			if !ok {
++				slog.Debug("cloud resume: skipping project session with unknown agent",
++					"agentName", s.Metadata.AgentName, "sessionId", s.ClientID, "projectId", pid)
++				continue
++			}
++			resolved = append(resolved, cloudSess{
++				agentID:   agentID,
++				sessionID: s.ClientID,
++				activity:  firstNonEmpty(s.EndedAt, s.StartedAt, s.UpdatedAt),
++			})
++		}
++		if len(resolved) == 0 {
++			continue // no resolvable resumable sessions — don't show an empty cloud project
++		}
++
++		if existing, ok := byID[pid]; ok {
++			// Shared project: add only the cloud sessions NOT already local (local preferred), so
++			// overlaps don't double-count and cloud-only sessions still contribute.
++			seen := localSeen[pid]
++			for _, r := range resolved {
++				if seen != nil && seen[sessionindex.FingerprintKey(r.agentID, r.sessionID)] {
++					continue // local wins
++				}
++				existing.AgentCounts[r.agentID]++
++				existing.Sessions++
++				if r.activity != "" && r.activity > existing.LastActivity {
++					existing.LastActivity = r.activity
++				}
++			}
++			continue
++		}
++
++		// Cloud-only project: build a fresh rollup from its cloud sessions.
++		ps := sessionindex.ProjectSummary{
++			ProjectID:    pid,
++			ProjectName:  c.Name,
++			Sessions:     len(resolved),
++			AgentCounts:  make(map[string]int),
++			LastActivity: "",
++			IsCloud:      true,
++		}
++		for _, r := range resolved {
++			ps.AgentCounts[r.agentID]++
++			if r.activity != "" && r.activity > ps.LastActivity {
++				ps.LastActivity = r.activity
++			}
++		}
++		byID[pid] = &ps
++		merged = append(merged, ps)
++	}
++
++	sort.SliceStable(merged, func(i, j int) bool {
++		return projectActivityTime(merged[i]).After(projectActivityTime(merged[j]))
++	})
++	return merged
++}
+```
+
+```text
 Successfully replaced 1 block(s) in pkg/cmd/session_tui_cloud.go.
+```
+
+**diff:**
+```diff
+     ...
+ 647 	}
+ 648 	return time.Time{}
+ 649 }
+ 650 
+-651 // mergeCloudProjects blends cloud-only projects into the local project list: dedup by project_id
+-652 // with the local rollup preferred (it has the real per-agent chips and resumes offline), then
+-653 // re-sort the union by recency (LastActivity desc). Same shape as mergeCloudRows for sessions.
+-654 func mergeCloudProjects(local, cloudProjects []sessionindex.ProjectSummary) []sessionindex.ProjectSummary {
+-655 	seen := make(map[string]bool, len(local))
+-656 	for _, p := range local {
+-657 		seen[p.ProjectID] = true
++651 // mergeCloudProjects blends cloud projects (each carrying its resumable sessions, D24) into the
++652 // local project list at the SESSION level (D23): dedup by (agent, session_id) with the LOCAL copy
++653 // preferred (it resumes offline/instantly), then recompute AgentCounts / Sessions / LastActivity
++654 // from the union so a shared project's cloud-only sessions still contribute to its chips and date.
++655 // Cloud-only projects (no local sessions) get IsCloud=true; shared projects keep IsCloud=false but
++656 // gain cloud-only sessions in their counts. Re-sort the union by recency (LastActivity desc).
++657 //
++658 // localKeys may be nil (e.g. the local session-key query failed): the merge degrades to counting
++659 // ALL cloud sessions in shared projects (over-counting overlaps with local) — logged at fetch time.
++660 // agentIDByName resolves each cloud session's display agent name to the provider id the chips key on;
++661 // sessions whose agent can't be resolved are skipped (they can't be resumed here anyway).
++662 func mergeCloudProjects(local []sessionindex.ProjectSummary, localKeys map[string][]sessionindex.ProjectSessionKey, cloudProjs []cloud.CloudProject, agentIDByName map[string]string) []sessionindex.ProjectSummary {
++663 	// Index local projects by project_id so shared ones can be augmented in place. Clone each
++664 	// AgentCounts map first so we never mutate the caller's (m.projects) map.
++665 	byID := make(map[string]*sessionindex.ProjectSummary, len(local))
++666 	merged := make([]sessionindex.ProjectSummary, 0, len(local)+len(cloudProjs))
++667 	for i := range local {
++668 		p := local[i]
++669 		counts := make(map[string]int, len(p.AgentCounts))
++670 		for k, v := range p.AgentCounts {
++671 			counts[k] = v
++672 		}
++673 		p.AgentCounts = counts
++674 		byID[p.ProjectID] = &p
++675 		merged = append(merged, p)
+ 658 	}
+-659 	merged := make([]sessionindex.ProjectSummary, 0, len(local)+len(cloudProjects))
+-660 	merged = append(merged, local...)
+-661 	for _, c := range cloudProjects {
+-662 		if seen[c.ProjectID] {
+-663 			continue // local wins
++677 
++678 	// Local fingerprint set per project — the dedup boundary (local preferred).
++679 	localSeen := make(map[string]map[string]bool, len(localKeys))
++680 	for pid, keys := range localKeys {
++681 		s := make(map[string]bool, len(keys))
++682 		for _, k := range keys {
++683 			s[sessionindex.FingerprintKey(k.Agent, k.SessionID)] = true
+ 664 		}
+-665 		merged = append(merged, c)
++685 		localSeen[pid] = s
+ 666 	}
++687 
++688 	for _, c := range cloudProjs {
++689 		pid := c.ID
++690 		// Resolve this project's cloud sessions to (agentID, sessionID, activity); skip unknown
++691 		// agents — they can't be reconstructed/resumed here, so counting them would lie.
++692 		type cloudSess struct {
++693 			agentID  string
++694 			sessionID string
++695 			activity string // firstNonEmpty(ended_at, started_at, updated_at) — real activity, not sync time
++696 		}
++697 		resolved := make([]cloudSess, 0, len(c.Sessions))
++698 		for _, s := range c.Sessions {
++699 			agentID, ok := agentIDByName[s.Metadata.AgentName]
++700 			if !ok {
++701 				slog.Debug("cloud resume: skipping project session with unknown agent",
++702 					"agentName", s.Metadata.AgentName, "sessionId", s.ClientID, "projectId", pid)
++703 				continue
++704 			}
++705 			resolved = append(resolved, cloudSess{
++706 				agentID:   agentID,
++707 				sessionID: s.ClientID,
++708 				activity:  firstNonEmpty(s.EndedAt, s.StartedAt, s.UpdatedAt),
++709 			})
++710 		}
++711 		if len(resolved) == 0 {
++712 			continue // no resolvable resumable sessions — don't show an empty cloud project
++713 		}
++714 
++715 		if existing, ok := byID[pid]; ok {
++716 			// Shared project: add only the cloud sessions NOT already local (local preferred), so
++717 			// overlaps don't double-count and cloud-only sessions still contribute.
++718 			seen := localSeen[pid]
++719 			for _, r := range resolved {
++720 				if seen != nil && seen[sessionindex.FingerprintKey(r.agentID, r.sessionID)] {
++721 					continue // local wins
++722 				}
++723 				existing.AgentCounts[r.agentID]++
++724 				existing.Sessions++
++725 				if r.activity != "" && r.activity > existing.LastActivity {
++726 					existing.LastActivity = r.activity
++727 				}
++728 			}
++729 			continue
++730 		}
++731 
++732 		// Cloud-only project: build a fresh rollup from its cloud sessions.
++733 		ps := sessi
+… (output truncated)
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui_cloud.go
++++ pkg/cmd/session_tui_cloud.go
+@@ -647,24 +647,108 @@
+ 	}
+ 	return time.Time{}
+ }
+ 
+-// mergeCloudProjects blends cloud-only projects into the local project list: dedup by project_id
+-// with the local rollup preferred (it has the real per-agent chips and resumes offline), then
+-// re-sort the union by recency (LastActivity desc). Same shape as mergeCloudRows for sessions.
+-func mergeCloudProjects(local, cloudProjects []sessionindex.ProjectSummary) []sessionindex.ProjectSummary {
+-	seen := make(map[string]bool, len(local))
+-	for _, p := range local {
+-		seen[p.ProjectID] = true
++// mergeCloudProjects blends cloud projects (each carrying its resumable sessions, D24) into the
++// local project list at the SESSION level (D23): dedup by (agent, session_id) with the LOCAL copy
++// preferred (it resumes offline/instantly), then recompute AgentCounts / Sessions / LastActivity
++// from the union so a shared project's cloud-only sessions still contribute to its chips and date.
++// Cloud-only projects (no local sessions) get IsCloud=true; shared projects keep IsCloud=false but
++// gain cloud-only sessions in their counts. Re-sort the union by recency (LastActivity desc).
++//
++// localKeys may be nil (e.g. the local session-key query failed): the merge degrades to counting
++// ALL cloud sessions in shared projects (over-counting overlaps with local) — logged at fetch time.
++// agentIDByName resolves each cloud session's display agent name to the provider id the chips key on;
++// sessions whose agent can't be resolved are skipped (they can't be resumed here anyway).
++func mergeCloudProjects(local []sessionindex.ProjectSummary, localKeys map[string][]sessionindex.ProjectSessionKey, cloudProjs []cloud.CloudProject, agentIDByName map[string]string) []sessionindex.ProjectSummary {
++	// Index local projects by project_id so shared ones can be augmented in place. Clone each
++	// AgentCounts map first so we never mutate the caller's (m.projects) map.
++	byID := make(map[string]*sessionindex.ProjectSummary, len(local))
++	merged := make([]sessionindex.ProjectSummary, 0, len(local)+len(cloudProjs))
++	for i := range local {
++		p := local[i]
++		counts := make(map[string]int, len(p.AgentCounts))
++		for k, v := range p.AgentCounts {
++			counts[k] = v
++		}
++		p.AgentCounts = counts
++		byID[p.ProjectID] = &p
++		merged = append(merged, p)
+ 	}
+-	merged := make([]sessionindex.ProjectSummary, 0, len(local)+len(cloudProjects))
+-	merged = append(merged, local...)
+-	for _, c := range cloudProjects {
+-		if seen[c.ProjectID] {
+-			continue // local wins
++
++	// Local fingerprint set per project — the dedup boundary (local preferred).
++	localSeen := make(map[string]map[string]bool, len(localKeys))
++	for pid, keys := range localKeys {
++		s := make(map[string]bool, len(keys))
++		for _, k := range keys {
++			s[sessionindex.FingerprintKey(k.Agent, k.SessionID)] = true
+ 		}
+-		merged = append(merged, c)
++		localSeen[pid] = s
+ 	}
++
++	for _, c := range cloudProjs {
++		pid := c.ID
++		// Resolve this project's cloud sessions to (agentID, sessionID, activity); skip unknown
++		// agents — they can't be reconstructed/resumed here, so counting them would lie.
++		type cloudSess struct {
++			agentID  string
++			sessionID string
++			activity string // firstNonEmpty(ended_at, started_at, updated_at) — real activity, not sync time
++		}
++		resolved := make([]cloudSess, 0, len(c.Sessions))
++		for _, s := range c.Sessions {
++			agentID, ok := agentIDByName[s.Metadata.AgentName]
++			if !ok {
++				slog.Debug("cloud resume: skipping project session with unknown agent",
++					"agentName", s.Metadata.AgentName, "sessionId", s.ClientID, "projectId", pid)
++				continue
++			}
++			resolved = append(resolved, cloudSess{
++				agentID:   agentID,
++				sessionID: s.ClientID,
++				activity:  firstNonEmpty(s.EndedAt, s.StartedAt, s.UpdatedAt),
++			})
++		}
++		if len(resolved) == 0 {
++			continue // no resolvable resumable sessions — don't show an empty cloud project
++		}
++
++		if existing, ok := byID[pid]; ok {
++			// Shared project: add only the cloud sessions NOT already local (local preferred), so
++			// overlaps don't double-count and cloud-only sessions still contribute.
++			seen := localSeen[pid]
++			for _, r := range resolved {
++				if seen != nil && seen[sessionindex.FingerprintKey(r.agentID, r.sessionID)] {
++					continue // local wins
++				}
++				existing.AgentCounts[r.agentID]++
++				existing.Sessions++
++				if r.activity != "" && r.activity > existing.LastActivity {
++					existing.LastActivity = r.activity
++				}
++			}
++			continue
++		}
++
++		// Cloud-only project: build a fresh rollup from its cloud sessions.
++		ps := sessionindex.ProjectSummary{
++			ProjectID:    pid,
++			ProjectName:  c.Name,
++			Sessions:     len(resolved),
++			AgentCounts:  make(map[string]int),
++			LastActivity: "",
++			IsCloud:      true,
++		}
++		for _, r := range resolved {
++			ps.AgentCounts[r.agentID]++
++			if r.activity != "" && r.activity > ps.LastActivity {
++
+… (output truncated)
+```
+
+**Details:**
+```json
+{
+  "firstChangedLine": 651
+}
 ```
 </details></tool-use>
 
@@ -6936,10 +10471,94 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:49Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui_cloud.go`
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
+```
+
+**Edit 1:**
+```diff
+-// removeCloudProject returns projects without the given project_id.
+-func removeCloudProject(projects []sessionindex.ProjectSummary, projectID string) []sessionindex.ProjectSummary {
+-	out := make([]sessionindex.ProjectSummary, 0, len(projects))
+-	for _, p := range projects {
+-		if p.ProjectID == projectID {
+-			continue
+-		}
+-		out = append(out, p)
+-	}
+-	return out
+-}
++// removeCloudProject returns cloud projects without the given project_id.
++func removeCloudProject(projects []cloud.CloudProject, projectID string) []cloud.CloudProject {
++	out := make([]cloud.CloudProject, 0, len(projects))
++	for _, p := range projects {
++		if p.ID == projectID {
++			continue
++		}
++		out = append(out, p)
++	}
++	return out
++}
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/session_tui_cloud.go.
+```
+
+**diff:**
+```diff
+     ...
+ 829 	m.clampScroll()
+ 830 	return m, m.requestVisibleSnippets(modeList)
+ 831 }
+ 832 
+-833 // removeCloudProject returns projects without the given project_id.
+-834 func removeCloudProject(projects []sessionindex.ProjectSummary, projectID string) []sessionindex.ProjectSummary {
+-835 	out := make([]sessionindex.ProjectSummary, 0, len(projects))
++833 // removeCloudProject returns cloud projects without the given project_id.
++834 func removeCloudProject(projects []cloud.CloudProject, projectID string) []cloud.CloudProject {
++835 	out := make([]cloud.CloudProject, 0, len(projects))
+ 836 	for _, p := range projects {
+-837 		if p.ProjectID == projectID {
++837 		if p.ID == projectID {
+ 838 			continue
+ 839 		}
+ 840 		out = append(out, p)
+ 841 	}
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui_cloud.go
++++ pkg/cmd/session_tui_cloud.go
+@@ -829,13 +829,13 @@
+ 	m.clampScroll()
+ 	return m, m.requestVisibleSnippets(modeList)
+ }
+ 
+-// removeCloudProject returns projects without the given project_id.
+-func removeCloudProject(projects []sessionindex.ProjectSummary, projectID string) []sessionindex.ProjectSummary {
+-	out := make([]sessionindex.ProjectSummary, 0, len(projects))
++// removeCloudProject returns cloud projects without the given project_id.
++func removeCloudProject(projects []cloud.CloudProject, projectID string) []cloud.CloudProject {
++	out := make([]cloud.CloudProject, 0, len(projects))
+ 	for _, p := range projects {
+-		if p.ProjectID == projectID {
++		if p.ID == projectID {
+ 			continue
+ 		}
+ 		out = append(out, p)
+ 	}
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/session_tui_cloud.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 833
+}
 ```
 </details></tool-use>
 
@@ -6951,10 +10570,130 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:51Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui_cloud.go`
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
+```
+
+**Edit 1:**
+```diff
+-// cloudToProjects converts cloud project summaries to project rows for the blended browser. A
+-// project with zero sessions is skipped: a workspace can exist in the cloud with no sessions (e.g.
+-// created on first push, its sessions since deleted), in which case last_session is null and its
+-// lastUpdated defaults to ~now server-side — it would float to the top of the recency sort as a
+-// phantom with nothing to resume.
+-func cloudToProjects(cs []cloud.CloudProject) []sessionindex.ProjectSummary {
+-	out := make([]sessionindex.ProjectSummary, 0, len(cs))
+-	for _, c := range cs {
+-		if c.SessionCount == 0 {
+-			continue
+-		}
+-		out = append(out, sessionindex.ProjectSummary{
+-			ProjectID:    c.ID,
+-			ProjectName:  c.Name,
+-			Sessions:     c.SessionCount,
+-			LastActivity: c.LastUpdated,
+-			IsCloud:      true,
+-		})
+-	}
+-	return out
+-}
+-
+-// ---- cloud search (global search view) ----
++// cloudToProjects is gone — the all-projects rollup is now session-level (D23). Cloud projects
++// carry their resumable sessions embedded (D24), and mergeCloudProjects dedups them against the
++// local per-project session-key set to recompute accurate chips/dates. See mergeCloudProjects.
++
++// ---- cloud search (global search view) ----
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/session_tui_cloud.go.
+```
+
+**diff:**
+```diff
+     ...
+ 343 	m.cloudPending = true
+ 344 	return cloudFetchCmd(m.projectID, m.agentIDByName)
+ 345 }
+ 346 
+-347 // cloudToProjects converts cloud project summaries to project rows for the blended browser. A
+-348 // project with zero sessions is skipped: a workspace can exist in the cloud with no sessions (e.g.
+-349 // created on first push, its sessions since deleted), in which case last_session is null and its
+-350 // lastUpdated defaults to ~now server-side — it would float to the top of the recency sort as a
+-351 // phantom with nothing to resume.
+-352 func cloudToProjects(cs []cloud.CloudProject) []sessionindex.ProjectSummary {
+-353 	out := make([]sessionindex.ProjectSummary, 0, len(cs))
+-354 	for _, c := range cs {
+-355 		if c.SessionCount == 0 {
+-356 			continue
+-357 		}
+-358 		out = append(out, sessionindex.ProjectSummary{
+-359 			ProjectID:    c.ID,
+-360 			ProjectName:  c.Name,
+-361 			Sessions:     c.SessionCount,
+-362 			LastActivity: c.LastUpdated,
+-363 			IsCloud:      true,
+-364 		})
+-365 	}
+-366 	return out
+-367 }
++347 // cloudToProjects is gone — the all-projects rollup is now session-level (D23). Cloud projects
++348 // carry their resumable sessions embedded (D24), and mergeCloudProjects dedups them against the
++349 // local per-project session-key set to recompute accurate chips/dates. See mergeCloudProjects.
+ 368 
+ 369 // ---- cloud search (global search view) ----
+ 370 
+ 371 // cloudSearchDebounceDelay is the fire-on-pause window for cloud search: it only fires after this
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui_cloud.go
++++ pkg/cmd/session_tui_cloud.go
+@@ -343,29 +343,11 @@
+ 	m.cloudPending = true
+ 	return cloudFetchCmd(m.projectID, m.agentIDByName)
+ }
+ 
+-// cloudToProjects converts cloud project summaries to project rows for the blended browser. A
+-// project with zero sessions is skipped: a workspace can exist in the cloud with no sessions (e.g.
+-// created on first push, its sessions since deleted), in which case last_session is null and its
+-// lastUpdated defaults to ~now server-side — it would float to the top of the recency sort as a
+-// phantom with nothing to resume.
+-func cloudToProjects(cs []cloud.CloudProject) []sessionindex.ProjectSummary {
+-	out := make([]sessionindex.ProjectSummary, 0, len(cs))
+-	for _, c := range cs {
+-		if c.SessionCount == 0 {
+-			continue
+-		}
+-		out = append(out, sessionindex.ProjectSummary{
+-			ProjectID:    c.ID,
+-			ProjectName:  c.Name,
+-			Sessions:     c.SessionCount,
+-			LastActivity: c.LastUpdated,
+-			IsCloud:      true,
+-		})
+-	}
+-	return out
+-}
++// cloudToProjects is gone — the all-projects rollup is now session-level (D23). Cloud projects
++// carry their resumable sessions embedded (D24), and mergeCloudProjects dedups them against the
++// local per-project session-key set to recompute accurate chips/dates. See mergeCloudProjects.
+ 
+ // ---- cloud search (global search view) ----
+ 
+ // cloudSearchDebounceDelay is the fire-on-pause window for cloud search: it only fires after this
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/session_tui_cloud.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 347
+}
 ```
 </details></tool-use>
 
@@ -6966,10 +10705,85 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:53Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui_browser.go`
+**Path:**
+```text
+pkg/cmd/session_tui_browser.go
+```
+
+**Edit 1:**
+```diff
+-	// Blend cloud-only projects with the local list (deduped, local-preferred, recency-sorted) so a
+-	// project worked on only from another machine still shows up to drill into.
+-	src := m.projects
+-	if len(m.cloudProjects) > 0 {
+-		src = mergeCloudProjects(m.projects, m.cloudProjects)
+-	}
++	// Blend cloud projects (each carrying its resumable sessions, D24) with the local list at the
++	// session level (D23): dedup local-preferred by (agent, session_id), recompute chips/dates from
++	// the union. A project worked on only from another machine still shows up with real counts.
++	src := m.projects
++	if len(m.cloudProjects) > 0 {
++		src = mergeCloudProjects(m.projects, m.cloudLocalKeys, m.cloudProjects, m.agentIDByName)
++	}
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/session_tui_browser.go.
+```
+
+**diff:**
+```diff
+     ...
+ 351 	return m, cmd
+ 352 }
+ 353 
+ 354 func (m *sessionTUI) applyProjectFilter() {
+-355 	// Blend cloud-only projects with the local list (deduped, local-preferred, recency-sorted) so a
+-356 	// project worked on only from another machine still shows up to drill into.
++355 	// Blend cloud projects (each carrying its resumable sessions, D24) with the local list at the
++356 	// session level (D23): dedup local-preferred by (agent, session_id), recompute chips/dates from
++357 	// the union. A project worked on only from another machine still shows up with real counts.
+ 357 	src := m.projects
+ 358 	if len(m.cloudProjects) > 0 {
+-359 		src = mergeCloudProjects(m.projects, m.cloudProjects)
++360 		src = mergeCloudProjects(m.projects, m.cloudLocalKeys, m.cloudProjects, m.agentIDByName)
+ 360 	}
+ 361 	q := strings.ToLower(strings.TrimSpace(m.projSearchQuery))
+ 362 	if q == "" {
+ 363 		m.projFiltered = src
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui_browser.go
++++ pkg/cmd/session_tui_browser.go
+@@ -351,13 +351,14 @@
+ 	return m, cmd
+ }
+ 
+ func (m *sessionTUI) applyProjectFilter() {
+-	// Blend cloud-only projects with the local list (deduped, local-preferred, recency-sorted) so a
+-	// project worked on only from another machine still shows up to drill into.
++	// Blend cloud projects (each carrying its resumable sessions, D24) with the local list at the
++	// session level (D23): dedup local-preferred by (agent, session_id), recompute chips/dates from
++	// the union. A project worked on only from another machine still shows up with real counts.
+ 	src := m.projects
+ 	if len(m.cloudProjects) > 0 {
+-		src = mergeCloudProjects(m.projects, m.cloudProjects)
++		src = mergeCloudProjects(m.projects, m.cloudLocalKeys, m.cloudProjects, m.agentIDByName)
+ 	}
+ 	q := strings.ToLower(strings.TrimSpace(m.projSearchQuery))
+ 	if q == "" {
+ 		m.projFiltered = src
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/session_tui_browser.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 355
+}
 ```
 </details></tool-use>
 
@@ -7004,8 +10818,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:24:59Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && go build ./... 2>&1 | head -40; echo "exit=${PIPESTATUS[0]}"`</summary>
+**Command:**
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && go build ./... 2>&1 | head -40; echo "exit=${PIPESTATUS[0]}"
 ```
+
+```text
 exit=0
+
 ```
 </details></tool-use>
 
@@ -7013,9 +10833,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:25:04Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && gofmt -w . && golangci-lint run 2>&1 | tail -30; echo "exit=${PIPESTATUS[0]}"`</summary>
+**Command:**
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && gofmt -w . && golangci-lint run 2>&1 | tail -30; echo "exit=${PIPESTATUS[0]}"
 ```
+
+```text
 0 issues.
 exit=0
+
 ```
 </details></tool-use>
 
@@ -7027,7 +10853,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:25:08Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go test ./... 2>&1 | tail -25; echo "exit=${PIPESTATUS[0]}"`</summary>
+**Command:**
+```bash
+go test ./... 2>&1 | tail -25; echo "exit=${PIPESTATUS[0]}"
 ```
+
+```text
 ok  	github.com/specstoryai/getspecstory/specstory-cli	(cached)
 ?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics	[no test files]
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud	(cached)
@@ -7050,6 +10881,7 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	0.071s
 exit=0
+
 ```
 </details></tool-use>
 
@@ -7064,9 +10896,10 @@ All green. Let me check if there's an existing test file for the cloud merge log
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:25:12Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
-<summary>Tool use: **bash** `ls pkg/cmd/*_test.go 2>/dev/null; echo "---grep mergeCloud in tests---"; grep -rln "mergeCloudProjects\|mergeCloudRows" pkg/cmd/*_test.go 2>/dev/null`</summary>
-Error:
-```
+<summary>Tool use: **bash**</summary>
+**Error:**
+
+```text
 pkg/cmd/login_test.go
 pkg/cmd/reindex_test.go
 pkg/cmd/resume_test.go
@@ -7075,6 +10908,19 @@ pkg/cmd/skills_test.go
 
 
 Command exited with code 1
+```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "command": "ls pkg/cmd/*_test.go 2\u003e/dev/null; echo \"---grep mergeCloud in tests---\"; grep -rln \"mergeCloudProjects\\|mergeCloudRows\" pkg/cmd/*_test.go 2\u003e/dev/null"
+}
 ```
 </details></tool-use>
 
@@ -7104,8 +10950,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:25:15Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "func agentCountChips\|func projectDisplayName\|func relativeTime" pkg/cmd/session_tui_browser.go | head`</summary>
+**Command:**
+```bash
+grep -n "func agentCountChips\|func projectDisplayName\|func relativeTime" pkg/cmd/session_tui_browser.go | head
 ```
+
+```text
 519:func projectDisplayName(p sessionindex.ProjectSummary) string {
+
 ```
 </details></tool-use>
 
@@ -7113,9 +10965,13 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:25:30Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="write"><details>
 <summary>Tool use: **write**</summary>
-`pkg/cmd/session_tui_cloud_test.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud_test.go
 ```
+
+**Content:**
+```go
 package cmd
 
 import (
@@ -7335,7 +11191,7 @@ func TestProjectActivityTime(t *testing.T) {
 
 ```
 
-```
+```text
 Successfully wrote 9101 bytes to pkg/cmd/session_tui_cloud_test.go
 ```
 </details></tool-use>
@@ -7344,7 +11200,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:25:34Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `gofmt -w pkg/cmd/session_tui_cloud_test.go && go test -v -run "TestMergeCloudProjects|TestProjectActivityTime" ./pkg/cmd 2>&1 | tail -40; echo "exit=${PIPESTATUS[0]}"`</summary>
+**Command:**
+```bash
+gofmt -w pkg/cmd/session_tui_cloud_test.go && go test -v -run "TestMergeCloudProjects|TestProjectActivityTime" ./pkg/cmd 2>&1 | tail -40; echo "exit=${PIPESTATUS[0]}"
 ```
+
+```text
 === RUN   TestMergeCloudProjects
     session_tui_cloud_test.go:92: shared.Sessions = 2, want 3 (2 local + 1 cloud-only, overlap not double-counted)
     session_tui_cloud_test.go:102: shared.LastActivity = "2026-06-18T10:00:00Z", want 2026-06-20T10:00:00Z (max of union activity)
@@ -7362,6 +11223,7 @@ FAIL
 FAIL	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.028s
 FAIL
 exit=1
+
 ```
 </details></tool-use>
 
@@ -7459,10 +11321,222 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:25:47Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui_cloud.go`
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
+```
+
+**Edit 1:**
+```diff
+-	// Index local projects by project_id so shared ones can be augmented in place. Clone each
+-	// AgentCounts map first so we never mutate the caller's (m.projects) map.
+-	byID := make(map[string]*sessionindex.ProjectSummary, len(local))
+-	merged := make([]sessionindex.ProjectSummary, 0, len(local)+len(cloudProjs))
+-	for i := range local {
+-		p := local[i]
+-		counts := make(map[string]int, len(p.AgentCounts))
+-		for k, v := range p.AgentCounts {
+-			counts[k] = v
+-		}
+-		p.AgentCounts = counts
+-		byID[p.ProjectID] = &p
+-		merged = append(merged, p)
+-	}
++	// Index local projects by project_id so shared ones can be augmented in place via the pointer.
++	// Clone each AgentCounts map first so we never mutate the caller's (m.projects) map. We keep an
++	// ordered slice of pointers and dereference into the result AFTER all mutations, so edits to
++	// shared projects via byID are reflected in the output (a value copy taken now would go stale).
++	byID := make(map[string]*sessionindex.ProjectSummary, len(local))
++	ordered := make([]*sessionindex.ProjectSummary, 0, len(local)+len(cloudProjs))
++	for i := range local {
++		p := local[i]
++		counts := make(map[string]int, len(p.AgentCounts))
++		for k, v := range p.AgentCounts {
++			counts[k] = v
++		}
++		p.AgentCounts = counts
++		ptr := &p
++		byID[p.ProjectID] = ptr
++		ordered = append(ordered, ptr)
++	}
+```
+
+**Edit 2:**
+```diff
+-		ps := sessionindex.ProjectSummary{
+-			ProjectID:    pid,
+-			ProjectName:  c.Name,
+-			Sessions:     len(resolved),
+-			AgentCounts:  make(map[string]int),
+-			LastActivity: "",
+-			IsCloud:      true,
+-		}
+-		for _, r := range resolved {
+-			ps.AgentCounts[r.agentID]++
+-			if r.activity != "" && r.activity > ps.LastActivity {
+-				ps.LastActivity = r.activity
+-			}
+-		}
+-		byID[pid] = &ps
+-		merged = append(merged, ps)
+-	}
+-
+-	sort.SliceStable(merged, func(i, j int) bool {
+-		return projectActivityTime(merged[i]).After(projectActivityTime(merged[j]))
+-	})
+-	return merged
+-}
++		ps := sessionindex.ProjectSummary{
++			ProjectID:    pid,
++			ProjectName:  c.Name,
++			Sessions:     len(resolved),
++			AgentCounts:  make(map[string]int),
++			LastActivity: "",
++			IsCloud:      true,
++		}
++		for _, r := range resolved {
++			ps.AgentCounts[r.agentID]++
++			if r.activity != "" && r.activity > ps.LastActivity {
++				ps.LastActivity = r.activity
++			}
++		}
++		ptr := &ps
++		byID[pid] = ptr
++		ordered = append(ordered, ptr)
++	}
++
++	merged := make([]sessionindex.ProjectSummary, 0, len(ordered))
++	for _, ptr := range ordered {
++		merged = append(merged, *ptr)
++	}
++	sort.SliceStable(merged, func(i, j int) bool {
++		return projectActivityTime(merged[i]).After(projectActivityTime(merged[j]))
++	})
++	return merged
++}
+```
+
+```text
+Successfully replaced 2 block(s) in pkg/cmd/session_tui_cloud.go.
+```
+
+**diff:**
+```diff
+     ...
+ 641 // ALL cloud sessions in shared projects (over-counting overlaps with local) — logged at fetch time.
+ 642 // agentIDByName resolves each cloud session's display agent name to the provider id the chips key on;
+ 643 // sessions whose agent can't be resolved are skipped (they can't be resumed here anyway).
+ 644 func mergeCloudProjects(local []sessionindex.ProjectSummary, localKeys map[string][]sessionindex.ProjectSessionKey, cloudProjs []cloud.CloudProject, agentIDByName map[string]string) []sessionindex.ProjectSummary {
+-645 	// Index local projects by project_id so shared ones can be augmented in place. Clone each
+-646 	// AgentCounts map first so we never mutate the caller's (m.projects) map.
++645 	// Index local projects by project_id so shared ones can be augmented in place via the pointer.
++646 	// Clone each AgentCounts map first so we never mutate the caller's (m.projects) map. We keep an
++647 	// ordered slice of pointers and dereference into the result AFTER all mutations, so edits to
++648 	// shared projects via byID are reflected in the output (a value copy taken now would go stale).
+ 647 	byID := make(map[string]*sessionindex.ProjectSummary, len(local))
+-648 	merged := make([]sessionindex.ProjectSummary, 0, len(local)+len(cloudProjs))
++650 	ordered := make([]*sessionindex.ProjectSummary, 0, len(local)+len(cloudProjs))
+ 649 	for i := range local {
+ 650 		p := local[i]
+ 651 		counts := make(map[string]int, len(p.AgentCounts))
+ 652 		for k, v := range p.AgentCounts {
+ 653 			counts[k] = v
+ 654 		}
+ 655 		p.AgentCounts = counts
+-656 		byID[p.ProjectID] = &p
+-657 		merged = append(merged, p)
++658 		ptr := &p
++659 		byID[p.ProjectID] = ptr
++660 		ordered = append(ordered, ptr)
+ 658 	}
+ 659 
+ 660 	// Local fingerprint set per project — the dedup boundary (local preferred).
+ 661 	localSeen := make(map[string]map[string]bool, len(localKeys))
+     ...
+ 725 			if r.activity != "" && r.activity > ps.LastActivity {
+ 726 				ps.LastActivity = r.activity
+ 727 			}
+ 728 		}
+-729 		byID[pid] = &ps
+-730 		merged = append(merged, ps)
++732 		ptr := &ps
++733 		byID[pid] = ptr
++734 		ordered = append(ordered, ptr)
+ 731 	}
+ 732 
++737 	merged := make([]sessionindex.ProjectSummary, 0, len(ordered))
++738 	for _, ptr := range ordered {
++739 		merged = append(merged, *ptr)
++740 	}
+ 733 	sort.SliceStable(merged, func(i, j int) bool {
+ 734 		return projectActivityTime(merged[i]).After(projectActivityTime(merged[j]))
+ 735 	})
+ 736 	return merged
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui_cloud.go
++++ pkg/cmd/session_tui_cloud.go
+@@ -641,21 +641,24 @@
+ // ALL cloud sessions in shared projects (over-counting overlaps with local) — logged at fetch time.
+ // agentIDByName resolves each cloud session's display agent name to the provider id the chips key on;
+ // sessions whose agent can't be resolved are skipped (they can't be resumed here anyway).
+ func mergeCloudProjects(local []sessionindex.ProjectSummary, localKeys map[string][]sessionindex.ProjectSessionKey, cloudProjs []cloud.CloudProject, agentIDByName map[string]string) []sessionindex.ProjectSummary {
+-	// Index local projects by project_id so shared ones can be augmented in place. Clone each
+-	// AgentCounts map first so we never mutate the caller's (m.projects) map.
++	// Index local projects by project_id so shared ones can be augmented in place via the pointer.
++	// Clone each AgentCounts map first so we never mutate the caller's (m.projects) map. We keep an
++	// ordered slice of pointers and dereference into the result AFTER all mutations, so edits to
++	// shared projects via byID are reflected in the output (a value copy taken now would go stale).
+ 	byID := make(map[string]*sessionindex.ProjectSummary, len(local))
+-	merged := make([]sessionindex.ProjectSummary, 0, len(local)+len(cloudProjs))
++	ordered := make([]*sessionindex.ProjectSummary, 0, len(local)+len(cloudProjs))
+ 	for i := range local {
+ 		p := local[i]
+ 		counts := make(map[string]int, len(p.AgentCounts))
+ 		for k, v := range p.AgentCounts {
+ 			counts[k] = v
+ 		}
+ 		p.AgentCounts = counts
+-		byID[p.ProjectID] = &p
+-		merged = append(merged, p)
++		ptr := &p
++		byID[p.ProjectID] = ptr
++		ordered = append(ordered, ptr)
+ 	}
+ 
+ 	// Local fingerprint set per project — the dedup boundary (local preferred).
+ 	localSeen := make(map[string]map[string]bool, len(localKeys))
+@@ -725,12 +728,17 @@
+ 			if r.activity != "" && r.activity > ps.LastActivity {
+ 				ps.LastActivity = r.activity
+ 			}
+ 		}
+-		byID[pid] = &ps
+-		merged = append(merged, ps)
++		ptr := &ps
++		byID[pid] = ptr
++		ordered = append(ordered, ptr)
+ 	}
+ 
++	merged := make([]sessionindex.ProjectSummary, 0, len(ordered))
++	for _, ptr := range ordered {
++		merged = append(merged, *ptr)
++	}
+ 	sort.SliceStable(merged, func(i, j int) bool {
+ 		return projectActivityTime(merged[i]).After(projectActivityTime(merged[j]))
+ 	})
+ 	return merged
 
 ```
-Successfully replaced 2 block(s) in pkg/cmd/session_tui_cloud.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 645
+}
 ```
 </details></tool-use>
 
@@ -7470,7 +11544,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:25:49Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `gofmt -w pkg/cmd/session_tui_cloud.go && go test -v -run "TestMergeCloudProjects|TestProjectActivityTime" ./pkg/cmd 2>&1 | tail -30; echo "exit=${PIPESTATUS[0]}"`</summary>
+**Command:**
+```bash
+gofmt -w pkg/cmd/session_tui_cloud.go && go test -v -run "TestMergeCloudProjects|TestProjectActivityTime" ./pkg/cmd 2>&1 | tail -30; echo "exit=${PIPESTATUS[0]}"
 ```
+
+```text
 === RUN   TestMergeCloudProjects
 --- PASS: TestMergeCloudProjects (0.00s)
 === RUN   TestMergeCloudProjects_NilLocalKeys
@@ -7484,6 +11563,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:25:49Z)**_
 PASS
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.028s
 exit=0
+
 ```
 </details></tool-use>
 
@@ -7495,7 +11575,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:25:54Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `golangci-lint run 2>&1 | tail -10; echo "lint exit=${PIPESTATUS[0]}"; go test ./... 2>&1 | tail -6; echo "test exit=${PIPESTATUS[0]}"`</summary>
+**Command:**
+```bash
+golangci-lint run 2>&1 | tail -10; echo "lint exit=${PIPESTATUS[0]}"; go test ./... 2>&1 | tail -6; echo "test exit=${PIPESTATUS[0]}"
 ```
+
+```text
 0 issues.
 lint exit=0
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/skills	(cached)
@@ -7505,6 +11590,7 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	(cached)
 test exit=0
+
 ```
 </details></tool-use>
 
@@ -7512,7 +11598,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:25:58Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build -o specstory && ./specstory --version`</summary>
+**Command:**
+```bash
+go build -o specstory && ./specstory --version
 ```
+
+```text
 dev (SpecStory)
 ```
 </details></tool-use>
@@ -7531,8 +11622,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:26:08Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd /Users/sean/Source/SpecStory/specstory-sync/sync-cloud && /Users/sean/Source/SpecStory/specstory-sync/node_modules/.bin/tsc -b 2>&1 | head -40; echo "tsc exit=${PIPESTATUS[0]}"`</summary>
+**Command:**
+```bash
+cd /Users/sean/Source/SpecStory/specstory-sync/sync-cloud && /Users/sean/Source/SpecStory/specstory-sync/node_modules/.bin/tsc -b 2>&1 | head -40; echo "tsc exit=${PIPESTATUS[0]}"
 ```
+
+```text
 tsc exit=0
+
 ```
 </details></tool-use>
 
@@ -7540,10 +11637,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:26:10Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && grep -rn "cloudToProjects\b" pkg/ | grep -v _test; echo "---old mergeCloudProjects 2-arg callers---"; grep -rn "mergeCloudProjects(" pkg/ | grep -v _test | grep -v "func mergeCloudProjects"`</summary>
+**Command:**
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && grep -rn "cloudToProjects\b" pkg/ | grep -v _test; echo "---old mergeCloudProjects 2-arg callers---"; grep -rn "mergeCloudProjects(" pkg/ | grep -v _test | grep -v "func mergeCloudProjects"
 ```
+
+```text
 pkg/cmd/session_tui_cloud.go:347:// cloudToProjects is gone — the all-projects rollup is now session-level (D23). Cloud projects
 ---old mergeCloudProjects 2-arg callers---
 pkg/cmd/session_tui_browser.go:360:		src = mergeCloudProjects(m.projects, m.cloudLocalKeys, m.cloudProjects, m.agentIDByName)
+
 ```
 </details></tool-use>
 
@@ -7606,9 +11709,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:29:15Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cat ~/.specstory/cli/auth.json 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print('has access token:', bool(d.get('cloud_access_token') or d.get('cloudAccessToken') or d.get('access_token'))); print('keys:', list(d.keys()))" 2>/dev/null || echo "no auth.json / parse err"`</summary>
+**Command:**
+```bash
+cat ~/.specstory/cli/auth.json 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print('has access token:', bool(d.get('cloud_access_token') or d.get('cloudAccessToken') or d.get('access_token'))); print('keys:', list(d.keys()))" 2>/dev/null || echo "no auth.json / parse err"
 ```
+
+```text
 has access token: False
 keys: ['cloud_refresh', 'cloud_access']
+
 ```
 </details></tool-use>
 
@@ -7616,10 +11725,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:29:17Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `python3 -c "import json; d=json.load(open('$HOME/.specstory/cli/auth.json')); print(list(d.keys())); print('cloud_access len:', len(d.get('cloud_access',''))); print('cloud_refresh len:', len(d.get('cloud_refresh','')))"`</summary>
+**Command:**
+```bash
+python3 -c "import json; d=json.load(open('$HOME/.specstory/cli/auth.json')); print(list(d.keys())); print('cloud_access len:', len(d.get('cloud_access',''))); print('cloud_refresh len:', len(d.get('cloud_refresh','')))"
 ```
+
+```text
 ['cloud_refresh', 'cloud_access']
 cloud_access len: 3
 cloud_refresh len: 5
+
 ```
 </details></tool-use>
 
@@ -7627,8 +11742,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:29:19Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `python3 -c "import json; d=json.load(open('$HOME/.specstory/cli/auth.json')); print('cloud_access:', repr(d['cloud_access'])[:60])"`</summary>
+**Command:**
+```bash
+python3 -c "import json; d=json.load(open('$HOME/.specstory/cli/auth.json')); print('cloud_access:', repr(d['cloud_access'])[:60])"
 ```
+
+```text
 cloud_access: {'token': '[REDACTED:generic-api-key]
+
 ```
 </details></tool-use>
 
@@ -7636,8 +11757,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:29:22Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `python3 -c "import json; d=json.load(open('$HOME/.specstory/cli/auth.json')); print(d['cloud_access']['token'])" > /tmp/ss_access.txt 2>/dev/null && echo "got token, len=$(wc -c < /tmp/ss_access.txt)"`</summary>
+**Command:**
+```bash
+python3 -c "import json; d=json.load(open('$HOME/.specstory/cli/auth.json')); print(d['cloud_access']['token'])" > /tmp/ss_access.txt 2>/dev/null && echo "got token, len=$(wc -c < /tmp/ss_access.txt)"
 ```
+
+```text
 got token, len=     378
+
 ```
 </details></tool-use>
 
@@ -7645,6 +11772,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:29:26Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash**</summary>
+**Command:**
 ```bash
 TOKEN=$(tr -d '\n' < /tmp/ss_access.txt); curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:5173/api/v1/projects?resumable=true" -o /tmp/ss_projects.json -w "HTTP %{http_code}\n"; echo "---"; python3 -c "
 import json
@@ -7661,7 +11789,7 @@ for p in projs:
 " 2>&1 | head -40
 ```
 
-```
+```text
 HTTP 200
 ---
 success: True
@@ -7673,6 +11801,7 @@ project 659a-2513-7468-2047 name= cross-portable-1 sessions= 10
   sess client= 67a2dc0f endedAt= 2026-06-16T15:59:45.535+00:00 startedAt= 2026-06-16T15:41:58.446+00:00 updatedAt= 2026-07-13T15:55:58.363916+00:00 agent= Claude Code
   sess client= 019ed11e endedAt= None startedAt= None updatedAt= 2026-07-13T15:56:01.156087+00:00 agent= Codex CLI
   sess client= 894d2aa0 endedAt= None startedAt= None updatedAt= 2026-07-13T15:55:59.627965+00:00 agent= Factory Droid CLI
+
 ```
 </details></tool-use>
 
@@ -7791,9 +11920,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:29:54Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_cloud.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
 ```
+
+**Offset (line):**
+```text
+395
+```
+
+**Limit:**
+```text
+75
+```
+
+```go
 // cloudSearchHitsToSessions converts search hits to index rows (like cloudToSessions) and collects
 // their server-highlighted snippets, keyed by FingerprintKey so the renderer finds them.
 func cloudSearchHitsToSessions(
@@ -7878,10 +12020,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:29:56Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_cloud.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
 ```
-ordered = append(ordered, ptr)
+
+**Offset (line):**
+```text
+660
+```
+
+**Limit:**
+```text
+95
+```
+
+```go
+		ordered = append(ordered, ptr)
 	}
 
 	// Local fingerprint set per project — the dedup boundary (local preferred).
@@ -7989,11 +12144,29 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:30:12Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui_cloud.go`
+**Error:**
 
-Error:
-```
+```text
 Could not find the exact text in pkg/cmd/session_tui_cloud.go. The old text must match exactly including all whitespace and newlines.
+```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "edits": [
+    {
+      "newText": "\tfor _, c := range cloudProjs {\n\t\tpid := c.ID\n\t\t// Resolve this project's cloud sessions to (agentID, sessionID, realActivity, syncTime);\n\t\t// skip unknown agents — they can't be reconstructed/resumed here, so counting them would lie.\n\t\t// realActivity is ended_at/started_at (when the session actually happened). syncTime is updated_at\n\t\t// (when it was last PUSHED — reset to ~now() on every sync). syncTime is NOT activity and must not\n\t\t// win the activity max: one re-synced legacy row would otherwise float the whole project to \"now\".\n\t\ttype cloudSess struct {\n\t\t\tagentID     string\n\t\t\tsessionID   string\n\t\t\trealActivity string // firstNonEmpty(ended_at, started_at) — \"\" if the duration worker never populated them\n\t\t\tsyncTime    string // updated_at — fallback ONLY when no session in the project has real activity\n\t\t}\n\t\tresolved := make([]cloudSess, 0, len(c.Sessions))\n\t\tfor _, s := range c.Sessions {\n\t\t\tagentID, ok := agentIDByName[s.Metadata.AgentName]\n\t\t\tif !ok {\n\t\t\t\tslog.Debug(\"cloud resume: skipping project session with unknown agent\",\n\t\t\t\t\t\"agentName\", s.Metadata.AgentName, \"sessionId\", s.ClientID, \"projectId\", pid)\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tresolved = append(resolved, cloudSess{\n\t\t\t\tagentID:      agentID,\n\t\t\t\tsessionID:    s.ClientID,\n\t\t\t\trealActivity: firstNonEmpty(s.EndedAt, s.StartedAt),\n\t\t\t\tsyncTime:     s.UpdatedAt,\n\t\t\t})\n\t\t}\n\t\tif len(resolved) == 0 {\n\t\t\tcontinue // no resolvable resumable sessions — don't show an empty cloud project\n\t\t}\n\n\t\t// The activity the project row should show: max of real activity across sessions; if none\n\t\t// have real activity (all legacy / duration-worker-not-run), fall back to the max sync time so\n\t\t// a cloud-only project still sorts somewhere instead of rendering an empty date.\n\t\tmaxReal := \"\"\n\t\tmaxSync := \"\"\n\t\tfor _, r := range resolved {\n\t\t\tif r.realActivity != \"\" \u0026\u0026 r.realActivity \u003e maxReal {\n\t\t\t\tmaxReal = r.realActivity\n\t\t\t}\n\t\t\tif r.syncTime != \"\" \u0026\u0026 r.syncTime \u003e maxSync {\n\t\t\t\tmaxSync = r.syncTime\n\t\t\t}\n\t\t}\n\t\tprojectActivity := maxReal\n\t\tif projectActivity == \"\" {\n\t\t\tprojectActivity = maxSync // degrade: no real activity known anywhere — best available proxy\n\t\t}\n\n\t\tif existing, ok := byID[pid]; ok {\n\t\t\t// Shared project: add only the cloud sessions NOT already local (local preferred), so\n\t\t\t// overlaps don't double-count and cloud-only sessions still contribute. The local rollup's\n\t\t\t// LastActivity is already real (local updated_at is last-turn/file-mtime, not sync time),\n\t\t\t// so only advance it when a cloud session's REAL activity is newer — never on syncTime.\n\t\t\tseen := localSeen[pid]\n\t\t\tfor _, r := range resolved {\n\t\t\t\tif seen != nil \u0026\u0026 seen[sessionindex.FingerprintKey(r.agentID, r.sessionID)] {\n\t\t\t\t\tcontinue // local wins\n\t\t\t\t}\n\t\t\t\texisting.AgentCounts[r.agentID]++\n\t\t\t\texisting.Sessions++\n\t\t\t}\n\t\t\tif maxReal != \"\" \u0026\u0026 maxReal \u003e existing.LastActivity {\n\t\t\t\texisting.LastActivity = maxReal\n\t\t\t}\n\t\t\tcontinue\n\t\t}\n\n\t\t// Cloud-only project: build a fresh rollup from its cloud sessions.\n\t\tps := sessionindex.ProjectSummary{\n\t\t\tProjectID:    pid,\n\t\t\tProjectName:  c.Name,\n\t\t\tSessions:     len(resolved),\n\t\t\tAgentCounts:  make(map[string]int),\n\t\t\tLastActivity: projectActivity,\n\t\t\tIsCloud:      true,\n\t\t}\n\t\tfor _, r := range resolved {\n\t\t\tps.AgentCounts[r.agentID]++\n\t\t}\n\t\tptr := \u0026ps\n\t\tbyID[pid] = ptr\n\t\tordered = append(ordered, ptr)\n\t}",
+      "oldText": "\tfor _, c := range cloudProjs {\n\t\tpid := c.ID\n\t\t// Resolve this project's cloud sessions to (agentID, sessionID, activity); skip unknown\n\t\t// agents — they can't be reconstructed/resumed here, so counting them would lie.\n\t\ttype cloudSess struct {\n\t\t\tagentID   string\n\t\t\tsessionID string\n\t\t\tactivity  string // firstNonEmpty(ended_at, started_at, updated_at) — real activity, not sync time\n\t\t}\n\t\tresolved := make([]cloudSess, 0, len(c.Sessions))\n\t\tfor _, s := range c.Sessions {\n\t\t\tagentID, ok := agentIDByName[s.Metadata.AgentName]\n\t\t\tif !ok {\n\t\t\t\tslog.Debug(\"cloud resume: skipping project session with unknown agent\",\n\t\t\t\t\"agentName\", s.Metadata.AgentName, \"sessionId\", s.ClientID, \"projectId\", pid)\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tresolved = append(resolved, cloudSess{\n\t\t\t\tagentID:   agentID,\n\t\t\t\tsessionID: s.ClientID,\n\t\t\t\tactivity:  firstNonEmpty(s.EndedAt, s.StartedAt, s.UpdatedAt),\n\t\t\t})\n\t\t}\n\t\tif len(resolved) == 0 {\n\t\t\tcontinue // no resolvable resumable sessions — don't show an empty cloud project\n\t\t}\n\n\t\tif existing, ok := byID[pid]; ok {\n\t\t\t// Shared project: add only the cloud sessions NOT already local (local preferred), so\n\t\t\t// overlaps don't double-count and cloud-only sessions still contribute.\n\t\t\tseen := localSeen[pid]\n\t\t\tfor _, r := range resolved {\n\t\t\t\tif seen != nil \u0026\u0026 seen[sessionindex.FingerprintKey(r.agentID, r.sessionID)] {\n\t\t\t\t\tcontinue // local wins\n\t\t\t\t}\n\t\t\t\texisting.AgentCounts[r.agentID]++\n\t\t\t\texisting.Sessions++\n\t\t\t\tif r.activity != \"\" \u0026\u0026 r.activity \u003e existing.LastActivity {\n\t\t\t\t\texisting.LastActivity = r.activity\n\t\t\t\t}\n\t\t\t}\n\t\t\tcontinue\n\t\t}\n\n\t\t// Cloud-only project: build a fresh rollup from its cloud sessions.\n\t\tps := sessionindex.ProjectSummary{\n\t\t\tProjectID:    pid,\n\t\t\tProjectName:  c.Name,\n\t\t\tSessions:     len(resolved),\n\t\t\tAgentCounts:  make(map[string]int),\n\t\t\tLastActivity: \"\",\n\t\t\tIsCloud:      true,\n\t\t}\n\t\tfor _, r := range resolved {\n\t\t\tps.AgentCounts[r.agentID]++\n\t\t\tif r.activity != \"\" \u0026\u0026 r.activity \u003e ps.LastActivity {\n\t\t\t\tps.LastActivity = r.activity\n\t\t\t}\n\t\t}\n\t\tptr := \u0026ps\n\t\tbyID[pid] = ptr\n\t\tordered = append(ordered, ptr)\n\t}"
+    }
+  ],
+  "path": "pkg/cmd/session_tui_cloud.go"
+}
 ```
 </details></tool-use>
 
@@ -8001,10 +12174,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:30:13Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_cloud.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
 ```
-for _, s := range c.Sessions {
+
+**Offset (line):**
+```text
+683
+```
+
+**Limit:**
+```text
+70
+```
+
+```go
+		for _, s := range c.Sessions {
 			agentID, ok := agentIDByName[s.Metadata.AgentName]
 			if !ok {
 				slog.Debug("cloud resume: skipping project session with unknown agent",
@@ -8083,10 +12269,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:30:15Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_cloud.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
 ```
-}
+
+**Offset (line):**
+```text
+671
+```
+
+**Limit:**
+```text
+15
+```
+
+```go
+	}
 
 	for _, c := range cloudProjs {
 		pid := c.ID
@@ -8110,11 +12309,29 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:30:24Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui_cloud.go`
+**Error:**
 
-Error:
-```
+```text
 Could not find the exact text in pkg/cmd/session_tui_cloud.go. The old text must match exactly including all whitespace and newlines.
+```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "edits": [
+    {
+      "newText": "\tfor _, c := range cloudProjs {\n\t\tpid := c.ID\n\t\t// Resolve this project's cloud sessions to (agentID, sessionID, realActivity, syncTime);\n\t\t// skip unknown agents — they can't be reconstructed/resumed here, so counting them would lie.\n\t\t// realActivity is ended_at/started_at (when the session actually happened). syncTime is updated_at\n\t\t// (when it was last PUSHED — reset to ~now() on every sync). syncTime is NOT activity and must not\n\t\t// win the activity max: one re-synced legacy row would otherwise float the whole project to \"now\".\n\t\ttype cloudSess struct {\n\t\t\tagentID      string\n\t\t\tsessionID    string\n\t\t\trealActivity string // firstNonEmpty(ended_at, started_at) — \"\" if the duration worker never populated them\n\t\t\tsyncTime     string // updated_at — fallback ONLY when no session in the project has real activity\n\t\t}\n\t\tresolved := make([]cloudSess, 0, len(c.Sessions))\n\t\tfor _, s := range c.Sessions {\n\t\t\tagentID, ok := agentIDByName[s.Metadata.AgentName]\n\t\t\tif !ok {\n\t\t\t\tslog.Debug(\"cloud resume: skipping project session with unknown agent\",\n\t\t\t\t\t\"agentName\", s.Metadata.AgentName, \"sessionId\", s.ClientID, \"projectId\", pid)\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tresolved = append(resolved, cloudSess{\n\t\t\t\tagentID:      agentID,\n\t\t\t\tsessionID:    s.ClientID,\n\t\t\t\trealActivity: firstNonEmpty(s.EndedAt, s.StartedAt),\n\t\t\t\tsyncTime:     s.UpdatedAt,\n\t\t\t})\n\t\t}\n\t\tif len(resolved) == 0 {\n\t\t\tcontinue // no resolvable resumable sessions — don't show an empty cloud project\n\t\t}\n\n\t\t// The activity the project row should show: max of real activity across sessions; if none\n\t\t// have real activity (all legacy / duration-worker-not-run), fall back to the max sync time so\n\t\t// a cloud-only project still sorts somewhere instead of rendering an empty date.\n\t\tmaxReal := \"\"\n\t\tmaxSync := \"\"\n\t\tfor _, r := range resolved {\n\t\t\tif r.realActivity != \"\" \u0026\u0026 r.realActivity \u003e maxReal {\n\t\t\t\tmaxReal = r.realActivity\n\t\t\t}\n\t\t\tif r.syncTime != \"\" \u0026\u0026 r.syncTime \u003e maxSync {\n\t\t\t\tmaxSync = r.syncTime\n\t\t\t}\n\t\t}\n\n\t\tif existing, ok := byID[pid]; ok {\n\t\t\t// Shared project: add only the cloud sessions NOT already local (local preferred), so\n\t\t\t// overlaps don't double-count and cloud-only sessions still contribute. The local rollup's\n\t\t\t// LastActivity is already real (local updated_at is last-turn/file-mtime, not sync time),\n\t\t\t// so only advance it when a cloud session's REAL activity is newer — never on syncTime.\n\t\t\tseen := localSeen[pid]\n\t\t\tfor _, r := range resolved {\n\t\t\t\tif seen != nil \u0026\u0026 seen[sessionindex.FingerprintKey(r.agentID, r.sessionID)] {\n\t\t\t\t\tcontinue // local wins\n\t\t\t\t}\n\t\t\t\texisting.AgentCounts[r.agentID]++\n\t\t\t\texisting.Sessions++\n\t\t\t}\n\t\t\tif maxReal != \"\" \u0026\u0026 maxReal \u003e existing.LastActivity {\n\t\t\t\texisting.LastActivity = maxReal\n\t\t\t}\n\t\t\tcontinue\n\t\t}\n\n\t\t// Cloud-only project: build a fresh rollup from its cloud sessions. LastActivity prefers\n\t\t// real activity; sync time is the degrade fallback (no real activity known anywhere).\n\t\tps := sessionindex.ProjectSummary{\n\t\t\tProjectID:    pid,\n\t\t\tProjectName:  c.Name,\n\t\t\tSessions:     len(resolved),\n\t\t\tAgentCounts:  make(map[string]int),\n\t\t\tLastActivity: maxReal,\n\t\t\tIsCloud:      true,\n\t\t}\n\t\tif ps.LastActivity == \"\" {\n\t\t\tps.LastActivity = maxSync\n\t\t}\n\t\tfor _, r := range resolved {\n\t\t\tps.AgentCounts[r.agentID]++\n\t\t}\n\t\tptr := \u0026ps\n\t\tbyID[pid] = ptr\n\t\tordered = append(ordered, ptr)\n\t}",
+      "oldText": "\tfor _, c := range cloudProjs {\n\t\tpid := c.ID\n\t\t// Resolve this project's cloud sessions to (agentID, sessionID, activity); skip unknown\n\t\t// agents — they can't be reconstructed/resumed here, so counting them would lie.\n\t\ttype cloudSess struct {\n\t\t\tagentID   string\n\t\t\tsessionID string\n\t\t\tactivity  string // firstNonEmpty(ended_at, started_at, updated_at) — real activity, not sync time\n\t\t}\n\t\tresolved := make([]cloudSess, 0, len(c.Sessions))\n\t\tfor _, s := range c.Sessions {\n\t\t\tagentID, ok := agentIDByName[s.Metadata.AgentName]\n\t\t\tif !ok {\n\t\t\t\tslog.Debug(\"cloud resume: skipping project session with unknown agent\",\n\t\t\t\t\"agentName\", s.Metadata.AgentName, \"sessionId\", s.ClientID, \"projectId\", pid)\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tresolved = append(resolved, cloudSess{\n\t\t\t\tagentID:   agentID,\n\t\t\t\tsessionID: s.ClientID,\n\t\t\t\tactivity:  firstNonEmpty(s.EndedAt, s.StartedAt, s.UpdatedAt),\n\t\t\t})\n\t\t}\n\t\tif len(resolved) == 0 {\n\t\t\tcontinue // no resolvable resumable sessions — don't show an empty cloud project\n\t\t}\n\n\t\tif existing, ok := byID[pid]; ok {\n\t\t\t// Shared project: add only the cloud sessions NOT already local (local preferred), so\n\t\t\t// overlaps don't double-count and cloud-only sessions still contribute.\n\t\t\tseen := localSeen[pid]\n\t\t\tfor _, r := range resolved {\n\t\t\t\tif seen != nil \u0026\u0026 seen[sessionindex.FingerprintKey(r.agentID, r.sessionID)] {\n\t\t\t\t\tcontinue // local wins\n\t\t\t\t}\n\t\t\t\texisting.AgentCounts[r.agentID]++\n\t\t\t\texisting.Sessions++\n\t\t\t\tif r.activity != \"\" \u0026\u0026 r.activity \u003e existing.LastActivity {\n\t\t\t\t\texisting.LastActivity = r.activity\n\t\t\t\t}\n\t\t\t}\n\t\t\tcontinue\n\t\t}\n\n\t\t// Cloud-only project: build a fresh rollup from its cloud sessions.\n\t\tps := sessionindex.ProjectSummary{\n\t\t\tProjectID:    pid,\n\t\t\tProjectName:  c.Name,\n\t\t\tSessions:     len(resolved),\n\t\t\tAgentCounts:  make(map[string]int),\n\t\t\tLastActivity: \"\",\n\t\t\tIsCloud:      true,\n\t\t}\n\t\tfor _, r := range resolved {\n\t\t\tps.AgentCounts[r.agentID]++\n\t\t\tif r.activity != \"\" \u0026\u0026 r.activity \u003e ps.LastActivity {\n\t\t\t\tps.LastActivity = r.activity\n\t\t\t}\n\t\t}\n\t\tptr := \u0026ps\n\t\tbyID[pid] = ptr\n\t\tordered = append(ordered, ptr)\n\t}"
+    }
+  ],
+  "path": "pkg/cmd/session_tui_cloud.go"
+}
 ```
 </details></tool-use>
 
@@ -8126,7 +12343,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:30:28Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `awk 'NR>=674 && NR<=745 {print NR": "$0}' pkg/cmd/session_tui_cloud.go`</summary>
+**Command:**
+```bash
+awk 'NR>=674 && NR<=745 {print NR": "$0}' pkg/cmd/session_tui_cloud.go
 ```
+
+```text
 674: 		pid := c.ID
 675: 		// Resolve this project's cloud sessions to (agentID, sessionID, activity); skip unknown
 676: 		// agents — they can't be reconstructed/resumed here, so counting them would lie.
@@ -8199,6 +12421,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:30:28Z)**_
 743: 	})
 744: 	return merged
 745: }
+
 ```
 </details></tool-use>
 
@@ -8210,10 +12433,376 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:30:38Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui_cloud.go`
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
+```
+
+**Edit 1:**
+```diff
+-		// Resolve this project's cloud sessions to (agentID, sessionID, activity); skip unknown
+-		// agents — they can't be reconstructed/resumed here, so counting them would lie.
+-		type cloudSess struct {
+-			agentID   string
+-			sessionID string
+-			activity  string // firstNonEmpty(ended_at, started_at, updated_at) — real activity, not sync time
+-		}
++		// Resolve this project's cloud sessions to (agentID, sessionID, realActivity, syncTime);
++		// skip unknown agents — they can't be reconstructed/resumed here, so counting them would lie.
++		// realActivity is ended_at/started_at (when the session actually happened). syncTime is updated_at
++		// (when it was last PUSHED — reset to ~now() on every sync). syncTime is NOT activity and must not
++		// win the activity max: one re-synced legacy row would otherwise float the whole project to "now".
++		type cloudSess struct {
++			agentID      string
++			sessionID    string
++			realActivity string // firstNonEmpty(ended_at, started_at) — "" if the duration worker never populated them
++			syncTime     string // updated_at — fallback ONLY when no session in the project has real activity
++		}
+```
+
+**Edit 2:**
+```diff
+-			resolved = append(resolved, cloudSess{
+-				agentID:   agentID,
+-				sessionID: s.ClientID,
+-				activity:  firstNonEmpty(s.EndedAt, s.StartedAt, s.UpdatedAt),
+-			})
++			resolved = append(resolved, cloudSess{
++				agentID:      agentID,
++				sessionID:    s.ClientID,
++				realActivity: firstNonEmpty(s.EndedAt, s.StartedAt),
++				syncTime:     s.UpdatedAt,
++			})
+```
+
+**Edit 3:**
+```diff
+-		if len(resolved) == 0 {
+-			continue // no resolvable resumable sessions — don't show an empty cloud project
+-		}
+-
+-		if existing, ok := byID[pid]; ok {
+-			// Shared project: add only the cloud sessions NOT already local (local preferred), so
+-			// overlaps don't double-count and cloud-only sessions still contribute.
+-			seen := localSeen[pid]
+-			for _, r := range resolved {
+-				if seen != nil && seen[sessionindex.FingerprintKey(r.agentID, r.sessionID)] {
+-					continue // local wins
+-				}
+-				existing.AgentCounts[r.agentID]++
+-				existing.Sessions++
+-				if r.activity != "" && r.activity > existing.LastActivity {
+-					existing.LastActivity = r.activity
+-				}
+-			}
+-			continue
+-		}
+-
+-		// Cloud-only project: build a fresh rollup from its cloud sessions.
+-		ps := sessionindex.ProjectSummary{
+-			ProjectID:    pid,
+-			ProjectName:  c.Name,
+-			Sessions:     len(resolved),
+-			AgentCounts:  make(map[string]int),
+-			LastActivity: "",
+-			IsCloud:      true,
+-		}
+-		for _, r := range resolved {
+-			ps.AgentCounts[r.agentID]++
+-			if r.activity != "" && r.activity > ps.LastActivity {
+-				ps.LastActivity = r.activity
+-			}
+-		}
+-		ptr := &ps
+-		byID[pid] = ptr
+-		ordered = append(ordered, ptr)
+-	}
++		if len(resolved) == 0 {
++			continue // no resolvable resumable sessions — don't show an empty cloud project
++		}
++
++		// The activity the project row should show: max of real activity across sessions; if none
++		// have real activity (all legacy / duration-worker-not-run), fall back to the max sync time so
++		// a cloud-only project still sorts somewhere instead of rendering an empty date.
++		maxReal := ""
++		maxSync := ""
++		for _, r := range resolved {
++			if r.realActivity != "" && r.realActivity > maxReal {
++				maxReal = r.realActivity
++			}
++			if r.syncTime != "" && r.syncTime > maxSync {
++				maxSync = r.syncTime
++			}
++		}
++
++		if existing, ok := byID[pid]; ok {
++			// Shared project: add only the cloud sessions NOT already local (local preferred), so
++			// overlaps don't double-count and cloud-only sessions still contribute. The local rollup's
++			// LastActivity is already real (local updated_at is last-turn/file-mtime, not sync time),
++			// so only advance it when a cloud session's REAL activity is newer — never on syncTime.
++			seen := localSeen[pid]
++			for _, r := range resolved {
++				if seen != nil && seen[sessionindex.FingerprintKey(r.agentID, r.sessionID)] {
++					continue // local wins
++				}
++				existing.AgentCounts[r.agentID]++
++				existing.Sessions++
++			}
++			if maxReal != "" && maxReal > existing.LastActivity {
++				existing.LastActivity = maxReal
++			}
++			continue
++		}
++
++		// Cloud-only project: build a fresh rollup from its cloud sessions. LastActivity prefers
++		// real activity; sync time is the degrade fallback (no real activity known anywhere).
++		ps := sessionindex.ProjectSummary{
++			ProjectID:    pid,
++			ProjectName:  c.Name,
++			Sessions:     len(resolved),
++			AgentCounts:  make(map[string]int),
++			LastActivity: maxReal,
++			IsCloud:      true,
++		}
++		if ps.LastActivity == "" {
++			ps.LastActivity = maxSync
++		}
++		for _, r := range resolved {
++			ps.AgentCounts[r.agentID]++
++		}
++		ptr := &ps
++		byID[pid] = ptr
++		ordered = append(ordered, ptr)
++	}
+```
+
+```text
+Successfully replaced 3 block(s) in pkg/cmd/session_tui_cloud.go.
+```
+
+**diff:**
+```diff
+     ...
+ 671 	}
+ 672 
+ 673 	for _, c := range cloudProjs {
+ 674 		pid := c.ID
+-675 		// Resolve this project's cloud sessions to (agentID, sessionID, activity); skip unknown
+-676 		// agents — they can't be reconstructed/resumed here, so counting them would lie.
++675 		// Resolve this project's cloud sessions to (agentID, sessionID, realActivity, syncTime);
++676 		// skip unknown agents — they can't be reconstructed/resumed here, so counting them would lie.
++677 		// realActivity is ended_at/started_at (when the session actually happened). syncTime is updated_at
++678 		// (when it was last PUSHED — reset to ~now() on every sync). syncTime is NOT activity and must not
++679 		// win the activity max: one re-synced legacy row would otherwise float the whole project to "now".
+ 677 		type cloudSess struct {
+-678 			agentID   string
+-679 			sessionID string
+-680 			activity  string // firstNonEmpty(ended_at, started_at, updated_at) — real activity, not sync time
++681 			agentID      string
++682 			sessionID    string
++683 			realActivity string // firstNonEmpty(ended_at, started_at) — "" if the duration worker never populated them
++684 			syncTime     string // updated_at — fallback ONLY when no session in the project has real activity
+ 681 		}
+ 682 		resolved := make([]cloudSess, 0, len(c.Sessions))
+ 683 		for _, s := range c.Sessions {
+ 684 			agentID, ok := agentIDByName[s.Metadata.AgentName]
+     ...
+ 687 					"agentName", s.Metadata.AgentName, "sessionId", s.ClientID, "projectId", pid)
+ 688 				continue
+ 689 			}
+ 690 			resolved = append(resolved, cloudSess{
+-691 				agentID:   agentID,
+-692 				sessionID: s.ClientID,
+-693 				activity:  firstNonEmpty(s.EndedAt, s.StartedAt, s.UpdatedAt),
++695 				agentID:      agentID,
++696 				sessionID:    s.ClientID,
++697 				realActivity: firstNonEmpty(s.EndedAt, s.StartedAt),
++698 				syncTime:     s.UpdatedAt,
+ 694 			})
+ 695 		}
+ 696 		if len(resolved) == 0 {
+ 697 			continue // no resolvable resumable sessions — don't show an empty cloud project
+ 698 		}
+ 699 
++705 		// The activity the project row should show: max of real activity across sessions; if none
++706 		// have real activity (all legacy / duration-worker-not-run), fall back to the max sync time so
++707 		// a cloud-only project still sorts somewhere instead of rendering an empty date.
++708 		maxReal := ""
++709 		maxSync := ""
++710 		for _, r := range resolved {
++711 			if r.realActivity != "" && r.realActivity > maxReal {
++712 				maxReal = r.realActivity
++713 			}
++714 			if r.syncTime != "" && r.syncTime > maxSync {
++715 				maxSync = r.syncTime
++716 			}
++717 		}
++718 
+ 700 		if existing, ok := byID[pid]; ok {
+ 701 			// Shared project: add only the cloud sessions NOT already local (local preferred), so
+-702 			// overlaps don't double-count and cloud-only sessions still contribute.
++721 			// overlaps don't double-count and cloud-only sessions still contribute. The local rollup's
++722 			// LastActivity is already real (local updated_at is last-turn/file-mtime, not sync time),
++723 			// so only advance it when a cloud session's REAL activity is newer — never on syncTime.
+ 703 			seen := localSeen[pid]
+ 704 			for _, r := range resolved {
+ 705 				if seen != nil && seen[sessionindex.FingerprintKey(r.agentID, r.sessionID)] {
+ 706 					continue // local wins
+ 707 				}
+ 708 				existing.AgentCounts[r.agentID]++
+ 709 				existing.Sessions++
+-710 				if r.activity != "" && r.activity > existing.LastActivity {
+-711 					existing.LastActivity = r.activity
+-712 				}
+ 713 			}
++732 			if maxReal != "" && maxReal > existing.LastActivity {
++733 				existing.LastActivity = maxReal
++734 			}
+ 714 			continue
+ 715 		}
+ 716 
+-717 		// Cloud-only project: build a fresh rollup from its cloud sessions.
++738 		// Cloud-only project: build a fresh rollup from its cloud sessions. LastActivity prefers
++739 		// real activity; sync time is the degrade fallback (no real activity known anywhere).
+ 718 		ps := sessionindex.ProjectSummary{
+ 719 			ProjectID:    pid,
+ 720 			ProjectName:  c.Name,
+ 721 			Sessions:     len(resolved),
+ 722 			AgentCounts:  make(map[string]int),
+-723 			LastActivity: "",
++745 			LastActivity: maxReal,
+ 724 			IsCloud:      true,
+ 725 		}
++748 		if ps.LastActivity == "" {
++749 			ps.LastActivity = maxSync
++750 		}
+ 726 		for _, r := range resolved {
+ 727 			ps.AgentCounts[r.agentID]++
+-728 			if r.activity != "" && r.activity > ps.LastActivity {
+-729 				ps.LastActivity = r.activity
+-730 			}
+ 731 		}
+ 732 		ptr := &ps
+ 733 		byID[pid] = ptr
+ 734 		ordered = append(ordered, ptr)
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui_cloud.go
++++ pkg/cmd/session_tui_cloud.go
+@@ -671,14 +671,18 @@
+ 	}
+ 
+ 	for _, c := range cloudProjs {
+ 		pid := c.ID
+-		// Resolve this project's cloud sessions to (agentID, sessionID, activity); skip unknown
+-		// agents — they can't be reconstructed/resumed here, so counting them would lie.
++		// Resolve this project's cloud sessions to (agentID, sessionID, realActivity, syncTime);
++		// skip unknown agents — they can't be reconstructed/resumed here, so counting them would lie.
++		// realActivity is ended_at/started_at (when the session actually happened). syncTime is updated_at
++		// (when it was last PUSHED — reset to ~now() on every sync). syncTime is NOT activity and must not
++		// win the activity max: one re-synced legacy row would otherwise float the whole project to "now".
+ 		type cloudSess struct {
+-			agentID   string
+-			sessionID string
+-			activity  string // firstNonEmpty(ended_at, started_at, updated_at) — real activity, not sync time
++			agentID      string
++			sessionID    string
++			realActivity string // firstNonEmpty(ended_at, started_at) — "" if the duration worker never populated them
++			syncTime     string // updated_at — fallback ONLY when no session in the project has real activity
+ 		}
+ 		resolved := make([]cloudSess, 0, len(c.Sessions))
+ 		for _, s := range c.Sessions {
+ 			agentID, ok := agentIDByName[s.Metadata.AgentName]
+@@ -687,48 +691,66 @@
+ 					"agentName", s.Metadata.AgentName, "sessionId", s.ClientID, "projectId", pid)
+ 				continue
+ 			}
+ 			resolved = append(resolved, cloudSess{
+-				agentID:   agentID,
+-				sessionID: s.ClientID,
+-				activity:  firstNonEmpty(s.EndedAt, s.StartedAt, s.UpdatedAt),
++				agentID:      agentID,
++				sessionID:    s.ClientID,
++				realActivity: firstNonEmpty(s.EndedAt, s.StartedAt),
++				syncTime:     s.UpdatedAt,
+ 			})
+ 		}
+ 		if len(resolved) == 0 {
+ 			continue // no resolvable resumable sessions — don't show an empty cloud project
+ 		}
+ 
++		// The activity the project row should show: max of real activity across sessions; if none
++		// have real activity (all legacy / duration-worker-not-run), fall back to the max sync time so
++		// a cloud-only project still sorts somewhere instead of rendering an empty date.
++		maxReal := ""
++		maxSync := ""
++		for _, r := range resolved {
++			if r.realActivity != "" && r.realActivity > maxReal {
++				maxReal = r.realActivity
++			}
++			if r.syncTime != "" && r.syncTime > maxSync {
++				maxSync = r.syncTime
++			}
++		}
++
+ 		if existing, ok := byID[pid]; ok {
+ 			// Shared project: add only the cloud sessions NOT already local (local preferred), so
+-			// overlaps don't double-count and cloud-only sessions still contribute.
++			// overlaps don't double-count and cloud-only sessions still contribute. The local rollup's
++			// LastActivity is already real (local updated_at is last-turn/file-mtime, not sync time),
++			// so only advance it when a cloud session's REAL activity is newer — never on syncTime.
+ 			seen := localSeen[pid]
+ 			for _, r := range resolved {
+ 				if seen != nil && seen[sessionindex.FingerprintKey(r.agentID, r.sessionID)] {
+ 					continue // local wins
+ 				}
+ 				existing.AgentCounts[r.agentID]++
+ 				existing.Sessions++
+-				if r.activity != "" && r.activity > existing.LastActivity {
+-					existing.LastActivity = r.activity
+-				}
+ 			}
++			if maxReal != "" && maxReal > existing.LastActivity {
++				existing.LastActivity = maxReal
++			}
+ 			continue
+ 		}
+ 
+-		// Cloud-only project: build a fresh rollup from its cloud sessions.
++		// Cloud-only project: build a fresh rollup from its cloud sessions. LastActivity prefers
++		// real activity; sync time is the degrade fallback (no real activity known anywhere).
+ 		ps := sessionindex.ProjectSummary{
+ 			ProjectID:    pid,
+ 			ProjectName:  c.Name,
+ 			Sessions:     len(resolved),
+ 			AgentCounts:  make(map[string]int),
+-			LastActivity: "",
++			LastActivity: maxReal,
+ 			IsCloud:      true,
+ 		}
++		if ps.LastActivity == "" {
++			ps.LastActivity = maxSync
++		}
+ 		for _, r := range resolved {
+ 			ps.AgentCounts[r.agentID]++
+-			if r.activity != "" && r.activity > ps.LastActivity {
+-				ps.LastActivity = r.activity
+-			}
+ 		}
+ 		ptr := &ps
+ 		byID[pid] = ptr
+ 		ordered = append(ordered, ptr)
 
 ```
-Successfully replaced 3 block(s) in pkg/cmd/session_tui_cloud.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 675
+}
 ```
 </details></tool-use>
 
@@ -8225,7 +12814,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:30:41Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `gofmt -w pkg/cmd/session_tui_cloud.go && go test -v -run "TestMergeCloudProjects|TestProjectActivityTime" ./pkg/cmd 2>&1 | tail -25; echo "exit=${PIPESTATUS[0]}"`</summary>
+**Command:**
+```bash
+gofmt -w pkg/cmd/session_tui_cloud.go && go test -v -run "TestMergeCloudProjects|TestProjectActivityTime" ./pkg/cmd 2>&1 | tail -25; echo "exit=${PIPESTATUS[0]}"
 ```
+
+```text
 === RUN   TestMergeCloudProjects
 --- PASS: TestMergeCloudProjects (0.00s)
 === RUN   TestMergeCloudProjects_NilLocalKeys
@@ -8239,6 +12833,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:30:41Z)**_
 PASS
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.026s
 exit=0
+
 ```
 </details></tool-use>
 
@@ -8254,10 +12849,314 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:30:54Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui_cloud_test.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud_test.go
 ```
+
+**Edit 1:**
+```diff
+-// TestProjectActivityTime confirms RFC3339 parsing for the recency sort (local "…Z" and cloud
++// TestMergeCloudProjects_SyncTimeDoesNotPoisonActivity is the regression test for the "now" date
++// bug (Chunk 4): a cloud-only project whose newest real activity is mid-June but which has a
++// legacy/re-synced session with no ended_at/started_at (only updated_at = sync time = today) must
++// show the mid-June date, NOT today. updated_at is the cloud record's sync timestamp (reset to
++// ~now() on every push), so it must never win the activity max when any session has real activity.
++func TestMergeCloudProjects_SyncTimeDoesNotPoisonActivity(t *testing.T) {
++	agentIDByName := map[string]string{"Claude Code": "claude", "Codex": "codex"}
++	cloudProjs := []cloud.CloudProject{
++		{ID: "cp1", Name: "cross-portable-1", Sessions: []cloud.CloudSession{
++			// Real activity mid-June.
++			{ClientID: "a1", ProjectID: "cp1", Metadata: cloud.CloudSessionMetadata{AgentName: "Claude Code"},
++				EndedAt: "2026-06-17T14:59:06.469+00:00", UpdatedAt: "2026-07-13T15:55:45+00:00"},
++			// No real activity — only sync time (today). Must NOT win.
++			{ClientID: "c1", ProjectID: "cp1", Metadata: cloud.CloudSessionMetadata{AgentName: "Codex"},
++				UpdatedAt: "2026-07-13T15:56:01+00:00"},
++		}},
++	}
++	got := mergeCloudProjects(nil, nil, cloudProjs, agentIDByName)
++	if len(got) != 1 {
++		t.Fatalf("expected 1 project, got %d: %+v", len(got), got)
++	}
++	p := got[0]
++	if p.LastActivity != "2026-06-17T14:59:06.469+00:00" {
++		t.Errorf("LastActivity = %q, want 2026-06-17T14:59:06.469+00:00 (real activity, not sync time)", p.LastActivity)
++	}
++	// Both sessions still count toward chips/total — only the ACTIVITY max ignores sync time.
++	if p.Sessions != 2 {
++		t.Errorf("Sessions = %d, want 2 (both sessions count even though one has no real activity)", p.Sessions)
++	}
++	if p.AgentCounts["claude"] != 1 || p.AgentCounts["codex"] != 1 {
++		t.Errorf("AgentCounts = %v, want claude=1 codex=1", p.AgentCounts)
++	}
++}
++
++// TestMergeCloudProjects_AllSyncTimeFallback confirms that when NO session in a cloud-only project
++// has real activity (all legacy / duration-worker-not-run), the rollup falls back to the max sync
++// time so the project still sorts somewhere and shows a date rather than rendering empty.
++func TestMergeCloudProjects_AllSyncTimeFallback(t *testing.T) {
++	agentIDByName := map[string]string{"Codex": "codex"}
++	cloudProjs := []cloud.CloudProject{
++		{ID: "legacy", Name: "legacy", Sessions: []cloud.CloudSession{
++			{ClientID: "c1", ProjectID: "legacy", Metadata: cloud.CloudSessionMetadata{AgentName: "Codex"},
++				UpdatedAt: "2026-07-13T15:56:01+00:00"},
++			{ClientID: "c2", ProjectID: "legacy", Metadata: cloud.CloudSessionMetadata{AgentName: "Codex"},
++				UpdatedAt: "2026-07-13T15:58:00+00:00"},
++		}},
++	}
++	got := mergeCloudProjects(nil, nil, cloudProjs, agentIDByName)
++	if len(got) != 1 {
++		t.Fatalf("expected 1 project, got %d", len(got))
++	}
++	if got[0].LastActivity != "2026-07-13T15:58:00+00:00" {
++		t.Errorf("LastActivity = %q, want max sync time as fallback when no real activity exists", got[0].LastActivity)
++	}
++}
++
++// TestMergeCloudProjects_SharedProjectSyncTimeIgnored confirms a shared project's local LastActivity
++// (already real) is NOT advanced by a cloud session's sync time — only by real cloud activity.
++func TestMergeCloudProjects_SharedProjectSyncTimeIgnored(t *testing.T) {
++	agentIDByName := map[string]string{"Codex": "codex"}
++	local := []sessionindex.ProjectSummary{
++		{ProjectID: "shared", Sessions: 1, LastActivity: "2026-06-18T10:00:00Z",
++			AgentCounts: map[string]int{"codex": 1}},
++	}
++	localKeys := map[string][]sessionindex.ProjectSessionKey{
++		"shared": {{Agent: "codex", SessionID: "local1", UpdatedAt: "2026-06-18T10:00:00Z"}},
++	}
++	cloudProjs := []cloud.CloudProject{
++		{ID: "shared", Name: "shared", Sessions: []cloud.CloudSession{
++			// Cloud-only session with NO real activity, only sync time (today). Must add to counts but
++		// must NOT advance LastActivity past the local real activity (Jun 18).
++			{ClientID: "cloud1", ProjectID: "shared", Metadata: cloud.CloudSessionMetadata{AgentName: "Codex"},
++				UpdatedAt: "2026-07-13T15:56:01+00:00"},
++		}},
++	}
++	got := mergeCloudProjects(local, localKeys, cloudProjs, agentIDByName)
++	byID := map[string]sessionindex.ProjectSummary{}
++	for _, p := range got {
++		byID[p.ProjectID] = p
++	}
++	shared := byID["shared"]
++	if shared.Sessions != 2 {
++		t.Errorf("Sessions = %d, want 2 (local + cloud-only)", shared.Sessions)
++	}
++	if shared.LastActivity != "2026-06-18T10:00:00Z" {
++		t.Errorf("LastActivity = %q, want 2026-06-18T10:00:00Z (sync time must not advance a shared project's real local activity)", shared.LastActivity)
++	}
++}
++
++// TestProjectActivityTime confirms RFC3339 parsing for the recency sort (local "…Z" and cloud
+```
+
+```text
 Successfully replaced 1 block(s) in pkg/cmd/session_tui_cloud_test.go.
+```
+
+**diff:**
+```diff
+     ...
+ 201 		t.Errorf("mergeCloudProjects mutated the caller's local Sessions: got %d, want 1", local[0].Sessions)
+ 202 	}
+ 203 }
+ 204 
++205 // TestMergeCloudProjects_SyncTimeDoesNotPoisonActivity is the regression test for the "now" date
++206 // bug (Chunk 4): a cloud-only project whose newest real activity is mid-June but which has a
++207 // legacy/re-synced session with no ended_at/started_at (only updated_at = sync time = today) must
++208 // show the mid-June date, NOT today. updated_at is the cloud record's sync timestamp (reset to
++209 // ~now() on every push), so it must never win the activity max when any session has real activity.
++210 func TestMergeCloudProjects_SyncTimeDoesNotPoisonActivity(t *testing.T) {
++211 	agentIDByName := map[string]string{"Claude Code": "claude", "Codex": "codex"}
++212 	cloudProjs := []cloud.CloudProject{
++213 		{ID: "cp1", Name: "cross-portable-1", Sessions: []cloud.CloudSession{
++214 			// Real activity mid-June.
++215 			{ClientID: "a1", ProjectID: "cp1", Metadata: cloud.CloudSessionMetadata{AgentName: "Claude Code"},
++216 				EndedAt: "2026-06-17T14:59:06.469+00:00", UpdatedAt: "2026-07-13T15:55:45+00:00"},
++217 			// No real activity — only sync time (today). Must NOT win.
++218 			{ClientID: "c1", ProjectID: "cp1", Metadata: cloud.CloudSessionMetadata{AgentName: "Codex"},
++219 				UpdatedAt: "2026-07-13T15:56:01+00:00"},
++220 		}},
++221 	}
++222 	got := mergeCloudProjects(nil, nil, cloudProjs, agentIDByName)
++223 	if len(got) != 1 {
++224 		t.Fatalf("expected 1 project, got %d: %+v", len(got), got)
++225 	}
++226 	p := got[0]
++227 	if p.LastActivity != "2026-06-17T14:59:06.469+00:00" {
++228 		t.Errorf("LastActivity = %q, want 2026-06-17T14:59:06.469+00:00 (real activity, not sync time)", p.LastActivity)
++229 	}
++230 	// Both sessions still count toward chips/total — only the ACTIVITY max ignores sync time.
++231 	if p.Sessions != 2 {
++232 		t.Errorf("Sessions = %d, want 2 (both sessions count even though one has no real activity)", p.Sessions)
++233 	}
++234 	if p.AgentCounts["claude"] != 1 || p.AgentCounts["codex"] != 1 {
++235 		t.Errorf("AgentCounts = %v, want claude=1 codex=1", p.AgentCounts)
++236 	}
++237 }
++238 
++239 // TestMergeCloudProjects_AllSyncTimeFallback confirms that when NO session in a cloud-only project
++240 // has real activity (all legacy / duration-worker-not-run), the rollup falls back to the max sync
++241 // time so the project still sorts somewhere and shows a date rather than rendering empty.
++242 func TestMergeCloudProjects_AllSyncTimeFallback(t *testing.T) {
++243 	agentIDByName := map[string]string{"Codex": "codex"}
++244 	cloudProjs := []cloud.CloudProject{
++245 		{ID: "legacy", Name: "legacy", Sessions: []cloud.CloudSession{
++246 			{ClientID: "c1", ProjectID: "legacy", Metadata: cloud.CloudSessionMetadata{AgentName: "Codex"},
++247 				UpdatedAt: "2026-07-13T15:56:01+00:00"},
++248 			{ClientID: "c2", ProjectID: "legacy", Metadata: cloud.CloudSessionMetadata{AgentName: "Codex"},
++249 				UpdatedAt: "2026-07-13T15:58:00+00:00"},
++250 		}},
++251 	}
++252 	got := mergeCloudProjects(nil, nil, cloudProjs, agentIDByName)
++253 	if len(got) != 1 {
++254 		t.Fatalf("expected 1 project, got %d", len(got))
++255 	}
++256 	if got[0].LastActivity != "2026-07-13T15:58:00+00:00" {
++257 		t.Errorf("LastActivity = %q, want max sync time as fallback when no real activity exists", got[0].LastActivity)
++258 	}
++259 }
++260 
++261 // TestMergeCloudProjects_SharedProjectSyncTimeIgnored confirms a shared project's local LastActivity
++262 // (already real) is NOT advanced by a cloud session's sync time — only by real cloud activity.
++263 func TestMergeCloudProjects_SharedProjectSyncTimeIgnored(t *testing.T) {
++264 	agentIDByName := map[string]string{"Codex": "codex"}
++265 	local := []sessionindex.ProjectSummary{
++266 		{ProjectID: "shared", Sessions: 1, LastActivity: "2026-06-18T10:00:00Z",
++267 			AgentCounts: map[string]int{"codex": 1}},
++268 	}
++269 	localKeys := map[string][]sessionindex.ProjectSessionKey{
++270 		"shared": {{Agent: "codex", SessionID: "local1", UpdatedAt: "2026-06-18T10:00:00Z"}},
++271 	}
++272 	cloudProjs := []cloud.CloudProject{
++273 		{ID: "shared", Name: "shared", Sessions: []cloud.CloudSession{
++274 			// Cloud-only session with NO real activity, only sync time (today). Must add to counts but
++275 		// must NOT advance LastActivity past the local real activity (Jun 18).
++276 			{ClientID: "cloud1", ProjectID: "shared", Metadata: cloud.CloudSessionMetadata{AgentName: "Codex"},
++277 				UpdatedAt: "2026-07-13T15:56:01+00:00"},
++278 		}},
++279 	}
++280 	got := mergeCloudProjects(local, localKeys, cloudProjs, agentIDByName)
++281 	byID := map[string]sessionindex.ProjectSummary{}
++282 	for _, p := range got {
++283 		byID[p.ProjectID] = p
++284 	}
++285 	shared := byID["shared"]
++286 	if shared.Sessions != 2 {
++287 		t.Errorf("Sessions = %d, want 2 (local + cloud-only)", shared.Sessions)
++288 	}
++289 	if shared.LastActivity != "2026-06-18T10:00:00Z" {
++290 		t.E
+… (output truncated)
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui_cloud_test.go
++++ pkg/cmd/session_tui_cloud_test.go
+@@ -201,8 +201,97 @@
+ 		t.Errorf("mergeCloudProjects mutated the caller's local Sessions: got %d, want 1", local[0].Sessions)
+ 	}
+ }
+ 
++// TestMergeCloudProjects_SyncTimeDoesNotPoisonActivity is the regression test for the "now" date
++// bug (Chunk 4): a cloud-only project whose newest real activity is mid-June but which has a
++// legacy/re-synced session with no ended_at/started_at (only updated_at = sync time = today) must
++// show the mid-June date, NOT today. updated_at is the cloud record's sync timestamp (reset to
++// ~now() on every push), so it must never win the activity max when any session has real activity.
++func TestMergeCloudProjects_SyncTimeDoesNotPoisonActivity(t *testing.T) {
++	agentIDByName := map[string]string{"Claude Code": "claude", "Codex": "codex"}
++	cloudProjs := []cloud.CloudProject{
++		{ID: "cp1", Name: "cross-portable-1", Sessions: []cloud.CloudSession{
++			// Real activity mid-June.
++			{ClientID: "a1", ProjectID: "cp1", Metadata: cloud.CloudSessionMetadata{AgentName: "Claude Code"},
++				EndedAt: "2026-06-17T14:59:06.469+00:00", UpdatedAt: "2026-07-13T15:55:45+00:00"},
++			// No real activity — only sync time (today). Must NOT win.
++			{ClientID: "c1", ProjectID: "cp1", Metadata: cloud.CloudSessionMetadata{AgentName: "Codex"},
++				UpdatedAt: "2026-07-13T15:56:01+00:00"},
++		}},
++	}
++	got := mergeCloudProjects(nil, nil, cloudProjs, agentIDByName)
++	if len(got) != 1 {
++		t.Fatalf("expected 1 project, got %d: %+v", len(got), got)
++	}
++	p := got[0]
++	if p.LastActivity != "2026-06-17T14:59:06.469+00:00" {
++		t.Errorf("LastActivity = %q, want 2026-06-17T14:59:06.469+00:00 (real activity, not sync time)", p.LastActivity)
++	}
++	// Both sessions still count toward chips/total — only the ACTIVITY max ignores sync time.
++	if p.Sessions != 2 {
++		t.Errorf("Sessions = %d, want 2 (both sessions count even though one has no real activity)", p.Sessions)
++	}
++	if p.AgentCounts["claude"] != 1 || p.AgentCounts["codex"] != 1 {
++		t.Errorf("AgentCounts = %v, want claude=1 codex=1", p.AgentCounts)
++	}
++}
++
++// TestMergeCloudProjects_AllSyncTimeFallback confirms that when NO session in a cloud-only project
++// has real activity (all legacy / duration-worker-not-run), the rollup falls back to the max sync
++// time so the project still sorts somewhere and shows a date rather than rendering empty.
++func TestMergeCloudProjects_AllSyncTimeFallback(t *testing.T) {
++	agentIDByName := map[string]string{"Codex": "codex"}
++	cloudProjs := []cloud.CloudProject{
++		{ID: "legacy", Name: "legacy", Sessions: []cloud.CloudSession{
++			{ClientID: "c1", ProjectID: "legacy", Metadata: cloud.CloudSessionMetadata{AgentName: "Codex"},
++				UpdatedAt: "2026-07-13T15:56:01+00:00"},
++			{ClientID: "c2", ProjectID: "legacy", Metadata: cloud.CloudSessionMetadata{AgentName: "Codex"},
++				UpdatedAt: "2026-07-13T15:58:00+00:00"},
++		}},
++	}
++	got := mergeCloudProjects(nil, nil, cloudProjs, agentIDByName)
++	if len(got) != 1 {
++		t.Fatalf("expected 1 project, got %d", len(got))
++	}
++	if got[0].LastActivity != "2026-07-13T15:58:00+00:00" {
++		t.Errorf("LastActivity = %q, want max sync time as fallback when no real activity exists", got[0].LastActivity)
++	}
++}
++
++// TestMergeCloudProjects_SharedProjectSyncTimeIgnored confirms a shared project's local LastActivity
++// (already real) is NOT advanced by a cloud session's sync time — only by real cloud activity.
++func TestMergeCloudProjects_SharedProjectSyncTimeIgnored(t *testing.T) {
++	agentIDByName := map[string]string{"Codex": "codex"}
++	local := []sessionindex.ProjectSummary{
++		{ProjectID: "shared", Sessions: 1, LastActivity: "2026-06-18T10:00:00Z",
++			AgentCounts: map[string]int{"codex": 1}},
++	}
++	localKeys := map[string][]sessionindex.ProjectSessionKey{
++		"shared": {{Agent: "codex", SessionID: "local1", UpdatedAt: "2026-06-18T10:00:00Z"}},
++	}
++	cloudProjs := []cloud.CloudProject{
++		{ID: "shared", Name: "shared", Sessions: []cloud.CloudSession{
++			// Cloud-only session with NO real activity, only sync time (today). Must add to counts but
++		// must NOT advance LastActivity past the local real activity (Jun 18).
++			{ClientID: "cloud1", ProjectID: "shared", Metadata: cloud.CloudSessionMetadata{AgentName: "Codex"},
++				UpdatedAt: "2026-07-13T15:56:01+00:00"},
++		}},
++	}
++	got := mergeCloudProjects(local, localKeys, cloudProjs, agentIDByName)
++	byID := map[string]sessionindex.ProjectSummary{}
++	for _, p := range got {
++		byID[p.ProjectID] = p
++	}
++	shared := byID["shared"]
++	if shared.Sessions != 2 {
++		t.Errorf("Sessions = %d, want 2 (local + cloud-only)", shared.Sessions)
++	}
++	if shared.LastActivity != "2026-06-18T10:00:00Z" {
++		t.Errorf("LastActivity = %q, want 2026-06-18T10:00:00Z (sync time must not advance a shared project's real local activity)", shared.LastActivity)
++	}
++}
++
+ // TestProjectActivityTime confirms RFC3339 parsing for the recency sort (local "…Z" and cloud
+ // "…+00:00" with micro
+… (output truncated)
+```
+
+**Details:**
+```json
+{
+  "firstChangedLine": 205
+}
 ```
 </details></tool-use>
 
@@ -8265,7 +13164,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:30:57Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `gofmt -w pkg/cmd/session_tui_cloud_test.go && go test -v -run "TestMergeCloudProjects|TestProjectActivityTime" ./pkg/cmd 2>&1 | tail -30; echo "exit=${PIPESTATUS[0]}"`</summary>
+**Command:**
+```bash
+gofmt -w pkg/cmd/session_tui_cloud_test.go && go test -v -run "TestMergeCloudProjects|TestProjectActivityTime" ./pkg/cmd 2>&1 | tail -30; echo "exit=${PIPESTATUS[0]}"
 ```
+
+```text
 === RUN   TestMergeCloudProjects
 --- PASS: TestMergeCloudProjects (0.00s)
 === RUN   TestMergeCloudProjects_NilLocalKeys
@@ -8285,6 +13189,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:30:57Z)**_
 PASS
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.027s
 exit=0
+
 ```
 </details></tool-use>
 
@@ -8296,7 +13201,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:31:04Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `golangci-lint run 2>&1 | tail -5; echo "lint=${PIPESTATUS[0]}"; go test ./... 2>&1 | tail -4; echo "test=${PIPESTATUS[0]}"; go build -o specstory && echo "build ok"`</summary>
+**Command:**
+```bash
+golangci-lint run 2>&1 | tail -5; echo "lint=${PIPESTATUS[0]}"; go test ./... 2>&1 | tail -4; echo "test=${PIPESTATUS[0]}"; go build -o specstory && echo "build ok"
 ```
+
+```text
 0 issues.
 lint=0
 ?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory	[no test files]
@@ -8305,6 +13215,7 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	0.040s
 test=0
 build ok
+
 ```
 </details></tool-use>
 
@@ -8316,9 +13227,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:31:08Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "firstNonEmpty(EndedAt, StartedAt, UpdatedAt)" docs/CLOUD-RESUME.md`</summary>
+**Command:**
+```bash
+grep -n "firstNonEmpty(EndedAt, StartedAt, UpdatedAt)" docs/CLOUD-RESUME.md
 ```
+
+```text
 314:1. **Date shows "now" instead of real activity on cloud rows.** `cloudToProjects` sets `LastActivity = c.LastUpdated`, and the server's `workspace_sessions_summary` view computes `last_session = MAX(s.updated_at)` — `updated_at` is the **sync/push** timestamp (reset to `now()` on every upsert), not real session activity. There is a stale TODO (`supabase.ts:158`) to use `GREATEST(ended_at, started_at, updated_at)`. The drill-in path doesn't have this bug: `listResumableSessionsForWorkspace` orders by `ended_at` and `cloudToSessions` uses `firstNonEmpty(EndedAt, StartedAt, UpdatedAt)`.
 331:  - `pkg/cmd/session_tui_cloud.go`: replace `cloudToProjects` + `mergeCloudProjects` with a session-level rollup — group cloud sessions by `project_id`, merge with the local per-project key set (dedup by `FingerprintKey(agent, session_id)`, local preferred), recompute `AgentCounts` (agent → count over the union), `LastActivity` (`max` over the union's activity times, parsed from RFC3339 so local + cloud timestamps compare correctly), `Sessions` (union length). `IsCloud = true` only for projects with **no** local sessions; shared projects keep `IsCloud = false` but now reflect cloud-only sessions. `LastActivity` per session uses `firstNonEmpty(EndedAt, StartedAt, UpdatedAt)` — identical to the drill-in `cloudToSessions`, which is what fixes the "now" date.
+
 ```
 </details></tool-use>
 
@@ -8326,10 +13243,78 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:31:18Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`docs/CLOUD-RESUME.md`
-
+**Path:**
+```text
+docs/CLOUD-RESUME.md
 ```
+
+**Edit 1:**
+```diff
+-1. **Date shows "now" instead of real activity on cloud rows.** `cloudToProjects` sets `LastActivity = c.LastUpdated`, and the server's `workspace_sessions_summary` view computes `last_session = MAX(s.updated_at)` — `updated_at` is the **sync/push** timestamp (reset to `now()` on every upsert), not real session activity. There is a stale TODO (`supabase.ts:158`) to use `GREATEST(ended_at, started_at, updated_at)`. The drill-in path doesn't have this bug: `listResumableSessionsForWorkspace` orders by `ended_at` and `cloudToSessions` uses `firstNonEmpty(EndedAt, StartedAt, UpdatedAt)`.
++1. **Date shows "now" instead of real activity on cloud rows.** `cloudToProjects` sets `LastActivity = c.LastUpdated`, and the server's `workspace_sessions_summary` view computes `last_session = MAX(s.updated_at)` — `updated_at` is the **sync/push** timestamp (reset to `now()` on every upsert), not real session activity. There is a stale TODO (`supabase.ts:158`) to use `GREATEST(ended_at, started_at, updated_at)`. The drill-in path doesn't have this bug for rows the duration worker has processed: `listResumableSessionsForWorkspace` orders by `ended_at` and `cloudToSessions` uses `firstNonEmpty(EndedAt, StartedAt, UpdatedAt)`. **But** the rollup takes a `max` over sessions, and `firstNonEmpty`'s `UpdatedAt` fallback is the sync time — so a single legacy/re-synced session with `NULL` `ended_at`/`started_at` (duration worker not run yet) poisons the project's `LastActivity` to "now" even when every other session has a real mid-June `ended_at`. (The drill-in hides this because each row shows its *own* time; only the rollup's max exposes it.) The fix (D27) is to compute `LastActivity` from real activity only, with sync time as a project-level fallback when *no* session has real activity.
+```
+
+**Edit 2:**
+```diff
+-  - `pkg/cmd/session_tui_cloud.go`: replace `cloudToProjects` + `mergeCloudProjects` with a session-level rollup — group cloud sessions by `project_id`, merge with the local per-project key set (dedup by `FingerprintKey(agent, session_id)`, local preferred), recompute `AgentCounts` (agent → count over the union), `LastActivity` (`max` over the union's activity times, parsed from RFC3339 so local + cloud timestamps compare correctly), `Sessions` (union length). `IsCloud = true` only for projects with **no** local sessions; shared projects keep `IsCloud = false` but now reflect cloud-only sessions. `LastActivity` per session uses `firstNonEmpty(EndedAt, StartedAt, UpdatedAt)` — identical to the drill-in `cloudToSessions`, which is what fixes the "now" date.
++  - `pkg/cmd/session_tui_cloud.go`: replace `cloudToProjects` + `mergeCloudProjects` with a session-level rollup — group cloud sessions by `project_id`, merge with the local per-project key set (dedup by `FingerprintKey(agent, session_id)`, local preferred), recompute `AgentCounts` (agent → count over the union), `LastActivity` (`max` over the union's activity times, parsed from RFC3339 so local + cloud timestamps compare correctly), `Sessions` (union length). `IsCloud = true` only for projects with **no** local sessions; shared projects keep `IsCloud = false` but now reflect cloud-only sessions. `LastActivity` uses **real activity only** per session — `firstNonEmpty(EndedAt, StartedAt)`, NOT `UpdatedAt` (D27) — so a legacy/re-synced session with no real activity can't float the project to "now"; sync time is the project-level fallback only when *no* session has real activity.
+```
+
+```text
 Successfully replaced 2 block(s) in docs/CLOUD-RESUME.md.
+```
+
+**diff:**
+```diff
+     ...
+ 310 ### Chunk 4 — Accurate all-projects rollup (projects-view data quality)
+ 311 
+ 312 The all-projects browser (`modeProjects`) blends cloud-only projects into the local list, but the rollup has three data-quality defects surfaced after Chunk 2 landed:
+ 313 
+-314 1. **Date shows "now" instead of real activity on cloud rows.** `cloudToProjects` sets `LastActivity = c.LastUpdated`, and the server's `workspace_sessions_summary` view computes `last_session = MAX(s.updated_at)` — `updated_at` is the **sync/push** timestamp (reset to `now()` on every upsert), not real session activity. There is a stale TODO (`supabase.ts:158`) to use `GREATEST(ended_at, started_at, updated_at)`. The drill-in path doesn't have this bug: `listResumableSessionsForWorkspace` orders by `ended_at` and `cloudToSessions` uses `firstNonEmpty(EndedAt, StartedAt, UpdatedAt)`.
++314 1. **Date shows "now" instead of real activity on cloud rows.** `cloudToProjects` sets `LastActivity = c.LastUpdated`, and the server's `workspace_sessions_summary` view computes `last_session = MAX(s.updated_at)` — `updated_at` is the **sync/push** timestamp (reset to `now()` on every upsert), not real session activity. There is a stale TODO (`supabase.ts:158`) to use `GREATEST(ended_at, started_at, updated_at)`. The drill-in path doesn't have this bug for rows the duration worker has processed: `listResumableSessionsForWorkspace` orders by `ended_at` and `cloudToSessions` uses `firstNonEmpty(EndedAt, StartedAt, UpdatedAt)`. **But** the rollup takes a `max` over sessions, and `firstNonEmpty`'s `UpdatedAt` fallback is the sync time — so a single legacy/re-synced session with `NULL` `ended_at`/`started_at` (duration worker not run yet) poisons the project's `LastActivity` to "now" even when every other session has a real mid-June `ended_at`. (The drill-in hides this because each row shows its *own* time; only the rollup's max exposes it.) The fix (D27) is to compute `LastActivity` from real activity only, with sync time as a project-level fallback when *no* session has real activity.
+ 315 2. **Cloud-only projects lose the agent/session chips.** `cloudToProjects` sets `AgentCounts = nil` (the `ProjectSummary` comment says so: "the cloud list has no per-agent breakdown"), and `projectRow` renders **only** `agentCountChips` — so a cloud-only project shows no chips at all. The server returns only a scalar `sessionCount`, no per-agent breakdown.
+ 316 3. **Shared projects (local + cloud) don't merge at the session level.** `mergeCloudProjects` is a pure "local wins, cloud-only appended" dedup keyed on `project_id` — for a project present in both stores, **all** its cloud sessions are discarded. If the cloud has sessions the local index doesn't (pruned locally, or never worked on this machine), they don't contribute to the chips or the total. The session **drill-in** view already merges correctly (`mergeCloudRows`, dedup by `(agent, session_id)`, local preferred, re-sort); the projects rollup does not.
+ 317 
+ 318 - **D23 — The all-projects rollup is computed client-side from per-session data, not a server rollup.** The CLI fetches the user's resumable cloud sessions **with their project attribution**, groups them by `project_id`, merges with the local per-project session-key set (dedup by `(agent, session_id)`, **local preferred** — identical rule to `mergeCloudRows`), and recomputes `AgentCounts` / `LastActivity` / `Sessions` from the union. This is the only option that fixes all three defects: cloud-only projects get real chips + a real date (from per-session `ended_at`), and shared projects reflect cloud-only sessions in their counts without double-counting overlaps. Chosen over a server-side per-agent rollup (which would fix the date and cloud-only chips but still leave shared projects' cloud-only sessions uncounted, because the client has no way to subtract local overlaps from a server count) and over a server rollup + fingerprint-set hybrid (a neither-fish-nor-fowl payload whose savings over the per-session shape are modest once the fingerprint tuples ride along). Machine provenance (`deviceId`/`machineName`) lands per session for free, matching D9 — not needed for v1's project row but available for a future machine badge/filter in this view.
+     ...
+ 327   - Migration: `CREATE OR REPLACE VIEW workspace_sessions_summary` with `MAX(COALESCE(s.ended_at, s.started_at, s.updated_at)) as last_session` (D26).
+ 328 - **CLI (`specstory-cli`):**
+ 329   - `pkg/cloud/resume_client.go`: extend `ListCloudProjects` (or a new `ListCloudProjectsResumable`) to call `?resumable=true` and decode the embedded `sessions[]` per project (`CloudSession` shape, already used by the drill-in).
+ 330   - `pkg/sessionindex/store.go`: add a query returning every local (non-deleted) session's `(project_id, agent, session_id, updated_at)` — the per-project key set the merge dedups against. (`Fingerprints()` enumerates all sessions but lacks `project_id`/`updated_at`.)
+-331   - `pkg/cmd/
+… (output truncated)
+```
+
+**patch:**
+```diff
+--- docs/CLOUD-RESUME.md
++++ docs/CLOUD-RESUME.md
+@@ -310,9 +310,9 @@
+ ### Chunk 4 — Accurate all-projects rollup (projects-view data quality)
+ 
+ The all-projects browser (`modeProjects`) blends cloud-only projects into the local list, but the rollup has three data-quality defects surfaced after Chunk 2 landed:
+ 
+-1. **Date shows "now" instead of real activity on cloud rows.** `cloudToProjects` sets `LastActivity = c.LastUpdated`, and the server's `workspace_sessions_summary` view computes `last_session = MAX(s.updated_at)` — `updated_at` is the **sync/push** timestamp (reset to `now()` on every upsert), not real session activity. There is a stale TODO (`supabase.ts:158`) to use `GREATEST(ended_at, started_at, updated_at)`. The drill-in path doesn't have this bug: `listResumableSessionsForWorkspace` orders by `ended_at` and `cloudToSessions` uses `firstNonEmpty(EndedAt, StartedAt, UpdatedAt)`.
++1. **Date shows "now" instead of real activity on cloud rows.** `cloudToProjects` sets `LastActivity = c.LastUpdated`, and the server's `workspace_sessions_summary` view computes `last_session = MAX(s.updated_at)` — `updated_at` is the **sync/push** timestamp (reset to `now()` on every upsert), not real session activity. There is a stale TODO (`supabase.ts:158`) to use `GREATEST(ended_at, started_at, updated_at)`. The drill-in path doesn't have this bug for rows the duration worker has processed: `listResumableSessionsForWorkspace` orders by `ended_at` and `cloudToSessions` uses `firstNonEmpty(EndedAt, StartedAt, UpdatedAt)`. **But** the rollup takes a `max` over sessions, and `firstNonEmpty`'s `UpdatedAt` fallback is the sync time — so a single legacy/re-synced session with `NULL` `ended_at`/`started_at` (duration worker not run yet) poisons the project's `LastActivity` to "now" even when every other session has a real mid-June `ended_at`. (The drill-in hides this because each row shows its *own* time; only the rollup's max exposes it.) The fix (D27) is to compute `LastActivity` from real activity only, with sync time as a project-level fallback when *no* session has real activity.
+ 2. **Cloud-only projects lose the agent/session chips.** `cloudToProjects` sets `AgentCounts = nil` (the `ProjectSummary` comment says so: "the cloud list has no per-agent breakdown"), and `projectRow` renders **only** `agentCountChips` — so a cloud-only project shows no chips at all. The server returns only a scalar `sessionCount`, no per-agent breakdown.
+ 3. **Shared projects (local + cloud) don't merge at the session level.** `mergeCloudProjects` is a pure "local wins, cloud-only appended" dedup keyed on `project_id` — for a project present in both stores, **all** its cloud sessions are discarded. If the cloud has sessions the local index doesn't (pruned locally, or never worked on this machine), they don't contribute to the chips or the total. The session **drill-in** view already merges correctly (`mergeCloudRows`, dedup by `(agent, session_id)`, local preferred, re-sort); the projects rollup does not.
+ 
+ - **D23 — The all-projects rollup is computed client-side from per-session data, not a server rollup.** The CLI fetches the user's resumable cloud sessions **with their project attribution**, groups them by `project_id`, merges with the local per-project session-key set (dedup by `(agent, session_id)`, **local preferred** — identical rule to `mergeCloudRows`), and recomputes `AgentCounts` / `LastActivity` / `Sessions` from the union. This is the only option that fixes all three defects: cloud-only projects get real chips + a real date (from per-session `ended_at`), and shared projects reflect cloud-only sessions in their counts without double-counting overlaps. Chosen over a server-side per-agent rollup (which would fix the date and cloud-only chips but still leave shared projects' cloud-only sessions uncounted, because the client has no way to subtract local overlaps from a server count) and over a server rollup + fingerprint-set hybrid (a neither-fish-nor-fowl payload whose savings over the per-session shape are modest once the fingerprint tuples ride along). Machine provenance (`deviceId`/`machineName`) lands per session for free, matching D9 — not needed for v1's project row but available for a future machine badge/filter in this view.
+@@ -327,9 +327,9 @@
+   - Migration: `CREATE OR REPLACE VIEW workspace_sessions_summary` with `MAX(COALESCE(s.ended_at, s.started_at, s.updated_at)) as last_session` (D26).
+ - **CLI (`specstory-cli`):**
+   - `pkg/cloud/resume_client.go`: extend `ListCloudProjects` (or a new `ListCloudProjectsResumable`) to call `?resumable=true` and decode the embedded `sessions[]` per project (`CloudSession` shape, already used by the drill-in).
+   - `pkg/sessionindex/store.go`: add a query returning every local (non-deleted) session's `(project_id, agent, session_id, updated_at)` — the per-project key set the merge dedups against. (`Fingerprints()` enumerates all sessions but lacks `project_id`/`updated_at`.)
+- 
+… (output truncated)
+```
+
+**Details:**
+```json
+{
+  "firstChangedLine": 314
+}
 ```
 </details></tool-use>
 
@@ -8341,10 +13326,59 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:31:25Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`docs/CLOUD-RESUME.md`
+**Path:**
+```text
+docs/CLOUD-RESUME.md
+```
+
+**Edit 1:**
+```diff
+-- **D26 — Fix `workspace_sessions_summary.last_session` to use real activity, for the web app's benefit.** While in the server, replace `MAX(s.updated_at)` with `MAX(COALESCE(s.ended_at, s.started_at, s.updated_at))` in the view (the stale TODO at `supabase.ts:158`). The CLI's cloud-projects path no longer reads `lastUpdated` under D23, so this is **not** required for the CLI fix — but the web app's `listWorkspaces` listing still consumes the view, and the sync-time-as-activity bug regresses that surface for any project whose sessions have been re-pushed. Purely additive (a view `CREATE OR REPLACE`), no data migration.
++- **D26 — Fix `workspace_sessions_summary.last_session` to use real activity, for the web app's benefit.** While in the server, replace `MAX(s.updated_at)` with `MAX(COALESCE(s.ended_at, s.started_at, s.updated_at))` in the view (the stale TODO at `supabase.ts:158`). The CLI's cloud-projects path no longer reads `lastUpdated` under D23, so this is **not** required for the CLI fix — but the web app's `listWorkspaces` listing still consumes the view, and the sync-time-as-activity bug regresses that surface for any project whose sessions have been re-pushed. Purely additive (a view `CREATE OR REPLACE`), no data migration.
++- **D27 — `LastActivity` uses real activity only; sync time is a project-level fallback, never a per-session activity.** `sessions.updated_at` is the cloud record's sync timestamp (reset to `~now()` on every push), NOT session activity — so it must never win an activity `max` when any session has real activity. The rollup computes `realActivity = firstNonEmpty(ended_at, started_at)` per session (dropping the `UpdatedAt` fallback the drill-in's `cloudToSessions` keeps — that fallback is tolerable per-row but poisons a `max`), takes `max(realActivity)` across the project's sessions, and falls back to `max(updated_at)` **only when no session has real activity** (all legacy / duration-worker-not-run) so a cloud-only project still sorts somewhere instead of rendering an empty date. Shared projects' local `LastActivity` is already real (local `updated_at` is last-turn/file-mtime), so cloud advances it only on real cloud activity, never sync time. The drill-in path is unchanged (per-row `UpdatedAt` fallback stays — out of scope per the Chunk 4 boundary, and harmless there because no max is taken).
+```
+
+```text
+Successfully replaced 1 block(s) in docs/CLOUD-RESUME.md.
+```
+
+**diff:**
+```diff
+     ...
+ 318 - **D23 — The all-projects rollup is computed client-side from per-session data, not a server rollup.** The CLI fetches the user's resumable cloud sessions **with their project attribution**, groups them by `project_id`, merges with the local per-project session-key set (dedup by `(agent, session_id)`, **local preferred** — identical rule to `mergeCloudRows`), and recomputes `AgentCounts` / `LastActivity` / `Sessions` from the union. This is the only option that fixes all three defects: cloud-only projects get real chips + a real date (from per-session `ended_at`), and shared projects reflect cloud-only sessions in their counts without double-counting overlaps. Chosen over a server-side per-agent rollup (which would fix the date and cloud-only chips but still leave shared projects' cloud-only sessions uncounted, because the client has no way to subtract local overlaps from a server count) and over a server rollup + fingerprint-set hybrid (a neither-fish-nor-fowl payload whose savings over the per-session shape are modest once the fingerprint tuples ride along). Machine provenance (`deviceId`/`machineName`) lands per session for free, matching D9 — not needed for v1's project row but available for a future machine badge/filter in this view.
+ 319 - **D24 — `GET /api/v1/projects?resumable=true` embeds each project's resumable sessions.** Extends the existing projects endpoint with an opt-in `?resumable=true` param, **Pro-gated only when the param is present** (mirroring the sibling `GET …/{projectId}/sessions?resumable=true` in D5 — without the param the endpoint behaves exactly as today, so the web app's ungated `listWorkspaces` listing is untouched). With the param, each project carries an embedded `sessions[]` of its resumable sessions (`SessionSummary` shape, already produced by `toSessionSummary`) — reusing the per-session `metadata` (agentName/machineName/deviceId) and real activity timestamps (`endedAt`/`startedAt`) that the drill-in path already returns. Projects with **zero** resumable sessions are dropped, killing the phantom-zero-session case `cloudToProjects` currently guards against with `SessionCount == 0`. Chosen over a new flat `GET /api/v1/sessions?resumable=true` (B2): keeps the projects endpoint as the single source for the projects view, the server naturally drops empty projects, and it mirrors the established `?resumable=true` pattern.
+ 320 - **D25 — No payload cap on the all-projects session fetch.** Accurate counts need **all** resumable sessions, not just the newest 500 — otherwise older projects' sessions vanish from the rollup (the drill-in's per-project `cloudResumeLimit = 500` is fine *inside* one project, but a 500 cap across all projects would silently hide most of them). The fetch is a one-shot on entering the browser; a compact `SessionSummary` tuple is small, and typical users have hundreds–low thousands of resumable sessions. Revisit with a high safety cap if heavy users show latency. Ordered by `ended_at` desc, `updated_at` desc (same ordering as the drill-in list).
+ 321 - **D26 — Fix `workspace_sessions_summary.last_session` to use real activity, for the web app's benefit.** While in the server, replace `MAX(s.updated_at)` with `MAX(COALESCE(s.ended_at, s.started_at, s.updated_at))` in the view (the stale TODO at `supabase.ts:158`). The CLI's cloud-projects path no longer reads `lastUpdated` under D23, so this is **not** required for the CLI fix — but the web app's `listWorkspaces` listing still consumes the view, and the sync-time-as-activity bug regresses that surface for any project whose sessions have been re-pushed. Purely additive (a view `CREATE OR REPLACE`), no data migration.
++322 - **D27 — `LastActivity` uses real activity only; sync time is a project-level fallback, never a per-session activity.** `sessions.updated_at` is the cloud record's sync timestamp (reset to `~now()` on every push), NOT session activity — so it must never win an activity `max` when any session has real activity. The rollup computes `realActivity = firstNonEmpty(ended_at, started_at)` per session (dropping the `UpdatedAt` fallback the drill-in's `cloudToSessions` keeps — that fallback is tolerable per-row but poisons a `max`), takes `max(realActivity)` across the project's sessions, and falls back to `max(updated_at)` **only when no session has real activity** (all legacy / duration-worker-not-run) so a cloud-only project still sorts somewhere instead of rendering an empty date. Shared projects' local `LastActivity` is already real (local `updated_at` is last-turn/file-mtime), so cloud advances it only on real cloud activity, never sync time. The drill-in path is unchanged (per-row `UpdatedAt` fallback stays — out of scope per the Chunk 4 boundary, and harmless there because no max is taken).
+ 322 
+ 323 #### Work items
+ 324 
+ 325 - **Server (`specstory-sync`):**
+     ...
+```
+
+**patch:**
+```diff
+--- docs/CLOUD-RESUME.md
++++ docs/CLOUD-RESUME.md
+@@ -318,8 +318,9 @@
+ - **D23 — The all-projects rollup is computed client-side from per-session data, not a server rollup.** The CLI fetches the user's resumable cloud sessions **with their project attribution**, groups them by `project_id`, merges with the local per-project session-key set (dedup by `(agent, session_id)`, **local preferred** — identical rule to `mergeCloudRows`), and recomputes `AgentCounts` / `LastActivity` / `Sessions` from the union. This is the only option that fixes all three defects: cloud-only projects get real chips + a real date (from per-session `ended_at`), and shared projects reflect cloud-only sessions in their counts without double-counting overlaps. Chosen over a server-side per-agent rollup (which would fix the date and cloud-only chips but still leave shared projects' cloud-only sessions uncounted, because the client has no way to subtract local overlaps from a server count) and over a server rollup + fingerprint-set hybrid (a neither-fish-nor-fowl payload whose savings over the per-session shape are modest once the fingerprint tuples ride along). Machine provenance (`deviceId`/`machineName`) lands per session for free, matching D9 — not needed for v1's project row but available for a future machine badge/filter in this view.
+ - **D24 — `GET /api/v1/projects?resumable=true` embeds each project's resumable sessions.** Extends the existing projects endpoint with an opt-in `?resumable=true` param, **Pro-gated only when the param is present** (mirroring the sibling `GET …/{projectId}/sessions?resumable=true` in D5 — without the param the endpoint behaves exactly as today, so the web app's ungated `listWorkspaces` listing is untouched). With the param, each project carries an embedded `sessions[]` of its resumable sessions (`SessionSummary` shape, already produced by `toSessionSummary`) — reusing the per-session `metadata` (agentName/machineName/deviceId) and real activity timestamps (`endedAt`/`startedAt`) that the drill-in path already returns. Projects with **zero** resumable sessions are dropped, killing the phantom-zero-session case `cloudToProjects` currently guards against with `SessionCount == 0`. Chosen over a new flat `GET /api/v1/sessions?resumable=true` (B2): keeps the projects endpoint as the single source for the projects view, the server naturally drops empty projects, and it mirrors the established `?resumable=true` pattern.
+ - **D25 — No payload cap on the all-projects session fetch.** Accurate counts need **all** resumable sessions, not just the newest 500 — otherwise older projects' sessions vanish from the rollup (the drill-in's per-project `cloudResumeLimit = 500` is fine *inside* one project, but a 500 cap across all projects would silently hide most of them). The fetch is a one-shot on entering the browser; a compact `SessionSummary` tuple is small, and typical users have hundreds–low thousands of resumable sessions. Revisit with a high safety cap if heavy users show latency. Ordered by `ended_at` desc, `updated_at` desc (same ordering as the drill-in list).
+ - **D26 — Fix `workspace_sessions_summary.last_session` to use real activity, for the web app's benefit.** While in the server, replace `MAX(s.updated_at)` with `MAX(COALESCE(s.ended_at, s.started_at, s.updated_at))` in the view (the stale TODO at `supabase.ts:158`). The CLI's cloud-projects path no longer reads `lastUpdated` under D23, so this is **not** required for the CLI fix — but the web app's `listWorkspaces` listing still consumes the view, and the sync-time-as-activity bug regresses that surface for any project whose sessions have been re-pushed. Purely additive (a view `CREATE OR REPLACE`), no data migration.
++- **D27 — `LastActivity` uses real activity only; sync time is a project-level fallback, never a per-session activity.** `sessions.updated_at` is the cloud record's sync timestamp (reset to `~now()` on every push), NOT session activity — so it must never win an activity `max` when any session has real activity. The rollup computes `realActivity = firstNonEmpty(ended_at, started_at)` per session (dropping the `UpdatedAt` fallback the drill-in's `cloudToSessions` keeps — that fallback is tolerable per-row but poisons a `max`), takes `max(realActivity)` across the project's sessions, and falls back to `max(updated_at)` **only when no session has real activity** (all legacy / duration-worker-not-run) so a cloud-only project still sorts somewhere instead of rendering an empty date. Shared projects' local `LastActivity` is already real (local `updated_at` is last-turn/file-mtime), so cloud advances it only on real cloud activity, never sync time. The drill-in path is unchanged (per-row `UpdatedAt` fallback stays — out of scope per the Chunk 4 boundary, and harmless there because no max is taken).
+ 
+ #### Work items
+ 
+ - **Server (`specstory-sync`):**
 
 ```
-Successfully replaced 1 block(s) in docs/CLOUD-RESUME.md.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 322
+}
 ```
 </details></tool-use>
 
@@ -12354,7 +17388,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:35:33Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `find ../../specstory-sync -name "*.ts" -path "*duration*" -not -path "*/node_modules/*" 2>/dev/null; echo "---"; grep -rln "Detected Codex CLI\|Detected Cursor CLI\|Detected Claude Code\|extracting timestamps from markdown\|extracting real timestamps" ../../specstory-sync --include="*.ts" 2>/dev/null | grep -v node_modules`</summary>
+**Command:**
+```bash
+find ../../specstory-sync -name "*.ts" -path "*duration*" -not -path "*/node_modules/*" 2>/dev/null; echo "---"; grep -rln "Detected Codex CLI\|Detected Cursor CLI\|Detected Claude Code\|extracting timestamps from markdown\|extracting real timestamps" ../../specstory-sync --include="*.ts" 2>/dev/null | grep -v node_modules
 ```
+
+```text
 ../../specstory-sync/workers/session-duration-worker/vite.config.ts
 ../../specstory-sync/workers/session-duration-worker/vitest.config.ts
 ../../specstory-sync/workers/session-duration-worker/worker-configuration.d.ts
@@ -12363,6 +17402,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:35:33Z)**_
 ../../specstory-sync/workers/session-duration-worker/src/index.ts
 ---
 ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
+
 ```
 </details></tool-use>
 
@@ -12370,7 +17410,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:35:35Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "Detected Codex CLI\|Detected Cursor CLI\|Detected Claude Code\|extracting timestamps from markdown\|extracting real timestamps\|Not a recognized session type\|parseMode\|case.*codex\|case.*cursor\|case.*claude\|agentName" ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts | head -40`</summary>
+**Command:**
+```bash
+grep -n "Detected Codex CLI\|Detected Cursor CLI\|Detected Claude Code\|extracting timestamps from markdown\|extracting real timestamps\|Not a recognized session type\|parseMode\|case.*codex\|case.*cursor\|case.*claude\|agentName" ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts | head -40
 ```
+
+```text
 48:      agentName: sessionData.metadata?.agentName,
 52:    // Normalize agentName to handle legacy CLI values (e.g. "cursoride" → "Cursor IDE")
 53:    if (sessionData.metadata?.agentName) {
@@ -12396,6 +17441,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:35:35Z)**_
 432:        agentName,
 437:        `Unrecognized session type in session-duration-worker: clientName="${clientName}" agentName="${agentName}"`,
 440:          extra: { sessionId, clientName, agentName },
+
 ```
 </details></tool-use>
 
@@ -12403,10 +17449,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:35:39Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts`
-
+**Path:**
+```text
+../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
 ```
-sessionData.metadata?.agentName === AGENT_NAMES.CURSOR_CLI
+
+**Offset (line):**
+```text
+184
+```
+
+**Limit:**
+```text
+70
+```
+
+```typescript
+      sessionData.metadata?.agentName === AGENT_NAMES.CURSOR_CLI
     ) {
       this.log({
         message: `Detected Cursor CLI session, extracting timestamp from markdown content`,
@@ -12493,10 +17552,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:35:42Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts`
-
+**Path:**
+```text
+../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
 ```
-// Check if this is a Claude Code CLI session
+
+**Offset (line):**
+```text
+66
+```
+
+**Limit:**
+```text
+45
+```
+
+```typescript
+    // Check if this is a Claude Code CLI session
     if (
       sessionData.metadata?.clientName === CLIENT_NAMES.CLI &&
       sessionData.metadata?.agentName === AGENT_NAMES.CLAUDE_CODE
@@ -12550,13 +17622,19 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:35:44Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "extractTimestampsFromClaudeCode\|extractTimestampsFromCodexCLI\|extractTimestampFromCursorCLI\|private.*extract" ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts`</summary>
+**Command:**
+```bash
+grep -n "extractTimestampsFromClaudeCode\|extractTimestampsFromCodexCLI\|extractTimestampFromCursorCLI\|private.*extract" ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
 ```
+
+```text
 76:      const timestamps = this.extractTimestampsFromClaudeCode(rawData);
 192:        const timestamp = this.extractTimestampFromCursorCLI(
 231:        const timestamps = this.extractTimestampsFromCodexCLI(
 567:  extractTimestampsFromClaudeCode(rawData: string): string[] {
 622:  extractTimestampsFromCodexCLI(markdownContent: string): string[] {
 758:  extractTimestampFromCursorCLI(markdownContent: string): string | null {
+
 ```
 </details></tool-use>
 
@@ -12564,10 +17642,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:35:47Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts`
-
+**Path:**
+```text
+../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
 ```
-extractTimestampsFromClaudeCode(rawData: string): string[] {
+
+**Offset (line):**
+```text
+567
+```
+
+**Limit:**
+```text
+60
+```
+
+```typescript
+  extractTimestampsFromClaudeCode(rawData: string): string[] {
     this.log({
       message: `Starting timestamp extraction from JSONL`,
     });
@@ -12636,10 +17727,24 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:35:50Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts`
-
+**Path:**
+```text
+../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
 ```
-const timestamps: string[] = [];
+
+**Offset (line):**
+```text
+627
+```
+
+**Limit:**
+```text
+45
+```
+
+```typescript
+
+    const timestamps: string[] = [];
 
     // Regex to match timestamps in User/Agent markdown headers
     // Matches: _**User (2025-10-01T16:07:13.781Z)**_
@@ -12708,7 +17813,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:35:56Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `TOKEN=$(tr -d '\n' < /tmp/ss_access.txt); curl -s -H "Authorization: Bearer $TOKEN" -H "Accept: text/markdown" "http://localhost:5173/api/v1/projects/cross-portable-1/sessions/0b8efd45-0639-477d-a9ff-e2624771bc55" 2>/dev/null | head -30`</summary>
+**Command:**
+```bash
+TOKEN=$(tr -d '\n' < /tmp/ss_access.txt); curl -s -H "Authorization: Bearer $TOKEN" -H "Accept: text/markdown" "http://localhost:5173/api/v1/projects/cross-portable-1/sessions/0b8efd45-0639-477d-a9ff-e2624771bc55" 2>/dev/null | head -30
 ```
+
+```text
 {"success":false,"error":"Session not found or access denied"}
 ```
 </details></tool-use>
@@ -12717,6 +17827,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:35:59Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash**</summary>
+**Command:**
 ```bash
 TOKEN=$(tr -d '\n' < /tmp/ss_access.txt); curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:5173/api/v1/projects/cross-portable-1/sessions?resumable=true" 2>/dev/null | python3 -c "
 import json,sys
@@ -12727,7 +17838,7 @@ for s in d.get('data',{}).get('sessions',[]):
 " 2>/dev/null | head -3
 ```
 
-```
+```text
 (no output)
 ```
 </details></tool-use>
@@ -12736,6 +17847,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:36:01Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash**</summary>
+**Command:**
 ```bash
 TOKEN=$(tr -d '\n' < /tmp/ss_access.txt); curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:5173/api/v1/projects/cross-portable-1/sessions?resumable=true" 2>/dev/null | python3 -c "
 import json,sys
@@ -12747,8 +17859,9 @@ for s in ss:
 "
 ```
 
-```
+```text
 count 0
+
 ```
 </details></tool-use>
 
@@ -12764,7 +17877,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:36:04Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "User (\|Agent (\|timestamp\|Timestamp\|RFC3339\|formatTimestamp\|FormatTimestamp" pkg/session/markdown*.go pkg/session/render*.go 2>/dev/null | grep -i "user\|agent\|header\|timestamp" | head -20; echo "---find markdown gen---"; grep -rln "User\|Agent" pkg/session/ --include="*.go" | grep -v _test | head`</summary>
+**Command:**
+```bash
+grep -rn "User (\|Agent (\|timestamp\|Timestamp\|RFC3339\|formatTimestamp\|FormatTimestamp" pkg/session/markdown*.go pkg/session/render*.go 2>/dev/null | grep -i "user\|agent\|header\|timestamp" | head -20; echo "---find markdown gen---"; grep -rln "User\|Agent" pkg/session/ --include="*.go" | grep -v _test | head
 ```
+
+```text
 pkg/session/markdown_test.go:8:func TestFormatTimestamp(t *testing.T) {
 pkg/session/markdown_test.go:11:		timestamp string
 pkg/session/markdown_test.go:16:			name:      "valid RFC3339 timestamp with UTC - useUTC true",
@@ -12789,6 +17907,7 @@ pkg/session/markdown_test.go:81:				t.Errorf("formatTimestamp(%q, %v) = %q, want
 pkg/session/session.go
 pkg/session/markdown.go
 pkg/session/statistics.go
+
 ```
 </details></tool-use>
 
@@ -12796,7 +17915,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:36:06Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "User\|Agent\|formatTimestamp\|Timestamp" pkg/session/markdown.go | head -30`</summary>
+**Command:**
+```bash
+grep -n "User\|Agent\|formatTimestamp\|Timestamp" pkg/session/markdown.go | head -30
 ```
+
+```text
 29:// GenerateMarkdownFromAgentSession generates markdown from a SessionData
 33:func GenerateMarkdownFromAgentSession(sessionData *SessionData, includeMessageIDs bool, useUTC bool) (string, error) {
 48:	var commentTimestamp string
@@ -12821,6 +17945,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:36:06Z)**_
 191:		formattedTimestamp := formatTimestamp(msg.Timestamp, useUTC)
 192:		return fmt.Sprintf("_**Agent%s (%s)**_\n\n", sidechainMarker, formattedTimestamp)
 195:	return fmt.Sprintf("_**Agent%s**_\n\n", sidechainMarker)
+
 ```
 </details></tool-use>
 
@@ -12828,9 +17953,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:36:09Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/session/markdown.go`
-
+**Path:**
+```text
+pkg/session/markdown.go
 ```
+
+**Offset (line):**
+```text
+93
+```
+
+**Limit:**
+```text
+35
+```
+
+```go
 // formatTimestamp formats an ISO 8601 timestamp for display in title and comments
 func formatTimestamp(timestamp string, useUTC bool) string {
 	t, err := time.Parse(time.RFC3339, timestamp)
@@ -12927,7 +18065,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:36:19Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "CLAUDE_CODE_TIMESTAMP_REGEX\|VSC_RPC_TIME_REGEX\|VSC_END_TIME_REGEX\|extractTimestampFromCursorCLI" ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts | head; echo "---constants---"; grep -rn "CLAUDE_CODE_TIMESTAMP_REGEX\s*=\|VSC_RPC_TIME_REGEX\s*=\|VSC_END_TIME_REGEX\s*=" ../../specstory-sync/workers/session-duration-worker/src/*.ts`</summary>
+**Command:**
+```bash
+grep -n "CLAUDE_CODE_TIMESTAMP_REGEX\|VSC_RPC_TIME_REGEX\|VSC_END_TIME_REGEX\|extractTimestampFromCursorCLI" ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts | head; echo "---constants---"; grep -rn "CLAUDE_CODE_TIMESTAMP_REGEX\s*=\|VSC_RPC_TIME_REGEX\s*=\|VSC_END_TIME_REGEX\s*=" ../../specstory-sync/workers/session-duration-worker/src/*.ts
 ```
+
+```text
 18:const CLAUDE_CODE_TIMESTAMP_REGEX = /"timestamp":"([^"]+)"/g; // ISO string timestamps
 19:const VSC_RPC_TIME_REGEX = /"clientRpcSendTime":(\d+)[,}]/g; // Epoch millisecond timestamps
 20:const VSC_END_TIME_REGEX = /"clientEndTime":(\d+)[,}]/g; // Epoch millisecond timestamps
@@ -12940,6 +18083,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:36:19Z)**_
 ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts:18:const CLAUDE_CODE_TIMESTAMP_REGEX = /"timestamp":"([^"]+)"/g; // ISO string timestamps
 ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts:19:const VSC_RPC_TIME_REGEX = /"clientRpcSendTime":(\d+)[,}]/g; // Epoch millisecond timestamps
 ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts:20:const VSC_END_TIME_REGEX = /"clientEndTime":(\d+)[,}]/g; // Epoch millisecond timestamps
+
 ```
 </details></tool-use>
 
@@ -12947,10 +18091,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:36:21Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts`
-
+**Path:**
+```text
+../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
 ```
-extractTimestampFromCursorCLI(markdownContent: string): string | null {
+
+**Offset (line):**
+```text
+758
+```
+
+**Limit:**
+```text
+40
+```
+
+```typescript
+  extractTimestampFromCursorCLI(markdownContent: string): string | null {
     this.log({
       message: `Starting timestamp extraction from Cursor CLI markdown`,
       markdownContentLength: markdownContent.length,
@@ -13007,7 +18164,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:36:25Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "Cursor CLI Session\|Cursor CLI" pkg/session/markdown.go pkg/providers/cursorcli/*.go 2>/dev/null | grep -v _test | head; echo "---droid raw format / droid provider timestamps---"; grep -rn "timestamp\|Timestamp\|created_at\|createdAt" pkg/providers/droidcli/*.go 2>/dev/null | grep -v _test | head -10`</summary>
+**Command:**
+```bash
+grep -rn "Cursor CLI Session\|Cursor CLI" pkg/session/markdown.go pkg/providers/cursorcli/*.go 2>/dev/null | grep -v _test | head; echo "---droid raw format / droid provider timestamps---"; grep -rn "timestamp\|Timestamp\|created_at\|createdAt" pkg/providers/droidcli/*.go 2>/dev/null | grep -v _test | head -10
 ```
+
+```text
 pkg/providers/cursorcli/agent_session.go:52:// GenerateAgentSession creates a SessionData from Cursor CLI blob records.
 pkg/providers/cursorcli/agent_session.go:96:			Name:    "Cursor CLI",
 pkg/providers/cursorcli/agent_session.go:593:// These tags are added by Cursor CLI to wrap user input, but we don't want them in the markdown output
@@ -13029,6 +18191,7 @@ pkg/providers/droidcli/agent_session.go:114:				current.EndTime = current.Messag
 pkg/providers/droidcli/agent_session.go:122:	appendMessage := func(msg Message, timestamp string) {
 pkg/providers/droidcli/agent_session.go:124:			current = &Exchange{StartTime: timestamp}
 pkg/providers/droidcli/agent_session.go:127:		if timestamp != "" {
+
 ```
 </details></tool-use>
 
@@ -13036,9 +18199,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:36:28Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "Cursor CLI Session\|<!-- Cursor" pkg/ --include="*.go" | grep -v _test | head; echo "---cursorcli markdown comment---"; grep -rn "Session.*comment\|<!--.*Session\|addComment\|writeComment\|sessionComment" pkg/session/markdown.go pkg/providers/cursorcli/*.go 2>/dev/null | grep -v _test | head`</summary>
+**Command:**
+```bash
+grep -rn "Cursor CLI Session\|<!-- Cursor" pkg/ --include="*.go" | grep -v _test | head; echo "---cursorcli markdown comment---"; grep -rn "Session.*comment\|<!--.*Session\|addComment\|writeComment\|sessionComment" pkg/session/markdown.go pkg/providers/cursorcli/*.go 2>/dev/null | grep -v _test | head
 ```
+
+```text
 ---cursorcli markdown comment---
 pkg/session/markdown.go:54:	fmt.Fprintf(&markdown, "<!-- %s Session %s (%s) -->\n\n",
+
 ```
 </details></tool-use>
 
@@ -13046,10 +18215,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:36:30Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/session/markdown.go`
-
+**Path:**
+```text
+pkg/session/markdown.go
 ```
-title := generateTitle(sessionData, useUTC)
+
+**Offset (line):**
+```text
+44
+```
+
+**Limit:**
+```text
+15
+```
+
+```go
+	title := generateTitle(sessionData, useUTC)
 	fmt.Fprintf(&markdown, "# %s\n\n", title)
 
 	// Add session metadata comment using the same timestamp format as the title
@@ -13120,10 +18302,24 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:36:41Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/providers/droidcli/agent_session.go`
-
+**Path:**
+```text
+pkg/providers/droidcli/agent_session.go
 ```
-return data, nil
+
+**Offset (line):**
+```text
+95
+```
+
+**Limit:**
+```text
+40
+```
+
+```go
+
+	return data, nil
 }
 
 func buildExchanges(session *fdSession, workspaceRoot string) ([]Exchange, string) {
@@ -13171,7 +18367,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:36:43Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "Timestamp\b\|timestamp" pkg/providers/droidcli/agent_session.go | head -20; echo "---fdSession/Block struct---"; grep -n "type fdSession\|type fdBlock\|type.*Block\b\|Timestamp\s*string" pkg/providers/droidcli/*.go | grep -v _test | head`</summary>
+**Command:**
+```bash
+grep -n "Timestamp\b\|timestamp" pkg/providers/droidcli/agent_session.go | head -20; echo "---fdSession/Block struct---"; grep -n "type fdSession\|type fdBlock\|type.*Block\b\|Timestamp\s*string" pkg/providers/droidcli/*.go | grep -v _test | head
 ```
+
+```text
 49:	exchanges, lastTimestamp := buildExchanges(session, workspaceRoot)
 73:		created = lastTimestamp
 76:	updated := strings.TrimSpace(lastTimestamp)
@@ -13203,6 +18404,7 @@ pkg/providers/droidcli/types.go:6:type fdBlockKind int
 pkg/providers/droidcli/types.go:16:type fdBlock struct {
 pkg/providers/droidcli/types.go:20:	Timestamp   string
 pkg/providers/droidcli/types.go:64:type fdSession struct {
+
 ```
 </details></tool-use>
 
@@ -13210,7 +18412,13 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:36:46Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `sed -n '14,30p' pkg/providers/droidcli/types.go; echo "---parser timestamp field---"; sed -n '18,30p' pkg/providers/droidcli/parser.go`</summary>
+**Command:**
+```bash
+sed -n '14,30p' pkg/providers/droidcli/types.go; echo "---parser timestamp field---"; sed -n '18,30p' pkg/providers/droidcli/parser.go
 ```
+
+```text
+
 // fdBlock represents a normalized slice of the Factory Droid transcript.
 type fdBlock struct {
 	Kind        fdBlockKind
@@ -13241,6 +18449,7 @@ type sessionStartEvent struct {
 	CreatedAt     string `json:"created_at"`
 	CWD           string `json:"cwd"`
 	WorkspaceRoot string `json:"workspace_root"`
+
 ```
 </details></tool-use>
 
@@ -13260,13 +18469,19 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:36:50Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "json:\"timestamp\"\|Timestamp\s*string\|json:\"created_at\"\|json:\"created\"" pkg/providers/codexcli/*.go | grep -v _test | head -15`</summary>
+**Command:**
+```bash
+grep -n "json:\"timestamp\"\|Timestamp\s*string\|json:\"created_at\"\|json:\"created\"" pkg/providers/codexcli/*.go | grep -v _test | head -15
 ```
+
+```text
 pkg/providers/codexcli/agent_session.go:29:	Timestamp string `json:"timestamp"`
 pkg/providers/codexcli/agent_session.go:32:		Timestamp string `json:"timestamp"` // Session creation timestamp
 pkg/providers/codexcli/agent_session.go:40:	Timestamp string `json:"timestamp"`
 pkg/providers/codexcli/agent_session.go:51:	Timestamp string `json:"timestamp"`
 pkg/providers/codexcli/provider.go:30:	Timestamp string `json:"timestamp"`
 pkg/providers/codexcli/provider.go:37:	Timestamp string                  `json:"timestamp"`
+
 ```
 </details></tool-use>
 
@@ -13282,7 +18497,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:36:54Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "GEMINI_CLI\|DEEPSEEK_TUI\|FACTORY_DROID\|DROID_CLI\|AGENT_NAMES\s*=" ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts ../../specstory-sync/shared/*.ts 2>/dev/null | grep -v node_modules | head -20; echo "---gemini raw timestamp---"; grep -n "json:\"timestamp\"\|Timestamp string" pkg/providers/geminicli/*.go 2>/dev/null | grep -v _test | head`</summary>
+**Command:**
+```bash
+grep -rn "GEMINI_CLI\|DEEPSEEK_TUI\|FACTORY_DROID\|DROID_CLI\|AGENT_NAMES\s*=" ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts ../../specstory-sync/shared/*.ts 2>/dev/null | grep -v node_modules | head -20; echo "---gemini raw timestamp---"; grep -n "json:\"timestamp\"\|Timestamp string" pkg/providers/geminicli/*.go 2>/dev/null | grep -v _test | head
 ```
+
+```text
 ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts:270:      sessionData.metadata?.agentName === AGENT_NAMES.GEMINI_CLI
 ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts:318:      sessionData.metadata?.agentName === AGENT_NAMES.DEEPSEEK_TUI
 ---gemini raw timestamp---
@@ -13290,6 +18510,7 @@ pkg/providers/geminicli/json_parser.go:20:	Timestamp              string        
 pkg/providers/geminicli/json_parser.go:57:	Timestamp   string `json:"timestamp"`
 pkg/providers/geminicli/json_parser.go:71:	Timestamp string           `json:"timestamp"`
 pkg/providers/geminicli/json_parser.go:85:	Timestamp string `json:"timestamp"`
+
 ```
 </details></tool-use>
 
@@ -13297,8 +18518,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:36:56Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "AGENT_NAMES\b" ../../specstory-sync/shared/ --include="*.ts" 2>/dev/null | grep -v node_modules | head -3; echo "---"; grep -rn "DROID\|Factory Droid\|FACTORY" ../../specstory-sync/shared/ --include="*.ts" 2>/dev/null | grep -v node_modules | head`</summary>
+**Command:**
+```bash
+grep -rn "AGENT_NAMES\b" ../../specstory-sync/shared/ --include="*.ts" 2>/dev/null | grep -v node_modules | head -3; echo "---"; grep -rn "DROID\|Factory Droid\|FACTORY" ../../specstory-sync/shared/ --include="*.ts" 2>/dev/null | grep -v node_modules | head
 ```
+
+```text
 ---
+
 ```
 </details></tool-use>
 
@@ -13306,13 +18533,19 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:37:06Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rln "AGENT_NAMES" ../../specstory-sync --include="*.ts" 2>/dev/null | grep -v node_modules | head; echo "---"; grep -rn "CODEX_CLI\s*=\|CURSOR_CLI\s*=\|CLAUDE_CODE\s*=\|GEMINI_CLI\s*=\|DROID" ../../specstory-sync --include="*.ts" 2>/dev/null | grep -v node_modules | grep -i "agent\|=\s*\"" | head`</summary>
+**Command:**
+```bash
+grep -rln "AGENT_NAMES" ../../specstory-sync --include="*.ts" 2>/dev/null | grep -v node_modules | head; echo "---"; grep -rn "CODEX_CLI\s*=\|CURSOR_CLI\s*=\|CLAUDE_CODE\s*=\|GEMINI_CLI\s*=\|DROID" ../../specstory-sync --include="*.ts" 2>/dev/null | grep -v node_modules | grep -i "agent\|=\s*\"" | head
 ```
+
+```text
 ../../specstory-sync/sync-cloud/src/lib/constants.ts
 ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.test.ts
 ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
 ---
 ../../specstory-sync/sync-cloud/src/lib/constants.ts:106:  [AGENT_NAMES.DROID_CLI]: {
 ../../specstory-sync/sync-cloud/src/lib/constants.ts:107:    displayName: AGENT_NAMES.DROID_CLI,
+
 ```
 </details></tool-use>
 
@@ -13320,7 +18553,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:37:08Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "AGENT_NAMES\s*=\|export const AGENT_NAMES\|CLAUDE_CODE\|CODEX_CLI\|CURSOR_CLI\|DROID_CLI\|GEMINI_CLI\|DEEPSEEK" ../../specstory-sync/sync-cloud/src/lib/constants.ts | head -30`</summary>
+**Command:**
+```bash
+grep -n "AGENT_NAMES\s*=\|export const AGENT_NAMES\|CLAUDE_CODE\|CODEX_CLI\|CURSOR_CLI\|DROID_CLI\|GEMINI_CLI\|DEEPSEEK" ../../specstory-sync/sync-cloud/src/lib/constants.ts | head -30
 ```
+
+```text
 45:export const AGENT_NAMES = {
 46:  CLAUDE_CODE: "Claude Code",
 48:  CURSOR_CLI: "Cursor CLI",
@@ -13340,6 +18578,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:37:08Z)**_
 107:    displayName: AGENT_NAMES.DROID_CLI,
 111:  [AGENT_NAMES.DEEPSEEK_TUI]: {
 112:    displayName: AGENT_NAMES.DEEPSEEK_TUI,
+
 ```
 </details></tool-use>
 
@@ -13355,7 +18594,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:37:11Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "Factory Droid CLI\|Droid CLI\|agentName\|AgentName\|Name:\s*\".*Droid\|Name:\s*\".*[Cc]odex\|Name:\s*\".*[Cc]ursor" pkg/providers/droidcli/provider.go pkg/providers/codexcli/provider.go pkg/providers/cursorcli/agent_session.go 2>/dev/null | grep -v _test | head; echo "---registry names---"; grep -rn "Droid\|Codex\|Cursor\|Gemini" pkg/spi/factory/*.go 2>/dev/null | grep -i "name\|display" | grep -v _test | head`</summary>
+**Command:**
+```bash
+grep -rn "Factory Droid CLI\|Droid CLI\|agentName\|AgentName\|Name:\s*\".*Droid\|Name:\s*\".*[Cc]odex\|Name:\s*\".*[Cc]ursor" pkg/providers/droidcli/provider.go pkg/providers/codexcli/provider.go pkg/providers/cursorcli/agent_session.go 2>/dev/null | grep -v _test | head; echo "---registry names---"; grep -rn "Droid\|Codex\|Cursor\|Gemini" pkg/spi/factory/*.go 2>/dev/null | grep -i "name\|display" | grep -v _test | head
 ```
+
+```text
 pkg/providers/droidcli/provider.go:23:// Provider implements the SPI Provider interface for Factory Droid CLI.
 pkg/providers/droidcli/provider.go:26:// NewProvider creates a new Factory Droid CLI provider instance.
 pkg/providers/droidcli/provider.go:32:	return "Factory Droid CLI"
@@ -13366,6 +18610,7 @@ pkg/providers/droidcli/provider.go:164:// ExecAgentAndWatch executes the Factory
 pkg/providers/droidcli/provider.go:249:		builder.WriteString("Factory Droid CLI was not found.\n\n")
 pkg/providers/cursorcli/agent_session.go:96:			Name:    "Cursor CLI",
 ---registry names---
+
 ```
 </details></tool-use>
 
@@ -13373,7 +18618,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:37:13Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "\"Codex CLI\"\|Name:\s*\"Codex\|displayName\|Provider().*Name\|func.*Name() string" pkg/providers/codexcli/provider.go 2>/dev/null | head; echo "---all provider Name() returns---"; grep -rn "func (.*Provider) Name() string" pkg/providers/*/*.go | grep -v _test`</summary>
+**Command:**
+```bash
+grep -rn "\"Codex CLI\"\|Name:\s*\"Codex\|displayName\|Provider().*Name\|func.*Name() string" pkg/providers/codexcli/provider.go 2>/dev/null | head; echo "---all provider Name() returns---"; grep -rn "func (.*Provider) Name() string" pkg/providers/*/*.go | grep -v _test
 ```
+
+```text
 pkg/providers/codexcli/provider.go:57:func (p *Provider) Name() string {
 pkg/providers/codexcli/provider.go:58:	return "Codex CLI"
 ---all provider Name() returns---
@@ -13383,6 +18633,7 @@ pkg/providers/cursorcli/provider.go:30:func (p *Provider) Name() string {
 pkg/providers/deepseektui/provider.go:31:func (p *Provider) Name() string {
 pkg/providers/droidcli/provider.go:31:func (p *Provider) Name() string {
 pkg/providers/geminicli/provider.go:26:func (p *Provider) Name() string {
+
 ```
 </details></tool-use>
 
@@ -13390,13 +18641,19 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:37:16Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `for f in claudecode codexcli cursorcli deepseektui droidcli geminicli; do echo -n "$f: "; grep -A1 "func (.*Provider) Name() string" pkg/providers/$f/provider.go | tail -1 | tr -s ' '; done`</summary>
+**Command:**
+```bash
+for f in claudecode codexcli cursorcli deepseektui droidcli geminicli; do echo -n "$f: "; grep -A1 "func (.*Provider) Name() string" pkg/providers/$f/provider.go | tail -1 | tr -s ' '; done
 ```
+
+```text
 claudecode: 	return "Claude Code"
 codexcli: 	return "Codex CLI"
 cursorcli: 	return "Cursor CLI"
 deepseektui: 	return "DeepSeek TUI"
 droidcli: 	return "Factory Droid CLI"
 geminicli: 	return "Gemini CLI"
+
 ```
 </details></tool-use>
 
@@ -13438,7 +18695,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:37:26Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "sessionData\|session_data\|SessionData" ../../specstory-sync/sync-cloud/worker/handlers/sessions.ts | head -15; echo "---CLI push sessionData---"; grep -n "SessionData\|sessionData" pkg/cloud/sync.go | head -10`</summary>
+**Command:**
+```bash
+grep -n "sessionData\|session_data\|SessionData" ../../specstory-sync/sync-cloud/worker/handlers/sessions.ts | head -15; echo "---CLI push sessionData---"; grep -n "SessionData\|sessionData" pkg/cloud/sync.go | head -10
 ```
+
+```text
 12:  getSessionDataStoragePath,
 105:    // SessionData is the canonical cloud-resume representation (optional on the wire; older
 106:    // CLIs omit it). Its byte size (session_data_size) is deliberately NOT written on this
@@ -13465,6 +18727,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:37:26Z)**_
 510:		// sessions that predate SessionData, backfilling the cloud-resume corpus.
 511:		serverSessionDataSize := bulkSizes[sessionID+":sessionData"]
 513:		// Sync when markdown grew OR the session has no SessionData blob yet
+
 ```
 </details></tool-use>
 
@@ -13510,10 +18773,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:37:37Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts`
-
+**Path:**
+```text
+../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
 ```
-sessionData.metadata?.agentName === AGENT_NAMES.GEMINI_CLI
+
+**Offset (line):**
+```text
+270
+```
+
+**Limit:**
+```text
+50
+```
+
+```typescript
+      sessionData.metadata?.agentName === AGENT_NAMES.GEMINI_CLI
     ) {
       this.log({
         message: `Detected Gemini CLI session, extracting timestamps from markdown content`,
@@ -13663,9 +18939,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:48:42Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts`
-
+**Path:**
+```text
+../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
 ```
+
+**Offset (line):**
+```text
+1
+```
+
+**Limit:**
+```text
+66
+```
+
+```typescript
 import * as schema from "../../../shared/db/schema";
 import { eq, isNull } from "drizzle-orm";
 import { WorkerQueue } from "../../../shared/worker_queue";
@@ -13741,10 +19030,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:48:45Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts`
-
+**Path:**
+```text
+../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
 ```
-extra: { sessionId, clientName, agentName },
+
+**Offset (line):**
+```text
+440
+```
+
+**Limit:**
+```text
+90
+```
+
+```typescript
+          extra: { sessionId, clientName, agentName },
         },
       );
     }
@@ -13843,10 +19145,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:48:49Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts`
-
+**Path:**
+```text
+../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
 ```
-): Promise<string> {
+
+**Offset (line):**
+```text
+530
+```
+
+**Limit:**
+```text
+75
+```
+
+```typescript
+  ): Promise<string> {
     this.log({
       message: `Fetching raw data from storage`,
       sessionId,
@@ -13934,7 +19249,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:48:54Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "async getSessionData\|sessionDataSize\|session_data_size\|markdownContent\|workspaceId\|select(" ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts | head -20`</summary>
+**Command:**
+```bash
+grep -n "async getSessionData\|sessionDataSize\|session_data_size\|markdownContent\|workspaceId\|select(" ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts | head -20
 ```
+
+```text
 60:      sessionData.workspaceId!,
 190:      if (sessionData.markdownContent) {
 193:          sessionData.markdownContent,
@@ -13955,6 +19275,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:48:54Z)**_
 761:      markdownContentLength: markdownContent.length,
 769:    const match = markdownContent.match(cursorCLITimestampRegex);
 785:      markdownContentLength: markdownContent.length,
+
 ```
 </details></tool-use>
 
@@ -13966,12 +19287,18 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:48:57Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "getSessionData\|sessionDataSize\|session_data_size" ../../specstory-sync/workers/shared/worker_base.ts ../../specstory-sync/workers/shared/*.ts 2>/dev/null | head; echo "---find WorkerBase---"; find ../../specstory-sync/workers/shared -name "*.ts" -not -path "*/node_modules/*" | head`</summary>
+**Command:**
+```bash
+grep -rn "getSessionData\|sessionDataSize\|session_data_size" ../../specstory-sync/workers/shared/worker_base.ts ../../specstory-sync/workers/shared/*.ts 2>/dev/null | head; echo "---find WorkerBase---"; find ../../specstory-sync/workers/shared -name "*.ts" -not -path "*/node_modules/*" | head
 ```
+
+```text
 ../../specstory-sync/workers/shared/worker_base.ts:11:  async getSessionData(
 ../../specstory-sync/workers/shared/worker_base.ts:11:  async getSessionData(
 ---find WorkerBase---
 ../../specstory-sync/workers/shared/worker_wrapper.ts
 ../../specstory-sync/workers/shared/worker_base.ts
+
 ```
 </details></tool-use>
 
@@ -13979,9 +19306,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:49:00Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/workers/shared/worker_base.ts`
-
+**Path:**
+```text
+../../specstory-sync/workers/shared/worker_base.ts
 ```
+
+```typescript
 import { drizzleClient } from "../../shared/services/db";
 import * as schema from "../../shared/db/schema";
 import { type InferSelectModel, eq, DrizzleQueryError } from "drizzle-orm";
@@ -14064,6 +19394,7 @@ export class WorkerBase {
     });
   }
 }
+
 ```
 </details></tool-use>
 
@@ -14075,7 +19406,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:49:04Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "getSessionDataStoragePath\|session-data.json\|downloadFromStorage" ../../specstory-sync/sync-cloud/worker/ --include="*.ts" | grep -v node_modules | head`</summary>
+**Command:**
+```bash
+grep -rn "getSessionDataStoragePath\|session-data.json\|downloadFromStorage" ../../specstory-sync/sync-cloud/worker/ --include="*.ts" | grep -v node_modules | head
 ```
+
+```text
 ../../specstory-sync/sync-cloud/worker/types.ts:991:  // as session-data.json and its byte size lands in session_data_size. min(1) because
 ../../specstory-sync/sync-cloud/worker/supabase.ts:468:export async function getSessionDataStoragePath(
 ../../specstory-sync/sync-cloud/worker/supabase.ts:977:export async function downloadFromStorage(
@@ -14086,6 +19422,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:49:04Z)**_
 ../../specstory-sync/sync-cloud/worker/handlers/sessions.ts:377:  "application/vnd.specstory.session-data+json";
 ../../specstory-sync/sync-cloud/worker/handlers/sessions.ts:394:    const loc = await getSessionDataStoragePath(
 ../../specstory-sync/sync-cloud/worker/handlers/sessions.ts:408:    const blob = await downloadFromStorage(
+
 ```
 </details></tool-use>
 
@@ -14093,9 +19430,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:49:07Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/worker/supabase.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/worker/supabase.ts
 ```
+
+**Offset (line):**
+```text
+975
+```
+
+**Limit:**
+```text
+30
+```
+
+```typescript
 // the first blob-read path in the worker — blobs were previously write-only. Returns null on
 // any error (not found, storage failure) so the caller can 404 rather than 500.
 export async function downloadFromStorage(
@@ -14139,7 +19489,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:49:10Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "CreatedAt\|UpdatedAt\|StartTime\|EndTime\|json:" pkg/spi/schema/types.go | head -30`</summary>
+**Command:**
+```bash
+grep -n "CreatedAt\|UpdatedAt\|StartTime\|EndTime\|json:" pkg/spi/schema/types.go | head -30
 ```
+
+```text
 37:	SchemaVersion string       `json:"schemaVersion"`
 38:	Provider      ProviderInfo `json:"provider"`
 39:	SessionID     string       `json:"sessionId"`
@@ -14170,6 +19525,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:49:10Z)**_
 92:	InputTokens  int `json:"inputTokens,omitempty"`
 93:	OutputTokens int `json:"outputTokens,omitempty"`
 96:	CacheCreationInputTokens int `json:"cacheCreationInputTokens,omitempty"`
+
 ```
 </details></tool-use>
 
@@ -14181,13 +19537,19 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:49:20Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "DROID_CLI\|\"Droid CLI\"\|'Droid CLI'" ../../specstory-sync --include="*.ts" 2>/dev/null | grep -v node_modules | grep -v "\.test\." | head -30`</summary>
+**Command:**
+```bash
+grep -rn "DROID_CLI\|\"Droid CLI\"\|'Droid CLI'" ../../specstory-sync --include="*.ts" 2>/dev/null | grep -v node_modules | grep -v "\.test\." | head -30
 ```
+
+```text
 ../../specstory-sync/sync-cloud/src/components/tools/toolConfig.ts:42:    "Droid CLI": "droid",
 ../../specstory-sync/sync-cloud/src/components/tools/toolConfig.ts:184:    name: "Droid CLI",
 ../../specstory-sync/sync-cloud/src/components/tools/toolConfig.ts:189:    steps: getCLISteps("Droid CLI"),
 ../../specstory-sync/sync-cloud/src/lib/constants.ts:55:  DROID_CLI: "Droid CLI",
 ../../specstory-sync/sync-cloud/src/lib/constants.ts:106:  [AGENT_NAMES.DROID_CLI]: {
 ../../specstory-sync/sync-cloud/src/lib/constants.ts:107:    displayName: AGENT_NAMES.DROID_CLI,
+
 ```
 </details></tool-use>
 
@@ -14195,10 +19557,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:49:24Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "DROID_CLI\b" ../../specstory-sync --include="*.ts" 2>/dev/null | grep -v node_modules | grep -v "\.test\." | head -30`</summary>
+**Command:**
+```bash
+grep -rn "DROID_CLI\b" ../../specstory-sync --include="*.ts" 2>/dev/null | grep -v node_modules | grep -v "\.test\." | head -30
 ```
+
+```text
 ../../specstory-sync/sync-cloud/src/lib/constants.ts:55:  DROID_CLI: "Droid CLI",
 ../../specstory-sync/sync-cloud/src/lib/constants.ts:106:  [AGENT_NAMES.DROID_CLI]: {
 ../../specstory-sync/sync-cloud/src/lib/constants.ts:107:    displayName: AGENT_NAMES.DROID_CLI,
+
 ```
 </details></tool-use>
 
@@ -14206,9 +19574,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:49:31Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "AGENT_NAMES\.DROID_CLI\|agentName.*Droid\|=== .*Droid CLI\|=== \"Droid" ../../specstory-sync --include="*.ts" 2>/dev/null | grep -v node_modules | head -20`</summary>
+**Command:**
+```bash
+grep -rn "AGENT_NAMES\.DROID_CLI\|agentName.*Droid\|=== .*Droid CLI\|=== \"Droid" ../../specstory-sync --include="*.ts" 2>/dev/null | grep -v node_modules | head -20
 ```
+
+```text
 ../../specstory-sync/sync-cloud/src/lib/constants.ts:106:  [AGENT_NAMES.DROID_CLI]: {
 ../../specstory-sync/sync-cloud/src/lib/constants.ts:107:    displayName: AGENT_NAMES.DROID_CLI,
+
 ```
 </details></tool-use>
 
@@ -14220,11 +19594,17 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:49:37Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "\"Droid CLI\"\|'Droid CLI'" ../../specstory-sync --include="*.ts" 2>/dev/null | grep -v node_modules | grep -v "\.test\."`</summary>
+**Command:**
+```bash
+grep -rn "\"Droid CLI\"\|'Droid CLI'" ../../specstory-sync --include="*.ts" 2>/dev/null | grep -v node_modules | grep -v "\.test\."
 ```
+
+```text
 ../../specstory-sync/sync-cloud/src/components/tools/toolConfig.ts:42:    "Droid CLI": "droid",
 ../../specstory-sync/sync-cloud/src/components/tools/toolConfig.ts:184:    name: "Droid CLI",
 ../../specstory-sync/sync-cloud/src/components/tools/toolConfig.ts:189:    steps: getCLISteps("Droid CLI"),
 ../../specstory-sync/sync-cloud/src/lib/constants.ts:55:  DROID_CLI: "Droid CLI",
+
 ```
 </details></tool-use>
 
@@ -14232,10 +19612,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:49:40Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/tools/toolConfig.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/tools/toolConfig.ts
 ```
-// Map tool names to their CLI run command
+
+**Offset (line):**
+```text
+35
+```
+
+**Limit:**
+```text
+20
+```
+
+```typescript
+  // Map tool names to their CLI run command
   const runCommandMap: Record<string, string> = {
     "Claude Code": "claude",
     "Cursor CLI": "cursor",
@@ -14284,10 +19677,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:49:49Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/tools/toolConfig.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/tools/toolConfig.ts
 ```
-name: "Gemini CLI",
+
+**Offset (line):**
+```text
+175
+```
+
+**Limit:**
+```text
+25
+```
+
+```typescript
+    name: "Gemini CLI",
     description: "Sync terminal conversations with Google Gemini",
     logo: "/assets/gemini.svg",
     marketplaceUrl: "https://docs.specstory.com/cloud/quickstart#gemini-cli",
@@ -14428,10 +19834,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:50:09Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "DROID_CLI\|agentName ===\|provider =\|provider:" ../../specstory-sync/workers/token-usage-worker/src/*.ts 2>/dev/null | grep -v node_modules | grep -v "\.test\." | head -15`</summary>
+**Command:**
+```bash
+grep -rn "DROID_CLI\|agentName ===\|provider =\|provider:" ../../specstory-sync/workers/token-usage-worker/src/*.ts 2>/dev/null | grep -v node_modules | grep -v "\.test\." | head -15
 ```
+
+```text
 ../../specstory-sync/workers/token-usage-worker/src/token_usage_worker.ts:53:  provider: Provider,
 ../../specstory-sync/workers/token-usage-worker/src/token_usage_worker.ts:99:    const provider = providerFromAgentName(agentName);
 ../../specstory-sync/workers/token-usage-worker/src/token_usage_worker.ts:158:      provider: row.provider,
+
 ```
 </details></tool-use>
 
@@ -14439,21 +19851,28 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:50:11Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "providerFromAgentName\|DROID\|Factory Droid\|\"Droid" ../../specstory-sync/shared/*.ts ../../specstory-sync/sync-cloud/src/lib/*.ts 2>/dev/null | grep -v node_modules | head`</summary>
+**Command:**
+```bash
+grep -rn "providerFromAgentName\|DROID\|Factory Droid\|\"Droid" ../../specstory-sync/shared/*.ts ../../specstory-sync/sync-cloud/src/lib/*.ts 2>/dev/null | grep -v node_modules | head
 ```
+
+```text
 ../../specstory-sync/sync-cloud/src/lib/agents.ts:25:  droid: { id: "droid", label: "Factory Droid", color: "#7C3AED" },
 ../../specstory-sync/sync-cloud/src/lib/agents.ts:33: * display-name forms the cloud actually stores ("Claude Code", "Codex CLI", "Droid
 ../../specstory-sync/sync-cloud/src/lib/constants.ts:55:  DROID_CLI: "Droid CLI",
 ../../specstory-sync/sync-cloud/src/lib/constants.ts:106:  [AGENT_NAMES.DROID_CLI]: {
 ../../specstory-sync/sync-cloud/src/lib/constants.ts:107:    displayName: AGENT_NAMES.DROID_CLI,
+
 ```
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:50:15Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
-<summary>Tool use: **bash** `grep -n "providerFromAgentName\|DROID\|Droid\|Factory Droid\|case " ../../specstory-sync/sync-cloud/src/lib/agents.ts | head -20; echo "---"; grep -n "function providerFromAgentName\|providerFromAgentName" ../../specstory-sync/sync-cloud/src/lib/*.ts ../../specstory-sync/shared/*.ts 2>/dev/null | grep -v node_modules`</summary>
-Error:
-```
+<summary>Tool use: **bash**</summary>
+**Error:**
+
+```text
 25:  droid: { id: "droid", label: "Factory Droid", color: "#7C3AED" },
 33: * display-name forms the cloud actually stores ("Claude Code", "Codex CLI", "Droid
 ---
@@ -14461,13 +19880,31 @@ Error:
 
 Command exited with code 1
 ```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "command": "grep -n \"providerFromAgentName\\|DROID\\|Droid\\|Factory Droid\\|case \" ../../specstory-sync/sync-cloud/src/lib/agents.ts | head -20; echo \"---\"; grep -n \"function providerFromAgentName\\|providerFromAgentName\" ../../specstory-sync/sync-cloud/src/lib/*.ts ../../specstory-sync/shared/*.ts 2\u003e/dev/null | grep -v node_modules"
+}
+```
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:50:20Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "providerFromAgentName" ../../specstory-sync --include="*.ts" 2>/dev/null | grep -v node_modules | head`</summary>
+**Command:**
+```bash
+grep -rn "providerFromAgentName" ../../specstory-sync --include="*.ts" 2>/dev/null | grep -v node_modules | head
 ```
+
+```text
 ../../specstory-sync/shared/services/analytics/ledger.ts:142:export function providerFromAgentName(agentName?: string | null): Provider {
 ../../specstory-sync/shared/services/analytics/ledgerDerive.ts:13:  providerFromAgentName,
 ../../specstory-sync/shared/services/analytics/ledgerDerive.ts:61:  const provider = providerFromAgentName(agentName);
@@ -14478,6 +19915,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:50:20Z)**_
 ../../specstory-sync/sync-cloud/tests/ledger.test.ts:40:    expect(providerFromAgentName("GitHub Copilot")).toBe("copilot");
 ../../specstory-sync/sync-cloud/tests/ledger.test.ts:41:    expect(providerFromAgentName("Gemini CLI")).toBe("gemini");
 ../../specstory-sync/sync-cloud/tests/ledger.test.ts:42:    expect(providerFromAgentName("Cursor")).toBe("cursor");
+
 ```
 </details></tool-use>
 
@@ -14485,9 +19923,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:50:24Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/shared/services/analytics/ledger.ts`
-
+**Path:**
+```text
+../../specstory-sync/shared/services/analytics/ledger.ts
 ```
+
+**Offset (line):**
+```text
+142
+```
+
+**Limit:**
+```text
+40
+```
+
+```typescript
 export function providerFromAgentName(agentName?: string | null): Provider {
   const a = (agentName ?? "").toLowerCase();
   if (a.includes("claude")) return "claude-code";
@@ -14558,7 +20009,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:50:32Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "Droid CLI\|DROID_CLI\|Factory Droid\|providerFromAgentName.*[Dd]roid" ../../specstory-sync --include="*.test.ts" 2>/dev/null | grep -v node_modules | head`</summary>
+**Command:**
+```bash
+grep -rn "Droid CLI\|DROID_CLI\|Factory Droid\|providerFromAgentName.*[Dd]roid" ../../specstory-sync --include="*.test.ts" 2>/dev/null | grep -v node_modules | head
 ```
+
+```text
 (no output)
 ```
 </details></tool-use>
@@ -14571,9 +20027,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:50:34Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/lib/constants.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/lib/constants.ts
 ```
+
+**Offset (line):**
+```text
+45
+```
+
+**Limit:**
+```text
+12
+```
+
+```typescript
 export const AGENT_NAMES = {
   CLAUDE_CODE: "Claude Code",
   CURSOR: "Cursor",
@@ -14595,10 +20064,72 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:50:38Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/lib/constants.ts`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/lib/constants.ts
+```
+
+**Edit 1:**
+```diff
+-  DROID_CLI: "Droid CLI",
++  // The CLI's droidcli provider returns Name() = "Factory Droid CLI" (pkg/providers/droidcli),
++  // so sessions arrive with agentName "Factory Droid CLI". This constant must match that exact
++  // string or every server-side worker that branches on AGENT_NAMES.DROID_CLI (duration, etc.)
++  // misses and the token-usage provider resolver falls back to "unknown".
++  DROID_CLI: "Factory Droid CLI",
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/lib/constants.ts.
+```
+
+**diff:**
+```diff
+     ...
+  51   VS_CODE_COPILOT_IDE: "VS Code Copilot IDE",
+  52   CODEX_CLI: "Codex CLI",
+  53   GEMINI_CLI: "Gemini CLI",
+  54   AMP_CLI: "Amp CLI",
+- 55   DROID_CLI: "Droid CLI",
++ 55   // The CLI's droidcli provider returns Name() = "Factory Droid CLI" (pkg/providers/droidcli),
++ 56   // so sessions arrive with agentName "Factory Droid CLI". This constant must match that exact
++ 57   // string or every server-side worker that branches on AGENT_NAMES.DROID_CLI (duration, etc.)
++ 58   // misses and the token-usage provider resolver falls back to "unknown".
++ 59   DROID_CLI: "Factory Droid CLI",
+  56   DEEPSEEK_TUI: "DeepSeek TUI",
+  57 } as const;
+  58 
+  59 // Maps raw CLI-submitted agent name strings to normalized AGENT_NAMES values
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/lib/constants.ts
++++ ../../specstory-sync/sync-cloud/src/lib/constants.ts
+@@ -51,9 +51,13 @@
+   VS_CODE_COPILOT_IDE: "VS Code Copilot IDE",
+   CODEX_CLI: "Codex CLI",
+   GEMINI_CLI: "Gemini CLI",
+   AMP_CLI: "Amp CLI",
+-  DROID_CLI: "Droid CLI",
++  // The CLI's droidcli provider returns Name() = "Factory Droid CLI" (pkg/providers/droidcli),
++  // so sessions arrive with agentName "Factory Droid CLI". This constant must match that exact
++  // string or every server-side worker that branches on AGENT_NAMES.DROID_CLI (duration, etc.)
++  // misses and the token-usage provider resolver falls back to "unknown".
++  DROID_CLI: "Factory Droid CLI",
+   DEEPSEEK_TUI: "DeepSeek TUI",
+ } as const;
+ 
+ // Maps raw CLI-submitted agent name strings to normalized AGENT_NAMES values
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/lib/constants.ts.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 55
+}
 ```
 </details></tool-use>
 
@@ -14606,10 +20137,75 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:50:41Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/shared/services/analytics/ledger.ts`
+**Path:**
+```text
+../../specstory-sync/shared/services/analytics/ledger.ts
+```
+
+**Edit 1:**
+```diff
+-export function providerFromAgentName(agentName?: string | null): Provider {
+-  const a = (agentName ?? "").toLowerCase();
+-  if (a.includes("claude")) return "claude-code";
+-  if (a.includes("codex")) return "codex";
+-  if (a.includes("copilot")) return "copilot";
+-  if (a.includes("gemini")) return "gemini";
+-  if (a.includes("cursor")) return "cursor";
+-  return "unknown";
+-}
++export function providerFromAgentName(agentName?: string | null): Provider {
++  const a = (agentName ?? "").toLowerCase();
++  if (a.includes("claude")) return "claude-code";
++  if (a.includes("codex")) return "codex";
++  if (a.includes("copilot")) return "copilot";
++  if (a.includes("gemini")) return "gemini";
++  if (a.includes("cursor")) return "cursor";
++  if (a.includes("droid")) return "droid"; // "Factory Droid CLI"
++  return "unknown";
++}
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/shared/services/analytics/ledger.ts.
+```
+
+**diff:**
+```diff
+     ...
+ 145   if (a.includes("codex")) return "codex";
+ 146   if (a.includes("copilot")) return "copilot";
+ 147   if (a.includes("gemini")) return "gemini";
+ 148   if (a.includes("cursor")) return "cursor";
++149   if (a.includes("droid")) return "droid"; // "Factory Droid CLI"
+ 149   return "unknown";
+ 150 }
+ 151 
+ 152 // ── Normalized tally ─────────────────────────────────────────────────────────
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/shared/services/analytics/ledger.ts
++++ ../../specstory-sync/shared/services/analytics/ledger.ts
+@@ -145,8 +145,9 @@
+   if (a.includes("codex")) return "codex";
+   if (a.includes("copilot")) return "copilot";
+   if (a.includes("gemini")) return "gemini";
+   if (a.includes("cursor")) return "cursor";
++  if (a.includes("droid")) return "droid"; // "Factory Droid CLI"
+   return "unknown";
+ }
+ 
+ // ── Normalized tally ─────────────────────────────────────────────────────────
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/shared/services/analytics/ledger.ts.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 149
+}
 ```
 </details></tool-use>
 
@@ -14621,7 +20217,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:50:44Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "type Provider\|Provider =\|export.*Provider\b" ../../specstory-sync/shared/services/analytics/ledger.ts | head; echo "---droid in Provider union?---"; grep -n "\"droid\"\|'droid'" ../../specstory-sync/shared/services/analytics/ledger.ts | head`</summary>
+**Command:**
+```bash
+grep -rn "type Provider\|Provider =\|export.*Provider\b" ../../specstory-sync/shared/services/analytics/ledger.ts | head; echo "---droid in Provider union?---"; grep -n "\"droid\"\|'droid'" ../../specstory-sync/shared/services/analytics/ledger.ts | head
 ```
+
+```text
 ../../specstory-sync/shared/services/analytics/ledger.ts:117:export type Provider = "claude-code" | "codex" | "copilot" | "gemini" | "cursor" | "unknown";
 ../../specstory-sync/shared/services/analytics/ledger.ts:130:export const PROVIDER_TOKEN_SUPPORT: Record<Provider, ProviderTokenSupport> = {
 ../../specstory-sync/shared/services/analytics/ledger.ts:142:export function providerFromAgentName(agentName?: string | null): Provider {
@@ -14631,6 +20232,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:50:44Z)**_
 ../../specstory-sync/shared/services/analytics/ledger.ts:486:export function providerParseMode(provider: Provider): ParseMode {
 ---droid in Provider union?---
 149:  if (a.includes("droid")) return "droid"; // "Factory Droid CLI"
+
 ```
 </details></tool-use>
 
@@ -14642,9 +20244,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:50:47Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/shared/services/analytics/ledger.ts`
-
+**Path:**
+```text
+../../specstory-sync/shared/services/analytics/ledger.ts
 ```
+
+**Offset (line):**
+```text
+117
+```
+
+**Limit:**
+```text
+45
+```
+
+```typescript
 export type Provider = "claude-code" | "codex" | "copilot" | "gemini" | "cursor" | "unknown";
 
 export interface ProviderTokenSupport {
@@ -14705,9 +20320,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:50:50Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/shared/services/analytics/ledger.ts`
-
+**Path:**
+```text
+../../specstory-sync/shared/services/analytics/ledger.ts
 ```
+
+**Offset (line):**
+```text
+486
+```
+
+**Limit:**
+```text
+30
+```
+
+```typescript
 export function providerParseMode(provider: Provider): ParseMode {
   if (FOLDS[provider]) return "jsonl";
   if (provider === "gemini") return "document";
@@ -14761,10 +20389,92 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:50:56Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/shared/services/analytics/ledger.ts`
+**Path:**
+```text
+../../specstory-sync/shared/services/analytics/ledger.ts
+```
+
+**Edit 1:**
+```diff
+-export type Provider = "claude-code" | "codex" | "copilot" | "gemini" | "cursor" | "unknown";
++export type Provider = "claude-code" | "codex" | "copilot" | "gemini" | "cursor" | "droid" | "unknown";
+```
+
+**Edit 2:**
+```diff
+-  cursor: { hasTokens: false, status: "unsupported", note: "no per-message tokens in the transcript (needs Cursor Admin API)" },
+-  unknown: { hasTokens: false, status: "unsupported" },
++  cursor: { hasTokens: false, status: "unsupported", note: "no per-message tokens in the transcript (needs Cursor Admin API)" },
++  // Factory Droid CLI: no per-message token usage in the JSONL transcript (no fold in FOLDS).
++  droid: { hasTokens: false, status: "unsupported", note: "no per-message tokens in the Droid CLI transcript" },
++  unknown: { hasTokens: false, status: "unsupported" },
+```
+
+```text
+Successfully replaced 2 block(s) in ../../specstory-sync/shared/services/analytics/ledger.ts.
+```
+
+**diff:**
+```diff
+     ...
+ 113   return null;
+ 114 }
+ 115 
+ 116 // ── Provider model ─────────────────────────────────────────────────────────
+-117 export type Provider = "claude-code" | "codex" | "copilot" | "gemini" | "cursor" | "unknown";
++117 export type Provider = "claude-code" | "codex" | "copilot" | "gemini" | "cursor" | "droid" | "unknown";
+ 118 
+ 119 export interface ProviderTokenSupport {
+ 120   /** Does this provider's stored transcript carry per-message token usage? */
+ 121   hasTokens: boolean;
+     ...
+ 134   // Copilot: Cloud stores the VS Code Copilot Chat export, which has NO per-turn tokens
+ 135   // (verified across real Cloud blobs). The ~/.copilot CLI does — see extractCopilotCli.
+ 136   copilot: { hasTokens: false, status: "unsupported", note: "Cloud stores the VS Code Copilot export, which carries no per-turn tokens" },
+ 137   cursor: { hasTokens: false, status: "unsupported", note: "no per-message tokens in the transcript (needs Cursor Admin API)" },
++138   // Factory Droid CLI: no per-message token usage in the JSONL transcript (no fold in FOLDS).
++139   droid: { hasTokens: false, status: "unsupported", note: "no per-message tokens in the Droid CLI transcript" },
+ 138   unknown: { hasTokens: false, status: "unsupported" },
+ 139 };
+ 140 
+ 141 /** Map a SpecStory `metadata.agentName` (or clientName) to a provider id. */
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/shared/services/analytics/ledger.ts
++++ ../../specstory-sync/shared/services/analytics/ledger.ts
+@@ -113,9 +113,9 @@
+   return null;
+ }
+ 
+ // ── Provider model ─────────────────────────────────────────────────────────
+-export type Provider = "claude-code" | "codex" | "copilot" | "gemini" | "cursor" | "unknown";
++export type Provider = "claude-code" | "codex" | "copilot" | "gemini" | "cursor" | "droid" | "unknown";
+ 
+ export interface ProviderTokenSupport {
+   /** Does this provider's stored transcript carry per-message token usage? */
+   hasTokens: boolean;
+@@ -134,8 +134,10 @@
+   // Copilot: Cloud stores the VS Code Copilot Chat export, which has NO per-turn tokens
+   // (verified across real Cloud blobs). The ~/.copilot CLI does — see extractCopilotCli.
+   copilot: { hasTokens: false, status: "unsupported", note: "Cloud stores the VS Code Copilot export, which carries no per-turn tokens" },
+   cursor: { hasTokens: false, status: "unsupported", note: "no per-message tokens in the transcript (needs Cursor Admin API)" },
++  // Factory Droid CLI: no per-message token usage in the JSONL transcript (no fold in FOLDS).
++  droid: { hasTokens: false, status: "unsupported", note: "no per-message tokens in the Droid CLI transcript" },
+   unknown: { hasTokens: false, status: "unsupported" },
+ };
+ 
+ /** Map a SpecStory `metadata.agentName` (or clientName) to a provider id. */
 
 ```
-Successfully replaced 2 block(s) in ../../specstory-sync/shared/services/analytics/ledger.ts.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 117
+}
 ```
 </details></tool-use>
 
@@ -14776,10 +20486,24 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:50:58Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts`
-
+**Path:**
+```text
+../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
 ```
-// Fetch raw data from storage
+
+**Offset (line):**
+```text
+56
+```
+
+**Limit:**
+```text
+12
+```
+
+```typescript
+
+    // Fetch raw data from storage
     const rawData = await this.fetchRawDataFromStorage(
       sessionData.id,
       sessionData.workspaceId!,
@@ -14799,10 +20523,163 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:51:03Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts`
+**Path:**
+```text
+../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
+```
+
+**Edit 1:**
+```diff
+-    // Fetch raw data from storage
+-    const rawData = await this.fetchRawDataFromStorage(
+-      sessionData.id,
+-      sessionData.workspaceId!,
+-    );
+-
+-    let startedAt: string | null = null;
+-    let endedAt: string | null = null;
+-
+-    // Check if this is a Claude Code CLI session
+-    if (
++    let startedAt: string | null = null;
++    let endedAt: string | null = null;
++
++    // Canonical path (D2): when the session has a SessionData blob (session_data_size > 0), the
++    // CLI already resolved real per-provider timestamps at parse time and pushed them in the blob.
++    // Read activity directly from it instead of re-deriving from raw/markdown with provider-specific
++    // regexes — which drifted from the CLI's rendered format and left Codex/Cursor/Gemini/Droid null.
++    // The blob carries exchanges[].startTime/endTime + createdAt/updatedAt; take min(start) / max(end).
++    if (sessionData.sessionDataSize && sessionData.sessionDataSize > 0) {
++      const fromBlob = await this.extractTimestampsFromSessionDataBlob(
++        sessionData.id,
++        sessionData.workspaceId!,
++      );
++      if (fromBlob) {
++        startedAt = fromBlob.startedAt;
++        endedAt = fromBlob.endedAt;
++      }
++    }
++
++    // Legacy path: no SessionData blob (or blob fetch/parse failed) → re-derive from raw/markdown
++    // per provider. Kept so sessions pushed before the CLI shipped SessionData still get timestamps
++    // where the legacy extractors work (Claude Code JSONL). They heal onto the canonical path on
++    // re-sync (D6). Only run the raw-data fetch + provider chain when the blob path didn't yield.
++    if (!startedAt || !endedAt) {
++    // Fetch raw data from storage
++    const rawData = await this.fetchRawDataFromStorage(
++      sessionData.id,
++      sessionData.workspaceId!,
++    );
++
++    // Check if this is a Claude Code CLI session
++    if (
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts.
+```
+
+**diff:**
+```diff
+     ...
+  53     if (sessionData.metadata?.agentName) {
+  54       sessionData.metadata.agentName = normalizeAgentName(sessionData.metadata.agentName);
+  55     }
+  56 
++ 57     let startedAt: string | null = null;
++ 58     let endedAt: string | null = null;
++ 59 
++ 60     // Canonical path (D2): when the session has a SessionData blob (session_data_size > 0), the
++ 61     // CLI already resolved real per-provider timestamps at parse time and pushed them in the blob.
++ 62     // Read activity directly from it instead of re-deriving from raw/markdown with provider-specific
++ 63     // regexes — which drifted from the CLI's rendered format and left Codex/Cursor/Gemini/Droid null.
++ 64     // The blob carries exchanges[].startTime/endTime + createdAt/updatedAt; take min(start) / max(end).
++ 65     if (sessionData.sessionDataSize && sessionData.sessionDataSize > 0) {
++ 66       const fromBlob = await this.extractTimestampsFromSessionDataBlob(
++ 67         sessionData.id,
++ 68         sessionData.workspaceId!,
++ 69       );
++ 70       if (fromBlob) {
++ 71         startedAt = fromBlob.startedAt;
++ 72         endedAt = fromBlob.endedAt;
++ 73       }
++ 74     }
++ 75 
++ 76     // Legacy path: no SessionData blob (or blob fetch/parse failed) → re-derive from raw/markdown
++ 77     // per provider. Kept so sessions pushed before the CLI shipped SessionData still get timestamps
++ 78     // where the legacy extractors work (Claude Code JSONL). They heal onto the canonical path on
++ 79     // re-sync (D6). Only run the raw-data fetch + provider chain when the blob path didn't yield.
++ 80     if (!startedAt || !endedAt) {
+  57     // Fetch raw data from storage
+  58     const rawData = await this.fetchRawDataFromStorage(
+  59       sessionData.id,
+  60       sessionData.workspaceId!,
+  61     );
+  62 
+- 63     let startedAt: string | null = null;
+- 64     let endedAt: string | null = null;
+- 65 
+  66     // Check if this is a Claude Code CLI session
+  67     if (
+  68       sessionData.metadata?.clientName === CLIENT_NAMES.CLI &&
+  69       sessionData.metadata?.agentName === AGENT_NAMES.CLAUDE_CODE
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
++++ ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
+@@ -53,17 +53,38 @@
+     if (sessionData.metadata?.agentName) {
+       sessionData.metadata.agentName = normalizeAgentName(sessionData.metadata.agentName);
+     }
+ 
++    let startedAt: string | null = null;
++    let endedAt: string | null = null;
++
++    // Canonical path (D2): when the session has a SessionData blob (session_data_size > 0), the
++    // CLI already resolved real per-provider timestamps at parse time and pushed them in the blob.
++    // Read activity directly from it instead of re-deriving from raw/markdown with provider-specific
++    // regexes — which drifted from the CLI's rendered format and left Codex/Cursor/Gemini/Droid null.
++    // The blob carries exchanges[].startTime/endTime + createdAt/updatedAt; take min(start) / max(end).
++    if (sessionData.sessionDataSize && sessionData.sessionDataSize > 0) {
++      const fromBlob = await this.extractTimestampsFromSessionDataBlob(
++        sessionData.id,
++        sessionData.workspaceId!,
++      );
++      if (fromBlob) {
++        startedAt = fromBlob.startedAt;
++        endedAt = fromBlob.endedAt;
++      }
++    }
++
++    // Legacy path: no SessionData blob (or blob fetch/parse failed) → re-derive from raw/markdown
++    // per provider. Kept so sessions pushed before the CLI shipped SessionData still get timestamps
++    // where the legacy extractors work (Claude Code JSONL). They heal onto the canonical path on
++    // re-sync (D6). Only run the raw-data fetch + provider chain when the blob path didn't yield.
++    if (!startedAt || !endedAt) {
+     // Fetch raw data from storage
+     const rawData = await this.fetchRawDataFromStorage(
+       sessionData.id,
+       sessionData.workspaceId!,
+     );
+ 
+-    let startedAt: string | null = null;
+-    let endedAt: string | null = null;
+-
+     // Check if this is a Claude Code CLI session
+     if (
+       sessionData.metadata?.clientName === CLIENT_NAMES.CLI &&
+       sessionData.metadata?.agentName === AGENT_NAMES.CLAUDE_CODE
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 57
+}
 ```
 </details></tool-use>
 
@@ -14814,10 +20691,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:51:06Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts`
-
+**Path:**
+```text
+../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
 ```
-});
+
+**Offset (line):**
+```text
+443
+```
+
+**Limit:**
+```text
+25
+```
+
+```typescript
+        });
       }
     } else {
       // Not a recognized session type - alert via Sentry so we can add support
@@ -14851,10 +20741,79 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:51:09Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts`
+**Path:**
+```text
+../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
+```
+
+**Edit 1:**
+```diff
+-      Sentry.captureMessage(
+-        `Unrecognized session type in session-duration-worker: clientName="${clientName}" agentName="${agentName}"`,
+-        {
+-          level: "warning",
+-          extra: { sessionId, clientName, agentName },
+-        },
+-      );
+-    }
+-
+-    // Update the session with extracted timestamps (or skip if null)
+-    await this.updateSessionTimestamps(sessionId, startedAt, endedAt);
++      Sentry.captureMessage(
++        `Unrecognized session type in session-duration-worker: clientName="${clientName}" agentName="${agentName}"`,
++        {
++          level: "warning",
++          extra: { sessionId, clientName, agentName },
++        },
++      );
++    }
++    } // end legacy path (no SessionData blob)
++
++    // Update the session with extracted timestamps (or skip if null)
++    await this.updateSessionTimestamps(sessionId, startedAt, endedAt);
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts.
+```
+
+**diff:**
+```diff
+     ...
+ 461           extra: { sessionId, clientName, agentName },
+ 462         },
+ 463       );
+ 464     }
++465     } // end legacy path (no SessionData blob)
+ 465 
+ 466     // Update the session with extracted timestamps (or skip if null)
+ 467     await this.updateSessionTimestamps(sessionId, startedAt, endedAt);
+ 468 
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
++++ ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
+@@ -461,8 +461,9 @@
+           extra: { sessionId, clientName, agentName },
+         },
+       );
+     }
++    } // end legacy path (no SessionData blob)
+ 
+     // Update the session with extracted timestamps (or skip if null)
+     await this.updateSessionTimestamps(sessionId, startedAt, endedAt);
+ 
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 465
+}
 ```
 </details></tool-use>
 
@@ -14866,10 +20825,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:51:12Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts`
-
+**Path:**
+```text
+../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
 ```
-.update(schema.sessions)
+
+**Offset (line):**
+```text
+524
+```
+
+**Limit:**
+```text
+8
+```
+
+```typescript
+        .update(schema.sessions)
         .set({
           startedAt: new Date(startedAt),
           endedAt: new Date(endedAt),
@@ -14886,9 +20858,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:51:18Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "async fetchRawDataFromStorage\|^  }$\|return text;" ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts | head`</summary>
+**Command:**
+```bash
+grep -n "async fetchRawDataFromStorage\|^  }$\|return text;" ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts | head
 ```
+
+```text
 549:  async fetchRawDataFromStorage(
 581:    return text;
+
 ```
 </details></tool-use>
 
@@ -14896,10 +20874,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:51:21Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts`
-
+**Path:**
+```text
+../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
 ```
-});
+
+**Offset (line):**
+```text
+579
+```
+
+**Limit:**
+```text
+12
+```
+
+```typescript
+    });
 
     return text;
   }
@@ -14920,10 +20911,336 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:51:28Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts`
+**Path:**
+```text
+../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
+```
+
+**Edit 1:**
+```diff
+-    return text;
+-  }
+-
+-  ////////////////////////////////////
+-  // Extractors
+-  ////////////////////////////////////
++    return text;
++  }
++
++  // Fetch the SessionData blob (session-data.json) from storage and derive real activity
++  // timestamps from it — the canonical path (D2). Returns {startedAt, endedAt} or null on any
++  // failure (missing blob, parse error, no timestamps), so the caller falls back to the legacy
++  // per-provider extractors. The blob is the CLI's normalized SessionData: exchanges[] carry
++  // startTime/endTime (ISO 8601), plus top-level createdAt/updatedAt as a last resort.
++  async extractTimestampsFromSessionDataBlob(
++    sessionId: string,
++    workspaceId: string,
++  ): Promise<{ startedAt: string; endedAt: string } | null> {
++    this.log({
++      message: `Fetching SessionData blob for timestamps`,
++      sessionId,
++    });
++
++    const { data, error } = await this.supabaseClient.storage
++      .from("sessions")
++      .download(`${workspaceId}/${sessionId}/session-data.json`);
++
++    if (error || !data) {
++      this.logWarning({
++        message: `SessionData blob fetch failed, falling back to legacy extractors`,
++        sessionId,
++        error: error?.message,
++      });
++      return null;
++    }
++
++    let text: string;
++    try {
++      text = await data.text();
++    } catch {
++      this.logWarning({
++        message: `SessionData blob read failed, falling back to legacy extractors`,
++        sessionId,
++      });
++      return null;
++    }
++
++    let parsed: {
++      createdAt?: string;
++      updatedAt?: string;
++      exchanges?: { startTime?: string; endTime?: string }[];
++    };
++    try {
++      parsed = JSON.parse(text);
++    } catch {
++      this.logWarning({
++        message: `SessionData blob JSON parse failed, falling back to legacy extractors`,
++        sessionId,
++      });
++      return null;
++    }
++
++    // Collect every activity timestamp: each exchange's startTime/endTime, plus the session's
++    // createdAt/updatedAt as a floor. Empty/whitespace values are ignored.
++    const candidates: string[] = [];
++    if (parsed.createdAt) candidates.push(parsed.createdAt);
++    if (parsed.updatedAt) candidates.push(parsed.updatedAt);
++    for (const ex of parsed.exchanges ?? []) {
++      if (ex.startTime) candidates.push(ex.startTime);
++      if (ex.endTime) candidates.push(ex.endTime);
++    }
++
++    const valid = candidates.filter((t) => t && t.trim() !== "");
++    if (valid.length === 0) {
++      this.logWarning({
++        message: `SessionData blob had no usable timestamps, falling back to legacy extractors`,
++        sessionId,
++      });
++      return null;
++    }
++
++    // Sort ISO 8601 strings lexicographically — valid for same-format UTC/Z timestamps. Mixed
++    // offsets (Z vs +00:00) sort correctly too since the date/time digits dominate. Take the
++    // min as startedAt and max as endedAt.
++    valid.sort();
++    const startedAt = valid[0];
++    const endedAt = valid[valid.length - 1];
++
++    this.log({
++      message: `Timestamp extraction from SessionData blob`,
++      sessionId,
++      startedAt,
++      endedAt,
++      totalTimestamps: valid.length,
++    });
++
++    return { startedAt, endedAt };
++  }
++
++  ////////////////////////////////////
++  // Extractors
++  ////////////////////////////////////
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts.
+```
+
+**diff:**
+```diff
+     ...
+ 580 
+ 581     return text;
+ 582   }
+ 583 
++584   // Fetch the SessionData blob (session-data.json) from storage and derive real activity
++585   // timestamps from it — the canonical path (D2). Returns {startedAt, endedAt} or null on any
++586   // failure (missing blob, parse error, no timestamps), so the caller falls back to the legacy
++587   // per-provider extractors. The blob is the CLI's normalized SessionData: exchanges[] carry
++588   // startTime/endTime (ISO 8601), plus top-level createdAt/updatedAt as a last resort.
++589   async extractTimestampsFromSessionDataBlob(
++590     sessionId: string,
++591     workspaceId: string,
++592   ): Promise<{ startedAt: string; endedAt: string } | null> {
++593     this.log({
++594       message: `Fetching SessionData blob for timestamps`,
++595       sessionId,
++596     });
++597 
++598     const { data, error } = await this.supabaseClient.storage
++599       .from("sessions")
++600       .download(`${workspaceId}/${sessionId}/session-data.json`);
++601 
++602     if (error || !data) {
++603       this.logWarning({
++604         message: `SessionData blob fetch failed, falling back to legacy extractors`,
++605         sessionId,
++606         error: error?.message,
++607       });
++608       return null;
++609     }
++610 
++611     let text: string;
++612     try {
++613       text = await data.text();
++614     } catch {
++615       this.logWarning({
++616         message: `SessionData blob read failed, falling back to legacy extractors`,
++617         sessionId,
++618       });
++619       return null;
++620     }
++621 
++622     let parsed: {
++623       createdAt?: string;
++624       updatedAt?: string;
++625       exchanges?: { startTime?: string; endTime?: string }[];
++626     };
++627     try {
++628       parsed = JSON.parse(text);
++629     } catch {
++630       this.logWarning({
++631         message: `SessionData blob JSON parse failed, falling back to legacy extractors`,
++632         sessionId,
++633       });
++634       return null;
++635     }
++636 
++637     // Collect every activity timestamp: each exchange's startTime/endTime, plus the session's
++638     // createdAt/updatedAt as a floor. Empty/whitespace values are ignored.
++639     const candidates: string[] = [];
++640     if (parsed.createdAt) candidates.push(parsed.createdAt);
++641     if (parsed.updatedAt) candidates.push(parsed.updatedAt);
++642     for (const ex of parsed.exchanges ?? []) {
++643       if (ex.startTime) candidates.push(ex.startTime);
++644       if (ex.endTime) candidates.push(ex.endTime);
++645     }
++646 
++647     const valid = candidates.filter((t) => t && t.trim() !== "");
++648     if (valid.length === 0) {
++649       this.logWarning({
++650         message: `SessionData blob had no usable timestamps, falling back to legacy extractors`,
++651         sessionId,
++652       });
++653       return null;
++654     }
++655 
++656     // Sort ISO 8601 strings lexicographically — valid for same-format UTC/Z timestamps. Mixed
++657     // offsets (Z vs +00:00) sort correctly too since the date/time digits dominate. Take the
++658     // min as startedAt and max as endedAt.
++659     valid.sort();
++660     const startedAt = valid[0];
++661     const endedAt = valid[valid.length - 1];
++662 
++663     this.log({
++664       message: `Timestamp extraction from SessionData blob`,
++665       sessionId,
++666       startedAt,
++667       endedAt,
++668       totalTimestamps: valid.length,
++669     });
++670 
++671     return { startedAt, endedAt };
++672   }
++673 
+ 584   ////////////////////////////////////
+ 585   // Extractors
+ 586   ////////////////////////////////////
+ 587 
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
++++ ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts
+@@ -580,8 +580,98 @@
+ 
+     return text;
+   }
+ 
++  // Fetch the SessionData blob (session-data.json) from storage and derive real activity
++  // timestamps from it — the canonical path (D2). Returns {startedAt, endedAt} or null on any
++  // failure (missing blob, parse error, no timestamps), so the caller falls back to the legacy
++  // per-provider extractors. The blob is the CLI's normalized SessionData: exchanges[] carry
++  // startTime/endTime (ISO 8601), plus top-level createdAt/updatedAt as a last resort.
++  async extractTimestampsFromSessionDataBlob(
++    sessionId: string,
++    workspaceId: string,
++  ): Promise<{ startedAt: string; endedAt: string } | null> {
++    this.log({
++      message: `Fetching SessionData blob for timestamps`,
++      sessionId,
++    });
++
++    const { data, error } = await this.supabaseClient.storage
++      .from("sessions")
++      .download(`${workspaceId}/${sessionId}/session-data.json`);
++
++    if (error || !data) {
++      this.logWarning({
++        message: `SessionData blob fetch failed, falling back to legacy extractors`,
++        sessionId,
++        error: error?.message,
++      });
++      return null;
++    }
++
++    let text: string;
++    try {
++      text = await data.text();
++    } catch {
++      this.logWarning({
++        message: `SessionData blob read failed, falling back to legacy extractors`,
++        sessionId,
++      });
++      return null;
++    }
++
++    let parsed: {
++      createdAt?: string;
++      updatedAt?: string;
++      exchanges?: { startTime?: string; endTime?: string }[];
++    };
++    try {
++      parsed = JSON.parse(text);
++    } catch {
++      this.logWarning({
++        message: `SessionData blob JSON parse failed, falling back to legacy extractors`,
++        sessionId,
++      });
++      return null;
++    }
++
++    // Collect every activity timestamp: each exchange's startTime/endTime, plus the session's
++    // createdAt/updatedAt as a floor. Empty/whitespace values are ignored.
++    const candidates: string[] = [];
++    if (parsed.createdAt) candidates.push(parsed.createdAt);
++    if (parsed.updatedAt) candidates.push(parsed.updatedAt);
++    for (const ex of parsed.exchanges ?? []) {
++      if (ex.startTime) candidates.push(ex.startTime);
++      if (ex.endTime) candidates.push(ex.endTime);
++    }
++
++    const valid = candidates.filter((t) => t && t.trim() !== "");
++    if (valid.length === 0) {
++      this.logWarning({
++        message: `SessionData blob had no usable timestamps, falling back to legacy extractors`,
++        sessionId,
++      });
++      return null;
++    }
++
++    // Sort ISO 8601 strings lexicographically — valid for same-format UTC/Z timestamps. Mixed
++    // offsets (Z vs +00:00) sort correctly too since the date/time digits dominate. Take the
++    // min as startedAt and max as endedAt.
++    valid.sort();
++    const startedAt = valid[0];
++    const endedAt = valid[valid.length - 1];
++
++    this.log({
++      message: `Timestamp extraction from SessionData blob`,
++      sessionId,
++      startedAt,
++      endedAt,
++      totalTimestamps: valid.length,
++    });
++
++    return { startedAt, endedAt };
++  }
++
+   ////////////////////////////////////
+   // Extractors
+   ////////////////////////////////////
+ 
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 584
+}
 ```
 </details></tool-use>
 
@@ -14935,8 +21252,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:51:37Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd /Users/sean/Source/SpecStory/specstory-sync/sync-cloud && /Users/sean/Source/SpecStory/specstory-sync/node_modules/.bin/tsc -b 2>&1 | head -40; echo "tsc exit=${PIPESTATUS[0]}"`</summary>
+**Command:**
+```bash
+cd /Users/sean/Source/SpecStory/specstory-sync/sync-cloud && /Users/sean/Source/SpecStory/specstory-sync/node_modules/.bin/tsc -b 2>&1 | head -40; echo "tsc exit=${PIPESTATUS[0]}"
 ```
+
+```text
 tsc exit=0
+
 ```
 </details></tool-use>
 
@@ -14948,7 +21271,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:51:42Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd /Users/sean/Source/SpecStory/specstory-sync && (npx vitest run workers/session-duration-worker 2>&1 | tail -25) || echo "vitest run failed"; echo "---ledger tests---"; (npx vitest run sync-cloud/tests/ledger.test.ts 2>&1 | tail -25) || echo "ledger vitest failed"`</summary>
+**Command:**
+```bash
+cd /Users/sean/Source/SpecStory/specstory-sync && (npx vitest run workers/session-duration-worker 2>&1 | tail -25) || echo "vitest run failed"; echo "---ledger tests---"; (npx vitest run sync-cloud/tests/ledger.test.ts 2>&1 | tail -25) || echo "ledger vitest failed"
 ```
+
+```text
+
+
 ⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
 
  FAIL  workers/session-duration-worker/src/session_duration_worker.test.ts [ workers/session-duration-worker/src/session_duration_worker.test.ts ]
@@ -14982,6 +21312,8 @@ Caused by: Error: Failed to load url cloudflare:workers (resolved id: cloudflare
       Tests  16 passed (16)
    Start at  12:51:42
    Duration  235ms (transform 43ms, setup 0ms, collect 44ms, tests 5ms, environment 0ms, prepare 32ms)
+
+
 ```
 </details></tool-use>
 
@@ -15001,7 +21333,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:51:51Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd /Users/sean/Source/SpecStory/specstory-sync && git stash && (npx vitest run workers/session-duration-worker 2>&1 | tail -8); echo "--- restoring ---"; git stash pop`</summary>
+**Command:**
+```bash
+cd /Users/sean/Source/SpecStory/specstory-sync && git stash && (npx vitest run workers/session-duration-worker 2>&1 | tail -8); echo "--- restoring ---"; git stash pop
 ```
+
+```text
 Saved working directory and index state WIP on dev: 53c75765 Merge pull request #106 from specstoryai/cloud-resume
 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
 
@@ -15033,6 +21370,7 @@ Untracked files:
 
 no changes added to commit (use "git add" and/or "git commit -a")
 Dropped refs/stash@{0} (4da13d22297bf43ab36100bd2ebd276bebbcd1d5)
+
 ```
 </details></tool-use>
 
@@ -15054,7 +21392,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:52:07Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `(npx vitest run sync-cloud 2>&1 | tail -20)`</summary>
+**Command:**
+```bash
+(npx vitest run sync-cloud 2>&1 | tail -20)
 ```
+
+```text
 npm warn exec The following package was not found and will be installed: vitest@4.1.10
 
  RUN  v4.1.10 /Users/sean/Source/SpecStory/getspecstory/specstory-cli
@@ -15064,6 +21407,8 @@ No test files found, exiting with code 1
 filter: sync-cloud
 include: **/*.{test,spec}.?(c|m)[jt]s?(x)
 exclude:  **/node_modules/**, **/.git/**
+
+
 ```
 </details></tool-use>
 
@@ -15071,8 +21416,13 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:52:12Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd /Users/sean/Source/SpecStory/specstory-sync && (npx vitest run 2>&1 | tail -30)`</summary>
+**Command:**
+```bash
+cd /Users/sean/Source/SpecStory/specstory-sync && (npx vitest run 2>&1 | tail -30)
 ```
-3| // Define a const object for the return status types
+
+```text
+      3| // Define a const object for the return status types
 
 Caused by: Error: Failed to load url cloudflare:workers (resolved id: cloudflare:workers) in /Users/sean/Source/SpecStory/specstory-sync/workers/session-duration-worker/src/session_duration_worker.ts. Does the file exist?
  ❯ loadAndTransform node_modules/vite/dist/node/chunks/config.js:26036:33
@@ -15101,6 +21451,8 @@ Caused by: Error: Failed to load url cloudflare:workers (resolved id: cloudflare
       Tests  2 failed | 390 passed (392)
    Start at  12:52:09
    Duration  2.74s (transform 2.18s, setup 0ms, collect 4.99s, tests 423ms, environment 6ms, prepare 5.05s)
+
+
 ```
 </details></tool-use>
 
@@ -15130,7 +21482,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:52:19Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "StartTime\|EndTime\|Exchange{" pkg/providers/codexcli/agent_session.go pkg/providers/droidcli/agent_session.go | grep -v _test | head -30`</summary>
+**Command:**
+```bash
+grep -n "StartTime\|EndTime\|Exchange{" pkg/providers/codexcli/agent_session.go pkg/providers/droidcli/agent_session.go | grep -v _test | head -30
 ```
+
+```text
 pkg/providers/codexcli/agent_session.go:231:				currentExchange = &Exchange{
 pkg/providers/codexcli/agent_session.go:232:					StartTime: timestamp,
 pkg/providers/codexcli/agent_session.go:256:					currentExchange = &Exchange{
@@ -15158,6 +21515,7 @@ pkg/providers/droidcli/agent_session.go:190:	if ex.StartTime == "" && len(ex.Mes
 pkg/providers/droidcli/agent_session.go:191:		ex.StartTime = ex.Messages[0].Timestamp
 pkg/providers/droidcli/agent_session.go:193:	if ex.EndTime == "" && len(ex.Messages) > 0 {
 pkg/providers/droidcli/agent_session.go:194:		ex.EndTime = ex.Messages[len(ex.Messages)-1].Timestamp
+
 ```
 </details></tool-use>
 
@@ -15191,7 +21549,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:52:26Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "getSessionIdsMissingTimestamps\|missing-timestamps\|missing_timestamps\|SESSION_DURATION_QUEUE\|session-duration" ../../specstory-sync/sync-cloud/worker/routers/ ../../specstory-sync/sync-cloud/worker/router.ts ../../specstory-sync/workers/session-duration-worker/src/index.ts 2>/dev/null | grep -v node_modules | head`</summary>
+**Command:**
+```bash
+grep -rn "getSessionIdsMissingTimestamps\|missing-timestamps\|missing_timestamps\|SESSION_DURATION_QUEUE\|session-duration" ../../specstory-sync/sync-cloud/worker/routers/ ../../specstory-sync/sync-cloud/worker/router.ts ../../specstory-sync/workers/session-duration-worker/src/index.ts 2>/dev/null | grep -v node_modules | head
 ```
+
+```text
 ../../specstory-sync/sync-cloud/worker/routers/api/worker_queue_router.ts:28:      "/api/worker-queue/session-duration/missing-timestamps",
 ../../specstory-sync/sync-cloud/worker/routers/api/worker_queue_router.ts:30:        return await env.MISSING_TIMESTAMPS_SESSION_PROCESSOR.getSessionIdsMissingTimestamps();
 ../../specstory-sync/workers/session-duration-worker/src/index.ts:9:  async getSessionIdsMissingTimestamps(): Promise<Response> {
@@ -15199,6 +21562,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:52:26Z)**_
 ../../specstory-sync/workers/session-duration-worker/src/index.ts:12:      return await sessionDurationWorker.getSessionIdsMissingTimestamps();
 ../../specstory-sync/workers/session-duration-worker/src/index.ts:18:export default withWorker<SessionMessage>("session-duration-worker", {
 ../../specstory-sync/workers/session-duration-worker/src/index.ts:52:      ctx.waitUntil(sessionDurationWorker.getSessionIdsMissingTimestamps());
+
 ```
 </details></tool-use>
 
@@ -15206,10 +21570,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:52:28Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/workers/session-duration-worker/src/index.ts`
-
+**Path:**
+```text
+../../specstory-sync/workers/session-duration-worker/src/index.ts
 ```
-// Self-healing sweep (0/30): re-enqueue any session still missing its
+
+**Offset (line):**
+```text
+40
+```
+
+**Limit:**
+```text
+15
+```
+
+```typescript
+  // Self-healing sweep (0/30): re-enqueue any session still missing its
   // started_at/ended_at, so a dropped enqueue or exhausted retry no longer
   // leaves duration/time-of-day analytics permanently short. The reconcile
   // query already backed the manual RPC endpoint; this puts it on a schedule
@@ -15247,8 +21624,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:52:38Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd /Users/sean/Source/SpecStory/specstory-sync/sync-cloud && /Users/sean/Source/SpecStory/specstory-sync/node_modules/.bin/tsc -b 2>&1 | head -20; echo "tsc exit=${PIPESTATUS[0]}"`</summary>
+**Command:**
+```bash
+cd /Users/sean/Source/SpecStory/specstory-sync/sync-cloud && /Users/sean/Source/SpecStory/specstory-sync/node_modules/.bin/tsc -b 2>&1 | head -20; echo "tsc exit=${PIPESTATUS[0]}"
 ```
+
+```text
 tsc exit=0
+
 ```
 </details></tool-use>
 
@@ -15315,8 +21698,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:55:20Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `python3 -c "import json; d=json.load(open('$HOME/.specstory/cli/auth.json')); print(d['cloud_access']['token'])" > /tmp/ss_access.txt 2>/dev/null && echo "token len=$(tr -d '\n' < /tmp/ss_access.txt | wc -c)"`</summary>
+**Command:**
+```bash
+python3 -c "import json; d=json.load(open('$HOME/.specstory/cli/auth.json')); print(d['cloud_access']['token'])" > /tmp/ss_access.txt 2>/dev/null && echo "token len=$(tr -d '\n' < /tmp/ss_access.txt | wc -c)"
 ```
+
+```text
 token len=     377
+
 ```
 </details></tool-use>
 
@@ -15324,6 +21713,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 16:55:25Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash**</summary>
+**Command:**
 ```bash
 TOKEN=$(tr -d '\n' < /tmp/ss_access.txt); curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:5173/api/v1/projects?resumable=true" -o /tmp/ss_projects2.json -w "HTTP %{http_code}\n"; python3 -c "
 import json
@@ -15351,7 +21741,7 @@ for p in projs:
 "
 ```
 
-```
+```text
 HTTP 200
 success: True | error: None
 project count: 2
@@ -15368,6 +21758,7 @@ project 659a-2513-7468-2047 name= cross-portable-1 sessions= 10
    Claude Code | ended= 2026-06-16T15:59:45.535+00:00 | started= 2026-06-16T15:41:58.446+00:00
    Codex CLI | ended= 2026-06-16T15:49:03.509+00:00 | started= 2026-06-16T15:48:29.567+00:00
   agents: {'Factory Droid CLI': 1, 'Cursor CLI': 2, 'Claude Code': 4, 'Codex CLI': 3} | null endedAt: 0 of 10
+
 ```
 </details></tool-use>
 
@@ -15426,7 +21817,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 19:47:34Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `git status && echo "--- diff stat ---" && git diff --stat`</summary>
+**Command:**
+```bash
+git status && echo "--- diff stat ---" && git diff --stat
 ```
+
+```text
 On branch cloud-resume
 Your branch is up to date with 'origin/cloud-resume'.
 
@@ -15463,6 +21859,7 @@ Untracked files:
  specstory-cli/pkg/cmd/session_tui_cloud_test.go    |  55 ++++-
  specstory-cli/pkg/sessionindex/store.go            |  33 +++
  9 files changed, 341 insertions(+), 69 deletions(-)
+
 ```
 </details></tool-use>
 
@@ -15476,7 +21873,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 19:47:36Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `git diff pkg/cmd/session_tui_cloud.go`</summary>
+**Command:**
+```bash
+git diff pkg/cmd/session_tui_cloud.go
 ```
+
+```text
 diff --git a/specstory-cli/pkg/cmd/session_tui_cloud.go b/specstory-cli/pkg/cmd/session_tui_cloud.go
 index adbd1a6..2f146cd 100644
 --- a/specstory-cli/pkg/cmd/session_tui_cloud.go
@@ -15585,8 +21987,8 @@ index adbd1a6..2f146cd 100644
  	if m.mode == modeProjects {
  		selID := ""
  		if m.projCursor >= 0 && m.projCursor < len(m.projFiltered) {
-@@ -636,21 +627,129 @@ func sessionUpdatedTim
-... (truncated)
+@@ -636,21 +627,129 @@ func sessionUpdatedTime(s se
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -15602,7 +22004,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 19:47:39Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `git diff pkg/cmd/session_tui_cloud_test.go pkg/cloud/resume_client.go pkg/sessionindex/store.go pkg/cmd/session_tui.go pkg/cmd/session_tui_browser.go docs/CLOUD-RESUME.md`</summary>
+**Command:**
+```bash
+git diff pkg/cmd/session_tui_cloud_test.go pkg/cloud/resume_client.go pkg/sessionindex/store.go pkg/cmd/session_tui.go pkg/cmd/session_tui_browser.go docs/CLOUD-RESUME.md
 ```
+
+```text
 diff --git a/specstory-cli/docs/CLOUD-RESUME.md b/specstory-cli/docs/CLOUD-RESUME.md
 index c858e0f..7894eb4 100644
 --- a/specstory-cli/docs/CLOUD-RESUME.md
@@ -15621,8 +22028,8 @@ index c858e0f..7894eb4 100644
 +3. **Shared projects (local + cloud) don't merge at the session level.** `mergeCloudProjects` is a pure "local wins, cloud-only appended" dedup keyed on `project_id` — for a project present in both stores, **all** its cloud sessions are discarded. If the cloud has sessions the local index doesn't (pruned locally, or never worked on this machine), they don't contribute to the chips or the total. The session **drill-in** view already merges correctly (`mergeCloudRows`, dedup by `(agent, session_id)`, local preferred, re-sort); the projects rollup does not.
 +
 +- **D23 — The all-projects rollup is computed client-side from per-session data, not a server rollup.** The CLI fetches the user's resumable cloud sessions **with their project attribution**, groups them by `project_id`, merges with the local per-project session-key set (dedup by `(agent, session_id)`, **local preferred** — identical rule to `mergeCloudRows`), and recomputes `AgentCounts` / `LastActivity` / `Sessions` from the union. This is the only option that fixes all three defects: cloud-only projects get real chips + a real date (from per-session `ended_at`), and shared projects reflect cloud-only sessions in their counts without double-counting overlaps. Chosen over a server-side per-agent rollup (which would fix the date and cloud-only chips but still leave shared projects' cloud-only sessions uncounted, because the client has no way to subtract local overlaps from a server count) and over a server rollup + fingerprint-set hybrid (a neither-fish-nor-fowl payload whose savings over the per-session shape are modest once the fingerprint tuples ride along). Machine provenance (`deviceId`/`machineName`) lands per session for free, matching D9 — not needed for v1's project row but available for a future machine badge/filter in this view.
-+- **D24 — `GET /api/v1/projects?resumable=true` embeds each project's resumable sessions.** Extends the existing projects endpoint with an opt-in `?resumable=true` param, **Pro-gated only w
-... (truncated)
++- **D24 — `GET /api/v1/projects?resumable=true` embeds each project's resumable sessions.** Extends the existing projects endpoint with an opt-in `?resumable=true` param, **Pro-gated only when the param is prese
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -15652,11 +22059,17 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 19:47:48Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && go build ./... 2>&1 | head; echo "build=${PIPESTATUS[0]}"; gofmt -l pkg/cmd/session_tui_cloud.go pkg/sessionindex/store.go pkg/cloud/resume_client.go pkg/cmd/session_tui.go pkg/cmd/session_tui_browser.go pkg/cmd/session_tui_cloud_test.go; echo "gofmt-check-done"; golangci-lint run 2>&1 | tail -10; echo "lint=${PIPESTATUS[0]}"`</summary>
+**Command:**
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && go build ./... 2>&1 | head; echo "build=${PIPESTATUS[0]}"; gofmt -l pkg/cmd/session_tui_cloud.go pkg/sessionindex/store.go pkg/cloud/resume_client.go pkg/cmd/session_tui.go pkg/cmd/session_tui_browser.go pkg/cmd/session_tui_cloud_test.go; echo "gofmt-check-done"; golangci-lint run 2>&1 | tail -10; echo "lint=${PIPESTATUS[0]}"
 ```
+
+```text
 build=0
 gofmt-check-done
 0 issues.
 lint=0
+
 ```
 </details></tool-use>
 
@@ -15664,7 +22077,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 19:47:51Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && go test -v -run "TestMergeCloudProjects|TestLaterRFC3339|TestProjectActivityTime" ./pkg/cmd 2>&1 | tail -30; echo "exit=${PIPESTATUS[0]}"`</summary>
+**Command:**
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && go test -v -run "TestMergeCloudProjects|TestLaterRFC3339|TestProjectActivityTime" ./pkg/cmd 2>&1 | tail -30; echo "exit=${PIPESTATUS[0]}"
 ```
+
+```text
 === RUN   TestMergeCloudProjects
 --- PASS: TestMergeCloudProjects (0.00s)
 === RUN   TestMergeCloudProjects_NilLocalKeys
@@ -15688,6 +22106,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 19:47:51Z)**_
 PASS
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.028s
 exit=0
+
 ```
 </details></tool-use>
 
@@ -15695,12 +22114,18 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-13 19:47:54Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && go test ./... 2>&1 | tail -4; echo "exit=${PIPESTATUS[0]}"`</summary>
+**Command:**
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && go test ./... 2>&1 | tail -4; echo "exit=${PIPESTATUS[0]}"
 ```
+
+```text
 ?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory	[no test files]
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	(cached)
 exit=0
+
 ```
 </details></tool-use>
 

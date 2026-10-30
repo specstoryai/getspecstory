@@ -198,7 +198,7 @@ _**Agent (claude-opus-5 2026-08-10 15:43:48Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/Source/SpecStory/getspecstory/specstory-mac/README.md`
 
-```text
+````text
 1	# SpecStory for Mac
 2	
 3	Always-on menu bar app with a polished desktop window for your AI coding sessions. It vendors the `specstory` CLI, watches every supported agent (Claude Code, Codex, Cursor, Cursor CLI, Gemini, Antigravity, DeepSeek, Droid), notifies you when a new session starts, syncs with SpecStory Cloud, and answers questions about your whole coding history with resume-into-session one click away.
@@ -251,7 +251,7 @@ _**Agent (claude-opus-5 2026-08-10 15:43:48Z)**_
 50	- Watch children run `watch --json` per project (never `--silent`, which suppresses the JSON events). Stale children from crashed runs are reaped at startup by bundle path.
 51	- `specstory reindex` rebuilds the session index from scratch, so the app only runs it when the index is missing or a day stale.
 52
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-10 15:43:49Z)**_

@@ -3,9 +3,13 @@ package testutil
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // EqualPaths reports whether two filesystem paths refer to the same location
@@ -42,4 +46,46 @@ func SetHome(t testing.TB, dir string) {
 	t.Helper()
 	t.Setenv("HOME", dir)
 	t.Setenv("USERPROFILE", dir)
+}
+
+// IsolateDebugDir redirects debug exports to a temporary directory for this
+// test. The SPI override is global, so callers must not run in parallel.
+func IsolateDebugDir(t testing.TB) string {
+	t.Helper()
+	dir := t.TempDir()
+	spi.SetDebugBaseDir(dir)
+	t.Cleanup(func() { spi.SetDebugBaseDir("") })
+	return dir
+}
+
+// AssertDebugRefresh checks that a refresh removes existing provider-owned
+// files and preserves unrelated files, including CLI-owned session-data.json.
+func AssertDebugRefresh(t testing.TB, dir string, staleNames, keepNames []string, refresh func()) {
+	t.Helper()
+	for _, name := range staleNames {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Fatalf("stale-file precondition %s: %v", name, err)
+		}
+	}
+	for _, name := range keepNames {
+		path := filepath.Join(dir, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("preserve:"+name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	refresh()
+	for _, name := range staleNames {
+		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Errorf("stale file %s survived: %v", name, err)
+		}
+	}
+	for _, name := range keepNames {
+		data, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil || string(data) != "preserve:"+name {
+			t.Errorf("unowned file %s changed: %q (%v)", name, data, err)
+		}
+	}
 }

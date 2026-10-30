@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -106,7 +105,7 @@ func TestWatcherPrunesOldFilesAndReadoptsResumedSessions(t *testing.T) {
 	home := withFakeHome(t)
 	project := t.TempDir()
 	path := seedFakeSession(t, home, project, "session-basic.jsonl", "11111111-2222-3333-4444-555555555555")
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +121,8 @@ func TestWatcherPrunesOldFilesAndReadoptsResumedSessions(t *testing.T) {
 			case <-ctx.Done():
 				return
 			case <-watcher.Events:
-			case <-watcher.Errors:
+			case err := <-watcher.Errors:
+				t.Logf("fsnotify error: %v", err)
 			}
 		}
 	}()

@@ -1454,7 +1454,7 @@ Read antigravitycli helpers
 
 `sed -n '725,900p' pkg/providers/antigravitycli/markdown_tools.go`
 
-```text
+````text
 		return renderGenericJSON(args)
 	}
 	return out
@@ -1609,7 +1609,7 @@ func normalizeToolName(name string) string {
 	cleaned = strings.ReplaceAll(cleaned, "_", "")
 	return cleaned
 }
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-5 2026-08-13 13:45:48Z)**_
@@ -1620,7 +1620,7 @@ Read geminicli and cursorcli lang/todo helpers
 
 `sed -n '255,290p;330,365p' pkg/providers/geminicli/markdown_tools.go; echo "=== CURSORCLI 20-60"; sed -n '20,60p' pkg/providers/cursorcli/markdown_tools.go`
 
-```text
+````text
 	var builder strings.Builder
 	builder.WriteString("Todo List:\n")
 	for _, raw := range todos {
@@ -1728,7 +1728,7 @@ func truncate(text string, limit int) string {
 func formatWriteTool(args map[string]interface{}) string {
 	// Extract file path and contents
 	filePath, _ := args["path"].(string)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-5 2026-08-13 13:45:53Z)**_
@@ -3664,7 +3664,7 @@ Read gemini inputAsString and session renderGenericTool
 
 `echo "### gemini inputAsString 275,325"; sed -n '275,325p' pkg/providers/geminicli/markdown_tools.go; echo "### session/markdown renderGenericTool 275,325"; sed -n '275,325p' pkg/session/markdown.go`
 
-```text
+````text
 ### gemini inputAsString 275,325
 	}
 }
@@ -3769,7 +3769,7 @@ func renderGenericTool(tool *ToolInfo) string {
 // shouldAddSeparator determines if a separator should be added between messages
 func shouldAddSeparator(currentRole, prevRole string, newExchange bool) bool {
 	// Never before the very first rendered message
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-08-13 13:46:49Z)**_
@@ -3818,7 +3818,7 @@ Find diff-fence formatting sites
 
 `grep -rn --include="*.go" -E '"diff"|```diff|CodeFence\("diff' pkg | grep -v "\.specstory/" | grep -v _test`
 
-```text
+````text
 pkg/providers/codexcli/markdown_tools.go:129:		result.WriteString(spi.CodeFence("diff", strings.TrimRight(patchContent.String(), "\n")))
 pkg/providers/geminicli/markdown_tools.go:225:		builder.WriteString("```diff\n")
 pkg/providers/droidcli/markdown_tools.go:131:	return spi.CodeFence("diff", strings.TrimRight(builder.String(), "\n"))
@@ -3833,7 +3833,7 @@ pkg/providers/antigravitycli/markdown_tools.go:169:	return "Output:\n" + codeFen
 pkg/providers/antigravitycli/markdown_tools.go:746:	return codeFence("diff", strings.TrimSuffix(b.String(), "\n"))
 pkg/providers/cursorcli/markdown_tools.go:103:		result.WriteString(spi.CodeFence("diff", strings.TrimRight(diff.String(), "\n")))
 pkg/spi/fence.go:20:// lang is an optional info string (e.g. "bash", "diff"); pass "" for none.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-5 2026-08-13 13:46:51Z)**_
@@ -3862,7 +3862,7 @@ _**Agent (claude-fable-5 2026-08-13 13:46:56Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/antigravitycli/markdown_tools.go`
 
-```text
+````text
 750	// one backtick longer than the longest backtick run inside body (never fewer
 751	// than the standard three), because a backslash cannot escape a backtick inside
 752	// a fence — lengthening the fence is the only way to keep an embedded ```
@@ -3878,7 +3878,7 @@ _**Agent (claude-fable-5 2026-08-13 13:46:56Z)**_
 762			run++
 763			if run > longest {
 764				longest = run
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-5 2026-08-13 13:46:58Z)**_
@@ -4332,7 +4332,7 @@ _**Agent (claude-fable-5 2026-08-13 13:47:20Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/spi/fence.go`
 
-```text
+````text
 1	package spi
 2	
 3	import (
@@ -4399,7 +4399,7 @@ _**Agent (claude-fable-5 2026-08-13 13:47:20Z)**_
 64		return s // more bytes than max but fewer runes (multi-byte characters)
 65	}
 66
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-5 2026-08-13 13:47:25Z)**_
@@ -4410,7 +4410,7 @@ Read spi CodeFence and claudecode path canonicalization
 
 `echo "### spi/fence.go 1,55"; sed -n '1,55p' pkg/spi/fence.go; echo "### claudecode/path_utils.go 35,110"; sed -n '35,110p' pkg/providers/claudecode/path_utils.go`
 
-```text
+````text
 ### spi/fence.go 1,55
 package spi
 
@@ -4543,7 +4543,7 @@ func GetClaudeCodeProjectDir(projectPath string) (string, error) {
 			"original", cwd,
 			"resolved", realPath)
 	}
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-5 2026-08-13 13:47:27Z)**_
@@ -4629,7 +4629,7 @@ List docs directory and sample existing doc style
 
 `ls docs/ 2>/dev/null | head -30; echo ---; head -30 docs/*.md 2>/dev/null | head -40`
 
-```text
+````text
 AGENT-PLUGIN-FEASIBILITY.md
 AI-PROVENANCE.md
 ANTIGRAVITY-FORMAT.md
@@ -4698,7 +4698,7 @@ npm has no way to say "download only my platform's binary" *without running inst
 The provenance system determines **which file changes were caused by which AI agent interactions**. It does this by:
 
 1. **Receiving file events** — consumers push filesystem changes (create, modify, delete, rename)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-5 2026-08-13 13:47:36Z)**_
@@ -4781,7 +4781,7 @@ Read SPI doc intro and count helper call sites
 
 `head -60 docs/PROVIDER-SPI.md; echo '---CALLSITES---'; for fn in stringValue renderJSONValue normalizeToolName todoSymbol languageFromPath formatDiffBlock renderGenericJSON canonicalizePath dispatchSession classifyCheckError trackCheckSuccess trackCheckFailure; do printf '%s: ' $fn; grep -rn --include='*.go' "\b$fn(" pkg/providers/ | grep -v "func $fn" | grep -v _test.go | grep -v .specstory | wc -l; done`
 
-```text
+````text
 # SpecStory CLI's Agent SPI
 
 The SpecStory CLI's Agent SPI (Service Provider Interface) allows developers to extend the SpecStory CLI by implementing support for new AI coding agents.
@@ -4855,7 +4855,7 @@ dispatchSession:        5
 classifyCheckError:        5
 trackCheckSuccess:        3
 trackCheckFailure:        6
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-5 2026-08-13 13:47:42Z)**_
@@ -5745,7 +5745,7 @@ Find all call sites of renderJSONValue, renderGenericJSON, codeFence
 
 `grep -rn 'renderJSONValue\|renderGenericJSON\|codeFence(' --include='*.go' pkg/providers/ | grep -v .specstory`
 
-```text
+````text
 pkg/providers/droidcli/markdown_tools.go:63:		return renderGenericJSON(args)
 pkg/providers/droidcli/markdown_tools.go:177:// Falls back to renderGenericJSON if no fields are found.
 pkg/providers/droidcli/markdown_tools.go:194:		return renderGenericJSON(args)
@@ -5810,7 +5810,7 @@ pkg/providers/antigravitycli/markdown_tools_test.go:148:	if got := renderGeneric
 pkg/providers/antigravitycli/markdown_tools_test.go:151:	got := renderGenericJSON(map[string]any{"toolAction": "x", "Real": "keep"})
 pkg/providers/antigravitycli/markdown_tools_test.go:204:	got := codeFence("markdown", "# Doc\n```go\nx := 1\n```")
 pkg/providers/antigravitycli/markdown_tools_test.go:213:	if got := codeFence("diff", "-a\n+b"); !strings.HasPrefix(got, "```diff\n") || !strings.HasSuffix(got, "\n```") {
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-13 16:47:47Z)**_
@@ -6155,7 +6155,7 @@ _**Agent (claude-opus-5 2026-08-13 16:48:06Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/antigravitycli/markdown_tools.go`
 
-```text
+````text
 725			return renderGenericJSON(args)
 726		}
 727		return out
@@ -6311,7 +6311,7 @@ _**Agent (claude-opus-5 2026-08-13 16:48:06Z)**_
 877		return cleaned
 878	}
 879
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-13 16:48:10Z)**_
@@ -7184,7 +7184,7 @@ _**Agent (claude-opus-5 2026-08-13 16:50:56Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/antigravitycli/markdown_tools_test.go`
 
-```text
+`````text
 140		if got := formatToolInput(&ToolInfo{Name: "list_permissions", Input: map[string]any{"toolAction": "x", "toolSummary": "y"}}); got != "" {
 141			t.Errorf("list_permissions input should be empty, got %q", got)
 142		}
@@ -7265,7 +7265,7 @@ _**Agent (claude-opus-5 2026-08-13 16:50:56Z)**_
 217	
 218	func TestFormatSubagentOutputs(t *testing.T) {
 219		// invoke_subagent: summarize to the conversation id, drop log URI / workspace.
-```
+`````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-13 16:51:00Z)**_
@@ -8766,7 +8766,7 @@ Verify test file rewrite and unused imports
 
 `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; grep -n 'renderGenericJSON\|codeFence\|spi\.CodeFence\|spi\.RenderGenericJSON' pkg/providers/antigravitycli/markdown_tools_test.go; echo "--- filepath/strconv/os usage ---"; grep -c 'filepath\.' pkg/providers/antigravitycli/markdown_tools.go; grep -c 'strconv\.' pkg/providers/antigravitycli/markdown_tools.go; grep -c 'os\.' pkg/providers/antigravitycli/provider.go`
 
-```text
+````text
 148:	if got := spi.RenderGenericJSON(map[string]any{"toolAction": "x", "toolSummary": "y"}); got != "" {
 151:	got := spi.RenderGenericJSON(map[string]any{"toolAction": "x", "Real": "keep"})
 204:	got := spi.CodeFence("markdown", "# Doc\n```go\nx := 1\n```")
@@ -8775,7 +8775,7 @@ Verify test file rewrite and unused imports
 0
 0
 0
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-13 16:55:50Z)**_
@@ -8784,7 +8784,7 @@ _**Agent (claude-opus-5 2026-08-13 16:55:50Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/spi/fence_test.go`
 
-```text
+``````text
 1	package spi
 2	
 3	import (
@@ -8839,7 +8839,7 @@ _**Agent (claude-opus-5 2026-08-13 16:55:50Z)**_
 52		}
 53	}
 54
-```
+``````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-13 16:55:55Z)**_
@@ -9379,7 +9379,7 @@ _**Agent (claude-opus-5 2026-08-13 16:58:04Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/PROVIDER-REFACTOR.md`
 
-```text
+````text
 96	
 97	Every item here consolidates byte-identical (or label-only-different) code. Rendered markdown and emitted analytics are unchanged.
 98	
@@ -9455,7 +9455,7 @@ _**Agent (claude-opus-5 2026-08-13 16:58:04Z)**_
 168	4. If Phase 3 item 1 is taken: empty-extension fallback `""` vs `"text"`.
 169	5. If Phase 3 item 4 is taken: sign-off on the PostHog property-schema change and the `docs/POSTHOG.md` update.
 170
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-13 16:58:06Z)**_
@@ -9693,7 +9693,7 @@ _**Agent (claude-opus-5 2026-08-14 01:01:37Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/geminicli/markdown_tools.go`
 
-```text
+````text
 196			return ""
 197		}
 198	
@@ -9714,7 +9714,7 @@ _**Agent (claude-opus-5 2026-08-14 01:01:37Z)**_
 213	func formatReplaceBodyFromInput(input map[string]interface{}) string {
 214		path := inputAsString(input, "file_path")
 215		newString := inputAsString(input, "new_string")
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-14 01:01:39Z)**_
@@ -12484,7 +12484,7 @@ cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; git status --short |
 grep -n 'languageFromPath\|todoStatusSymbol\|classifyMuseCheckError\|canonicalPath\|formatGenericBodyFromInput\|inputAsString\|truncate(\|diffFromFindReplace\|```text' pkg/providers/musecode/*_test.go
 ````
 
-```text
+``````text
 ?? ../specstory-mac/
 === muse tests touching the candidates ===
 pkg/providers/musecode/markdown_tools_test.go:85:	if !strings.Contains(markdown, "```text\n42\n```") {
@@ -12495,7 +12495,7 @@ pkg/providers/musecode/markdown_tools_test.go:350:			if got := inputAsString(tt.
 pkg/providers/musecode/markdown_tools_test.go:351:				t.Errorf("inputAsString() = %q, want %q", got, tt.expected)
 pkg/providers/musecode/markdown_tools_test.go:370:			if got := languageFromPath(tt.path); got != tt.expected {
 pkg/providers/musecode/markdown_tools_test.go:371:				t.Errorf("languageFromPath(%q) = %q, want %q", tt.path, got, tt.expected)
-```
+``````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-14 14:32:49Z)**_
@@ -12998,7 +12998,7 @@ python3 $D pkg/providers/musecode/markdown_tools_test.go 'TestLanguageFromPath'
 echo "=== tests asserting language-tagged fences ==="; grep -n '```py\|```go\|```js\|```md\|```yaml\|```yml\|```python\|write_file' pkg/providers/musecode/*_test.go | head -20
 ````
 
-```text
+`````text
   removed TestLanguageFromPath from pkg/providers/musecode/markdown_tools_test.go
 === tests asserting language-tagged fences ===
 pkg/providers/musecode/agent_session_test.go:272:		{toolName: "write_file", expected: schema.ToolTypeWrite},
@@ -13009,7 +13009,7 @@ pkg/providers/musecode/markdown_tools_test.go:256:				Output: map[string]any{"ou
 pkg/providers/musecode/markdown_tools_test.go:261:			name: "write_file content with a fence",
 pkg/providers/musecode/markdown_tools_test.go:263:				Name: "write_file",
 pkg/providers/musecode/markdown_tools_test.go:269:			expect: "````md\n",
-```
+`````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-14 14:45:15Z)**_
@@ -13018,7 +13018,7 @@ _**Agent (claude-opus-5 2026-08-14 14:45:15Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/musecode/markdown_tools_test.go`
 
-```text
+``````text
 240		}
 241	}
 242	
@@ -13064,7 +13064,7 @@ _**Agent (claude-opus-5 2026-08-14 14:45:15Z)**_
 282			t.Run(tt.name, func(t *testing.T) {
 283				markdown, _ := toolMarkdown(tt.tool)
 284				if !strings.Contains(markdown, tt.expect) {
-```
+``````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-14 14:45:19Z)**_
@@ -14610,7 +14610,7 @@ echo "=== qwen tests referencing language/fence tags ==="; grep -n 'languageFrom
 echo; echo "=== qwen tests referencing check classification ==="; grep -n 'classifyQwen\|version_failed\|not_found\|permission_denied' pkg/providers/qwencode/provider_test.go | head
 ````
 
-```text
+````text
 === qwen tests referencing language/fence tags ===
 10:		Name:   "read_file",
 19:		t.Errorf("read_file summary missing path: %v", tool.Summary)
@@ -14620,7 +14620,7 @@ echo; echo "=== qwen tests referencing check classification ==="; grep -n 'class
 103:		Name:  "read_file",
 
 === qwen tests referencing check classification ===
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-14 15:08:47Z)**_
@@ -14675,7 +14675,7 @@ EOF
 go test ./pkg/providers/qwencode/ -run 'TestZZ' -v 2>&1 | grep -E 'OK|contained|PASS|FAIL|Error'; rm pkg/providers/qwencode/zz_verify_test.go
 ````
 
-```text
+````text
     zz_verify_test.go:25: README.md      -> "```markdown" OK
     zz_verify_test.go:25: src/calc.py    -> "```python" OK
     zz_verify_test.go:25: Makefile       -> "```" OK
@@ -14683,7 +14683,7 @@ go test ./pkg/providers/qwencode/ -run 'TestZZ' -v 2>&1 | grep -E 'OK|contained|
     zz_verify_test.go:38: panic contained
 --- PASS: TestZZRecoverWiring (0.00s)
 PASS
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-14 15:09:07Z)**_
@@ -15241,7 +15241,7 @@ echo "=== hardcoded fences in geminicli ==="; grep -n '```' pkg/providers/gemini
 echo; echo "=== spi.CodeFence already used ==="; grep -c 'spi.CodeFence' pkg/providers/geminicli/markdown_tools.go
 ````
 
-```text
+````text
 === hardcoded fences in geminicli ===
 pkg/providers/geminicli/markdown_tools.go:156:		return fmt.Sprintf("```text\n%s\n```", output)
 pkg/providers/geminicli/markdown_tools.go:183:		builder.WriteString("```bash\n")
@@ -15254,7 +15254,7 @@ pkg/providers/geminicli/markdown_tools.go:285:	return fmt.Sprintf("```json\n%s\n
 
 === spi.CodeFence already used ===
 1
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-14 15:15:22Z)**_
@@ -15292,7 +15292,7 @@ _**Agent (claude-opus-5 2026-08-14 15:15:29Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/geminicli/markdown_tools.go`
 
-```text
+````text
 145	
 146		// Wrap multi-line output in code fence
 147		formatted := formatOutputText(content)
@@ -15438,7 +15438,7 @@ _**Agent (claude-opus-5 2026-08-14 15:15:29Z)**_
 287	
 288	// inputAsString extracts a string value from tool input
 289	func inputAsString(input map[string]interface{}, key string) string {
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-14 15:15:37Z)**_
@@ -17057,7 +17057,7 @@ echo "=== grok tests asserting language tags ==="; grep -n '```py\|```md\|```tex
 echo; echo "=== existing watcher_test.go tests ==="; grep -n '^func Test' pkg/providers/grokbuild/watcher_test.go
 ````
 
-```text
+````text
 === grok tests asserting language tags ===
 21:	if !strings.Contains(md, "```go\npackage main") {
 45:	if !strings.Contains(md, "Result:\n```text\n2 passed") {
@@ -17072,7 +17072,7 @@ echo; echo "=== existing watcher_test.go tests ==="; grep -n '^func Test' pkg/pr
 144:func TestProcessSessionChange_IgnoresEmptyTranscript(t *testing.T) {
 159:func TestSessionDirFor(t *testing.T) {
 188:func TestIsTranscriptChange(t *testing.T) {
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-14 15:35:38Z)**_
@@ -17118,13 +17118,13 @@ EOF
 go test ./pkg/providers/grokbuild/ -run TestZZLanguageWiring -v 2>&1 | grep -E 'OK|PASS|FAIL|want'; rm pkg/providers/grokbuild/zz_verify_test.go
 ````
 
-```text
+````text
     zz_verify_test.go:23: README.md      -> "```markdown" OK
     zz_verify_test.go:23: src/calc.py    -> "```python" OK
     zz_verify_test.go:23: Makefile       -> "```" OK
 --- PASS: TestZZLanguageWiring (0.00s)
 PASS
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-14 15:35:49Z)**_
@@ -17542,7 +17542,7 @@ echo; echo "=== §9 closing line (auto-merged) ==="; grep -n 'provider packages 
 echo; echo "=== all section headers ==="; grep -n '^## ' docs/PROVIDER-REFACTOR.md
 ```
 
-```text
+````text
 === conflict region line numbers ===
 242:<<<<<<< HEAD
 267:=======
@@ -17565,7 +17565,7 @@ echo; echo "=== all section headers ==="; grep -n '^## ' docs/PROVIDER-REFACTOR.
 206:## 9. What actually landed (Phase 3, items 1 and 3)
 243:## 10. Follow-on: bringing `musecode` in line
 268:## 10. geminicli: fence bug and missing panic recovery
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-14 15:49:47Z)**_
@@ -17585,7 +17585,7 @@ echo "-- HEAD:"; git show HEAD:./docs/PROVIDER-REFACTOR.md | sed -n '44p' | cut 
 echo "-- dev:"; git show dev:./docs/PROVIDER-REFACTOR.md | sed -n '44p' | cut -c1-120
 ```
 
-```text
+````text
 === §9 opening line, as auto-merged (line 208) ===
 Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. Every provider package now shares one language map and one check-error classifier — ten at the time of this phase, plus `musecode` (§10).
 
@@ -17600,7 +17600,7 @@ Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golan
 2. **geminicli hardcoded fences** (`pkg/providers/geminicli/markdown_tools.go:225` and `:278`): emits literal ` ```diff 
 -- dev:
 2. **geminicli hardcoded fences** (`pkg/providers/geminicli/markdown_tools.go:225` and `:278`): emits literal ` ```diff
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-14 15:50:10Z)**_
@@ -17616,7 +17616,7 @@ echo "=== dev block closing claim ==="; grep -n 'no provider is known to deliver
 echo "=== other §-references anywhere in the file ==="; grep -n '§10\|§11' docs/PROVIDER-REFACTOR.md
 ```
 
-```text
+````text
 === stale claim inside the HEAD/muse block ===
 263:- **`triggerCallback` had no panic recovery** (`watcher.go`). A panic in the consumer's callback would unwind the fsnotify event goroutine and take the process down over one bad session. Delivery stays synchronous — ordering matters and `spi.DispatchSession` would have made it async — so the fix is a local `defer recover()`, locked in by `TestTriggerCallback_ContainsConsumerPanic`. **geminicli still has this gap**, with the same singleton-watcher shape; it is not muse-specific and remains open.
 === dev block closing claim ===
@@ -17624,7 +17624,7 @@ echo "=== other §-references anywhere in the file ==="; grep -n '§10\|§11' do
 === other §-references anywhere in the file ===
 44:2. **geminicli hardcoded fences** (`pkg/providers/geminicli/markdown_tools.go:225` and `:278`): emits literal ` ```diff ` / ` ```json ` instead of `spi.CodeFence`, so content containing a triple-backtick run breaks out of the fence and swallows the rest of the document. Every other provider uses `spi.CodeFence` for exactly this reason. **(Fixed — see §10. The real count was five sites, not the two recorded here.)**
 208:Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. Every provider package now shares one language map and one check-error classifier — ten at the time of this phase, plus `musecode` (§10).
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-14 15:50:35Z)**_
@@ -17692,7 +17692,7 @@ _**Agent (claude-opus-5 2026-08-14 15:52:19Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/PROVIDER-REFACTOR.md`
 
-```text
+`````text
 236	### The one thing that made item 3 risky
 237	
 238	`codexcli` was using the classifier's return value as **control flow**, not just telemetry. `codex_cli_exec.go` tries `--version` then `-V`, and `if classifyCheckError(err) != "unknown" || idx == len(flags)-1` decides whether to stop or try the next flag — an unclassified failure being the only kind another flag might fix. Renaming the residual bucket would have silently collapsed that retry to a single attempt. The literal is now `spi.CheckErrorUnknown`, so the coupling is explicit and a future rename moves both sides together.
@@ -17729,7 +17729,7 @@ _**Agent (claude-opus-5 2026-08-14 15:52:19Z)**_
 269	
 270	Two loose ends are now closed: the hardcoded fences from §2.2, and a missing panic recovery in the watcher's session delivery — the latter found while reviewing a new provider against this refactor on another branch, not by the original sweep.
 271
-```
+`````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-14 15:52:43Z)**_
@@ -17799,7 +17799,7 @@ echo "=== section headers ==="; grep -n '^## ' docs/PROVIDER-REFACTOR.md
 echo "=== all § cross-references ==="; grep -n '§10\|§11' docs/PROVIDER-REFACTOR.md | cut -c1-160
 ```
 
-```text
+````text
 resolved
 === markers remaining ===
 0
@@ -17820,7 +17820,7 @@ resolved
 44:2. **geminicli hardcoded fences** (`pkg/providers/geminicli/markdown_tools.go:225` and `:278`): emits literal ` ```diff ` / ` ```json ` instead of `spi.CodeF
 208:Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. Every provider package now shares on
 294:- **`triggerCallback` had no panic recovery** (`watcher.go`). A panic in the consumer's callback would unwind the fsnotify event goroutine and take the proc
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-08-14 15:52:59Z)**_

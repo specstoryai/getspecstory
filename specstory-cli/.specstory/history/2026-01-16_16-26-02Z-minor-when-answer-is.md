@@ -464,7 +464,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 16:26:08Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/claudecode/agent_session.go`
 
-```text
+````text
    500→	} else {
    501→		// Use default formatter
    502→		toolContent = formatDefaultTool(tool.Name, tool.Input, description)
@@ -514,7 +514,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 16:26:08Z)**_
    546→	return markdown.String()
    547→}
    548→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-16 16:26:08Z)**_
@@ -523,7 +523,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 16:26:08Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/claudecode/markdown_tools.go`
 
-```text
+````text
      1→package claudecode
      2→
      3→import (
@@ -982,7 +982,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 16:26:08Z)**_
    456→	return strings.TrimRight(result, " \t\n")
    457→}
    458→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-16 16:26:08Z)**_
@@ -991,7 +991,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 16:26:08Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/claudecode/markdown_tools_test.go`
 
-```text
+````text
      1→package claudecode
      2→
      3→import (
@@ -1502,7 +1502,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 16:26:08Z)**_
    514→	}
    515→}
    516→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-16 16:26:59Z)**_
@@ -3281,7 +3281,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 16:39:04Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/claudecode/agent_session.go`
 
-```text
+````text
    470→	for _, item := range slice {
    471→		if item == value {
    472→			return true
@@ -3366,7 +3366,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 16:39:04Z)**_
    551→	return markdown.String()
    552→}
    553→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-16 16:39:07Z)**_
@@ -3418,7 +3418,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 16:39:16Z)**_
 <summary>Tool use: **Grep**</summary>
  path `./` pattern `type ToolInfo struct`
 
-```text
+````text
 pkg/spi/schema/types.go:77:type ToolInfo struct {
 pkg/spi/schema/types.go-78-	Name string `json:"name"` // Name of the tool
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/spi/schema/types.go-79-
@@ -3442,7 +3442,7 @@ docs/SPI-SESSION-DATA-SCHEMA.md-141-    FormattedMarkdown *string               
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/SPI-SESSION-DATA-SCHEMA.md-142-}
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/SPI-SESSION-DATA-SCHEMA.md-143-```
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/SPI-SESSION-DATA-SCHEMA.md-144-
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-16 16:39:20Z)**_
@@ -3678,7 +3678,7 @@ Run inverted tests to verify they fail
 
 `go test -v -run "TestFormatToolAsMarkdown_AskUserQuestion" ./pkg/providers/claudecode/`
 
-```text
+````text
 Exit code 1
 === RUN   TestFormatToolAsMarkdown_AskUserQuestion
 === RUN   TestFormatToolAsMarkdown_AskUserQuestion/Parseable_answer_formats_nicely
@@ -3711,7 +3711,7 @@ Exit code 1
 FAIL
 FAIL	github.com/specstoryai/SpecStoryCLI/pkg/providers/claudecode	0.230s
 FAIL
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-16 16:40:14Z)**_

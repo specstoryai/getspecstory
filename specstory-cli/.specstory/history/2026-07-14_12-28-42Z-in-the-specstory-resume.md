@@ -32,7 +32,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 12:31:35Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `rg -l "resume|search" --glob '*.go' | head -50`</summary>
+**Command:**
+```bash
+rg -l "resume|search" --glob '*.go' | head -50
 ```
+
+```text
 main.go
 pkg/analytics/events.go
 pkg/spi/reconstruct.go
@@ -83,6 +88,7 @@ pkg/providers/geminicli/agent_session_test.go
 pkg/providers/droidcli/markdown_tools_test.go
 pkg/cmd/search.go
 pkg/cmd/reindex.go
+
 ```
 </details></tool-use>
 
@@ -90,7 +96,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 12:31:36Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `ls pkg/cmd/ | rg -i 'tui|resume|search|view'`</summary>
+**Command:**
+```bash
+ls pkg/cmd/ | rg -i 'tui|resume|search|view'
 ```
+
+```text
 resume_test.go
 resume.go
 search.go
@@ -100,6 +111,7 @@ session_tui_cloud.go
 session_tui_search.go
 session_tui_view.go
 session_tui.go
+
 ```
 </details></tool-use>
 
@@ -107,9 +119,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 12:31:37Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_browser.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_browser.go
 ```
+
+```go
 package cmd
 
 import (
@@ -248,8 +263,8 @@ func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, p
 	})
 	p := tea.NewProgram(model)
 	cancelWarm := startIndexWarm(p, projectID, builtFresh)
-	final,
-... (truncated)
+	final, err :
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -263,9 +278,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 12:31:38Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_view.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_view.go
 ```
+
+```go
 package cmd
 
 import (
@@ -407,8 +425,9 @@ func (m sessionTUI) renderRows() string {
 	h := m.listHeight()
 	end := min(m.top+h, len(m.filtered))
 	var b strings.Builder
-	for i := m.top
-... (truncated)
+	for i := m.top; i < end; i++ {
+
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -422,9 +441,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 12:31:39Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui.go
 ```
+
+```go
 package cmd
 
 import (
@@ -534,8 +556,8 @@ type sessionTUI struct {
 	projTop          int
 	projectsLoaded   bool
 	startedInBrowser bool // launched straight into the browser (empty home project)
-	startedInSearch  bool // launched straight into the al
-... (truncated)
+	startedInSearch  bool // launched straight into the all-pr
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -612,10 +634,114 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 12:31:48Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui_browser.go`
+**Path:**
+```text
+pkg/cmd/session_tui_browser.go
+```
+
+**Edit 1:**
+```diff
+-	case "enter":
+-		if m.projCursor >= 0 && m.projCursor < len(m.projFiltered) {
+-			m.drillInto(m.projFiltered[m.projCursor])
+-			return m, m.cloudFetchForActiveCmd()
+-		}
++	// Space is silently aliased to enter so either key opens a project (the hint only
++	// advertises ↵, matching the session list's space-for-preview convention).
++	case "enter", " ", "space":
++		if m.projCursor >= 0 && m.projCursor < len(m.projFiltered) {
++			m.drillInto(m.projFiltered[m.projCursor])
++			return m, m.cloudFetchForActiveCmd()
++		}
+```
+
+**Edit 2:**
+```diff
+-	case " ", "space":
+-		if sel := m.globalSelected(); sel != nil {
+-			return m.openPreview(sel)
+-		}
++	// Enter is silently aliased to space so either key previews a hit (the hint only
++	// advertises space). Mirrors the session list's preview binding.
++	case " ", "space", "enter":
++		if sel := m.globalSelected(); sel != nil {
++			return m.openPreview(sel)
++		}
+```
+
+```text
+Successfully replaced 2 block(s) in pkg/cmd/session_tui_browser.go.
+```
+
+**diff:**
+```diff
+     ...
+ 294 		m.projCursor, m.projTop = 0, 0
+ 295 	case "end", "G":
+ 296 		m.projCursor = len(m.projFiltered) - 1
+ 297 		m.clampProjScroll()
+-298 	case "enter":
++298 	// Space is silently aliased to enter so either key opens a project (the hint only
++299 	// advertises ↵, matching the session list's space-for-preview convention).
++300 	case "enter", " ", "space":
+ 299 		if m.projCursor >= 0 && m.projCursor < len(m.projFiltered) {
+ 300 			m.drillInto(m.projFiltered[m.projCursor])
+ 301 			return m, m.cloudFetchForActiveCmd()
+ 302 		}
+     ...
+ 653 		// Resume the highlighted hit (enter is a no-op, mirroring the list).
+ 654 		if sel := m.globalSelected(); sel != nil {
+ 655 			return m.beginResume(sel)
+ 656 		}
+-657 	case " ", "space":
++659 	// Enter is silently aliased to space so either key previews a hit (the hint only
++660 	// advertises space). Mirrors the session list's preview binding.
++661 	case " ", "space", "enter":
+ 658 		if sel := m.globalSelected(); sel != nil {
+ 659 			return m.openPreview(sel)
+ 660 		}
+ 661 	case "a":
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui_browser.go
++++ pkg/cmd/session_tui_browser.go
+@@ -294,9 +294,11 @@
+ 		m.projCursor, m.projTop = 0, 0
+ 	case "end", "G":
+ 		m.projCursor = len(m.projFiltered) - 1
+ 		m.clampProjScroll()
+-	case "enter":
++	// Space is silently aliased to enter so either key opens a project (the hint only
++	// advertises ↵, matching the session list's space-for-preview convention).
++	case "enter", " ", "space":
+ 		if m.projCursor >= 0 && m.projCursor < len(m.projFiltered) {
+ 			m.drillInto(m.projFiltered[m.projCursor])
+ 			return m, m.cloudFetchForActiveCmd()
+ 		}
+@@ -653,9 +655,11 @@
+ 		// Resume the highlighted hit (enter is a no-op, mirroring the list).
+ 		if sel := m.globalSelected(); sel != nil {
+ 			return m.beginResume(sel)
+ 		}
+-	case " ", "space":
++	// Enter is silently aliased to space so either key previews a hit (the hint only
++	// advertises space). Mirrors the session list's preview binding.
++	case " ", "space", "enter":
+ 		if sel := m.globalSelected(); sel != nil {
+ 			return m.openPreview(sel)
+ 		}
+ 	case "a":
 
 ```
-Successfully replaced 2 block(s) in pkg/cmd/session_tui_browser.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 298
+}
 ```
 </details></tool-use>
 
@@ -623,10 +749,98 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 12:31:51Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui.go`
+**Path:**
+```text
+pkg/cmd/session_tui.go
+```
+
+**Edit 1:**
+```diff
+-	case "r":
+-		// Resume the highlighted session (enter is deliberately a no-op here, so a stray
+-		// return can't accidentally launch an agent).
+-		if sel := m.selected(); sel != nil {
+-			return m.beginResume(sel)
+-		}
+-	case " ", "space":
+-		if sel := m.selected(); sel != nil {
+-			return m.openPreview(sel)
+-		}
++	case "r":
++		// Resume the highlighted session. Enter is NOT a resume trigger (a stray return
++		// shouldn't launch an agent); it previews, aliased to space below.
++		if sel := m.selected(); sel != nil {
++			return m.beginResume(sel)
++		}
++	// Enter is silently aliased to space so either key previews (the hint only advertises
++	// space). 'r' remains the sole resume trigger.
++	case " ", "space", "enter":
++		if sel := m.selected(); sel != nil {
++			return m.openPreview(sel)
++		}
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/session_tui.go.
+```
+
+**diff:**
+```diff
+      ...
+  480 		m.cursor = len(m.filtered) - 1
+  481 		m.clampScroll()
+  482 		return m, m.requestVisibleSnippets(modeList)
+  483 	case "r":
+- 484 		// Resume the highlighted session (enter is deliberately a no-op here, so a stray
+- 485 		// return can't accidentally launch an agent).
++ 484 		// Resume the highlighted session. Enter is NOT a resume trigger (a stray return
++ 485 		// shouldn't launch an agent); it previews, aliased to space below.
+  486 		if sel := m.selected(); sel != nil {
+  487 			return m.beginResume(sel)
+  488 		}
+- 489 	case " ", "space":
++ 489 	// Enter is silently aliased to space so either key previews (the hint only advertises
++ 490 	// space). 'r' remains the sole resume trigger.
++ 491 	case " ", "space", "enter":
+  490 		if sel := m.selected(); sel != nil {
+  491 			return m.openPreview(sel)
+  492 		}
+  493 	case "/":
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui.go
++++ pkg/cmd/session_tui.go
+@@ -480,14 +480,16 @@
+ 		m.cursor = len(m.filtered) - 1
+ 		m.clampScroll()
+ 		return m, m.requestVisibleSnippets(modeList)
+ 	case "r":
+-		// Resume the highlighted session (enter is deliberately a no-op here, so a stray
+-		// return can't accidentally launch an agent).
++		// Resume the highlighted session. Enter is NOT a resume trigger (a stray return
++		// shouldn't launch an agent); it previews, aliased to space below.
+ 		if sel := m.selected(); sel != nil {
+ 			return m.beginResume(sel)
+ 		}
+-	case " ", "space":
++	// Enter is silently aliased to space so either key previews (the hint only advertises
++	// space). 'r' remains the sole resume trigger.
++	case " ", "space", "enter":
+ 		if sel := m.selected(); sel != nil {
+ 			return m.openPreview(sel)
+ 		}
+ 	case "/":
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/session_tui.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 484
+}
 ```
 </details></tool-use>
 
@@ -638,8 +852,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 12:31:55Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && go build -o /tmp/specstory_build 2>&1 && echo BUILD_OK`</summary>
+**Command:**
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && go build -o /tmp/specstory_build 2>&1 && echo BUILD_OK
 ```
+
+```text
 BUILD_OK
+
 ```
 </details></tool-use>
 
@@ -647,8 +867,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 12:31:57Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && gofmt -w pkg/cmd/session_tui.go pkg/cmd/session_tui_browser.go && golangci-lint run pkg/cmd/ 2>&1 | tail -30`</summary>
+**Command:**
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && gofmt -w pkg/cmd/session_tui.go pkg/cmd/session_tui_browser.go && golangci-lint run pkg/cmd/ 2>&1 | tail -30
 ```
+
+```text
 0 issues.
+
 ```
 </details></tool-use>
 
@@ -656,8 +882,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 12:32:00Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && go test ./pkg/cmd/ 2>&1 | tail -20`</summary>
+**Command:**
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && go test ./pkg/cmd/ 2>&1 | tail -20
 ```
+
+```text
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.199s
+
 ```
 </details></tool-use>
 
@@ -673,7 +905,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 12:32:01Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && git diff pkg/cmd/session_tui.go pkg/cmd/session_tui_browser.go`</summary>
+**Command:**
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && git diff pkg/cmd/session_tui.go pkg/cmd/session_tui_browser.go
 ```
+
+```text
 diff --git a/specstory-cli/pkg/cmd/session_tui.go b/specstory-cli/pkg/cmd/session_tui.go
 index ce109d4..4713420 100644
 --- a/specstory-cli/pkg/cmd/session_tui.go
@@ -722,6 +959,7 @@ index 7f7676f..e9cbed9 100644
  		if sel := m.globalSelected(); sel != nil {
  			return m.openPreview(sel)
  		}
+
 ```
 </details></tool-use>
 

@@ -478,159 +478,6 @@ func TestGetProjectID(t *testing.T) {
 	}
 }
 
-// TestNormalizeGitURL tests the git URL normalization function
-func TestNormalizeGitURL(t *testing.T) {
-	manager := &ProjectIdentityManager{}
-
-	tests := []struct {
-		name     string
-		gitURL   string
-		expected string
-	}{
-		// GitHub tests
-		{
-			name:     "GitHub HTTPS with .git",
-			gitURL:   "https://github.com/specstoryai/specstory-cli.git",
-			expected: "github.com/specstoryai/specstory-cli",
-		},
-		{
-			name:     "GitHub SSH with .git",
-			gitURL:   "git@github.com:specstoryai/specstory-cli.git",
-			expected: "github.com/specstoryai/specstory-cli",
-		},
-		// GitLab tests
-		{
-			name:     "GitLab HTTPS",
-			gitURL:   "https://gitlab.com/patterns-ai-core/langchainrb.git",
-			expected: "gitlab.com/patterns-ai-core/langchainrb",
-		},
-		{
-			name:     "GitLab SSH",
-			gitURL:   "git@gitlab.com:patterns-ai-core/langchainrb.git",
-			expected: "gitlab.com/patterns-ai-core/langchainrb",
-		},
-		// Bitbucket tests
-		{
-			name:     "Bitbucket HTTPS",
-			gitURL:   "https://bitbucket.org/myteam/myrepo.git",
-			expected: "bitbucket.org/myteam/myrepo",
-		},
-		{
-			name:     "Bitbucket SSH",
-			gitURL:   "git@bitbucket.org:myteam/myrepo.git",
-			expected: "bitbucket.org/myteam/myrepo",
-		},
-		// Custom git server
-		{
-			name:     "Custom server HTTPS",
-			gitURL:   "https://git.company.com/project/repo.git",
-			expected: "git.company.com/project/repo",
-		},
-		{
-			name:     "Custom server SSH",
-			gitURL:   "git@git.company.com:project/repo.git",
-			expected: "git.company.com/project/repo",
-		},
-		// Other protocols
-		{
-			name:     "Git protocol",
-			gitURL:   "git://github.com/user/repo.git",
-			expected: "github.com/user/repo",
-		},
-		{
-			name:     "Git+SSH protocol",
-			gitURL:   "git+ssh://github.com/user/repo.git",
-			expected: "github.com/user/repo",
-		},
-		// Without .git suffix
-		{
-			name:     "HTTPS without .git",
-			gitURL:   "https://github.com/user/repo",
-			expected: "github.com/user/repo",
-		},
-		{
-			name:     "SSH without .git",
-			gitURL:   "git@github.com:user/repo",
-			expected: "github.com/user/repo",
-		},
-		// Already normalized
-		{
-			name:     "Already normalized",
-			gitURL:   "github.com/user/repo",
-			expected: "github.com/user/repo",
-		},
-		// SSH with different user
-		{
-			name:     "SSH with custom user",
-			gitURL:   "customuser@github.com:owner/repo.git",
-			expected: "github.com/owner/repo",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := manager.normalizeGitURL(tt.gitURL)
-			if result != tt.expected {
-				t.Errorf("normalizeGitURL(%s) = %s, expected %s", tt.gitURL, result, tt.expected)
-			}
-		})
-	}
-}
-
-// TestNormalizedGitURLConsistency tests that HTTPS and SSH URLs for the same repo generate the same git ID
-func TestNormalizedGitURLConsistency(t *testing.T) {
-	manager := &ProjectIdentityManager{}
-
-	// Test pairs of URLs that should generate the same normalized form
-	urlPairs := []struct {
-		name  string
-		https string
-		ssh   string
-	}{
-		{
-			name:  "GitHub",
-			https: "https://github.com/specstoryai/specstory-cli.git",
-			ssh:   "git@github.com:specstoryai/specstory-cli.git",
-		},
-		{
-			name:  "GitLab",
-			https: "https://gitlab.com/patterns-ai-core/langchainrb.git",
-			ssh:   "git@gitlab.com:patterns-ai-core/langchainrb.git",
-		},
-		{
-			name:  "Bitbucket",
-			https: "https://bitbucket.org/myteam/myrepo.git",
-			ssh:   "git@bitbucket.org:myteam/myrepo.git",
-		},
-		{
-			name:  "Custom server",
-			https: "https://git.company.com/project/repo.git",
-			ssh:   "git@git.company.com:project/repo.git",
-		},
-	}
-
-	for _, pair := range urlPairs {
-		t.Run(pair.name, func(t *testing.T) {
-			httpsNormalized := manager.normalizeGitURL(pair.https)
-			sshNormalized := manager.normalizeGitURL(pair.ssh)
-
-			if httpsNormalized != sshNormalized {
-				t.Errorf("HTTPS and SSH URLs should normalize to the same value:\nHTTPS: %s -> %s\nSSH: %s -> %s",
-					pair.https, httpsNormalized, pair.ssh, sshNormalized)
-			}
-
-			// Also verify that the hashes would be the same
-			httpsHash := manager.createHash(httpsNormalized)
-			sshHash := manager.createHash(sshNormalized)
-
-			if httpsHash != sshHash {
-				t.Errorf("HTTPS and SSH URLs should generate the same hash:\nHTTPS hash: %s\nSSH hash: %s",
-					httpsHash, sshHash)
-			}
-		})
-	}
-}
-
 // TestWorkspaceIDConsistency tests that workspace ID is consistent for the same path
 func TestWorkspaceIDConsistency(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "specstory-consistency-test-*")
@@ -1326,5 +1173,35 @@ func TestNewProjectIdentityManagerWithOverrides_RetargetsSharedSpecstoryDir(t *t
 	if a2.WorkspaceID != a.WorkspaceID || a2.GitID != a.GitID {
 		t.Errorf("retargeting back to A gave (%q, %q), want A's original (%q, %q)",
 			a2.WorkspaceID, a2.GitID, a.WorkspaceID, a.GitID)
+	}
+}
+
+// TestComputeProjectIDFromRemoteMatchesCheckout guards the contract hosted-agent
+// sessions rely on: a session that names only its repository must land in the
+// same project as a local clone of that repository, whichever URL form each uses.
+func TestComputeProjectIDFromRemoteMatchesCheckout(t *testing.T) {
+	repo := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repo, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := "[remote \"origin\"]\n\turl = git@github.com:specstoryai/cloud-agent-test.git\n"
+	if err := os.WriteFile(filepath.Join(repo, ".git", "config"), []byte(cfg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	wantID, wantName, err := ComputeProjectID(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, remote := range []string{
+		"https://github.com/specstoryai/cloud-agent-test",
+		"github.com/specstoryai/cloud-agent-test",
+	} {
+		id, name, err := ComputeProjectIDFromRemote(remote)
+		if err != nil || id != wantID || name != wantName {
+			t.Errorf("ComputeProjectIDFromRemote(%q) = (%q, %q, %v); want (%q, %q)", remote, id, name, err, wantID, wantName)
+		}
+	}
+	if _, _, err := ComputeProjectIDFromRemote(" "); err == nil {
+		t.Error("an empty remote URL must be an error")
 	}
 }

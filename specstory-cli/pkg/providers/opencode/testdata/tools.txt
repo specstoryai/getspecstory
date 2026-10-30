@@ -1,0 +1,67 @@
+# OpenCode 2.0.14 tool inventory: build agent, default configuration, no plugins or MCP servers, macOS (Darwin 25.6.0).
+# Direct tools (recorded as tool parts), from the model's report of its declared tools, cross-checked against the TUI's
+# renderer set in the 2.0.14 binary. See TOOL-AUDIT.md for declared / enabled / exercised status.
+edit
+execute
+glob
+grep
+question
+read
+shell
+skill
+subagent
+webfetch
+websearch
+write
+
+# Code Mode catalog: reachable only inside execute as tools.<path>; recorded in execute's metadata.toolCalls
+# without the tools. prefix. Listed by the harness's own search() inside execute.
+search
+browser.back
+browser.check
+browser.click
+browser.console
+browser.cpu.analyze
+browser.cpu.start
+browser.cpu.stop
+browser.dialog
+browser.drag
+browser.evaluate
+browser.files.drop
+browser.files.get
+browser.files.list
+browser.files.upload
+browser.fill
+browser.fill_form
+browser.find
+browser.forward
+browser.frames
+browser.heap.compare
+browser.heap.object
+browser.heap.query
+browser.heap.snapshot
+browser.heap.summary
+browser.hover
+browser.lighthouse
+browser.navigate
+browser.network.get
+browser.network.list
+browser.press
+browser.preview
+browser.reload
+browser.screenshot
+browser.scroll
+browser.select
+browser.snapshot
+browser.stop
+browser.tabs.close
+browser.tabs.focus
+browser.tabs.list
+browser.tabs.open
+browser.trace.analyze
+browser.trace.start
+browser.trace.stop
+browser.wait
+opencode.models
+opencode.session_move
+opencode.session_rename

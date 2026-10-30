@@ -20,7 +20,7 @@ _**Agent (claude-opus-4-8 2026-07-06 21:59:19Z)**_
 <summary>Tool use: **Agent**</summary>
 Find search/resume shared TUI code
 
-```text
+````text
 I now have a complete picture. Here is my report.
 
 ## Overview
@@ -166,7 +166,7 @@ Inside the model:
 The only confirmation prompts in the codebase are **non-TUI, stdin-based** (`pkg/cmd/logout.go:50-64`, reads "yes" from stdin), which is not applicable inside a bubbletea program.
 
 **Implication for a delete feature:** you'd add e.g. a `confirmingDelete bool` (+ the pending `*sessionindex.Session`) to the struct, a case checked before mode routing in `Update`, a `updateDeleteConfirm` handler (y/n/esc), a render branch, and a new `Store.DeleteSession(agent, sessionID)` writer method — but the TUI currently holds a read-only `OpenReader` handle (`browser:34,46`), so the write handle/connection story needs resolving first.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-07-06 21:57:53Z)**_
@@ -6587,7 +6587,7 @@ _**Agent (claude-opus-4-8 2026-07-06 22:23:27Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/SESSION-SEARCH.md`
 
-```text
+````text
 38	
 39	```
 40	 SpecStory Search · all projects                              42 matches   ·   agent: all
@@ -6638,7 +6638,7 @@ _**Agent (claude-opus-4-8 2026-07-06 22:23:27Z)**_
 85	
 86	## Related Documents
 87
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-8 2026-07-06 22:23:31Z)**_
@@ -6911,7 +6911,7 @@ _**Agent (claude-opus-4-8 2026-07-06 22:24:47Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
 43	### Quickstart Usage
 44	
 45	Basic usage: `specstory [flags]`
@@ -6954,7 +6954,7 @@ _**Agent (claude-opus-4-8 2026-07-06 22:24:47Z)**_
 82	
 83	## Configuration File
 84
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-8 2026-07-06 22:24:59Z)**_

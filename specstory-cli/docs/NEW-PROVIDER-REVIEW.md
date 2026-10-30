@@ -14,6 +14,8 @@ Use the guide's requirements and self-review checklist, the current [SPI contrac
 
 Trace the implementation through discovery, parsing, rendering, watching, and resume, including its command and configuration wiring. Compare local helpers with the shared equivalents and investigate differences in behavior. Use the guide's concern-specific exemplars as examples, not proof of correctness: established providers can contain drift. Resolve discrepancies against the contract and observed native data rather than copying a sibling blindly.
 
+Audit fixture placement against the guide's [testdata/examples rule](../NEW-PROVIDER-GUIDE.md#separate-test-fixtures-from-examples). Identify the automated test consumer and asserted behavior for every fixture set under `testdata/`; copying a containing directory is not consumption. Saved outputs that no test compares, manual QA results, and other review artifacts belong in `examples/`.
+
 ## Verify the risky behavior
 
 Start with the cheapest experiment that can distinguish the suspected defect from correct behavior. Build a fresh `./specstory` for manual verification and use the guide's command matrix and tool audit. Compare native records, normalized session data, and rendered Markdown when diagnosing missing or incorrect content.

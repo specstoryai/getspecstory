@@ -893,7 +893,7 @@ _**Agent (claude-opus-4-8 2026-07-20 12:38:39Z)**_
 <summary>Tool use: **WebFetch**</summary>
  `https://raw.githubusercontent.com/betterleaks/betterleaks/master/detect/detect.go`
 
-```text
+````text
 # Detector Construction and Secret Detection API
 
 ## Constructor Functions
@@ -941,7 +941,7 @@ The `report.Finding` struct contains:
 ## Default Configuration Loading
 
 Default configuration is loaded via `config.Default()`, called within `NewDetectorDefaultConfig()`. This approach initializes the detector with built-in rule sets without requiring external configuration files.
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-8 2026-07-20 12:38:51Z)**_
@@ -988,7 +988,7 @@ _**Agent (claude-opus-4-8 2026-07-20 12:39:25Z)**_
 <summary>Tool use: **WebFetch**</summary>
  `https://raw.githubusercontent.com/betterleaks/betterleaks/master/report/finding.go`
 
-```text
+````text
 # Finding Struct Definition Analysis
 
 Based on the provided code, here's the full `Finding` struct definition:
@@ -1042,7 +1042,7 @@ type Finding struct {
 - `EndColumn` (int)
 
 All requested fields exist and are properly defined within the struct.
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-8 2026-07-20 12:39:26Z)**_
@@ -1051,7 +1051,7 @@ _**Agent (claude-opus-4-8 2026-07-20 12:39:26Z)**_
 <summary>Tool use: **WebFetch**</summary>
  `https://raw.githubusercontent.com/betterleaks/betterleaks/master/config/config.go`
 
-```text
+````text
 # Default() Function Analysis
 
 ## Function Signature
@@ -1077,7 +1077,7 @@ This embeds the `betterleaks.toml` file directly into the binary. The `Default()
 
 ## Example Rule IDs
 The provided code doesn't contain explicit examples of rule IDs for GitHub, OpenAI, Anthropic, AWS, or Google keys. The code shows the structure and validation logic for rules (with fields like `ID`, `Description`, `Regex`, `Keywords`), but the actual rule identifier names aren't present in this source file—they would be defined in the embedded `betterleaks.toml` configuration file, which isn't shown here.
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-8 2026-07-20 12:39:51Z)**_
@@ -1969,7 +1969,7 @@ _**Agent (claude-opus-4-8 2026-07-20 14:07:17Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/Source/SpecStory/specstory-website/content/docs/integrations/terminal-coding-agents/usage.mdx`
 
-```text
+````text
 1	---
 2	title: "Usage"
 3	---
@@ -2223,7 +2223,7 @@ _**Agent (claude-opus-4-8 2026-07-20 14:07:17Z)**_
 251	- Which session files are being parsed.
 252	- Where Markdown exports are written.
 253	- Errors encountered during capture or sync.
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-8 2026-07-20 14:07:31Z)**_

@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Enumerate OpenCode's direct tool inventory, for TOOL-AUDIT.
+#
+# Source: the model's report of its declared tools. OpenCode 2.0.14 exposes no
+# harness declaration: `opencode run --format json` emits no init event listing
+# tools, and the server's OpenAPI has no tool-listing operation. The Code Mode
+# catalog (browser.*, opencode.*) is reachable only inside the execute tool and
+# is not asked for here.
+#
+# Model: named by OPENCODE_FACTORY_MODEL in OpenCode's provider/model form.
+# Readings were taken with opencode/big-pickle, a free OpenCode Zen model that
+# needs no credential; a model from another provider authenticates through
+# that provider's own environment variable.
+#
+# Run this in an empty throwaway directory under an isolated $HOME (the
+# caller's job). --standalone keeps the run on a private server instead of a
+# background service shared with other runs, and
+# OPENCODE_DISABLE_PROJECT_CONFIG keeps project configuration out.
+#
+# Factory SPI contract: print the tool list, one name per line, to stdout and
+# exit 0. Non-zero exit means enumeration failed — never an empty or partial
+# inventory. The event stream is left in ./stream.jsonl for diagnosis.
+set -euo pipefail
+opencode="$HOME/.local/bin/opencode"
+[ -n "${OPENCODE_FACTORY_MODEL:-}" ] || { echo "list-tools: OPENCODE_FACTORY_MODEL is not set" >&2; exit 1; }
+export OPENCODE_DISABLE_AUTOUPDATE=1
+export OPENCODE_DISABLE_PROJECT_CONFIG=1
+
+rm -f stream.jsonl
+status=0
+timeout 300 "$opencode" run --standalone --format json -m "$OPENCODE_FACTORY_MODEL" \
+  "List the exact name of every tool you can call directly, as declared in your tool definitions. Do not include Code Mode catalog entries reachable only through execute. Output one bare name per line and nothing else." \
+  < /dev/null > stream.jsonl || status=$?
+
+# A run that timed out or failed may have printed only part of the answer.
+if [ "$status" -ne 0 ]; then
+  echo "list-tools: opencode exited $status" >&2
+  jq -r 'select(.type=="error") | .error.message' stream.jsonl >&2 2>/dev/null || head -c 600 stream.jsonl >&2
+  exit 1
+fi
+
+tools=$(jq -r 'select(.type=="text") | .part.text' stream.jsonl 2>/dev/null \
+  | sed -e 's/^[[:space:]*`-]*//' -e 's/[[:space:]`]*$//' \
+  | grep -E '^[a-z][a-z0-9_]*$' | sort -u || true)
+# A self-report cannot prove it is complete, so the answer must at least name
+# the core tools every 2.x build declares; one that omits any of them is
+# treated as a failed reading, not a smaller inventory. Beyond that floor, a
+# changed list surfaces as a changed reading for the factory to audit.
+for core in read write edit glob grep shell; do
+  if ! grep -qx "$core" <<<"$tools"; then
+    echo "list-tools: answer omits core tool '$core'; not a complete inventory" >&2
+    exit 1
+  fi
+done
+printf '%s\n' "$tools"

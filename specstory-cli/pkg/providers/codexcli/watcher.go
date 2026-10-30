@@ -180,7 +180,7 @@ func startCodexSessionWatcher(projectPath string, sessionsRoot string, pinnedDay
 		"pinnedDayDir", pinnedDayDir)
 
 	// Create a new watcher
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := spi.NewFSWatcher()
 	if err != nil {
 		return fmt.Errorf("failed to create file watcher: %v", err)
 	}

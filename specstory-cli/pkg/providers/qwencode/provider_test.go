@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -331,8 +332,7 @@ func TestSyncSkipsEmptyAndReportsEveryFile(t *testing.T) {
 }
 
 func TestDebugRawPreservesUnknownFieldsAndClearsStaleRecords(t *testing.T) {
-	spi.SetDebugBaseDir(t.TempDir())
-	t.Cleanup(func() { spi.SetDebugBaseDir("") })
+	testutil.IsolateDebugDir(t)
 	path := filepath.Join(t.TempDir(), "debug.jsonl")
 	raw := `{"sessionId":"debug","type":"user","timestamp":"2026-09-15T00:00:00Z","message":{"role":"user","parts":[{"text":"hello"}]},"unknown":{"preserve":true}}`
 	if err := os.WriteFile(path, []byte(raw+"\n"+raw+"\n"), 0644); err != nil {
@@ -345,25 +345,26 @@ func TestDebugRawPreservesUnknownFieldsAndClearsStaleRecords(t *testing.T) {
 	if err := writeDebugRawFiles(session); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte(raw+"\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	session, err = ParseSessionFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := writeDebugRawFiles(session); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(filepath.Join(spi.GetDebugDir("debug"), "1.json"))
+	dir := spi.GetDebugDir("debug")
+	testutil.AssertDebugRefresh(t, dir, []string{"2.json"},
+		[]string{"session-data.json", "notes.md", "nested/notes.md"}, func() {
+			if err := os.WriteFile(path, []byte(raw+"\n"), 0644); err != nil {
+				t.Fatal(err)
+			}
+			session, err = ParseSessionFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := writeDebugRawFiles(session); err != nil {
+				t.Fatal(err)
+			}
+		})
+	data, err := os.ReadFile(filepath.Join(dir, "1.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(data), `"preserve": true`) {
 		t.Fatal("unknown native fields lost")
-	}
-	if _, err := os.Stat(filepath.Join(spi.GetDebugDir("debug"), "2.json")); !os.IsNotExist(err) {
-		t.Fatal("stale debug record remains")
 	}
 }
 

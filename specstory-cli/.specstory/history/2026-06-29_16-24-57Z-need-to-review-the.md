@@ -644,7 +644,7 @@ Read rest of markdown.go
 
 `cd /Users/sean/Source/SpecStory/getspecstory/getspecstory-pr237/specstory-cli && sed -n '220,320p' pkg/session/markdown.go`
 
-```text
+````text
 	// Get the tool type for the data attribute
 	toolType := tool.Type
 	if toolType == "" {
@@ -739,7 +739,7 @@ func shouldAddSeparator(currentRole, prevRole string) bool {
 	return currentRole != prevRole
 }
 Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-8 2026-06-29 16:28:55Z)**_

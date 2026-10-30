@@ -3,7 +3,6 @@ package qwencode
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -395,9 +394,9 @@ func convertToAgentChatSession(session *QwenSession, workspaceRoot string, debug
 
 	if debugRaw {
 		if err := writeDebugRawFiles(session); err != nil {
-			slog.Debug("convertToAgentChatSession: failed to write debug files",
+			slog.Warn("convertToAgentChatSession: failed to write debug files",
 				"sessionId", session.ID,
-				"error", err)
+				"path", spi.GetDebugDir(session.ID), "error", err)
 		}
 	}
 
@@ -418,37 +417,15 @@ func writeDebugRawFiles(session *QwenSession) error {
 	if !validSessionFilename(session.ID) {
 		return fmt.Errorf("invalid Qwen session id %q", session.ID)
 	}
-	debugDir := spi.GetDebugDir(session.ID)
-	if err := os.RemoveAll(debugDir); err != nil {
-		return fmt.Errorf("clear debug dir: %w", err)
-	}
-	if err := os.MkdirAll(debugDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create debug dir: %w", err)
-	}
-
-	for idx, record := range session.Records {
-		number := idx + 1
-		var data []byte
-		var err error
+	records := make([]any, len(session.Records))
+	for i, record := range session.Records {
 		if len(record.Raw) > 0 {
-			var pretty bytes.Buffer
-			err = json.Indent(&pretty, record.Raw, "", "  ")
-			data = pretty.Bytes()
+			records[i] = record.Raw
 		} else {
-			data, err = json.MarshalIndent(record, "", "  ")
-		}
-		if err != nil {
-			slog.Debug("writeDebugRawFiles: failed to marshal", "index", number, "error", err)
-			continue
-		}
-
-		filename := filepath.Join(debugDir, fmt.Sprintf("%d.json", number))
-		if err := os.WriteFile(filename, data, 0o644); err != nil {
-			slog.Debug("writeDebugRawFiles: failed to write", "index", number, "error", err)
-			continue
+			records[i] = record
 		}
 	}
-	return nil
+	return spi.WriteDebugRecords(spi.GetDebugDir(session.ID), records)
 }
 
 // ListAgentChatSessions retrieves lightweight session metadata without full conversion

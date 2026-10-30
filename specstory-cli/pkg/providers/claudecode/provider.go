@@ -52,8 +52,10 @@ func filterWarmupMessages(records []JSONLRecord) []JSONLRecord {
 func processSession(session Session, workspaceRoot string, debugRaw bool) *spi.AgentChatSession {
 	// Write debug files first (even for warmup-only sessions)
 	if debugRaw {
-		// Write debug files and get the record-to-file mapping
-		_ = writeDebugRawFiles(session) // Unused but needed for side effect
+		if err := writeDebugRawFiles(session); err != nil {
+			slog.Warn("Failed to write debug raw files", "sessionId", session.SessionUuid,
+				"path", spi.GetDebugDir(session.SessionUuid), "error", err)
+		}
 	}
 
 	// Filter warmup messages
@@ -84,6 +86,8 @@ func processSession(session Session, workspaceRoot string, debugRaw bool) *spi.A
 		slog.Error("Failed to generate SessionData", "sessionId", session.SessionUuid, "error", err)
 		return nil
 	}
+	// Resume titles a reconstructed session from SessionData's slug.
+	sessionData.Slug = slug
 
 	// Convert session records to JSONL format for raw data
 	// Note: Uses unfiltered session.Records (not filteredSession.Records) to preserve

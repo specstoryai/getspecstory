@@ -1,0 +1,857 @@
+package cursorcloud
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+)
+
+const testOrigin = "git@github.com:specstoryai/cloud-agent-test.git"
+
+// makeProject creates a git checkout at dir whose origin is origin.
+func makeProject(t *testing.T, dir, origin string) string {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	config := "[remote \"origin\"]\n\turl = " + origin + "\n"
+	if err := os.WriteFile(filepath.Join(dir, ".git", "config"), []byte(config), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func TestCheck(t *testing.T) {
+	t.Run("no key is not found with guidance", func(t *testing.T) {
+		useSettings(t, "")
+		res := NewProvider().Check("")
+		if res.Success || res.ErrorType != spi.CheckErrorNotFound || !strings.Contains(res.ErrorMessage, apiKeyPage) {
+			t.Errorf("result = %+v", res)
+		}
+	})
+	t.Run("accepted key reports the key name", func(t *testing.T) {
+		useSettings(t, "test-key")
+		newFakeAPI(t)
+		res := NewProvider().Check("")
+		if !res.Success || res.Version != "" || !strings.Contains(res.Location, `"Cloude Agent API key for SpecStory"`) || res.ErrorType != "" {
+			t.Errorf("result = %+v", res)
+		}
+	})
+	t.Run("config key used when env is unset", func(t *testing.T) {
+		useSettings(t, "")
+		SetAPIKey("test-key")
+		newFakeAPI(t)
+		if res := NewProvider().Check(""); !res.Success {
+			t.Errorf("result = %+v", res)
+		}
+	})
+	t.Run("rejected key is permission denied", func(t *testing.T) {
+		useSettings(t, "test-key")
+		f := newFakeAPI(t)
+		f.meStatus = http.StatusUnauthorized
+		res := NewProvider().Check("")
+		if res.Success || res.ErrorType != spi.CheckErrorPermissionDenied {
+			t.Errorf("result = %+v", res)
+		}
+	})
+	t.Run("bad custom opener names the path", func(t *testing.T) {
+		useSettings(t, "test-key")
+		bad := filepath.Join(t.TempDir(), "no-such-opener")
+		res := NewProvider().Check(bad)
+		// The message names the opener as the command splitter parsed it, which
+		// drops Windows separators (backslash is its escape character), so the
+		// assertion checks the basename.
+		if res.Success || res.ErrorType != spi.CheckErrorNotFound || !strings.Contains(res.ErrorMessage, "no-such-opener") {
+			t.Errorf("result = %+v", res)
+		}
+	})
+}
+
+func TestResolveAPIKeyEnvironmentWins(t *testing.T) {
+	useSettings(t, "from-env")
+	SetAPIKey("from-config")
+	if key, source := resolveAPIKey(); key != "from-env" || source != apiKeyEnvVar {
+		t.Errorf("got %q from %q", key, source)
+	}
+	t.Setenv(apiKeyEnvVar, "")
+	if key, source := resolveAPIKey(); key != "from-config" || source != "cursor_api_key" {
+		t.Errorf("got %q from %q", key, source)
+	}
+}
+
+func TestAgentMatchesOrigin(t *testing.T) {
+	agent := apiAgent{Repos: []apiRepo{{URL: "https://github.com/specstoryai/cloud-agent-test"}}}
+	tests := []struct {
+		origin string
+		want   bool
+	}{
+		{"https://github.com/specstoryai/cloud-agent-test.git", true},
+		{"git@github.com:specstoryai/cloud-agent-test.git", true},
+		{"ssh://git@github.com/specstoryai/cloud-agent-test", false}, // user@ in an ssh:// URL keeps the user
+		{"git@github.com:specstoryai/other-repo.git", false},
+		// GitHub owner and repository names are case-insensitive.
+		{"git@github.com:SpecStoryAI/Cloud-Agent-Test.git", true},
+		{"https://GitHub.com/specstoryai/cloud-agent-test", true},
+		{"", false},
+	}
+	for _, tt := range tests {
+		origin := ""
+		if tt.origin != "" {
+			origin = spi.NormalizeGitRemoteURL(tt.origin)
+		}
+		if got := agentMatchesOrigin(agent, origin); got != tt.want {
+			t.Errorf("origin %q: match = %v, want %v", tt.origin, got, tt.want)
+		}
+	}
+}
+
+// syncProject runs GetAgentChatSessions against the fake API. Progress runs
+// twice (refresh, then parse), and the parse pass must finish at its total.
+func syncProject(t *testing.T, project string, debugRaw bool) []spi.AgentChatSession {
+	t.Helper()
+	var last [2]int
+	sessions, err := NewProvider().GetAgentChatSessions(project, debugRaw, func(current, total int) { last = [2]int{current, total} })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) > 0 && last != [2]int{len(sessions), len(sessions)} {
+		t.Errorf("progress ended at %v for %d sessions", last, len(sessions))
+	}
+	return sessions
+}
+
+// TestSyncReportsRefreshProgress: on a first sync the refresh is the slow
+// part, so it must report progress before anything is parsed.
+func TestSyncReportsRefreshProgress(t *testing.T) {
+	useSettings(t, "test-key")
+	f := newFakeAPI(t)
+	f.addFixture(loadFixture(t, "fixture-run"))
+	f.addFixture(loadFixture(t, "failure-run"))
+	project := makeProject(t, t.TempDir(), testOrigin)
+
+	var progress [][2]int
+	sessions, err := NewProvider().GetAgentChatSessions(project, false, func(current, total int) {
+		progress = append(progress, [2]int{current, total})
+	})
+	if err != nil || len(sessions) != 2 {
+		t.Fatalf("got %d sessions, err %v", len(sessions), err)
+	}
+	want := [][2]int{{1, 2}, {2, 2}, {1, 2}, {2, 2}}
+	if !slices.Equal(progress, want) {
+		t.Errorf("progress = %v, want refresh then parse %v", progress, want)
+	}
+}
+
+func TestGetAgentChatSessionsSyncsAndMirrors(t *testing.T) {
+	useSettings(t, "test-key")
+	f := newFakeAPI(t)
+	f.addFixture(loadFixture(t, "fixture-run"))
+	f.addFixture(loadFixture(t, "failure-run"))
+	// An agent on another repository must not reach this project.
+	other := loadFixture(t, "tool-enumeration")
+	var otherAgent map[string]any
+	_ = json.Unmarshal(other.agent.raw, &otherAgent)
+	otherAgent["repos"] = []any{map[string]any{"url": "https://github.com/specstoryai/elsewhere"}}
+	other.agent.raw, _ = json.Marshal(otherAgent)
+	f.addFixture(other)
+
+	project := makeProject(t, t.TempDir(), testOrigin)
+	sessions := syncProject(t, project, false)
+	if len(sessions) != 2 {
+		t.Fatalf("got %d sessions, want the 2 agents for this repository", len(sessions))
+	}
+	for _, s := range sessions {
+		if s.RawData == "" || s.SessionData == nil || s.SessionData.WorkspaceRoot != project {
+			t.Errorf("session %s incomplete", s.SessionID)
+		}
+	}
+	mirrorRoot := filepath.Join(project, ".specstory", "cursorcloud")
+	if data, err := os.ReadFile(filepath.Join(mirrorRoot, ".gitignore")); err != nil || !strings.Contains(string(data), "*") {
+		t.Errorf("project-local mirror has no .gitignore: %v", err)
+	}
+	streamsBefore := f.count("/v1/agents/bc-a2a25972-6529-47c0-9691-8f135d0a6527/runs/")
+	runsBefore := f.count("/v1/agents/bc-a2a25972-6529-47c0-9691-8f135d0a6527/runs")
+
+	// A second sync with no agent activity re-lists but fetches nothing else
+	// and changes no mirror bytes.
+	before := snapshotTree(t, mirrorRoot)
+	again := syncProject(t, project, false)
+	if len(again) != 2 {
+		t.Fatalf("second sync got %d sessions", len(again))
+	}
+	if f.count("/v1/agents/bc-a2a25972-6529-47c0-9691-8f135d0a6527/runs") != runsBefore || f.count("/v1/agents/bc-a2a25972-6529-47c0-9691-8f135d0a6527/runs/") != streamsBefore {
+		t.Error("an unchanged agent was re-fetched")
+	}
+	if after := snapshotTree(t, mirrorRoot); after != before {
+		t.Error("a sync with no activity changed the mirror")
+	}
+
+	// Once updatedAt advances the agent is re-fetched, but its whole streams are not.
+	fx := loadFixture(t, "fixture-run")
+	var agent map[string]any
+	_ = json.Unmarshal(fx.agent.raw, &agent)
+	agent["updatedAt"] = "2026-10-13T15:09:00.000Z"
+	raw, _ := json.Marshal(agent)
+	f.setAgent(raw)
+	syncProject(t, project, false)
+	if f.count("/v1/agents/bc-a2a25972-6529-47c0-9691-8f135d0a6527/runs") != runsBefore+1 {
+		t.Error("an advanced updatedAt did not refresh the runs")
+	}
+	if f.count("/v1/agents/bc-a2a25972-6529-47c0-9691-8f135d0a6527/runs/") != streamsBefore {
+		t.Error("a whole stream capture was fetched again")
+	}
+}
+
+// snapshotTree fingerprints every file's bytes and mtime under root.
+func snapshotTree(t *testing.T, root string) string {
+	t.Helper()
+	var b strings.Builder
+	_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		info, _ := d.Info()
+		data, _ := os.ReadFile(path)
+		b.WriteString(path + "|" + info.ModTime().String() + "|" + string(data) + "\n")
+		return nil
+	})
+	return b.String()
+}
+
+func TestPartialCaptureReplacedWhileRetainedKeptAfterExpiry(t *testing.T) {
+	fx := loadFixture(t, "fixture-run")
+	runID := fx.runs[0].run.ID
+	agentID := fx.agent.agent.ID
+	full := parseSSEBytes(t, fx.streams[runID])
+
+	for _, tt := range []struct {
+		name      string
+		expired   bool
+		wantWhole bool
+	}{
+		{"retained stream replaces the partial capture", false, true},
+		{"expired stream keeps the partial capture", true, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			useSettings(t, "test-key")
+			f := newFakeAPI(t)
+			f.addFixture(fx)
+			f.expired[runID] = tt.expired
+			m := mirror{root: t.TempDir()}
+			writeFixtureMirror(t, m, fx)
+			if err := m.writeEvents(agentID, runID, full[:50]); err != nil {
+				t.Fatal(err)
+			}
+			// The run ended an hour before "now", inside the 24h retention.
+			ended, _ := time.Parse(time.RFC3339, fx.runs[0].run.UpdatedAt)
+			if err := m.refreshAgent(t.Context(), newAPIClient("test-key"), fx.agent, refreshOptions{now: ended.Add(time.Hour)}); err != nil {
+				t.Fatal(err)
+			}
+			events, _ := readEventsFile(m.eventsFile(agentID, runID))
+			if eventsAreWhole(events) != tt.wantWhole {
+				t.Errorf("whole = %v, want %v (%d events)", eventsAreWhole(events), tt.wantWhole, len(events))
+			}
+		})
+	}
+
+	t.Run("a stream past retention is not requested", func(t *testing.T) {
+		useSettings(t, "test-key")
+		f := newFakeAPI(t)
+		f.addFixture(fx)
+		m := mirror{root: t.TempDir()}
+		writeFixtureMirror(t, m, fx)
+		if err := m.writeEvents(agentID, runID, full[:50]); err != nil {
+			t.Fatal(err)
+		}
+		ended, _ := time.Parse(time.RFC3339, fx.runs[0].run.UpdatedAt)
+		if err := m.refreshAgent(t.Context(), newAPIClient("test-key"), fx.agent, refreshOptions{now: ended.Add(25 * time.Hour)}); err != nil {
+			t.Fatal(err)
+		}
+		if n := f.count("/v1/agents/" + agentID + "/runs/" + runID + "/stream"); n != 0 {
+			t.Errorf("requested an expired stream %d times", n)
+		}
+	})
+}
+
+func TestGetAgentChatSessionChecksMembership(t *testing.T) {
+	useSettings(t, "test-key")
+	f := newFakeAPI(t)
+	id := f.addFixture(loadFixture(t, "fixture-run"))
+
+	member := makeProject(t, t.TempDir(), testOrigin)
+	s, err := NewProvider().GetAgentChatSession(member, id, false)
+	if err != nil || s == nil || s.SessionID != id {
+		t.Fatalf("member project: session %v err %v", s, err)
+	}
+
+	stranger := makeProject(t, t.TempDir(), "git@github.com:specstoryai/another.git")
+	if s, err := NewProvider().GetAgentChatSession(stranger, id, false); err != nil || s != nil {
+		t.Errorf("another repository's project got %v, %v; want nil, nil", s, err)
+	}
+	if s, err := NewProvider().GetAgentChatSession(member, "bc-00000000-0000-0000-0000-000000000000", false); err != nil || s != nil {
+		t.Errorf("unknown id got %v, %v; want nil, nil", s, err)
+	}
+}
+
+func TestListAgentChatSessionsUsesOnlyTheMirror(t *testing.T) {
+	useSettings(t, "test-key")
+	f := newFakeAPI(t)
+	project := makeProject(t, t.TempDir(), testOrigin)
+	m, _ := mirrorFor(project)
+	writeFixtureMirror(t, m, loadFixture(t, "failure-run"))
+
+	list, err := NewProvider().ListAgentChatSessions(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].Slug != "verification-task-for-a" || list[0].Name != "specstory-failure-capture" {
+		t.Errorf("list = %+v", list)
+	}
+	if n := f.count("/"); n != 0 {
+		t.Errorf("listing made %d API requests", n)
+	}
+}
+
+func TestListAllAndByPath(t *testing.T) {
+	useSettings(t, "")
+	shared := t.TempDir()
+	SetMirrorDir(shared)
+	m := mirror{root: shared}
+	writeFixtureMirror(t, m, loadFixture(t, "fixture-run"))
+	writeFixtureMirror(t, m, loadFixture(t, "failure-run"))
+
+	refs, err := NewProvider().ListAllAgentChatSessions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 2 {
+		t.Fatalf("got %d refs", len(refs))
+	}
+	for _, ref := range refs {
+		if ref.OriginCwd != "" || filepath.Base(ref.NativePath) != "agent.json" || ref.Fingerprint == nil || ref.Fingerprint.Size == 0 {
+			t.Errorf("ref = %+v", ref)
+		}
+		s, err := NewProvider().GetAgentChatSessionByPath(ref.NativePath, "/elsewhere", false)
+		if err != nil || s == nil || s.SessionID != ref.SessionID || s.Slug != ref.Slug {
+			t.Errorf("by path %s: %v %v", ref.NativePath, s, err)
+		}
+	}
+
+	// A new run's events land outside agent.json; the fingerprint must move.
+	before := *refs[0].Fingerprint
+	dir := filepath.Dir(refs[0].NativePath)
+	if err := os.WriteFile(filepath.Join(dir, "runs", "run-00000000-0000-0000-0000-000000000000.events.jsonl"), []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if after := agentDirFingerprint(dir); after.Size == before.Size {
+		t.Error("fingerprint did not change when a run file was added")
+	}
+}
+
+func TestMirrorLocationPrecedence(t *testing.T) {
+	useSettings(t, "")
+	project := t.TempDir()
+	if m, local := mirrorFor(project); !local || m.root != filepath.Join(project, ".specstory", "cursorcloud") {
+		t.Errorf("default mirror = %s local %v", m.root, local)
+	}
+	// Configured roots come back canonical (t.TempDir sits behind a symlink
+	// on macOS), so comparisons use the canonical spelling too.
+	configDir := t.TempDir()
+	SetMirrorDir(configDir)
+	if m, local := mirrorFor(project); local || m.root != spi.CanonicalizePathOrClean(configDir) {
+		t.Errorf("config mirror = %s local %v", m.root, local)
+	}
+	// Locality follows the resolved path: a configured directory inside the
+	// project still needs the protective .gitignore, the project root itself
+	// must never get one.
+	// Mirrors that do not exist yet canonicalize through their nearest
+	// existing ancestor, so expectations are built from the canonical project.
+	canonicalProject := spi.CanonicalizePathOrClean(project)
+	inside := filepath.Join(project, "var", "cursorcloud")
+	SetMirrorDir(inside)
+	if m, local := mirrorFor(project); !local || m.root != filepath.Join(canonicalProject, "var", "cursorcloud") {
+		t.Errorf("in-project config mirror = %s local %v, want local", m.root, local)
+	}
+	SetMirrorDir(project)
+	if _, local := mirrorFor(project); local {
+		t.Error("mirror at the project root reported as local; a * .gitignore there would hide the project")
+	}
+	if _, local := mirrorFor(""); local {
+		t.Error("mirror with no project reported as local")
+	}
+	// A relative setting resolves against the working directory and must come
+	// back absolute, because session refs carry it as NativePath.
+	t.Chdir(project)
+	SetMirrorDir(filepath.Join(".specstory", "cursorcloud"))
+	if m, local := mirrorFor(project); !local || !filepath.IsAbs(m.root) || m.root != filepath.Join(canonicalProject, ".specstory", "cursorcloud") {
+		t.Errorf("relative config mirror = %s local %v, want absolute and local", m.root, local)
+	}
+	// An external symlink that points into the project is inside it, even
+	// when the configured path continues below the link into a directory
+	// that does not exist yet. The target exists before the link is made:
+	// on Windows a symlink to a missing target is a file symlink, which
+	// cannot be followed as a directory.
+	if err := os.MkdirAll(inside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(inside, link); err == nil {
+		SetMirrorDir(filepath.Join(link, "deeper"))
+		want := filepath.Join(spi.CanonicalizePathOrClean(inside), "deeper")
+		if m, local := mirrorFor(project); !local || m.root != want {
+			t.Errorf("symlinked config mirror = %s local %v, want %s local", m.root, local, want)
+		}
+	}
+	flagDir := t.TempDir()
+	SetUserDataDirOverride(flagDir)
+	if m, _ := mirrorFor(project); m.root != spi.CanonicalizePathOrClean(flagDir) {
+		t.Errorf("--user-data-dir mirror = %s, want it to win over config", m.root)
+	}
+
+	home, _ := os.UserHomeDir()
+	SetMirrorDir("~/.specstory/cursorcloud")
+	if configMirrorDir != filepath.Join(home, ".specstory", "cursorcloud") {
+		t.Errorf("tilde not expanded: %s", configMirrorDir)
+	}
+}
+
+func TestProjectPathShapes(t *testing.T) {
+	useSettings(t, "")
+	base := t.TempDir()
+	tests := []struct {
+		name string
+		path func(real string) string
+		skip func() string
+	}{
+		{"space and underscore in the path", func(real string) string { return real }, nil},
+		{"reached through a symlink", func(real string) string {
+			link := filepath.Join(base, "link")
+			if err := os.Symlink(real, link); err != nil {
+				return ""
+			}
+			return link
+		}, nil},
+		{"differently cased spelling", func(real string) string {
+			return filepath.Join(filepath.Dir(real), strings.ToUpper(filepath.Base(real)))
+		}, func() string {
+			if runtime.GOOS == "linux" {
+				return "case-sensitive filesystem"
+			}
+			return ""
+		}},
+	}
+	real := makeProject(t, filepath.Join(base, "my project_dir"), testOrigin)
+	m, _ := mirrorFor(real)
+	writeFixtureMirror(t, m, loadFixture(t, "fixture-run"))
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.skip != nil {
+				if reason := tt.skip(); reason != "" {
+					t.Skip(reason)
+				}
+			}
+			path := tt.path(real)
+			if path == "" {
+				t.Skip("symlinks unavailable")
+			}
+			if _, err := os.Stat(filepath.Join(path, ".git")); err != nil {
+				t.Skip("path does not resolve on this filesystem")
+			}
+			list, err := NewProvider().ListAgentChatSessions(path)
+			if err != nil || len(list) != 1 {
+				t.Errorf("found %d sessions (err %v), want the same one as the canonical path", len(list), err)
+			}
+		})
+	}
+}
+
+// sessionWithText is a one-exchange session whose user prompt is text.
+func sessionWithText(providerID, sessionID, text string) *schema.SessionData {
+	return &schema.SessionData{
+		SchemaVersion: schema.CurrentSchemaVersion,
+		Provider:      schema.ProviderInfo{ID: providerID, Name: providerID, Version: "1"},
+		SessionID:     sessionID,
+		Slug:          "forth-mastermind",
+		Exchanges: []schema.Exchange{{Messages: []schema.Message{
+			{Role: schema.RoleUser, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: text}}},
+			{Role: schema.RoleAgent, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "Sure."}}},
+		}}},
+	}
+}
+
+// TestReconstructSession: any session becomes a pending launch. A cloud agent's
+// own session remembers its agent so resume can reopen it, and skips the size
+// cap until it actually has to be copied.
+func TestReconstructSession(t *testing.T) {
+	const cloudAgent = "bc-11111111-2222-4333-8444-555555555555"
+	huge := strings.Repeat("x", maxResumePromptChars)
+	tests := []struct {
+		name       string
+		data       *schema.SessionData
+		wantSource string
+		wantName   string // "" skips the check
+		wantErr    string
+	}{
+		{name: "another agent's session", data: sessionWithText("claude", "c-1", "Let's write Forth"), wantName: "Let's write Forth"},
+		{name: "a cloud agent's session", data: sessionWithText(ProviderID, cloudAgent, "Let's write Forth"), wantSource: cloudAgent, wantName: "Let's write Forth"},
+		{name: "another agent's session over the cap", data: sessionWithText("claude", "c-1", huge), wantErr: "the limit is 1,000,000 characters"},
+		{name: "a cloud agent's session over the cap", data: sessionWithText(ProviderID, cloudAgent, huge), wantSource: cloudAgent},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			useSettings(t, "")
+			p := NewProvider()
+			rec, err := p.ReconstructSession(tt.data, spi.ReconstructOptions{MigrationNote: "Resumed via SpecStory."})
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("err = %v, want %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.HasPrefix(rec.SessionID, pendingPrefix) || rec.Filename != rec.SessionID+".json" {
+				t.Errorf("session %q file %q, want a pending id and its .json", rec.SessionID, rec.Filename)
+			}
+			var pending pendingResume
+			if err := json.Unmarshal(rec.Content, &pending); err != nil {
+				t.Fatal(err)
+			}
+			if pending.SourceAgentID != tt.wantSource {
+				t.Errorf("pending source = %q, want %q", pending.SourceAgentID, tt.wantSource)
+			}
+			if tt.wantName != "" && pending.Name != tt.wantName {
+				t.Errorf("pending name = %q, want %q", pending.Name, tt.wantName)
+			}
+			if !strings.HasPrefix(pending.Prompt, resumePromptHead) || !strings.Contains(pending.Prompt, "## User\n\n") {
+				t.Errorf("prompt does not open with the resume head and the transcript: %.200q", pending.Prompt)
+			}
+
+			// The transcript waits in the mirror, behind its .gitignore.
+			project := makeProject(t, t.TempDir(), testOrigin)
+			path, err := p.NativeSessionPath(project, rec.Filename)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m, _ := mirrorFor(project)
+			if path != m.pendingFile(rec.Filename) {
+				t.Errorf("path = %s, want the mirror's pending dir", path)
+			}
+			if _, err := os.Stat(filepath.Join(m.root, ".gitignore")); err != nil {
+				t.Errorf("mirror .gitignore missing: %v", err)
+			}
+		})
+	}
+}
+
+// TestResumeTarget: a cloud agent's own session reopens the same agent while it
+// exists on this project's repository; otherwise the session is copied into a
+// new agent, unless the transcript is over the cap.
+func TestResumeTarget(t *testing.T) {
+	fx := loadFixture(t, "fixture-run")
+	agentID := fx.agent.agent.ID
+	withAgent := func(change func(map[string]any)) json.RawMessage {
+		var agent map[string]any
+		if err := json.Unmarshal(fx.agent.raw, &agent); err != nil {
+			t.Fatal(err)
+		}
+		change(agent)
+		raw, _ := json.Marshal(agent)
+		return raw
+	}
+	pending := func(source, prompt string) pendingResume {
+		return pendingResume{SourceAgentID: source, Name: "forth-mastermind", Prompt: prompt}
+	}
+	small := resumePromptHead + "\n\n## User\n\nhello"
+
+	tests := []struct {
+		name          string
+		agent         json.RawMessage // served by the API; nil serves none
+		mirrored      bool            // the agent's session is in the mirror
+		pending       *pendingResume  // resume through a pending launch, else by agent id
+		wantID        string
+		wantLaunch    bool
+		wantUnarchive bool
+		wantErr       string
+	}{
+		{name: "pending: source agent reopens", agent: fx.agent.raw, pending: ptr(pending(agentID, small)), wantID: agentID},
+		{name: "pending: source agent gone, copied", pending: ptr(pending(agentID, small)), wantID: launchedAgentID, wantLaunch: true},
+		{name: "pending: another agent's session, copied", agent: fx.agent.raw, pending: ptr(pending("", small)), wantID: launchedAgentID, wantLaunch: true},
+		{name: "pending: copy over the cap refused", pending: ptr(pending(agentID, strings.Repeat("x", maxResumePromptChars+1))), wantErr: "the limit is 1,000,000 characters"},
+		{name: "agent id: reopens", agent: fx.agent.raw, wantID: agentID},
+		{name: "agent id: archived agent unarchived", agent: withAgent(func(a map[string]any) { a["status"] = "ARCHIVED" }), wantID: agentID, wantUnarchive: true},
+		{name: "agent id: on another repository, copied from the mirror", agent: withAgent(func(a map[string]any) {
+			a["repos"] = []map[string]string{{"url": "https://github.com/specstoryai/another"}}
+		}), mirrored: true, wantID: launchedAgentID, wantLaunch: true},
+		{name: "agent id: gone and not mirrored", wantErr: "no copy of its session"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			useSettings(t, "test-key")
+			f := newFakeAPI(t)
+			if tt.agent != nil {
+				f.setAgent(tt.agent)
+			}
+			project := makeProject(t, t.TempDir(), testOrigin)
+			m, projectLocal := mirrorFor(project)
+			if err := m.ensureRoot(projectLocal); err != nil {
+				t.Fatal(err)
+			}
+			if tt.mirrored {
+				writeFixtureMirror(t, m, fx)
+			}
+			sessionID := agentID
+			if tt.pending != nil {
+				sessionID = pendingPrefix + "test"
+				raw, _ := json.Marshal(tt.pending)
+				if err := writeFileAtomic(m.pendingFile(sessionID+".json"), raw); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			got, err := resumeTarget(context.Background(), project, sessionID)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("err = %v, want %q", err, tt.wantErr)
+				}
+			} else if err != nil || got != tt.wantID {
+				t.Fatalf("resumeTarget = %q, %v; want %q", got, err, tt.wantID)
+			}
+			if launched := len(f.launches) > 0; launched != tt.wantLaunch {
+				t.Errorf("launched = %v, want %v", launched, tt.wantLaunch)
+			}
+			if tt.wantLaunch && !strings.HasPrefix(f.launches[0].Prompt.Text, resumePromptHead) {
+				t.Errorf("copy prompt does not carry the transcript: %.100q", f.launches[0].Prompt.Text)
+			}
+			if unarchived := f.count("/v1/agents/"+agentID+"/unarchive") > 0; unarchived != tt.wantUnarchive {
+				t.Errorf("unarchived = %v, want %v", unarchived, tt.wantUnarchive)
+			}
+			if tt.pending != nil {
+				if _, err := os.Stat(m.pendingFile(sessionID + ".json")); !os.IsNotExist(err) {
+					t.Error("the pending transcript was left in the mirror")
+				}
+			}
+		})
+	}
+}
+
+// TestWaitForRunStart: the agent page is opened only once the first run has
+// left CREATING, and a run that never does stops the wait at the timeout
+// instead of holding `run` forever.
+func TestWaitForRunStart(t *testing.T) {
+	tests := []struct {
+		name       string
+		status     string
+		wantRepeat bool // polled until the timeout rather than once
+	}{
+		{name: "run started", status: "RUNNING"},
+		{name: "run already finished", status: "FINISHED"},
+		{name: "run still being created", status: "CREATING", wantRepeat: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFakeAPI(t)
+			const agentID = "bc-22222222-3333-4444-8555-666666666666"
+			f.runs[agentID] = []json.RawMessage{json.RawMessage(`{"id":"run-1","agentId":"` + agentID + `","status":"` + tt.status + `"}`)}
+			prevTimeout, prevPoll := runStartTimeout, runStartPoll
+			runStartTimeout, runStartPoll = 50*time.Millisecond, 20*time.Millisecond
+			t.Cleanup(func() { runStartTimeout, runStartPoll = prevTimeout, prevPoll })
+
+			waitForRunStart(context.Background(), newAPIClient("test-key"), agentID)
+			// A run stuck in CREATING is polled until the timeout passes; the
+			// exact count depends on timing, so only "more than once" is checked.
+			polls := f.count("/v1/agents/" + agentID + "/runs")
+			if !tt.wantRepeat && polls != 1 {
+				t.Errorf("polled %d times, want once", polls)
+			}
+			if tt.wantRepeat && polls < 2 {
+				t.Errorf("polled %d times, want it to keep polling until the timeout", polls)
+			}
+		})
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
+
+func TestDebugOutput(t *testing.T) {
+	debugBase := t.TempDir()
+	spi.SetDebugBaseDir(debugBase)
+	t.Cleanup(func() { spi.SetDebugBaseDir("") })
+
+	snap := snapshotFromFixture(t, "failure-run")
+	dir := spi.GetDebugDir(snap.agent.ID)
+	if !strings.HasPrefix(dir, debugBase) {
+		t.Fatalf("debug dir %s ignores --debug-dir", dir)
+	}
+
+	t.Run("flag off writes nothing", func(t *testing.T) {
+		if convertSnapshot(snap, testWorkspace, false) == nil {
+			t.Fatal("no session")
+		}
+		if _, err := os.Stat(dir); !os.IsNotExist(err) {
+			t.Errorf("debug dir exists without the flag: %v", err)
+		}
+	})
+
+	// Seed a CLI-owned file and a stale run file from a longer earlier export.
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stale := filepath.Join(dir, "run-3-run-00000000-0000-0000-0000-000000000000.json")
+	cliOwned := filepath.Join(dir, "session-data.json")
+	for _, path := range []string{stale, cliOwned} {
+		if err := os.WriteFile(path, []byte("{}"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if convertSnapshot(snap, testWorkspace, true) == nil {
+		t.Fatal("no session")
+	}
+	for _, name := range []string{"agent.json", "conversation.json", "usage.json",
+		"run-1-run-ec41805a-07c4-4c80-874f-f077b9877582.json", "run-2-run-4fd81a06-3d70-4d12-89e6-44ef450485d1.json", "session-data.json"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Errorf("missing %s: %v", name, err)
+		}
+	}
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Error("stale run-3 debug file survived the refresh")
+	}
+	agentJSON, _ := os.ReadFile(filepath.Join(dir, "agent.json"))
+	// workOnCurrentBranch is not read by the provider; the native export keeps it.
+	if !strings.Contains(string(agentJSON), `"workOnCurrentBranch": false`) {
+		t.Errorf("unknown field missing or not pretty-printed:\n%s", agentJSON)
+	}
+	run1, _ := os.ReadFile(filepath.Join(dir, "run-1-run-ec41805a-07c4-4c80-874f-f077b9877582.json"))
+	if !strings.Contains(string(run1), `"event": "heartbeat"`) {
+		t.Error("run debug file lacks its events")
+	}
+}
+
+func TestListAllCarriesRepositoryNotDirectory(t *testing.T) {
+	useSettings(t, "")
+	project := makeProject(t, t.TempDir(), testOrigin)
+	m, _ := mirrorFor(project)
+	writeFixtureMirror(t, m, loadFixture(t, "fixture-run"))
+	t.Chdir(project)
+
+	refs, err := NewProvider().ListAllAgentChatSessions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("got %d refs from the project-local mirror", len(refs))
+	}
+	if refs[0].OriginCwd != "" || refs[0].OriginRepoURL != "https://github.com/specstoryai/cloud-agent-test" {
+		t.Errorf("ref = OriginCwd %q OriginRepoURL %q; want no directory and the agent's repository", refs[0].OriginCwd, refs[0].OriginRepoURL)
+	}
+}
+
+// TestEnsureRootRepairsGitignore checks that an existing .gitignore without the
+// "*" rule is rewritten, since trusting its presence would let git track the
+// unredacted mirror, while one that already excludes everything is kept as is.
+func TestEnsureRootRepairsGitignore(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		existing string
+		wantKept bool
+	}{
+		{"missing file is written", "", false},
+		{"empty file is rewritten", "# nothing ignored\n", false},
+		{"file with the rule is left alone", "*\n# keep my note\n", true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m := mirror{root: filepath.Join(t.TempDir(), "mirror")}
+			path := filepath.Join(m.root, ".gitignore")
+			if tt.existing != "" {
+				if err := os.MkdirAll(m.root, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte(tt.existing), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := m.ensureRoot(true); err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tt.wantKept && string(got) != tt.existing {
+				t.Errorf("rewrote a sufficient .gitignore: %q", got)
+			}
+			if !gitignoreExcludesAll(got) {
+				t.Errorf(".gitignore = %q, want the * rule", got)
+			}
+		})
+	}
+}
+
+// TestRefreshAgentLeavesMarkerStaleOnTransientFailure checks that a 5xx from
+// the conversation endpoint fails the refresh before agent.json is written, so
+// the next sync retries, while a permanent 404 mirrors the agent without it.
+func TestRefreshAgentLeavesMarkerStaleOnTransientFailure(t *testing.T) {
+	useSettings(t, "test-key")
+	prev := initialBackoff
+	initialBackoff = time.Millisecond
+	t.Cleanup(func() { initialBackoff = prev })
+	f := newFakeAPI(t)
+	fx := loadFixture(t, "fixture-run")
+	f.addFixture(fx)
+	agentID := fx.agent.agent.ID
+	m := mirror{root: t.TempDir()}
+	now, _ := time.Parse(time.RFC3339, fx.runs[0].run.UpdatedAt)
+
+	f.convStatus = http.StatusServiceUnavailable
+	if err := m.refreshAgent(t.Context(), newAPIClient("test-key"), fx.agent, refreshOptions{now: now}); err == nil {
+		t.Fatal("refresh succeeded despite a failing conversation fetch")
+	}
+	if m.readStoredAgent(agentID) != nil {
+		t.Error("agent.json was written after a transient failure, so the next sync would not retry")
+	}
+
+	f.mu.Lock()
+	f.convStatus = http.StatusNotFound
+	f.mu.Unlock()
+	if err := m.refreshAgent(t.Context(), newAPIClient("test-key"), fx.agent, refreshOptions{now: now}); err != nil {
+		t.Fatalf("refresh failed on a permanent 404: %v", err)
+	}
+	if m.readStoredAgent(agentID) == nil {
+		t.Error("agent.json missing after a permanent refusal; the agent would never be mirrored")
+	}
+	if _, err := os.Stat(filepath.Join(m.agentDir(agentID), "conversation.json")); err == nil {
+		t.Error("conversation.json written although the endpoint refused")
+	}
+}
+
+// TestDetectAgentReadsMirrorWithoutKey: `sync cursorcloud` gates on
+// DetectAgent, so already-mirrored histories must still be detected after the
+// key is unset or rotated; only the API probe needs a key.
+func TestDetectAgentReadsMirrorWithoutKey(t *testing.T) {
+	useSettings(t, "")
+	f := newFakeAPI(t)
+	project := makeProject(t, t.TempDir(), testOrigin)
+	if NewProvider().DetectAgent(project, false) {
+		t.Error("detected agents with an empty mirror and no key")
+	}
+	m, _ := mirrorFor(project)
+	writeFixtureMirror(t, m, loadFixture(t, "failure-run"))
+	if !NewProvider().DetectAgent(project, false) {
+		t.Error("mirrored agent not detected without a key")
+	}
+	if n := f.count("/"); n != 0 {
+		t.Errorf("detection without a key made %d API requests", n)
+	}
+}

@@ -1,0 +1,88 @@
+# Cursor Cloud Agent tool inventory
+#
+# Captured 2026-10-13 from agent bc-24df7300-9c89-4d2e-8dad-339b7c2d36b5 (Cursor-hosted
+# cloud VM, model claude-4.5-opus-high-thinking per hook payloads, Cloud Agents API v1 public
+# beta). The fixture is testdata/tool-enumeration/stream-live.sse.
+#
+# Section 1 lists the names the v1 run stream records in tool_call events. These are the
+# names the provider matches. Section 2 is the model-facing inventory the agent wrote to
+# ./tools.txt when asked; the model names map onto the stream names (Shell -> run_terminal_cmd,
+# Read -> read_file, Write/StrReplace -> edit_file, Glob -> file_search, Grep -> grep_search,
+# Delete -> delete_file, TodoWrite -> todo_write, WebFetch -> web_fetch, WebSearch -> web_search,
+# GenerateImage -> generate_image, AwaitShell -> await, WriteCanvas/ReadCanvas ->
+# write_canvas/read_canvas, GetDynamicTools -> get_mcp_tools, CallDynamicTool -> mcp).
+
+## 1. Names observed in tool_call events (exercised)
+await
+delete_file
+edit_file
+file_search
+generate_image
+get_mcp_tools
+grep_search
+mcp
+read_canvas
+read_file
+run_terminal_cmd
+todo_write
+web_fetch
+web_search
+write_canvas
+
+## 2. Model-facing inventory written by the agent
+# Core Tools (built-in)
+Shell
+Glob
+Grep
+Read
+StrReplace
+Write
+RecordScreen
+GetDynamicTools
+ManagePullRequest
+EditPullRequestLabels
+WriteCanvas
+ReadCanvas
+CallDynamicTool
+
+# Dynamic Tools - cursor namespace
+AwaitShell
+CreateGoal
+Delete
+EditNotebook
+FetchMcpResource
+GenerateImage
+Task
+TodoWrite
+UpdateGoal
+WebFetch
+WebSearch
+
+# Dynamic Tools - cursor-cloud namespace
+cursor-cloud-run-info
+cursor-cloud-list-cloud-agents
+cursor-cloud-environment-info
+cursor-cloud-get-events
+cursor-cloud-get-message-queue
+cursor-cloud-batch-fetch-details
+cursor-cloud-get-automation
+cursor-cloud-list-self-hosted-workers
+cursor-cloud-list-environment-builds
+cursor-cloud-environment-build-logs
+cursor-cloud-trigger-environment-build
+cursor-cloud-propose-environment-json
+cursor-cloud-take-environment-snapshot
+cursor-cloud-check-environment-snapshot
+cursor-cloud-request-environment-setup-actions
+cursor-cloud-rename-chat
+
+# Dynamic Tools - cursor-subscriptions namespace
+subscribe_github_pr
+subscribe_github_ci
+subscribe_slack_thread
+subscribe_slack_channel
+subscribe_linear_issue
+subscribe_linear_comment
+list_subscriptions
+unsubscribe
+subscribe_timer
