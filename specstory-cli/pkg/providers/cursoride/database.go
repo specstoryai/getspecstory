@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"time"
 
@@ -17,9 +18,79 @@ import (
 
 // composerBatchSize is the maximum number of composer IDs per SQL query.
 // SQLite limits expression tree depth to ~1000. Each composer ID contributes
-// two expressions (one IN entry + one LIKE condition), so 200 IDs keeps us
+// three expressions (one IN entry + two LIKE conditions), so 200 IDs keeps us
 // well under that limit.
 const composerBatchSize = 200
+
+// convHeadersPrefix is the key prefix of the paged conversation-header rows that
+// Cursor >= 3.27.14 writes instead of populating fullConversationHeadersOnly:
+//
+//	composerConvHeaders:<composerId>:000000 -> JSON array of conversation headers
+//	composerConvHeaders:<composerId>:000001 -> next page, ...
+//
+// Concatenating the pages in key order yields the full ordered header list. The
+// bubble rows (bubbleId:<composerId>:<bubbleId>) are unchanged.
+const convHeadersPrefix = "composerConvHeaders:"
+
+// headerPage is one composerConvHeaders row: the zero-padded page suffix from the key
+// and the headers it holds. Pages are sorted by suffix before concatenation.
+type headerPage struct {
+	page    string
+	headers []ComposerConversationHeader
+}
+
+// parseConvHeadersKey splits a composerConvHeaders key into its composer ID and
+// page suffix. ok is false for keys that don't have the expected three parts.
+func parseConvHeadersKey(key string) (composerID, page string, ok bool) {
+	rest, found := strings.CutPrefix(key, convHeadersPrefix)
+	if !found {
+		return "", "", false
+	}
+	composerID, page, found = strings.Cut(rest, ":")
+	if !found || composerID == "" || page == "" {
+		return "", "", false
+	}
+	return composerID, page, true
+}
+
+// addHeaderPage parses one composerConvHeaders row into the pages map.
+func addHeaderPage(pages map[string][]headerPage, key, valueJSON string) {
+	composerID, page, ok := parseConvHeadersKey(key)
+	if !ok {
+		slog.Warn("Invalid conversation headers key format", "key", key)
+		return
+	}
+	var headers []ComposerConversationHeader
+	if err := json.Unmarshal([]byte(valueJSON), &headers); err != nil {
+		slog.Warn("Failed to parse conversation headers page", "composerID", composerID, "page", page, "error", err)
+		return
+	}
+	pages[composerID] = append(pages[composerID], headerPage{page: page, headers: headers})
+}
+
+// mergeHeaderPages fills FullConversationHeadersOnly from the paged rows for every
+// composer whose inline header list is empty. Composers that still carry inline
+// headers (Cursor < 3.27.14) are left untouched, so the inline list always wins.
+func mergeHeaderPages(composers map[string]*ComposerData, pages map[string][]headerPage) {
+	for composerID, composerPages := range pages {
+		composer, exists := composers[composerID]
+		if !exists || len(composer.FullConversationHeadersOnly) > 0 || len(composerPages) == 0 {
+			continue
+		}
+		sort.Slice(composerPages, func(i, j int) bool { return composerPages[i].page < composerPages[j].page })
+		total := 0
+		for _, p := range composerPages {
+			total += len(p.headers)
+		}
+		headers := make([]ComposerConversationHeader, 0, total)
+		for _, p := range composerPages {
+			headers = append(headers, p.headers...)
+		}
+		composer.FullConversationHeadersOnly = headers
+		slog.Debug("Rebuilt conversation headers from paged rows",
+			"composerID", composerID, "pages", len(composerPages), "headers", len(headers))
+	}
+}
 
 // OpenDatabase opens a SQLite database in read-only mode with controlled
 // connection pooling. Callers that need WAL mode guaranteed should call
@@ -174,15 +245,17 @@ func LoadComposerDataBatch(globalDbPath string, composerIDs []string) (map[strin
 
 	composers := make(map[string]*ComposerData)
 	bubbles := make(map[string]map[string]*ComposerConversation)
+	pages := make(map[string][]headerPage)
 
 	for i := 0; i < len(composerIDs); i += composerBatchSize {
 		end := min(i+composerBatchSize, len(composerIDs))
 		chunk := composerIDs[i:end]
-		if err := loadComposerChunk(db, chunk, composers, bubbles); err != nil {
+		if err := loadComposerChunk(db, chunk, composers, bubbles, pages); err != nil {
 			return nil, err
 		}
 	}
 
+	mergeHeaderPages(composers, pages)
 	assembleComposerConversations(composers, bubbles)
 
 	slog.Debug("Loaded composers from global database", "composerCount", len(composers))
@@ -190,19 +263,23 @@ func LoadComposerDataBatch(globalDbPath string, composerIDs []string) (map[strin
 }
 
 // loadComposerChunk runs one bounded query for a slice of composer IDs and merges
-// the results into the caller-provided composers and bubbles maps.
-func loadComposerChunk(db *sql.DB, composerIDs []string, composers map[string]*ComposerData, bubbles map[string]map[string]*ComposerConversation) error {
+// the results into the caller-provided composers, bubbles and header-page maps.
+func loadComposerChunk(db *sql.DB, composerIDs []string, composers map[string]*ComposerData, bubbles map[string]map[string]*ComposerConversation, pages map[string][]headerPage) error {
 	placeholders := make([]string, len(composerIDs))
-	likeConditions := make([]string, len(composerIDs))
-	params := make([]interface{}, 0, len(composerIDs)*2)
+	likeConditions := make([]string, 0, len(composerIDs)*2)
+	params := make([]interface{}, 0, len(composerIDs)*3)
 
 	for i, id := range composerIDs {
 		placeholders[i] = "?"
-		likeConditions[i] = "key LIKE ?"
 		params = append(params, "composerData:"+id)
 	}
 	for _, id := range composerIDs {
+		likeConditions = append(likeConditions, "key LIKE ?")
 		params = append(params, "bubbleId:"+id+":%")
+	}
+	for _, id := range composerIDs {
+		likeConditions = append(likeConditions, "key LIKE ?")
+		params = append(params, convHeadersPrefix+id+":%")
 	}
 
 	query := fmt.Sprintf(`SELECT key, value FROM cursorDiskKV
@@ -258,6 +335,8 @@ func loadComposerChunk(db *sql.DB, composerIDs []string, composers map[string]*C
 			}
 			bubbles[composerID][bubbleID] = &bubble
 			slog.Debug("Loaded bubble", "composerID", composerID, "bubbleID", bubbleID, "type", bubble.Type)
+		} else if strings.HasPrefix(key, convHeadersPrefix) {
+			addHeaderPage(pages, key, valueJSON)
 		}
 	}
 	return rows.Err()
@@ -766,10 +845,25 @@ func RegisterGlassProjectMembership(globalDbPath, composerID, workspaceID, works
 
 // LoadAllComposerDataLightweight loads composer records for all sessions in the global database.
 // Unlike LoadComposerDataBatch, it only reads composerData:* keys — no bubble records — so it
-// is fast enough for global enumeration (ListAllAgentChatSessions). Inline conversation turns
-// are included when present (Cursor 2 format); for Cursor 3 only the header list is returned
-// and slug/name derivation falls back to the composer Name field.
+// is fast enough to run on every watcher check. Inline conversation turns are included when
+// present (Cursor 2 format); for Cursor 3 only the inline header list is returned and
+// slug/name derivation falls back to the composer Name field. Cursor >= 3.27.14 composers
+// come back with an empty header list; callers that need to tell an empty composer from a
+// populated one must use LoadAllComposerDataWithHeaders instead.
 func LoadAllComposerDataLightweight(globalDbPath string) (map[string]*ComposerData, error) {
+	return loadAllComposerData(globalDbPath, false)
+}
+
+// LoadAllComposerDataWithHeaders is LoadAllComposerDataLightweight plus the paged
+// composerConvHeaders rows, merged into FullConversationHeadersOnly. It is kept separate
+// because the pages span the whole chat history: discovery and watcher seeding only need
+// workspace associations and timestamps, so they shouldn't pay to decode every page.
+func LoadAllComposerDataWithHeaders(globalDbPath string) (map[string]*ComposerData, error) {
+	return loadAllComposerData(globalDbPath, true)
+}
+
+// loadAllComposerData is the shared body of the two global loaders.
+func loadAllComposerData(globalDbPath string, withHeaderPages bool) (map[string]*ComposerData, error) {
 	db, err := OpenDatabase(globalDbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open global database: %w", err)
@@ -809,6 +903,45 @@ func LoadAllComposerDataLightweight(globalDbPath string) (map[string]*ComposerDa
 		return nil, fmt.Errorf("error iterating composer rows: %w", err)
 	}
 
+	// Cursor >= 3.27.14 leaves fullConversationHeadersOnly empty and pages the headers
+	// into composerConvHeaders rows. Without them, callers that use the header list to
+	// tell an empty composer from a populated one would skip every new session.
+	if withHeaderPages {
+		pages, err := loadAllHeaderPages(db)
+		if err != nil {
+			return nil, err
+		}
+		mergeHeaderPages(composers, pages)
+	}
+
 	slog.Debug("Loaded lightweight composer data from global database", "count", len(composers))
 	return composers, nil
+}
+
+// loadAllHeaderPages reads every composerConvHeaders row in the global database,
+// grouped by composer ID.
+func loadAllHeaderPages(db *sql.DB) (map[string][]headerPage, error) {
+	rows, err := db.Query("SELECT key, value FROM cursorDiskKV WHERE key LIKE ? AND value IS NOT NULL", convHeadersPrefix+"%")
+	if err != nil {
+		return nil, fmt.Errorf("failed to query conversation header pages: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Warn("Failed to close header page rows", "error", closeErr)
+		}
+	}()
+
+	pages := make(map[string][]headerPage)
+	for rows.Next() {
+		var key, valueJSON string
+		if err := rows.Scan(&key, &valueJSON); err != nil {
+			slog.Warn("Failed to scan header page row", "error", err)
+			continue
+		}
+		addHeaderPage(pages, key, valueJSON)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating header page rows: %w", err)
+	}
+	return pages, nil
 }

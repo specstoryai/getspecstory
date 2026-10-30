@@ -419,12 +419,14 @@ func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 		return nil, fmt.Errorf("failed to scan workspaces: %w", err)
 	}
 
-	// Load lightweight composer metadata from the global database (no bubble data).
+	// Load composer metadata from the global database (no bubble data). The paged
+	// headers are needed so the empty-composer check below doesn't skip Cursor >= 3.27.14
+	// sessions, whose inline header list is always empty.
 	globalDbPath, err := GetGlobalDatabasePath()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get global database path: %w", err)
 	}
-	composers, err := LoadAllComposerDataLightweight(globalDbPath)
+	composers, err := LoadAllComposerDataWithHeaders(globalDbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load composer metadata: %w", err)
 	}
