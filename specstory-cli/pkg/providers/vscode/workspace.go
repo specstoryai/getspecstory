@@ -104,7 +104,7 @@ func FindWorkspaces(storageRoot, projectPath string, opts MatchOptions) ([]Works
 	// folders so entries opened directly from those folders match too (method 4).
 	var workspaceFileFolders []string
 	if strings.HasSuffix(canonicalProjectPath, ".code-workspace") {
-		workspaceFileFolders = collectCodeWorkspaceFolders(canonicalProjectPath)
+		workspaceFileFolders = CollectCodeWorkspaceFolders(canonicalProjectPath)
 	}
 
 	dirEntries, err := os.ReadDir(storageRoot)
@@ -258,13 +258,13 @@ func SelectPrimary(entries []WorkspaceEntry, projectPath string) *WorkspaceEntry
 	return &best
 }
 
-// collectCodeWorkspaceFolders reads a .code-workspace JSON file and returns the
+// CollectCodeWorkspaceFolders reads a .code-workspace JSON file and returns the
 // canonical paths of all listed folders. Relative paths are resolved against
 // the workspace file's directory.
-func collectCodeWorkspaceFolders(workspaceFilePath string) []string {
+func CollectCodeWorkspaceFolders(workspaceFilePath string) []string {
 	data, err := os.ReadFile(workspaceFilePath)
 	if err != nil {
-		slog.Debug("collectCodeWorkspaceFolders: failed to read workspace file",
+		slog.Debug("CollectCodeWorkspaceFolders: failed to read workspace file",
 			"path", workspaceFilePath, "error", err)
 		return nil
 	}
@@ -275,7 +275,7 @@ func collectCodeWorkspaceFolders(workspaceFilePath string) []string {
 		} `json:"folders"`
 	}
 	if err := json.Unmarshal(data, &workspace); err != nil {
-		slog.Debug("collectCodeWorkspaceFolders: failed to parse workspace file",
+		slog.Debug("CollectCodeWorkspaceFolders: failed to parse workspace file",
 			"path", workspaceFilePath, "error", err)
 		return nil
 	}
@@ -313,7 +313,7 @@ func collectCodeWorkspaceFolders(workspaceFilePath string) []string {
 // because for a local workspace an unreadable file means it was deleted, and matching
 // on its parent directory would be a false positive.
 func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string, isRemote bool) bool {
-	folders := collectCodeWorkspaceFolders(workspaceFilePath)
+	folders := CollectCodeWorkspaceFolders(workspaceFilePath)
 	if len(folders) == 0 && isRemote {
 		return filepath.Dir(workspaceFilePath) == canonicalFolder
 	}
