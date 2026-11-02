@@ -282,6 +282,45 @@ func TestSelectWorkProjectFilter(t *testing.T) {
 	}
 }
 
+func TestLiveIndexerRecordThrottle(t *testing.T) {
+	store, err := sessionindex.Open(filepath.Join(t.TempDir(), "sessions.db"))
+	if err != nil {
+		t.Fatalf("open index: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	li := &LiveIndexer{
+		store:       store,
+		cwd:         "/work/proj",
+		projectID:   "proj-1",
+		projectName: "proj",
+		indexedAt:   "2026-06-25T00:00:00Z",
+		lastSeen:    map[string]string{},
+		lastIndexed: map[string]time.Time{},
+	}
+	sess := func(text, timestamp string) *spi.AgentChatSession {
+		return &spi.AgentChatSession{
+			SessionID: "sess-throttle",
+			CreatedAt: "2026-06-25T00:00:00Z",
+			SessionData: &schema.SessionData{Exchanges: []schema.Exchange{{Messages: []schema.Message{
+				userMsg(timestamp, text),
+			}}}},
+		}
+	}
+
+	li.Record("claude", sess("first body", "2026-06-25T00:01:00Z"))
+	li.Record("claude", sess("throttled body", "2026-06-25T00:02:00Z"))
+	if hits, _ := store.Search(ftsQuery("throttled"), "proj-1"); len(hits) != 0 {
+		t.Fatalf("immediate update replaced the document %d times, want throttled", len(hits))
+	}
+
+	li.lastIndexed["sess-throttle"] = time.Now().Add(-liveIndexMinInterval)
+	li.Record("claude", sess("latest body", "2026-06-25T00:03:00Z"))
+	if hits, _ := store.Search(ftsQuery("latest"), "proj-1"); len(hits) != 1 {
+		t.Fatalf("update after interval returned %d hits, want 1", len(hits))
+	}
+}
+
 // TestLiveIndexerRecordConcurrent exercises the mutex that serializes concurrent provider
 // watchers: many goroutines record distinct sessions at once, and each must land exactly one
 // row with no data race on lastSeen or the writer. Run with -race to catch a dropped lock.

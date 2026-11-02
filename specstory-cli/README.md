@@ -263,6 +263,11 @@ specstory sync --config-dir ~/specstory-configs/myproject
 # Use local timezone for file name and content timestamps (default: false, UTC)
 # local_time_zone = true # equivalent to --local-time-zone
 
+# Rotate history markdown into linked continuation files at this size in MB.
+# Continuations are named <session>.part-2.md, <session>.part-3.md, and so on.
+# Default: 10
+# markdown_part_size_mb = 10
+
 [cloud_sync]
 # Sync session data to SpecStory Cloud. (default: true, when logged in to SpecStory Cloud)
 # enabled = false # equivalent to --no-cloud-sync
@@ -384,6 +389,7 @@ specstory sync --config-dir ~/specstory-configs/myproject
 | `[local_sync]`    | `enabled`                          | `true`               | Write local markdown files                                          |
 | `[local_sync]`    | `output_dir`                       | `.specstory/history` | Custom output directory for markdown files                          |
 | `[local_sync]`    | `local_time_zone`                  | `false`              | Use local timezone for timestamps                                   |
+| `[local_sync]`    | `markdown_part_size_mb`            | `10`                 | Rotate history markdown into linked continuation files at this size |
 | `[cloud_sync]`    | `enabled`                          | `true`               | Sync sessions to SpecStory Cloud                                    |
 | `[logging]`       | `debug_dir`                        | `.specstory/debug`   | Custom output directory for debug data                              |
 | `[logging]`       | `console`                          | `false`              | Output logs to stdout                                               |

@@ -675,6 +675,26 @@ func TestMissingFileHandling(t *testing.T) {
 	}
 }
 
+func TestMarkdownPartSizeBytes(t *testing.T) {
+	tests := []struct {
+		name string
+		mb   int64
+		want int64
+	}{
+		{name: "default is ten MB", want: 10 * 1024 * 1024},
+		{name: "configured MB", mb: 2, want: 2 * 1024 * 1024},
+		{name: "nonpositive uses default", mb: -1, want: 10 * 1024 * 1024},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{LocalSync: LocalSyncConfig{MarkdownPartSizeMB: tt.mb}}
+			if got := cfg.GetMarkdownPartSizeBytes(); got != tt.want {
+				t.Errorf("GetMarkdownPartSizeBytes() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
 // TestDefaultValues tests that default values are returned when config is empty
 func TestDefaultValues(t *testing.T) {
 

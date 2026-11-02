@@ -1,5 +1,12 @@
 # Specstory CLI Changelog
 
+## Unreleased
+
+### ⚙️ Improvements
+
+- Claude Code live autosave now renders, redacts, and writes only the changed markdown tail after a validated transcript append, rather than rebuilding the entire history file. Live full-text indexing is limited to one update per session every ten seconds.
+- History markdown rotates into linked continuation files when it exceeds 10 MB by default. Configure the threshold with `markdown_part_size_mb` under `[local_sync]`; continuation files use the `<name>.part-2.md`, `<name>.part-3.md` naming pattern.
+
 ## v2.16.1 2026-11-02
 
 ### 🐛 Bug Fixes

@@ -30,6 +30,9 @@ const (
 	// (a few Claude warmups; all Cursor sessions until the deferred cwd recovery lands).
 	unknownProjectID = "unknown"
 
+	// liveIndexMinInterval bounds full-document FTS replacement during autosave.
+	liveIndexMinInterval = 10 * time.Second
+
 	// reindexWriteBatch is how many sessions the writer goroutine commits per transaction.
 	reindexWriteBatch = 200
 
@@ -497,8 +500,9 @@ type LiveIndexer struct {
 	projectName string
 	indexedAt   string
 
-	mu       sync.Mutex
-	lastSeen map[string]string // session id -> last indexed UpdatedAt, to skip no-op upserts
+	mu          sync.Mutex
+	lastSeen    map[string]string    // session id -> last indexed UpdatedAt, to skip no-op upserts
+	lastIndexed map[string]time.Time // session id -> last full-document FTS replacement
 }
 
 // NewLiveIndexer opens the index for writing and resolves the project for cwd. It returns nil
@@ -526,6 +530,7 @@ func NewLiveIndexer(cwd string) *LiveIndexer {
 		projectName: projectName,
 		indexedAt:   time.Now().UTC().Format(time.RFC3339),
 		lastSeen:    map[string]string{},
+		lastIndexed: map[string]time.Time{},
 	}
 }
 
@@ -549,6 +554,12 @@ func (li *LiveIndexer) Record(agentID string, sess *spi.AgentChatSession) {
 
 	// Nothing advanced since the last write → skip the (FTS-heavy) upsert.
 	if updatedAt != "" && li.lastSeen[sess.SessionID] == updatedAt {
+		return
+	}
+	// FTS replacement rewrites the whole session document. During a burst, the
+	// next record after the interval carries the latest state, so intermediate
+	// replacements are unnecessary.
+	if lastIndexed, ok := li.lastIndexed[sess.SessionID]; ok && time.Since(lastIndexed) < liveIndexMinInterval {
 		return
 	}
 
@@ -585,6 +596,10 @@ func (li *LiveIndexer) Record(agentID string, sess *spi.AgentChatSession) {
 		return
 	}
 	li.lastSeen[sess.SessionID] = updatedAt
+	if li.lastIndexed == nil {
+		li.lastIndexed = map[string]time.Time{}
+	}
+	li.lastIndexed[sess.SessionID] = time.Now()
 }
 
 // Close releases the writer handle. Safe on a nil receiver.
@@ -722,15 +737,15 @@ func countTurns(data *schema.SessionData) (userTurns, totalTurns int) {
 
 // lastTimestamp returns the last non-empty message timestamp in the session, or "".
 func lastTimestamp(data *schema.SessionData) string {
-	last := ""
-	for _, ex := range data.Exchanges {
-		for _, m := range ex.Messages {
-			if m.Timestamp != "" {
-				last = m.Timestamp
+	for i := len(data.Exchanges) - 1; i >= 0; i-- {
+		messages := data.Exchanges[i].Messages
+		for j := len(messages) - 1; j >= 0; j-- {
+			if messages[j].Timestamp != "" {
+				return messages[j].Timestamp
 			}
 		}
 	}
-	return last
+	return ""
 }
 
 // refFingerprint returns the freshness pair for a ref: the provider's own when it

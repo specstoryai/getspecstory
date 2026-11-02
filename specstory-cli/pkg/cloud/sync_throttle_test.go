@@ -130,10 +130,17 @@ func TestSyncSessionToCloud_DoesNotBuildSessionDataWhenSendCannotStart(t *testin
 			isAuthenticated = false
 			hasSessionToken = false
 			built := false
-			SyncSessionToCloud("session-id", "session.md", "markdown", nil, func() string {
+			markdownBuilt := false
+			SyncSessionToCloud("session-id", "session.md", func() string {
+				markdownBuilt = true
+				return "markdown"
+			}, nil, func() string {
 				built = true
 				return "{}"
 			}, "Claude Code", "title", false, true)
+			if markdownBuilt {
+				t.Error("markdown was assembled even though no send could start")
+			}
 			if built {
 				t.Error("SessionData JSON was built even though no send could start")
 			}
@@ -224,7 +231,7 @@ func TestSyncSessionToCloud_SingleFlightLatestWins(t *testing.T) {
 	sessionDataJSON := func() string { return currentSessionData }
 	sync := func(markdown string) {
 		currentSessionData = markdown
-		SyncSessionToCloud("session-id", "session.md", markdown, nil, sessionDataJSON, "Claude Code", "title", false, true)
+		SyncSessionToCloud("session-id", "session.md", func() string { return markdown }, nil, sessionDataJSON, "Claude Code", "title", false, true)
 	}
 	sync("first")
 	select {

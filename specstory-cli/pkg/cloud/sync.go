@@ -1136,9 +1136,10 @@ func (syncMgr *SyncManager) flushAllPending() {
 // When isAutosaveMode is false (manual sync), syncs are immediate with HEAD checks
 // When redactPayloads is true, rawData and sessionData have secrets redacted at
 // actual send time in performSync; mdContent must arrive already redacted (the
-// caller also writes it to disk). sessionDataJSON is evaluated only after the
-// enabled and authentication checks, capturing an immutable request snapshot.
-func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawData []byte, sessionDataJSON func() string, agentName string, title string, redactPayloads bool, isAutosaveMode bool) {
+// caller also writes it to disk). mdContent and sessionDataJSON are evaluated
+// only after the enabled and authentication checks, capturing immutable request
+// snapshots without building payloads for sessions that cannot send.
+func SyncSessionToCloud(sessionID string, mdPath string, mdContent func() string, rawData []byte, sessionDataJSON func() string, agentName string, title string, redactPayloads bool, isAutosaveMode bool) {
 	syncManagerMutex.RLock()
 	syncMgr := globalSyncManager
 	syncManagerMutex.RUnlock()
@@ -1158,8 +1159,12 @@ func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawDa
 		return
 	}
 
-	// Capture the normalized snapshot only after both cloud gates. In particular,
-	// the incremental Claude cache may mutate its source on the next autosave.
+	// Capture immutable snapshots only after both cloud gates. In particular, the
+	// incremental Claude cache may mutate its source on the next autosave.
+	markdownContent := ""
+	if mdContent != nil {
+		markdownContent = mdContent()
+	}
 	sessionData := ""
 	if sessionDataJSON != nil {
 		sessionData = sessionDataJSON()
@@ -1168,9 +1173,9 @@ func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawDa
 	// Both modes share the per-session single-flight queue. Autosave adds the
 	// debounce interval and skips HEAD; manual sync starts as soon as it can.
 	if isAutosaveMode {
-		syncMgr.debouncedSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, redactPayloads)
+		syncMgr.debouncedSync(sessionID, mdPath, markdownContent, rawData, sessionData, agentName, title, redactPayloads)
 	} else {
-		syncMgr.enqueueSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, redactPayloads, false)
+		syncMgr.enqueueSync(sessionID, mdPath, markdownContent, rawData, sessionData, agentName, title, redactPayloads, false)
 	}
 }
 

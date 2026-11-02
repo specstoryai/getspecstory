@@ -129,7 +129,7 @@ Resuming SpecStory Cloud sessions (from your other machines) requires an active 
 			}
 
 			// Read the run/watch flags that affect the resumed session (shared with `search`).
-			launchOpts := readResumeLaunchOpts(cmd)
+			launchOpts := readResumeLaunchOpts(cmd, defaults.MarkdownPartSizeBytes)
 
 			cwd, err := os.Getwd()
 			if err != nil {
@@ -198,7 +198,7 @@ Resuming SpecStory Cloud sessions (from your other machines) requires an active 
 // a side effect (mirrors run/watch). cloud-url and the telemetry endpoint/service-name are
 // consumed elsewhere (PersistentPreRunE and main's startup scan, respectively), so they are
 // deliberately absent from the returned opts.
-func readResumeLaunchOpts(cmd *cobra.Command) resumeLaunchOpts {
+func readResumeLaunchOpts(cmd *cobra.Command, markdownPartSizeBytes int64) resumeLaunchOpts {
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
 	outputDir, _ := cmd.Flags().GetString("output-dir")
 	flagDebugDir, _ := cmd.Flags().GetString("debug-dir")
@@ -215,7 +215,7 @@ func readResumeLaunchOpts(cmd *cobra.Command) resumeLaunchOpts {
 		debugRaw:          debugRaw,
 		noCloudSync:       noCloudSync,
 		provenanceEnabled: provenanceEnabled,
-		processing:        ResolveProcessingOptions(cmd, true /* isAutosave */, false /* showOutput */),
+		processing:        ResolveProcessingOptions(cmd, true /* isAutosave */, false /* showOutput */, markdownPartSizeBytes),
 	}
 }
 

@@ -34,7 +34,7 @@ func CreateSearchCommand(cloudURL *string, defaults SessionFlagDefaults) *cobra.
 
 			// Read the run/watch flags that affect the resumed session (shared with `resume`),
 			// before opening the index so the debug-dir override is in effect.
-			launchOpts := readResumeLaunchOpts(cmd)
+			launchOpts := readResumeLaunchOpts(cmd, defaults.MarkdownPartSizeBytes)
 
 			cwd, err := os.Getwd()
 			if err != nil {

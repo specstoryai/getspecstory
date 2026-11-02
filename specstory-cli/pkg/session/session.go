@@ -4,14 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
-	"github.com/specstoryai/getspecstory/specstory-cli/pkg/redact"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
@@ -69,14 +67,15 @@ func BuildSessionFilePath(session *spi.AgentChatSession, historyDir string, useU
 
 // ProcessingOptions holds flags that control session processing behavior.
 type ProcessingOptions struct {
-	OnlyCloudSync      bool // Skip local markdown writes and only sync to cloud
-	ShowOutput         bool // Print progress to stdout
-	IsAutosave         bool // Called from run/watch (true) vs sync command (false)
-	DebugRaw           bool // Enable schema validation (only in debug mode to avoid overhead)
-	UseUTC             bool // Timestamp format: true=UTC, false=local
-	NoTelemetryPrompts bool // Exclude user prompt text from telemetry spans for privacy
-	RedactSecrets      bool // Redact API keys and tokens from markdown output
-	NoStats            bool // Skip statistics collection entirely (--no-stats)
+	OnlyCloudSync         bool  // Skip local markdown writes and only sync to cloud
+	ShowOutput            bool  // Print progress to stdout
+	IsAutosave            bool  // Called from run/watch (true) vs sync command (false)
+	DebugRaw              bool  // Enable schema validation (only in debug mode to avoid overhead)
+	UseUTC                bool  // Timestamp format: true=UTC, false=local
+	NoTelemetryPrompts    bool  // Exclude user prompt text from telemetry spans for privacy
+	RedactSecrets         bool  // Redact API keys and tokens from markdown output
+	NoStats               bool  // Skip statistics collection entirely (--no-stats)
+	MarkdownPartSizeBytes int64 // Rotate history markdown at this size; <=0 uses 10 MB
 }
 
 // markdownWriteEvent selects the analytics event for a successful markdown
@@ -137,103 +136,62 @@ func ProcessSingleSession(ctx context.Context, providerID string, session *spi.A
 	ValidateSessionData(session, opts.DebugRaw)
 	WriteDebugSessionData(session, opts.DebugRaw)
 
-	// Generate markdown from SessionData
-	markdownContent, err := GenerateMarkdownFromAgentSession(session.SessionData, false, opts.UseUTC)
-	if err != nil {
-		slog.Error("Failed to generate markdown from SessionData", "sessionId", session.SessionID, "error", err)
-		return 0, fmt.Errorf("failed to generate markdown: %w", err)
-	}
-
-	// Redact secrets from the markdown before writing to disk, collecting
-	// statistics, or syncing to cloud. The count feeds the analytics
-	// redacted_count property and covers the markdown only: the cloud
-	// payloads are redacted later, inside the sync machinery at actual send
-	// time.
-	redactedCount := 0
-	if opts.RedactSecrets {
-		markdownContent, redactedCount = redact.RedactContent(markdownContent)
-	}
-
-	// Collect statistics on the redacted content, so stats reflect what's
-	// actually written to disk. Failures warn but never fail the save.
-	if !opts.NoStats {
-		if err := CollectSessionStatistics(providerID, session, markdownContent, config); err != nil {
-			slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
-		}
-	}
-
-	// Calculate markdown size in bytes
-	markdownSize := len(markdownContent)
-
-	// Generate filename from timestamp and slug
 	fileFullPath := BuildSessionFilePath(session, config.GetHistoryDir(), opts.UseUTC)
-
 	if opts.ShowOutput && !log.IsSilent() {
 		fmt.Printf("Processing session %s...", session.SessionID)
 	}
 
-	// Check if file already exists with same content
-	var outcome string
-	identicalContent := false
-	fileExists := false
-	if existingContent, err := os.ReadFile(fileFullPath); err == nil {
-		fileExists = true
-		if string(existingContent) == markdownContent {
-			identicalContent = true
-			slog.Info("Markdown file already exists with same content, skipping write",
-				"sessionId", session.SessionID,
-				"path", fileFullPath)
+	// Full rebuilds retain the original renderer. Validated Claude appends reuse
+	// the stable on-disk prefix and render/redact only the current exchange tail.
+	saveResult, err := saveSessionMarkdown(session, config, opts)
+	if err != nil {
+		errorEvent := analytics.EventSyncMarkdownError
+		if opts.IsAutosave {
+			errorEvent = analytics.EventAutosaveError
+		}
+		analytics.TrackEvent(errorEvent, analytics.Properties{
+			"session_id":      session.SessionID,
+			"error":           err.Error(),
+			"only_cloud_sync": opts.OnlyCloudSync,
+		})
+		return 0, fmt.Errorf("error writing markdown file: %w", err)
+	}
+	markdownSize := saveResult.size
+	identicalContent := saveResult.identical
+
+	// Collect statistics on the redacted content, so stats reflect what's
+	// actually written to disk. Failures warn but never fail the save.
+	if !opts.NoStats {
+		if err := collectSessionStatistics(providerID, session, markdownSize, config); err != nil {
+			slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
 		}
 	}
 
-	// Write file if needed (skip if only-cloud-sync is enabled)
+	var outcome string
 	if !opts.OnlyCloudSync {
 		if !identicalContent {
-			// Ensure history directory exists (handles deletion during long-running watch/run)
-			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
-				return 0, fmt.Errorf("failed to ensure history directory: %w", err)
-			}
-			err := os.WriteFile(fileFullPath, []byte(markdownContent), 0644)
-			if err != nil {
-				// Track write error
-				errorEvent := analytics.EventSyncMarkdownError
-				if opts.IsAutosave {
-					errorEvent = analytics.EventAutosaveError
-				}
-				analytics.TrackEvent(errorEvent, analytics.Properties{
-					"session_id":      session.SessionID,
-					"error":           err.Error(),
-					"only_cloud_sync": opts.OnlyCloudSync,
-				})
-				return 0, fmt.Errorf("error writing markdown file: %w", err)
-			}
-
-			// Track successful write
-			analytics.TrackEvent(markdownWriteEvent(opts.IsAutosave, fileExists), analytics.Properties{
+			analytics.TrackEvent(markdownWriteEvent(opts.IsAutosave, saveResult.fileExists), analytics.Properties{
 				"session_id":        session.SessionID,
 				"only_cloud_sync":   opts.OnlyCloudSync,
 				"redaction_enabled": opts.RedactSecrets,
-				"redacted_count":    redactedCount,
+				"redacted_count":    saveResult.redactedCount,
 			})
-
-			slog.Info("Successfully wrote file",
-				"sessionId", session.SessionID,
-				"path", fileFullPath)
+			slog.Info("Successfully wrote file", "sessionId", session.SessionID, "path", saveResult.currentPath)
+		} else {
+			slog.Info("Markdown file already exists with same content, skipping write",
+				"sessionId", session.SessionID, "path", saveResult.currentPath)
 		}
 
-		// Determine outcome for user feedback
 		if identicalContent {
 			outcome = "up to date (skipped)"
-		} else if fileExists {
+		} else if saveResult.fileExists {
 			outcome = "updated"
 		} else {
 			outcome = "created"
 		}
 	} else {
-		// Only cloud sync mode - no local file operations
 		outcome = "synced to cloud only"
-		slog.Info("Skipping local file write (only-cloud-sync mode)",
-			"sessionId", session.SessionID)
+		slog.Info("Skipping local file write (only-cloud-sync mode)", "sessionId", session.SessionID)
 	}
 
 	// Trigger cloud sync with provider-specific data
@@ -245,7 +203,7 @@ func ProcessSingleSession(ctx context.Context, providerID string, session *spi.A
 		// redaction. It happens inside the sync machinery at actual send time,
 		// so payloads replaced during the autosave debounce are never scanned;
 		// the markdown is already redacted above.
-		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), session.SessionDataJSON, session.SessionData.Provider.Name, spi.ReadableTitleFromSessionData(session.SessionData), opts.RedactSecrets, opts.IsAutosave)
+		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, saveResult.fullContent, []byte(session.RawData), session.SessionDataJSON, session.SessionData.Provider.Name, spi.ReadableTitleFromSessionData(session.SessionData), opts.RedactSecrets, opts.IsAutosave)
 	}
 
 	if opts.ShowOutput && !log.IsSilent() {
@@ -263,7 +221,15 @@ func ProcessSingleSession(ctx context.Context, providerID string, session *spi.A
 // sessions in racing read-modify-write cycles. providerID is the registry id
 // (see ComputeSessionStatistics for why it must not come from SessionData).
 func CollectSessionStatistics(providerID string, session *spi.AgentChatSession, markdownContent string, config utils.OutputConfig) error {
+	return collectSessionStatistics(providerID, session, len(markdownContent), config)
+}
+
+// collectSessionStatistics avoids reconstructing a rotated full document just
+// to obtain its byte length; all other statistics come from SessionData.
+func collectSessionStatistics(providerID string, session *spi.AgentChatSession, markdownSize int, config utils.OutputConfig) error {
+	stats := ComputeSessionStatistics(session.SessionData, "", providerID)
+	stats.MarkdownSizeBytes = markdownSize
 	collector := SharedStatisticsCollector(filepath.Join(config.GetSpecstoryDir(), utils.STATISTICS_FILE))
-	collector.AddSessionStats(session.SessionID, ComputeSessionStatistics(session.SessionData, markdownContent, providerID))
+	collector.AddSessionStats(session.SessionID, stats)
 	return collector.Flush()
 }

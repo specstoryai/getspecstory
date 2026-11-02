@@ -373,6 +373,7 @@ func TestLiveIndexerRecord(t *testing.T) {
 		projectName: "proj",
 		indexedAt:   "2026-06-25T00:00:00Z",
 		lastSeen:    map[string]string{},
+		lastIndexed: map[string]time.Time{},
 	}
 
 	msg := func(role, ts, text string) schema.Message {
@@ -427,7 +428,8 @@ func TestLiveIndexerRecord(t *testing.T) {
 		t.Errorf("dedup: want 1 row, got %d", len(rows))
 	}
 
-	// New activity (a later message) updates the same row in place.
+	// New activity after the throttle interval updates the same row in place.
+	li.lastIndexed["sess-1"] = time.Now().Add(-liveIndexMinInterval)
 	li.Record("claude", sess(user1, agent1, msg(schema.RoleUser, "2026-06-25T00:03:00Z", "more")))
 	rows, _ = store.ListByProject("proj-1")
 	if len(rows) != 1 {

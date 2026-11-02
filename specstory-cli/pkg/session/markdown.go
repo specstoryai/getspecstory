@@ -39,28 +39,7 @@ func GenerateMarkdownFromAgentSession(sessionData *SessionData, includeMessageID
 
 	var markdown strings.Builder
 
-	// Add header comment
-	markdown.WriteString(GeneratedBySpecStory + "\n\n")
-
-	// Create title from session info
-	title := generateTitle(sessionData, useUTC)
-	fmt.Fprintf(&markdown, "# %s\n\n", title)
-
-	// Add session metadata comment using the same timestamp format as the title
-	var commentTimestamp string
-	if len(sessionData.Exchanges) > 0 && sessionData.Exchanges[0].StartTime != "" {
-		commentTimestamp = formatTimestamp(sessionData.Exchanges[0].StartTime, useUTC)
-	} else {
-		commentTimestamp = formatTimestamp(sessionData.CreatedAt, useUTC)
-	}
-	fmt.Fprintf(&markdown, "<!-- %s Session %s (%s) -->\n\n",
-		sessionData.Provider.Name,
-		sessionData.SessionID,
-		commentTimestamp)
-	for _, note := range sessionData.Notes {
-		// "--" would end the HTML comment early and spill the rest into the page.
-		fmt.Fprintf(&markdown, "<!-- %s -->\n\n", strings.ReplaceAll(note, "--", "-"))
-	}
+	markdown.WriteString(generateMarkdownHeader(sessionData, useUTC))
 
 	// Render each exchange, tracking role across exchanges for proper separators
 	prevRole := ""
@@ -90,6 +69,28 @@ func GenerateMarkdownFromAgentSession(sessionData *SessionData, includeMessageID
 	// Ensure markdown ends with exactly one newline
 	result := strings.TrimRight(markdown.String(), "\n") + "\n"
 	return result, nil
+}
+
+// generateMarkdownHeader renders the metadata shared by the first history part
+// and by the original single-file markdown format.
+func generateMarkdownHeader(sessionData *SessionData, useUTC bool) string {
+	var markdown strings.Builder
+	markdown.WriteString(GeneratedBySpecStory + "\n\n")
+	fmt.Fprintf(&markdown, "# %s\n\n", generateTitle(sessionData, useUTC))
+
+	commentTimestamp := formatTimestamp(sessionData.CreatedAt, useUTC)
+	if len(sessionData.Exchanges) > 0 && sessionData.Exchanges[0].StartTime != "" {
+		commentTimestamp = formatTimestamp(sessionData.Exchanges[0].StartTime, useUTC)
+	}
+	fmt.Fprintf(&markdown, "<!-- %s Session %s (%s) -->\n\n",
+		sessionData.Provider.Name,
+		sessionData.SessionID,
+		commentTimestamp)
+	for _, note := range sessionData.Notes {
+		// "--" would end the HTML comment early and spill the rest into the page.
+		fmt.Fprintf(&markdown, "<!-- %s -->\n\n", strings.ReplaceAll(note, "--", "-"))
+	}
+	return markdown.String()
 }
 
 // generateTitle creates a title for the session

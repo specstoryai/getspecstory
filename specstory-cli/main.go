@@ -74,6 +74,13 @@ var noRedactSecrets bool        // flag to disable secret redaction in markdown 
 // Run Mode State
 var lastRunSessionID string // tracks the session ID from the most recent run command for deep linking
 
+func configuredMarkdownPartSizeBytes() int64 {
+	if loadedConfig == nil {
+		return sessionpkg.DefaultMarkdownPartSizeBytes
+	}
+	return loadedConfig.GetMarkdownPartSizeBytes()
+}
+
 // pluralSession returns "session" or "sessions" based on count for proper grammar
 func pluralSession(count int) string {
 	if count == 1 {
@@ -475,7 +482,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			autosave := cmdpkg.NewAutosaveCallback(cmdpkg.AutosaveDeps{
 				Ctx:        ctx,
 				Config:     config,
-				Processing: cmdpkg.ResolveProcessingOptions(cmd, true /* isAutosave */, false /* showOutput */),
+				Processing: cmdpkg.ResolveProcessingOptions(cmd, true /* isAutosave */, false /* showOutput */, configuredMarkdownPartSizeBytes()),
 				LiveIndex:  liveIndex,
 				Provenance: provenanceEngine,
 				OnSaved:    onSaved,
@@ -783,7 +790,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 		} else {
 			// Normal sync: write to file and optionally cloud sync
 			if _, err := sessionpkg.ProcessSingleSession(context.Background(), foundAgentID, session, config,
-				cmdpkg.ResolveProcessingOptions(cmd, false /* isAutosave */, true /* showOutput */)); err != nil {
+				cmdpkg.ResolveProcessingOptions(cmd, false /* isAutosave */, true /* showOutput */, configuredMarkdownPartSizeBytes())); err != nil {
 				errorCount++
 				lastError = err
 			} else {
@@ -861,7 +868,7 @@ func preloadBulkSessionSizesIfNeeded(identityManager *utils.ProjectIdentityManag
 // The caller-provided statsCollector accumulates statistics across providers so
 // they can be flushed to disk in a single I/O operation after all providers are done.
 // Returns (sessionCount, error) for analytics tracking.
-func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, useUTC bool, statsCollector *sessionpkg.StatisticsCollector) (int, error) {
+func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, useUTC bool, statsCollector *sessionpkg.StatisticsCollector, markdownPartSizeBytes int64) (int, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		slog.Error("Failed to get current working directory", "error", err)
@@ -912,7 +919,6 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		TotalSessions: sessionCount,
 	}
 
-	historyPath := config.GetHistoryDir()
 	agentName := provider.Name()
 	ctx := context.Background()
 
@@ -953,119 +959,71 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 			// only-stats modes — we have the SessionData either way).
 			liveIndex.Record(providerID, session)
 
-			// Generate markdown from SessionData
-			markdownContent, err := sessionpkg.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
-			if err != nil {
-				slog.Error("Failed to generate markdown from SessionData",
-					"sessionId", session.SessionID,
-					"error", err)
-				// Track sync error
-				analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
-					"session_id": session.SessionID,
-					"error":      err.Error(),
-				})
-				return
-			}
-
-			// Redact secrets before any downstream use (statistics,
-			// identical-content compare, file write, cloud sync) so every
-			// consumer sees the same content — mirrors ProcessSingleSession.
-			redactedCount := 0
-			if !noRedactSecrets {
-				markdownContent, redactedCount = redact.RedactContent(markdownContent)
-			}
-
-			// Compute and record statistics unless --no-stats was requested
-			if !noStats {
-				sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
-				statsCollector.AddSessionStats(session.SessionID, sessionStatistics)
-			}
-
-			// In only-stats mode, skip file writes and cloud sync
 			if onlyStats {
+				markdownContent, err := sessionpkg.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
+				if err != nil {
+					slog.Error("Failed to generate markdown from SessionData", "sessionId", session.SessionID, "error", err)
+					analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{"session_id": session.SessionID, "error": err.Error()})
+					return
+				}
+				if !noRedactSecrets {
+					markdownContent, _ = redact.RedactContent(markdownContent)
+				}
+				if !noStats {
+					sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
+					statsCollector.AddSessionStats(session.SessionID, sessionStatistics)
+				}
 				stats.SessionsSkipped++
 				slog.Info("Skipping local file write (only-stats mode)", "sessionId", session.SessionID)
 				return
 			}
 
-			// Generate filename from timestamp and slug
-			fileFullPath := sessionpkg.BuildSessionFilePath(session, historyPath, useUTC)
-
-			// Check if file already exists with same content
-			identicalContent := false
-			fileExists := false
-			if existingContent, err := os.ReadFile(fileFullPath); err == nil {
-				fileExists = true
-				if string(existingContent) == markdownContent {
-					identicalContent = true
-					slog.Info("Markdown file already exists with same content, skipping write",
-						"sessionId", session.SessionID,
-						"path", fileFullPath)
-				}
+			saveResult, err := sessionpkg.SaveSessionMarkdown(session, config, sessionpkg.ProcessingOptions{
+				OnlyCloudSync:         onlyCloudSync,
+				UseUTC:                useUTC,
+				RedactSecrets:         !noRedactSecrets,
+				MarkdownPartSizeBytes: markdownPartSizeBytes,
+			})
+			if err != nil {
+				slog.Error("Error writing markdown file", "sessionId", session.SessionID, "error", err)
+				analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+					"session_id": session.SessionID, "error": err.Error(), "only_cloud_sync": onlyCloudSync,
+				})
+				return
+			}
+			if !noStats {
+				sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, saveResult.Content, providerID)
+				statsCollector.AddSessionStats(session.SessionID, sessionStatistics)
 			}
 
-			// Write file if needed (skip if only-cloud-sync is enabled)
 			if !onlyCloudSync {
-				if !identicalContent {
-					// Ensure history directory exists (handles deletion during long-running sync)
-					if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
-						slog.Error("Failed to ensure history directory", "error", err)
-						return
+				if saveResult.Identical {
+					slog.Info("Markdown file already exists with same content, skipping write", "sessionId", session.SessionID, "path", saveResult.CurrentPath)
+				} else {
+					slog.Info("Successfully wrote file", "sessionId", session.SessionID, "path", saveResult.CurrentPath)
+					event := analytics.EventSyncMarkdownSuccess
+					if !saveResult.FileExists {
+						event = analytics.EventSyncMarkdownNew
 					}
-					err := os.WriteFile(fileFullPath, []byte(markdownContent), 0644)
-					if err != nil {
-						slog.Error("Error writing markdown file",
-							"sessionId", session.SessionID,
-							"error", err)
-						// Track sync error
-						analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
-							"session_id":      session.SessionID,
-							"error":           err.Error(),
-							"only_cloud_sync": onlyCloudSync,
-						})
-						return
-					}
-					slog.Info("Successfully wrote file",
-						"sessionId", session.SessionID,
-						"path", fileFullPath)
-
-					// Track successful sync
-					if !fileExists {
-						analytics.TrackEvent(analytics.EventSyncMarkdownNew, analytics.Properties{
-							"session_id":        session.SessionID,
-							"only_cloud_sync":   onlyCloudSync,
-							"redaction_enabled": !noRedactSecrets,
-							"redacted_count":    redactedCount,
-						})
-					} else {
-						analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
-							"session_id":        session.SessionID,
-							"only_cloud_sync":   onlyCloudSync,
-							"redaction_enabled": !noRedactSecrets,
-							"redacted_count":    redactedCount,
-						})
-					}
+					analytics.TrackEvent(event, analytics.Properties{
+						"session_id": session.SessionID, "only_cloud_sync": onlyCloudSync,
+						"redaction_enabled": !noRedactSecrets, "redacted_count": saveResult.RedactedCount,
+					})
 				}
-
-				// Update statistics for normal mode
-				if identicalContent {
+				if saveResult.Identical {
 					stats.SessionsSkipped++
-				} else if fileExists {
+				} else if saveResult.FileExists {
 					stats.SessionsUpdated++
 				} else {
 					stats.SessionsCreated++
 				}
 			} else {
-				// In cloud-only mode, count as skipped since no local file operation occurred
 				stats.SessionsSkipped++
-				slog.Info("Skipping local file write (only-cloud-sync mode)",
-					"sessionId", session.SessionID)
+				slog.Info("Skipping local file write (only-cloud-sync mode)", "sessionId", session.SessionID)
 			}
 
-			// Trigger cloud sync with provider-specific data
-			// Manual sync command: perform immediate sync with HEAD check (not autosave mode)
-			// In only-cloud-sync mode: always sync
-			cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), session.SessionDataJSON, provider.Name(), spi.ReadableTitleFromSessionData(session.SessionData), !noRedactSecrets, false)
+			fileFullPath := sessionpkg.BuildSessionFilePath(session, config.GetHistoryDir(), useUTC)
+			cloud.SyncSessionToCloud(session.SessionID, fileFullPath, func() string { return saveResult.Content }, []byte(session.RawData), session.SessionDataJSON, provider.Name(), spi.ReadableTitleFromSessionData(session.SessionData), !noRedactSecrets, false)
 		}()
 
 		// Print progress with [n/m] format
@@ -1210,7 +1168,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command, filterIDs 
 			fmt.Printf("\nParsing %s sessions", provider.Name())
 		}
 
-		sessionCount, err := syncProvider(provider, id, config, debugRaw, useUTC, statsCollector)
+		sessionCount, err := syncProvider(provider, id, config, debugRaw, useUTC, statsCollector, configuredMarkdownPartSizeBytes())
 		totalSessionCount += sessionCount
 
 		if err != nil {
@@ -1339,7 +1297,7 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 	}
 
 	// Perform the sync
-	sessionCount, syncErr := syncProvider(provider, providerID, config, debugRaw, useUTC, statsCollector)
+	sessionCount, syncErr := syncProvider(provider, providerID, config, debugRaw, useUTC, statsCollector, configuredMarkdownPartSizeBytes())
 
 	// Flush statistics to disk
 	if err := statsCollector.Flush(); err != nil {
@@ -1567,11 +1525,12 @@ func main() {
 	// Config-derived flag defaults shared by every session-saving command in
 	// pkg/cmd, resolved once so their flags can't drift from each other.
 	sessionFlagDefaults := cmdpkg.SessionFlagDefaults{
-		LocalTimeZone:      localTimeZone,
-		OutputDir:          outputDir,
-		DebugDir:           debugDir,
-		NoTelemetryPrompts: noTelemetryPrompts,
-		NoRedactSecrets:    noRedactSecrets,
+		LocalTimeZone:         localTimeZone,
+		OutputDir:             outputDir,
+		DebugDir:              debugDir,
+		NoTelemetryPrompts:    noTelemetryPrompts,
+		NoRedactSecrets:       noRedactSecrets,
+		MarkdownPartSizeBytes: configuredMarkdownPartSizeBytes(),
 	}
 	rootCmd = createRootCommand()
 	runCmd = createRunCommand()
