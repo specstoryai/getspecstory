@@ -3,6 +3,7 @@ package vscode
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -363,7 +364,7 @@ func TestWorkspaceURIMap_SepMarker(t *testing.T) {
 	}
 }
 
-func TestCodeWorkspaceContainsFolder(t *testing.T) {
+func TestWorkspaceFileContainsFolder(t *testing.T) {
 	// Create a temporary directory structure.
 	tmpDir := t.TempDir()
 
@@ -423,6 +424,22 @@ func TestCodeWorkspaceContainsFolder(t *testing.T) {
 			expected:         true,
 		},
 		{
+			name:             "uri folder after an unrelated path folder matches target folder",
+			workspaceContent: `{"folders": [{"path": "../other-project"}, {"uri": "` + PathToFileURI(projectDir) + `"}]}`,
+			workspaceFile:    workspaceFile,
+			targetFolder:     canonicalProjectDir,
+			isRemote:         false,
+			expected:         true,
+		},
+		{
+			name:             "SSH uri folder naming the target's path does not match the local folder",
+			workspaceContent: `{"folders": [{"uri": "vscode-remote://ssh-remote%2Bdevbox` + filepath.ToSlash(canonicalProjectDir) + `"}]}`,
+			workspaceFile:    workspaceFile,
+			targetFolder:     canonicalProjectDir,
+			isRemote:         false,
+			expected:         false,
+		},
+		{
 			name:             "no folders entry matching target",
 			workspaceContent: `{"folders": [{"path": "../other-project"}]}`,
 			workspaceFile:    workspaceFile,
@@ -463,6 +480,16 @@ func TestCodeWorkspaceContainsFolder(t *testing.T) {
 			isRemote:      true,
 			expected:      false,
 		},
+		// Remote: a local file that happens to sit at the remote path is unrelated, so its
+		// folders must not be matched even when it lists the target folder.
+		{
+			name:             "remote workspace file readable locally is not read",
+			workspaceContent: `{"folders": [{"path": "../my-project"}]}`,
+			workspaceFile:    workspaceFile,
+			targetFolder:     canonicalProjectDir,
+			isRemote:         true,
+			expected:         false,
+		},
 		// Non-remote: deleted local file should not trigger the parent-dir fallback.
 		{
 			name:          "local workspace file missing, isRemote false, no fallback",
@@ -478,10 +505,188 @@ func TestCodeWorkspaceContainsFolder(t *testing.T) {
 			if tt.workspaceContent != "" {
 				writeWorkspaceFile(tt.workspaceContent)
 			}
-			result := codeWorkspaceContainsFolder(tt.workspaceFile, tt.targetFolder, tt.isRemote)
+			result := workspaceFileContainsFolder(tt.workspaceFile, tt.targetFolder, tt.isRemote)
 			if result != tt.expected {
-				t.Errorf("codeWorkspaceContainsFolder() = %v, want %v", result, tt.expected)
+				t.Errorf("workspaceFileContainsFolder() = %v, want %v", result, tt.expected)
 			}
 		})
+	}
+}
+
+// An untitled multi-root workspace is stored by the IDE as a plain workspace.json
+// under its own Workspaces directory (no .code-workspace suffix). Its folders must
+// match the same way a saved .code-workspace file's folders do.
+func TestFindWorkspaces_UntitledMultiRootWorkspace(t *testing.T) {
+	storageRoot := t.TempDir()
+	base := t.TempDir()
+	folderA := filepath.Join(base, "monorepo")
+	folderB := filepath.Join(base, "cli")
+	folderC := filepath.Join(base, "unrelated")
+	for _, dir := range []string{folderA, folderB, folderC} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	canonicalA, err := NormalizePathForComparison(folderA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonicalB, err := NormalizePathForComparison(folderB)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Mirror Cursor's layout: <user data>/Workspaces/<timestamp>/workspace.json with
+	// absolute folder paths.
+	untitledDir := filepath.Join(base, "Workspaces", "1793105102369")
+	if err := os.MkdirAll(untitledDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	untitledFile := filepath.Join(untitledDir, "workspace.json")
+	if err := os.WriteFile(untitledFile, []byte(`{"folders": [{"path": `+testutil.JSONString(canonicalA)+`}, {"path": `+testutil.JSONString(canonicalB)+`}], "settings": {}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	canonicalUntitled, err := NormalizePathForComparison(untitledFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeWorkspaceEntry(t, storageRoot, "untitled",
+		`{"workspace": "`+PathToFileURI(canonicalUntitled)+`"}`)
+
+	for _, folder := range []string{folderA, folderB} {
+		entries, err := FindWorkspaces(storageRoot, folder, MatchOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) != 1 || entries[0].ID != "untitled" {
+			t.Errorf("lookup for %s should match the untitled workspace entry, got %v", folder, entries)
+		}
+	}
+
+	entries, err := FindWorkspaces(storageRoot, folderC, MatchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("a folder the workspace does not list must not match, got %v", entries)
+	}
+}
+
+// The first listed folder is the project a multi-root window's sessions are attributed
+// to, so it must be resolved in either listed form, and an unresolvable first folder
+// must yield "" rather than letting the second folder take its place.
+func TestFirstWorkspaceFolder(t *testing.T) {
+	base := t.TempDir()
+	first := filepath.Join(base, "first")
+	second := filepath.Join(base, "second")
+	for _, dir := range []string{first, second} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	canonicalFirst, err := NormalizePathForComparison(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondPath := `{"path": ` + testutil.JSONString(second) + `}`
+
+	tests := []struct {
+		name    string
+		content string // "" means no file is written
+		want    string
+	}{
+		{
+			name:    "relative path first folder",
+			content: `{"folders": [{"path": "first"}, ` + secondPath + `]}`,
+			want:    canonicalFirst,
+		},
+		{
+			name:    "uri first folder before a path folder",
+			content: `{"folders": [{"uri": "` + PathToFileURI(first) + `"}, ` + secondPath + `]}`,
+			want:    canonicalFirst,
+		},
+		{
+			name:    "unresolvable first folder does not fall through to the second",
+			content: `{"folders": [{"name": "no path or uri"}, ` + secondPath + `]}`,
+			want:    "",
+		},
+		{
+			name:    "malformed uri first folder does not fall through to the second",
+			content: `{"folders": [{"uri": "file://%zz"}, ` + secondPath + `]}`,
+			want:    "",
+		},
+		{
+			// first exists locally, so resolving the remote path would wrongly yield it.
+			name:    "SSH uri first folder is not resolved to a local path",
+			content: `{"folders": [{"uri": "vscode-remote://ssh-remote%2Bdevbox` + filepath.ToSlash(first) + `"}, ` + secondPath + `]}`,
+			want:    "",
+		},
+		{
+			name:    "empty folder list",
+			content: `{"folders": []}`,
+			want:    "",
+		},
+		{
+			name: "missing file",
+			want: "",
+		},
+	}
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wsFile := filepath.Join(base, fmt.Sprintf("case%d.code-workspace", i))
+			if tt.content != "" {
+				if err := os.WriteFile(wsFile, []byte(tt.content), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if got := FirstWorkspaceFolder(wsFile); got != tt.want {
+				t.Errorf("FirstWorkspaceFolder = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// A symlinked workspace file with a relative folder resolves that folder differently
+// depending on whether the link's or the target's directory is used. The folder the
+// global listing attributes sessions to (FirstWorkspaceFolder) must be one FindWorkspaces
+// matches back to the same entry, or a listed session can't be synced from its project.
+func TestFirstWorkspaceFolder_SymlinkedFileMatchesFindWorkspaces(t *testing.T) {
+	base := t.TempDir()
+	targetDir := filepath.Join(base, "dotfiles", "ws")
+	linkDir := filepath.Join(base, "home")
+	// "app" exists next to both the link and the target, so resolving against the
+	// wrong directory yields a real but different folder rather than an error.
+	for _, dir := range []string{filepath.Join(targetDir, "app"), filepath.Join(linkDir, "app")} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	targetFile := filepath.Join(targetDir, "proj.code-workspace")
+	if err := os.WriteFile(targetFile, []byte(`{"folders": [{"path": "app"}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	linkFile := filepath.Join(linkDir, "proj.code-workspace")
+	if err := os.Symlink(targetFile, linkFile); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	wantFolder, err := NormalizePathForComparison(filepath.Join(targetDir, "app"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The IDE records the workspace file by the path it was opened from: the link.
+	storageRoot := t.TempDir()
+	writeWorkspaceEntry(t, storageRoot, "linked", `{"workspace": "`+PathToFileURI(linkFile)+`"}`)
+
+	got := FirstWorkspaceFolder(linkFile)
+	if got != wantFolder {
+		t.Fatalf("FirstWorkspaceFolder = %q, want %q", got, wantFolder)
+	}
+	entries, err := FindWorkspaces(storageRoot, got, MatchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].ID != "linked" {
+		t.Errorf("FindWorkspaces(%q) should match the linked entry, got %v", got, entries)
 	}
 }
