@@ -390,8 +390,8 @@ func (s *incrementalSessionState) applyOutOfOrderAppend(changedFile string, reco
 		s.rawData.WriteByte('\n')
 	}
 	s.session.Records = mergedRecords
-	s.rawRecords = mergedRawRecords
 	s.agentSession.RawData = s.rawData.String()
+	s.rawRecords = strings.Split(strings.TrimSuffix(s.agentSession.RawData, "\n"), "\n")
 	s.agentSession.SessionData.Exchanges = mergedExchanges
 	s.shellGate = newShellGate
 	s.files[changedFile] = nextFileState
