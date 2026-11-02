@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -33,6 +34,7 @@ type incrementalReadResult struct {
 	shellGate    *shellGateState
 	changed      bool
 	incremental  bool
+	appendOnly   bool
 }
 
 type incrementalSessionReader struct {
@@ -52,6 +54,7 @@ type incrementalSessionState struct {
 	toolOwners   map[string]toolOwner
 	shellGate    *shellGateState
 	rawData      strings.Builder
+	rawRecords   []string
 }
 
 func newIncrementalSessionReader() *incrementalSessionReader {
@@ -68,7 +71,7 @@ func (r *incrementalSessionReader) read(projectDir, changedFile, sessionID strin
 	key := incrementalSessionKey(projectDir, sessionID)
 	if !debugRaw && !GetJsonlBurst() {
 		if state, ok := r.sessions[key]; ok {
-			changed, err := state.applyAppend(changedFile)
+			changed, appendOnly, err := state.applyAppend(changedFile)
 			if err == nil {
 				return incrementalReadResult{
 					session:      state.session,
@@ -76,6 +79,7 @@ func (r *incrementalSessionReader) read(projectDir, changedFile, sessionID strin
 					shellGate:    state.shellGate,
 					changed:      changed,
 					incremental:  true,
+					appendOnly:   appendOnly,
 				}, nil
 			}
 			slog.Debug("Incremental transcript append rejected; rebuilding session",
@@ -135,12 +139,17 @@ func newIncrementalSessionState(session Session, agentSession *spi.AgentChatSess
 		}
 		files[path] = state
 	}
+	rawRecords := strings.Split(strings.TrimSuffix(agentSession.RawData, "\n"), "\n")
+	if len(rawRecords) != len(session.Records) {
+		return nil
+	}
 	state := &incrementalSessionState{
 		session:      session,
 		agentSession: agentSession,
 		files:        files,
 		recordIDs:    make(map[string]struct{}, len(session.Records)),
 		toolOwners:   make(map[string]toolOwner),
+		rawRecords:   rawRecords,
 	}
 	for _, record := range session.Records {
 		if uuid, ok := record.Data["uuid"].(string); ok && uuid != "" {
@@ -163,30 +172,30 @@ func newIncrementalSessionState(session Session, agentSession *spi.AgentChatSess
 // applyAppend validates the whole delta before mutating cached state. If any
 // record needs a rebuild, earlier records from the same delta cannot leak into
 // the cached session or into a cloud snapshot already queued by the callback.
-func (s *incrementalSessionState) applyAppend(changedFile string) (bool, error) {
+func (s *incrementalSessionState) applyAppend(changedFile string) (bool, bool, error) {
 	if len(s.session.Records) == 0 {
-		return false, errIncrementalFullRebuild
+		return false, false, errIncrementalFullRebuild
 	}
 	lastRecord := s.session.Records[len(s.session.Records)-1]
 	if filepath.Clean(changedFile) != filepath.Clean(lastRecord.File) {
-		return false, fmt.Errorf("%w: append crosses resumed file ordering", errIncrementalFullRebuild)
+		return false, false, fmt.Errorf("%w: append crosses resumed file ordering", errIncrementalFullRebuild)
 	}
 	fileState, ok := s.files[changedFile]
 	if !ok {
-		return false, fmt.Errorf("%w: no stored offset for changed file", errIncrementalFullRebuild)
+		return false, false, fmt.Errorf("%w: no stored offset for changed file", errIncrementalFullRebuild)
 	}
 	records, nextFileState, err := readAppendedJSONL(changedFile, fileState)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 	if len(records) == 0 {
 		s.files[changedFile] = nextFileState
-		return false, nil
+		return false, true, nil
 	}
 
 	newIDs := make(map[string]struct{}, len(records))
-	validator := newNormalizedAppendValidator(s)
 	validRecords := records[:0]
+	appendOnly := true
 	for _, record := range records {
 		uuid, ok := record.Data["uuid"].(string)
 		if !ok || uuid == "" {
@@ -195,27 +204,27 @@ func (s *incrementalSessionState) applyAppend(changedFile string) (bool, error) 
 			continue
 		}
 		if _, exists := s.recordIDs[uuid]; exists {
-			return false, fmt.Errorf("%w: duplicate uuid %s", errIncrementalFullRebuild, uuid)
+			return false, false, fmt.Errorf("%w: duplicate uuid %s", errIncrementalFullRebuild, uuid)
 		}
 		if _, exists := newIDs[uuid]; exists {
-			return false, fmt.Errorf("%w: duplicate uuid %s in delta", errIncrementalFullRebuild, uuid)
+			return false, false, fmt.Errorf("%w: duplicate uuid %s in delta", errIncrementalFullRebuild, uuid)
 		}
-		parentUUID, ok := record.Data["parentUuid"].(string)
-		if !ok || parentUUID == "" {
-			return false, fmt.Errorf("%w: appended record starts or orphans a DAG", errIncrementalFullRebuild)
-		}
-		_, knownParent := s.recordIDs[parentUUID]
-		if !knownParent {
-			_, knownParent = newIDs[parentUUID]
-		}
-		if !knownParent {
-			return false, fmt.Errorf("%w: appended record has unknown parent", errIncrementalFullRebuild)
+		if parentUUID, ok := record.Data["parentUuid"].(string); ok {
+			if parentUUID == "" {
+				return false, false, fmt.Errorf("%w: appended record has an empty parent", errIncrementalFullRebuild)
+			}
+			_, knownParent := s.recordIDs[parentUUID]
+			if !knownParent {
+				_, knownParent = newIDs[parentUUID]
+			}
+			if !knownParent {
+				return false, false, fmt.Errorf("%w: appended record has unknown parent", errIncrementalFullRebuild)
+			}
+		} else if record.Data["parentUuid"] != nil {
+			return false, false, fmt.Errorf("%w: appended record has an invalid parent", errIncrementalFullRebuild)
 		}
 		if !recordLess(lastRecord, record) {
-			return false, fmt.Errorf("%w: appended record orders before cached tail", errIncrementalFullRebuild)
-		}
-		if !validator.validate(record) {
-			return false, fmt.Errorf("%w: appended record changes an older exchange", errIncrementalFullRebuild)
+			appendOnly = false
 		}
 		newIDs[uuid] = struct{}{}
 		lastRecord = record
@@ -224,7 +233,18 @@ func (s *incrementalSessionState) applyAppend(changedFile string) (bool, error) 
 	records = validRecords
 	if len(records) == 0 {
 		s.files[changedFile] = nextFileState
-		return false, nil
+		return false, true, nil
+	}
+	if !appendOnly {
+		changed, err := s.applyOutOfOrderAppend(changedFile, records, nextFileState)
+		return changed, false, err
+	}
+
+	validator := newNormalizedAppendValidator(s)
+	for _, record := range records {
+		if !validator.validate(record) {
+			return false, false, fmt.Errorf("%w: appended record changes an older exchange", errIncrementalFullRebuild)
+		}
 	}
 
 	var rawDelta strings.Builder
@@ -237,11 +257,163 @@ func (s *incrementalSessionState) applyAppend(changedFile string) (bool, error) 
 		encoded, _ := json.Marshal(record.Data)
 		rawDelta.Write(encoded)
 		rawDelta.WriteByte('\n')
+		s.rawRecords = append(s.rawRecords, string(encoded))
 	}
 	s.files[changedFile] = nextFileState
 	s.rawData.WriteString(rawDelta.String())
 	s.agentSession.RawData = s.rawData.String()
+	return true, true, nil
+}
+
+// applyOutOfOrderAppend merges a small out-of-order delta into the sorted cache.
+// Only exchanges from the insertion point onward need normalization; the raw
+// JSONL prefix is copied as bytes rather than parsed and marshaled again.
+func (s *incrementalSessionState) applyOutOfOrderAppend(changedFile string, records []JSONLRecord, nextFileState jsonlFileParseState) (bool, error) {
+	if len(s.session.Records) != len(s.rawRecords) {
+		return false, fmt.Errorf("%w: cached raw records are misaligned", errIncrementalFullRebuild)
+	}
+	sort.Slice(records, func(i, j int) bool { return recordLess(records[i], records[j]) })
+	oldRecords := s.session.Records
+	mergedRecords := make([]JSONLRecord, 0, len(oldRecords)+len(records))
+	mergedRawRecords := make([]string, 0, len(s.rawRecords)+len(records))
+	firstNewPosition := -1
+	oldIndex := 0
+	for _, record := range records {
+		position := oldIndex + sort.Search(len(oldRecords)-oldIndex, func(i int) bool {
+			return !recordLess(oldRecords[oldIndex+i], record)
+		})
+		mergedRecords = append(mergedRecords, oldRecords[oldIndex:position]...)
+		mergedRawRecords = append(mergedRawRecords, s.rawRecords[oldIndex:position]...)
+		if firstNewPosition < 0 {
+			firstNewPosition = len(mergedRecords)
+		}
+		mergedRecords = append(mergedRecords, record)
+		encoded, _ := json.Marshal(record.Data)
+		mergedRawRecords = append(mergedRawRecords, string(encoded))
+		oldIndex = position
+	}
+	mergedRecords = append(mergedRecords, oldRecords[oldIndex:]...)
+	mergedRawRecords = append(mergedRawRecords, s.rawRecords[oldIndex:]...)
+
+	// Include the exchange preceding the insertion because an inserted prompt can
+	// split it, and an inserted message can change its message order.
+	tailStart := 0
+	for i := firstNewPosition - 1; i >= 0; i-- {
+		if isIncrementalExchangeStart(mergedRecords[i]) {
+			tailStart = i
+			break
+		}
+	}
+	affectedIndex := 0
+	if firstNewPosition > 0 {
+		boundary := mergedRecords[tailStart]
+		oldStart := sort.Search(len(oldRecords), func(i int) bool {
+			return !recordLess(oldRecords[i], boundary)
+		})
+		if oldStart == len(oldRecords) || oldRecords[oldStart].Data["uuid"] != boundary.Data["uuid"] {
+			return false, fmt.Errorf("%w: cannot locate cached exchange boundary", errIncrementalFullRebuild)
+		}
+		exchangeStarts := 0
+		for _, record := range oldRecords[oldStart:] {
+			if isIncrementalExchangeStart(record) {
+				exchangeStarts++
+			}
+		}
+		affectedIndex = len(s.agentSession.SessionData.Exchanges) - exchangeStarts
+		if exchangeStarts == 0 {
+			affectedIndex = len(s.agentSession.SessionData.Exchanges) - 1
+		}
+		if affectedIndex < 0 {
+			affectedIndex = 0
+		}
+		if affectedIndex > len(s.agentSession.SessionData.Exchanges) {
+			return false, fmt.Errorf("%w: invalid cached exchange boundary", errIncrementalFullRebuild)
+		}
+	}
+
+	workspaceRoot := s.agentSession.SessionData.WorkspaceRoot
+	conversionRecords := mergedRecords[tailStart:]
+	var filteredSession Session
+	if tailStart == 0 {
+		filteredSession = Session{SessionUuid: s.session.SessionUuid, Records: filterWarmupMessages(mergedRecords)}
+		if len(filteredSession.Records) == 0 {
+			return false, fmt.Errorf("%w: session contains only warmup records", errIncrementalFullRebuild)
+		}
+		if _, ok := filteredSession.Records[0].Data["timestamp"].(string); !ok {
+			return false, fmt.Errorf("%w: root record has no timestamp", errIncrementalFullRebuild)
+		}
+		conversionRecords = filteredSession.Records
+		workspaceRoot = extractWorkspaceRootFromRecords(filteredSession.Records)
+	}
+	tailExchanges, err := buildExchangesFromRecords(conversionRecords, workspaceRoot)
+	if err != nil {
+		return false, fmt.Errorf("%w: %v", errIncrementalFullRebuild, err)
+	}
+	for i := range tailExchanges {
+		tailExchanges[i].ExchangeID = fmt.Sprintf("%s:%d", s.session.SessionUuid, affectedIndex+i)
+		for j := range tailExchanges[i].Messages {
+			tool := tailExchanges[i].Messages[j].Tool
+			if tool != nil {
+				formattedMarkdown := formatToolAsMarkdown(tool, workspaceRoot)
+				tool.FormattedMarkdown = &formattedMarkdown
+			}
+		}
+	}
+	mergedExchanges := make([]Exchange, 0, affectedIndex+len(tailExchanges))
+	mergedExchanges = append(mergedExchanges, s.agentSession.SessionData.Exchanges[:affectedIndex]...)
+	mergedExchanges = append(mergedExchanges, tailExchanges...)
+	newShellGate := newShellGateState(mergedRecords[tailStart:])
+
+	for _, exchange := range s.agentSession.SessionData.Exchanges[affectedIndex:] {
+		for _, message := range exchange.Messages {
+			if message.Tool != nil && message.Tool.UseID != "" {
+				delete(s.toolOwners, message.Tool.UseID)
+			}
+		}
+	}
+	for exchangeIndex := affectedIndex; exchangeIndex < len(mergedExchanges); exchangeIndex++ {
+		for messageIndex, message := range mergedExchanges[exchangeIndex].Messages {
+			if message.Tool != nil && message.Tool.UseID != "" {
+				s.toolOwners[message.Tool.UseID] = toolOwner{exchangeIndex: exchangeIndex, messageIndex: messageIndex}
+			}
+		}
+	}
+	for _, record := range records {
+		uuid, _ := record.Data["uuid"].(string)
+		s.recordIDs[uuid] = struct{}{}
+	}
+
+	s.rawData.Reset()
+	s.rawData.Grow(len(s.agentSession.RawData))
+	for _, rawRecord := range mergedRawRecords {
+		s.rawData.WriteString(rawRecord)
+		s.rawData.WriteByte('\n')
+	}
+	s.session.Records = mergedRecords
+	s.rawRecords = mergedRawRecords
+	s.agentSession.RawData = s.rawData.String()
+	s.agentSession.SessionData.Exchanges = mergedExchanges
+	s.shellGate = newShellGate
+	s.files[changedFile] = nextFileState
+	if tailStart == 0 {
+		s.agentSession.CreatedAt, _ = filteredSession.Records[0].Data["timestamp"].(string)
+		s.agentSession.SessionData.CreatedAt = extractCreatedAtFromRecords(filteredSession.Records)
+		s.agentSession.SessionData.WorkspaceRoot = workspaceRoot
+		s.agentSession.Slug = FileSlugFromRootRecord(filteredSession)
+		s.agentSession.SessionData.Slug = s.agentSession.Slug
+	}
 	return true, nil
+}
+
+func isIncrementalExchangeStart(record JSONLRecord) bool {
+	recordType, _ := record.Data["type"].(string)
+	if recordType != "user" {
+		return false
+	}
+	isSidechain, _ := record.Data["isSidechain"].(bool)
+	message, _ := record.Data["message"].(map[string]interface{})
+	content, _ := message["content"].([]interface{})
+	return !isSidechain && !isToolResultContent(content)
 }
 
 // normalizedAppendValidator simulates exchange and message indexes across the

@@ -354,6 +354,62 @@ func TestIncrementalSessionReader_UUIDLessOnlyAppendDoesNotSave(t *testing.T) {
 	}
 }
 
+func TestIncrementalSessionReader_OutOfOrderAppendMatchesFullRebuild(t *testing.T) {
+	root := incrementalTestLine(t, incrementalTestRecord("user", "root", 0, nil, "first"))
+	reply := incrementalTestLine(t, incrementalTestRecord("assistant", "reply", 1, "root", []interface{}{
+		map[string]interface{}{"type": "text", "text": "first answer"},
+	}))
+	laterPrompt := incrementalTestLine(t, incrementalTestRecord("user", "later-prompt", 3, "reply", "later"))
+	laterReply := incrementalTestLine(t, incrementalTestRecord("assistant", "later-reply", 5, "later-prompt", []interface{}{
+		map[string]interface{}{"type": "text", "text": "later answer"},
+	}))
+	system := incrementalTestLine(t, map[string]interface{}{
+		"type": "system", "uuid": "system", "parentUuid": nil,
+		"sessionId": incrementalTestSessionID, "timestamp": time.Date(2026, 10, 1, 0, 0, 2, 0, time.UTC).Format(time.RFC3339),
+	})
+	middle := incrementalTestLine(t, incrementalTestRecord("assistant", "middle", 2, "reply", []interface{}{
+		map[string]interface{}{"type": "text", "text": "middle answer"},
+	}))
+
+	dir, path := incrementalTestFile(t, root+reply+laterPrompt+laterReply)
+	reader := newIncrementalSessionReader()
+	if _, err := reader.read(dir, path, incrementalTestSessionID, false); err != nil {
+		t.Fatalf("initial full read: %v", err)
+	}
+	appendIncrementalTestData(t, path, system+middle)
+	result, err := reader.read(dir, path, incrementalTestSessionID, false)
+	if err != nil {
+		t.Fatalf("read out-of-order append: %v", err)
+	}
+	if !result.incremental || !result.changed {
+		t.Errorf("incremental=%t changed=%t, want true/true", result.incremental, result.changed)
+	}
+
+	parser := NewJSONLParser()
+	if err := parser.ParseProjectSessionsForSession(dir, true, incrementalTestSessionID); err != nil {
+		t.Fatalf("full reference parse: %v", err)
+	}
+	fullSession := parser.FindSession(incrementalTestSessionID)
+	if fullSession == nil {
+		t.Fatal("full reference session not found")
+	}
+	fullAgent := convertToAgentChatSession(*fullSession, "", false)
+	if !reflect.DeepEqual(result.session.Records, fullSession.Records) {
+		t.Error("out-of-order records differ from full rebuild")
+	}
+	if !reflect.DeepEqual(result.agentSession.SessionData, fullAgent.SessionData) {
+		t.Error("out-of-order SessionData differs from full rebuild")
+	}
+	if result.agentSession.RawData != fullAgent.RawData {
+		t.Error("out-of-order RawData differs from full rebuild")
+	}
+	if len(result.agentSession.SessionData.Exchanges) != 2 ||
+		len(result.agentSession.SessionData.Exchanges[0].Messages) != 3 ||
+		len(result.agentSession.SessionData.Exchanges[1].Messages) != 2 {
+		t.Errorf("unexpected exchanges: %#v", result.agentSession.SessionData.Exchanges)
+	}
+}
+
 func TestIncrementalSessionReader_UnsafeAppendUsesFullRebuild(t *testing.T) {
 	root := incrementalTestLine(t, incrementalTestRecord("user", "root", 0, nil, "first"))
 	duplicate := incrementalTestLine(t, incrementalTestRecord("assistant", "root", 1, "root", []interface{}{

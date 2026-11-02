@@ -492,7 +492,7 @@ func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force
 			"sessionId", targetSessionUuid,
 			"incremental", result.incremental)
 		if result.agentSession != nil {
-			result.agentSession.AppendOnly = result.incremental
+			result.agentSession.AppendOnly = result.appendOnly
 		}
 		deliver(result.session, result.agentSession, true, result.openShellToolUses)
 		slog.Info("ScanJSONLFiles: Processing complete")
