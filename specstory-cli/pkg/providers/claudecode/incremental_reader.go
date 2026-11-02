@@ -186,10 +186,13 @@ func (s *incrementalSessionState) applyAppend(changedFile string) (bool, error) 
 
 	newIDs := make(map[string]struct{}, len(records))
 	validator := newNormalizedAppendValidator(s)
+	validRecords := records[:0]
 	for _, record := range records {
 		uuid, ok := record.Data["uuid"].(string)
 		if !ok || uuid == "" {
-			return false, fmt.Errorf("%w: appended record has no uuid", errIncrementalFullRebuild)
+			// The full parser ignores UUID-less metadata, so skip it here too while
+			// retaining nextFileState to avoid reading the same records again.
+			continue
 		}
 		if _, exists := s.recordIDs[uuid]; exists {
 			return false, fmt.Errorf("%w: duplicate uuid %s", errIncrementalFullRebuild, uuid)
@@ -216,6 +219,12 @@ func (s *incrementalSessionState) applyAppend(changedFile string) (bool, error) 
 		}
 		newIDs[uuid] = struct{}{}
 		lastRecord = record
+		validRecords = append(validRecords, record)
+	}
+	records = validRecords
+	if len(records) == 0 {
+		s.files[changedFile] = nextFileState
+		return false, nil
 	}
 
 	var rawDelta strings.Builder

@@ -294,6 +294,66 @@ func TestIncrementalSessionReader_MatchesFullRebuild(t *testing.T) {
 	}
 }
 
+func TestIncrementalSessionReader_UUIDLessRecordDoesNotForceFullRebuild(t *testing.T) {
+	root := incrementalTestLine(t, incrementalTestRecord("user", "root", 0, nil, "first"))
+	metadata := incrementalTestLine(t, map[string]interface{}{
+		"type": "ai-title", "sessionId": incrementalTestSessionID, "title": "metadata only",
+	})
+	reply := incrementalTestLine(t, incrementalTestRecord("assistant", "reply", 1, "root", []interface{}{
+		map[string]interface{}{"type": "text", "text": "answer"},
+	}))
+	dir, path := incrementalTestFile(t, root)
+	reader := newIncrementalSessionReader()
+	if _, err := reader.read(dir, path, incrementalTestSessionID, false); err != nil {
+		t.Fatalf("initial full read: %v", err)
+	}
+
+	appendIncrementalTestData(t, path, metadata+reply)
+	result, err := reader.read(dir, path, incrementalTestSessionID, false)
+	if err != nil {
+		t.Fatalf("read UUID-less metadata append: %v", err)
+	}
+	if !result.incremental || !result.changed {
+		t.Errorf("incremental=%t changed=%t, want true/true", result.incremental, result.changed)
+	}
+	if len(result.session.Records) != 2 || result.session.Records[1].Data["uuid"] != "reply" {
+		t.Errorf("records = %#v, want root and reply only", result.session.Records)
+	}
+}
+
+func TestIncrementalSessionReader_UUIDLessOnlyAppendDoesNotSave(t *testing.T) {
+	root := incrementalTestLine(t, incrementalTestRecord("user", "root", 0, nil, "first"))
+	metadata := incrementalTestLine(t, map[string]interface{}{
+		"type": "ai-title", "sessionId": incrementalTestSessionID, "title": "metadata only",
+	})
+	reply := incrementalTestLine(t, incrementalTestRecord("assistant", "reply", 1, "root", []interface{}{
+		map[string]interface{}{"type": "text", "text": "answer"},
+	}))
+	dir, path := incrementalTestFile(t, root)
+	reader := newIncrementalSessionReader()
+	if _, err := reader.read(dir, path, incrementalTestSessionID, false); err != nil {
+		t.Fatalf("initial full read: %v", err)
+	}
+
+	appendIncrementalTestData(t, path, metadata)
+	result, err := reader.read(dir, path, incrementalTestSessionID, false)
+	if err != nil {
+		t.Fatalf("read metadata-only append: %v", err)
+	}
+	if !result.incremental || result.changed {
+		t.Errorf("incremental=%t changed=%t, want true/false", result.incremental, result.changed)
+	}
+
+	appendIncrementalTestData(t, path, reply)
+	result, err = reader.read(dir, path, incrementalTestSessionID, false)
+	if err != nil {
+		t.Fatalf("read after metadata-only append: %v", err)
+	}
+	if !result.incremental || !result.changed || len(result.session.Records) != 2 {
+		t.Errorf("next append: incremental=%t changed=%t records=%d, want true/true/2", result.incremental, result.changed, len(result.session.Records))
+	}
+}
+
 func TestIncrementalSessionReader_UnsafeAppendUsesFullRebuild(t *testing.T) {
 	root := incrementalTestLine(t, incrementalTestRecord("user", "root", 0, nil, "first"))
 	duplicate := incrementalTestLine(t, incrementalTestRecord("assistant", "root", 1, "root", []interface{}{
