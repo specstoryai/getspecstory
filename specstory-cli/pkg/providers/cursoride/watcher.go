@@ -28,7 +28,7 @@ type composerWatermark struct {
 	// bumps lastUpdatedAt only when the user sends a message: the agent's tool calls,
 	// results and final reply land afterwards without touching the composerData row, so
 	// a timestamp-only watermark would leave every turn's ending unsaved until the next
-	// message. Zero means "not fingerprinted yet" (a session seeded at startup).
+	// message. Zero means fingerprinting failed.
 	fingerprint uint64
 }
 
@@ -39,10 +39,6 @@ const (
 	changeNone composerChangeKind = iota
 	changeNew
 	changeUpdated
-	// changeAdoptFingerprint records the first fingerprint of a session seeded at
-	// startup without emitting it, so watch doesn't re-save every existing session
-	// on its first check.
-	changeAdoptFingerprint
 )
 
 // composerChange decides whether a composer needs processing, comparing what the
@@ -56,8 +52,6 @@ func composerChange(known composerWatermark, exists bool, current composerWaterm
 	case current.fingerprint == 0:
 		// Fingerprinting failed this check; only the timestamp can be trusted.
 		return changeNone
-	case known.fingerprint == 0:
-		return changeAdoptFingerprint
 	case current.fingerprint != known.fingerprint:
 		return changeUpdated
 	default:
@@ -72,8 +66,6 @@ func composerChange(known composerWatermark, exists bool, current composerWaterm
 func conversationFingerprint(composerID string, conversation []ComposerConversation) uint64 {
 	data, err := json.Marshal(conversation)
 	if err != nil {
-		// Zero would read as "not fingerprinted yet", so fall back to timestamp-only
-		// detection for this check instead.
 		slog.Warn("Failed to fingerprint conversation", "composerID", composerID, "error", err)
 		return 0
 	}
@@ -81,7 +73,7 @@ func conversationFingerprint(composerID string, conversation []ComposerConversat
 	_, _ = hash.Write(data) // hash.Hash writes never fail
 	sum := hash.Sum64()
 	if sum == 0 {
-		// Keep zero reserved for "not fingerprinted yet".
+		// Keep zero reserved for "fingerprinting failed".
 		sum = 1
 	}
 	return sum
@@ -253,42 +245,37 @@ func (w *CursorIDEWatcher) Start() error {
 	return nil
 }
 
-// seedKnownComposers records the current lastUpdatedAt of every composer already in the
-// project's workspaces, without firing callbacks. Uses the lightweight loader (composer
-// rows only, no bubbles) since only the timestamps are needed. Failures are non-fatal:
-// the worst case is that the first check re-emits existing sessions, which is the exact
-// behavior this seeding exists to avoid, not a correctness problem.
+// seedKnownComposers records the current watermark of every composer already in the
+// project's workspaces, without firing callbacks. It loads the full conversations (the
+// same load every check does) so the seeded fingerprints describe exactly what existed
+// at startup: anything Cursor writes after that, even before the first check, reads as
+// a change. Failures are non-fatal: the worst case is that the first check re-emits
+// existing sessions, which is the exact behavior this seeding exists to avoid, not a
+// correctness problem.
 func (w *CursorIDEWatcher) seedKnownComposers() {
-	// One lightweight scan serves both needs here: discovery (via projectComposerIDs)
-	// and the per-composer timestamps read below.
-	composers, err := LoadAllComposerDataLightweight(w.globalDbPath)
-	if err != nil {
-		slog.Warn("Failed to seed existing sessions; first check may re-emit them", "error", err)
+	composerIDs, err := FindProjectComposerIDs(w.globalDbPath, w.projectPath, w.workspaces)
+	if err != nil || len(composerIDs) == 0 {
 		return
 	}
-	composerIDs, err := projectComposerIDs(composers, w.projectPath, w.workspaces)
-	if err != nil || len(composerIDs) == 0 {
+	composers, err := LoadComposerDataBatch(w.globalDbPath, composerIDs)
+	if err != nil {
+		slog.Warn("Failed to seed existing sessions; first check may re-emit them", "error", err)
 		return
 	}
 
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	seeded := 0
-	for _, composerID := range composerIDs {
-		composer, exists := composers[composerID]
-		if !exists {
-			continue
-		}
+	for composerID, composer := range composers {
 		timestamp := composer.LastUpdatedAt
 		if timestamp == 0 {
 			timestamp = composer.CreatedAt
 		}
-		// The lightweight loader has no bubbles, so there is nothing to fingerprint yet;
-		// the first check adopts the fingerprint without emitting (see composerChange).
-		w.knownComposers[composerID] = composerWatermark{lastUpdatedAt: timestamp}
-		seeded++
+		w.knownComposers[composerID] = composerWatermark{
+			lastUpdatedAt: timestamp,
+			fingerprint:   conversationFingerprint(composerID, composer.Conversation),
+		}
 	}
-	slog.Debug("Seeded existing sessions as known", "count", seeded)
+	slog.Debug("Seeded existing sessions as known", "count", len(composers))
 }
 
 // Stop gracefully stops the watcher
@@ -570,11 +557,6 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 				"oldTimestamp", known.lastUpdatedAt,
 				"newTimestamp", current.lastUpdatedAt,
 				"contentChanged", known.fingerprint != current.fingerprint)
-		case changeAdoptFingerprint:
-			w.mu.Lock()
-			w.knownComposers[composerID] = current
-			w.mu.Unlock()
-			slog.Debug("Recorded fingerprint for seeded session", "composerID", composerID)
 		case changeNone:
 		}
 

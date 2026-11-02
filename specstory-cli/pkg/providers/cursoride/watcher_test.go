@@ -43,18 +43,12 @@ func TestComposerChange(t *testing.T) {
 			want:    changeNone,
 		},
 		{
-			// Seeded sessions must not be re-emitted on the first check after startup.
-			name:    "seeded session adopts its fingerprint without emitting",
+			// The last processed state is unverifiable, so re-save rather than risk
+			// keeping stale markdown.
+			name:    "fingerprint recovered after an earlier failure is updated",
 			known:   composerWatermark{lastUpdatedAt: ts},
 			exists:  true,
 			current: composerWatermark{lastUpdatedAt: ts, fingerprint: 7},
-			want:    changeAdoptFingerprint,
-		},
-		{
-			name:    "seeded session whose timestamp advanced is updated",
-			known:   composerWatermark{lastUpdatedAt: ts},
-			exists:  true,
-			current: composerWatermark{lastUpdatedAt: ts + 1, fingerprint: 7},
 			want:    changeUpdated,
 		},
 		{
@@ -93,7 +87,7 @@ func TestConversationFingerprint(t *testing.T) {
 
 	loading := conversationFingerprint("c", conversation("loading"))
 	if loading == 0 {
-		t.Fatalf("fingerprint must never be 0, which means \"not fingerprinted yet\"")
+		t.Fatalf("fingerprint must never be 0, which means \"fingerprinting failed\"")
 	}
 
 	tests := []struct {
