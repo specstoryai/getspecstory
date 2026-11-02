@@ -47,7 +47,10 @@ const (
 	//   7: recover Cursor session cwds (match their project-hash dir against other providers'
 	//      cwds) so Cursor sessions bucket under their real project instead of "unknown" —
 	//      existing Cursor rows stay "unknown" until re-parsed, so bump to re-bucket them
-	reindexVersion = 7
+	//   8: attribute Cursor multi-root sessions (saved .code-workspace and untitled windows)
+	//      to the window's first folder instead of the workspace file, so they list under a
+	//      project a sync can run from — bump to re-bucket existing Cursor rows
+	reindexVersion = 8
 )
 
 // CreateReindexCommand builds the `specstory reindex` command: a full, from-scratch
