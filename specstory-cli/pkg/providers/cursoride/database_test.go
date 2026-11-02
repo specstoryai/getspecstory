@@ -3,6 +3,7 @@ package cursoride
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -793,6 +794,77 @@ func TestLoadComposerDataBatch_HeaderSources(t *testing.T) {
 			}
 			if len(got) > 0 && c.Conversation[len(got)-1].Text != tt.wantLastText {
 				t.Errorf("last bubble text: got %q, want %q", c.Conversation[len(got)-1].Text, tt.wantLastText)
+			}
+		})
+	}
+}
+
+// Each composer adds an IN entry and two LIKE conditions to a chunk's query, so a full
+// chunk is the largest query SQLite has to accept; anything past it must spill into a
+// second chunk whose rows merge with the first. Projects with that many chats are where
+// a query over SQLite's expression-depth limit would break sync and watch outright.
+func TestLoadComposerDataBatch_ChunkBoundary(t *testing.T) {
+	tests := []struct {
+		name  string
+		count int
+	}{
+		{name: "one full chunk", count: composerBatchSize},
+		{name: "spills into a second chunk", count: composerBatchSize + 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rows := make(map[string]string)
+			ids := make([]string, tt.count)
+			for i := range tt.count {
+				// Unpadded IDs (c1, c10, c100) are prefixes of one another, so a key that
+				// matched the wrong composer would surface as a mismatch below.
+				id := fmt.Sprintf("c%d", i)
+				ids[i] = id
+				question, answer := id+"-q", id+"-a"
+				rows["bubbleId:"+id+":"+question] = bubbleJSON(t, question, 1, "question "+id)
+				rows["bubbleId:"+id+":"+answer] = bubbleJSON(t, answer, 2, "answer "+id)
+				if i%2 == 0 {
+					// Cursor >= 3.27.14: headers paged, one bubble per page.
+					rows["composerData:"+id] = pagedComposerJSON(t, id, id)
+					rows["composerConvHeaders:"+id+":000000"] = fmt.Sprintf(`[{"bubbleId":%q,"type":1}]`, question)
+					rows["composerConvHeaders:"+id+":000001"] = fmt.Sprintf(`[{"bubbleId":%q,"type":2}]`, answer)
+				} else {
+					// Cursor < 3.27.14: headers inline in the composerData row.
+					raw, err := json.Marshal(ComposerData{
+						ComposerID: id,
+						Version:    17,
+						FullConversationHeadersOnly: []ComposerConversationHeader{
+							{BubbleID: question, Type: 1},
+							{BubbleID: answer, Type: 2},
+						},
+					})
+					if err != nil {
+						t.Fatalf("marshal composer: %v", err)
+					}
+					rows["composerData:"+id] = string(raw)
+				}
+			}
+			dbPath := createTestGlobalDB(t, rows)
+
+			composers, err := LoadComposerDataBatch(dbPath, ids)
+			if err != nil {
+				t.Fatalf("LoadComposerDataBatch: %v", err)
+			}
+			if len(composers) != tt.count {
+				t.Fatalf("loaded %d composers, want %d", len(composers), tt.count)
+			}
+			for _, id := range ids {
+				c := composers[id]
+				if c == nil {
+					t.Fatalf("composer %s not loaded", id)
+				}
+				want := []string{id + "-q", id + "-a"}
+				if got := conversationIDs(c.Conversation); !slices.Equal(got, want) {
+					t.Fatalf("composer %s conversation: got %v, want %v", id, got, want)
+				}
+				if c.Conversation[1].Text != "answer "+id {
+					t.Errorf("composer %s answer text: got %q", id, c.Conversation[1].Text)
+				}
 			}
 		})
 	}
