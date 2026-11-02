@@ -480,6 +480,16 @@ func TestWorkspaceFileContainsFolder(t *testing.T) {
 			isRemote:      true,
 			expected:      false,
 		},
+		// Remote: a local file that happens to sit at the remote path is unrelated, so its
+		// folders must not be matched even when it lists the target folder.
+		{
+			name:             "remote workspace file readable locally is not read",
+			workspaceContent: `{"folders": [{"path": "../my-project"}]}`,
+			workspaceFile:    workspaceFile,
+			targetFolder:     canonicalProjectDir,
+			isRemote:         true,
+			expected:         false,
+		},
 		// Non-remote: deleted local file should not trigger the parent-dir fallback.
 		{
 			name:          "local workspace file missing, isRemote false, no fallback",

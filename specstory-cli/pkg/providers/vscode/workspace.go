@@ -357,15 +357,16 @@ func collectWorkspaceFileFolders(workspaceFilePath string) []string {
 // multi-root workspace file at workspaceFilePath.
 //
 // isRemote must be true when workspaceFilePath was decoded from a remote URI. The
-// file then lives on the remote host and cannot be read locally, so an unreadable
-// file falls back to treating its parent directory as the project root — correct for
-// the single-root remote workspaces this covers. The fallback is gated on isRemote
+// file then lives on the remote host, so it is never read locally: the path had its
+// host dropped, and a local file that happens to share it is unrelated, so matching
+// its folders would export the remote window's chats into a local project. Instead
+// the file's parent directory is treated as the project root, which is correct for
+// the single-root remote workspaces this covers. That fallback is gated on isRemote
 // because for a local workspace an unreadable file means it was deleted, and matching
 // on its parent directory would be a false positive.
 func workspaceFileContainsFolder(workspaceFilePath, canonicalFolder string, isRemote bool) bool {
-	folders := collectWorkspaceFileFolders(workspaceFilePath)
-	if len(folders) == 0 && isRemote {
+	if isRemote {
 		return filepath.Dir(workspaceFilePath) == canonicalFolder
 	}
-	return slices.Contains(folders, canonicalFolder)
+	return slices.Contains(collectWorkspaceFileFolders(workspaceFilePath), canonicalFolder)
 }
