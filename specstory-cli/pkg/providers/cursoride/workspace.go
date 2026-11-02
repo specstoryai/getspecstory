@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // FindWorkspaceForProject finds the workspace directory that matches the given project path.
@@ -242,9 +243,13 @@ func scanWorkspaceDir(workspaceStoragePath string) (*workspacePathIndex, error) 
 		// A multi-root workspace resolves to its workspace file, not a project directory.
 		// Attribute its composers to the first listed folder instead: that is the folder
 		// the extension runs the CLI in, and the one FindWorkspaces matches back to this
-		// entry, so the path is one a sync can actually run from. Unreadable files
-		// (e.g. remote workspaces) keep the file path as before.
-		if workspaceJSON.Workspace != "" {
+		// entry, so the path is one a sync can actually run from. Unreadable files keep
+		// the file path as before. SSH, tunnel and dev-container workspaces are skipped
+		// outright: URIToPath drops the remote host, so reading the path would open an
+		// unrelated local file that happens to share it and misattribute the remote
+		// sessions to its first folder. WSL workspace files are reachable locally, so
+		// they still resolve.
+		if workspaceJSON.Workspace != "" && !spi.IsRemoteURIRequiringBasenameMatch(workspaceURI) {
 			if firstFolder := vscode.FirstWorkspaceFolder(projectPath); firstFolder != "" {
 				projectPath = firstFolder
 			}

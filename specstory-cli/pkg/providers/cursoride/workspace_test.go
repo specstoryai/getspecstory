@@ -466,18 +466,34 @@ func TestScanWorkspaceDir_MultiRoot(t *testing.T) {
 		}
 	}
 
+	// An SSH workspace whose remote path happens to name a real local multi-root file.
+	// The remote host is dropped when the URI becomes a path, so reading that local file
+	// would attribute the remote sessions to an unrelated local project; the entry must
+	// keep its remote workspace-file path instead.
+	remoteURI := "vscode-remote://ssh-remote%2Bdevbox" + filepath.ToSlash(savedFile)
+	remotePath, err := vscode.URIToPath(remoteURI)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	tests := []struct {
-		name          string
-		workspaceFile string
-		withDB        bool
+		name         string
+		workspaceURI string
+		withDB       bool
+		want         string
 	}{
-		{name: "untitled window with a database", workspaceFile: untitledFile, withDB: true},
-		{name: "untitled window without a database", workspaceFile: untitledFile, withDB: false},
-		{name: "saved .code-workspace with a database", workspaceFile: savedFile, withDB: true},
-		{name: "saved .code-workspace without a database", workspaceFile: savedFile, withDB: false},
+		{name: "untitled window with a database", workspaceURI: vscode.PathToFileURI(untitledFile), withDB: true, want: canonicalFirst},
+		{name: "untitled window without a database", workspaceURI: vscode.PathToFileURI(untitledFile), withDB: false, want: canonicalFirst},
+		{name: "saved .code-workspace with a database", workspaceURI: vscode.PathToFileURI(savedFile), withDB: true, want: canonicalFirst},
+		{name: "saved .code-workspace without a database", workspaceURI: vscode.PathToFileURI(savedFile), withDB: false, want: canonicalFirst},
+		{name: "SSH workspace is not read from the local filesystem", workspaceURI: remoteURI, withDB: true, want: remotePath},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if runtime.GOOS == "windows" && strings.HasPrefix(tt.workspaceURI, "vscode-remote://") {
+				// A drive-letter path can't stand in for a remote POSIX path in the URI.
+				t.Skip("remote workspace URIs carry POSIX paths")
+			}
 			storage := t.TempDir()
 			writeEntry := func(id, workspaceJSON string, composerIDs []string) {
 				dir := filepath.Join(storage, id)
@@ -495,7 +511,7 @@ func TestScanWorkspaceDir_MultiRoot(t *testing.T) {
 			if tt.withDB {
 				multiComposers = []string{"composer-multi"}
 			}
-			writeEntry("ws-multi", `{"workspace":"`+vscode.PathToFileURI(tt.workspaceFile)+`"}`, multiComposers)
+			writeEntry("ws-multi", `{"workspace":"`+tt.workspaceURI+`"}`, multiComposers)
 			// A single-folder neighbor shows multi-root resolution stays within its entry.
 			writeEntry("ws-folder", `{"folder":"file:///project-a"}`, []string{"composer-aaa"})
 
@@ -503,8 +519,8 @@ func TestScanWorkspaceDir_MultiRoot(t *testing.T) {
 			if err != nil {
 				t.Fatalf("scanWorkspaceDir: %v", err)
 			}
-			if got := index.ByWorkspaceID["ws-multi"]; got != canonicalFirst {
-				t.Errorf("ws-multi path = %q, want first folder %q", got, canonicalFirst)
+			if got := index.ByWorkspaceID["ws-multi"]; got != tt.want {
+				t.Errorf("ws-multi path = %q, want %q", got, tt.want)
 			}
 			if got := index.ByWorkspaceID["ws-folder"]; got != "/project-a" {
 				t.Errorf("ws-folder path = %q, want /project-a", got)
@@ -515,8 +531,8 @@ func TestScanWorkspaceDir_MultiRoot(t *testing.T) {
 			wantComposers := 1
 			if tt.withDB {
 				wantComposers = 2
-				if got := index.ByComposer["composer-multi"]; got != canonicalFirst {
-					t.Errorf("composer-multi path = %q, want first folder %q", got, canonicalFirst)
+				if got := index.ByComposer["composer-multi"]; got != tt.want {
+					t.Errorf("composer-multi path = %q, want %q", got, tt.want)
 				}
 			}
 			if len(index.ByComposer) != wantComposers {
