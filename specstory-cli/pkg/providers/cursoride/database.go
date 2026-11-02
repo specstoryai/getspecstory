@@ -22,50 +22,98 @@ import (
 // well under that limit.
 const composerBatchSize = 200
 
-// convHeadersPrefix is the key prefix of the paged conversation-header rows that
-// Cursor >= 3.27.14 writes instead of populating fullConversationHeadersOnly:
-//
-//	composerConvHeaders:<composerId>:000000 -> JSON array of conversation headers
-//	composerConvHeaders:<composerId>:000001 -> next page, ...
-//
-// Concatenating the pages in key order yields the full ordered header list. The
-// bubble rows (bubbleId:<composerId>:<bubbleId>) are unchanged.
-const convHeadersPrefix = "composerConvHeaders:"
+// Key prefixes of the cursorDiskKV rows that make up a conversation. They are shared
+// by the readers and by InsertComposerSession, which must write keys Cursor will find.
+const (
+	// composerDataPrefix keys one row per conversation: composerData:<composerId>.
+	composerDataPrefix = "composerData:"
+	// bubbleIDPrefix keys one row per message: bubbleId:<composerId>:<bubbleId>.
+	bubbleIDPrefix = "bubbleId:"
+	// convHeadersPrefix keys the paged conversation-header rows that Cursor >= 3.27.14
+	// writes instead of populating fullConversationHeadersOnly:
+	//
+	//	composerConvHeaders:<composerId>:000000 -> JSON array of conversation headers
+	//	composerConvHeaders:<composerId>:000001 -> next page, ...
+	//
+	// Concatenating the pages in key order yields the full ordered header list. The
+	// bubble rows are unchanged.
+	convHeadersPrefix = "composerConvHeaders:"
+)
 
-// headerPage is one composerConvHeaders row: the zero-padded page suffix from the key
-// and the headers it holds. Pages are sorted by suffix before concatenation.
+// headerPage is one composerConvHeaders row: the zero-padded suffix from its key and
+// the headers it holds. Pages are sorted by suffix before concatenation.
 type headerPage struct {
-	page    string
+	suffix  string
 	headers []ComposerConversationHeader
 }
 
-// parseConvHeadersKey splits a composerConvHeaders key into its composer ID and
-// page suffix. ok is false for keys that don't have the expected three parts.
-func parseConvHeadersKey(key string) (composerID, page string, ok bool) {
+// parseConvHeadersKey splits a composerConvHeaders key into its composer ID and page
+// suffix. ok is false for keys that don't have the expected three parts.
+func parseConvHeadersKey(key string) (composerID, suffix string, ok bool) {
 	rest, found := strings.CutPrefix(key, convHeadersPrefix)
 	if !found {
 		return "", "", false
 	}
-	composerID, page, found = strings.Cut(rest, ":")
-	if !found || composerID == "" || page == "" {
+	composerID, suffix, found = strings.Cut(rest, ":")
+	if !found || composerID == "" || suffix == "" {
 		return "", "", false
 	}
-	return composerID, page, true
+	return composerID, suffix, true
 }
 
 // addHeaderPage parses one composerConvHeaders row into the pages map.
 func addHeaderPage(pages map[string][]headerPage, key, valueJSON string) {
-	composerID, page, ok := parseConvHeadersKey(key)
+	composerID, suffix, ok := parseConvHeadersKey(key)
 	if !ok {
 		slog.Warn("Invalid conversation headers key format", "key", key)
 		return
 	}
 	var headers []ComposerConversationHeader
 	if err := json.Unmarshal([]byte(valueJSON), &headers); err != nil {
-		slog.Warn("Failed to parse conversation headers page", "composerID", composerID, "page", page, "error", err)
+		slog.Warn("Failed to parse conversation headers page", "composerID", composerID, "suffix", suffix, "error", err)
 		return
 	}
-	pages[composerID] = append(pages[composerID], headerPage{page: page, headers: headers})
+	pages[composerID] = append(pages[composerID], headerPage{suffix: suffix, headers: headers})
+}
+
+// addComposerRow parses one composerData row into the composers map. It returns the
+// parsed composer, or nil when the row is unusable, so callers can log what they need.
+func addComposerRow(composers map[string]*ComposerData, key, valueJSON string) *ComposerData {
+	composerID := strings.TrimPrefix(key, composerDataPrefix)
+	var composer ComposerData
+	if err := json.Unmarshal([]byte(valueJSON), &composer); err != nil {
+		slog.Warn("Failed to parse composer data", "composerID", composerID, "error", err)
+		return nil
+	}
+	composers[composerID] = &composer
+	return &composer
+}
+
+// scanKV runs a cursorDiskKV key/value query and hands each row to handle. A row that
+// fails to scan is logged and skipped so one bad row can't hide the rest of the history.
+func scanKV(db *sql.DB, query string, args []any, handle func(key, valueJSON string)) error {
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return fmt.Errorf("query failed: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Warn("Failed to close query rows", "error", closeErr)
+		}
+	}()
+
+	for rows.Next() {
+		var key, valueJSON string
+		if err := rows.Scan(&key, &valueJSON); err != nil {
+			slog.Warn("Failed to scan row", "error", err)
+			continue
+		}
+		handle(key, valueJSON)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error iterating rows: %w", err)
+	}
+	return nil
 }
 
 // mergeHeaderPages fills FullConversationHeadersOnly from the paged rows for every
@@ -80,7 +128,7 @@ func mergeHeaderPages(composers map[string]*ComposerData, pages map[string][]hea
 		// Rows arrive in unspecified order. A plain string compare orders the pages
 		// correctly only because Cursor zero-pads the suffix to a fixed width; if a
 		// future Cursor drops the padding, page "10" would sort before page "2".
-		slices.SortFunc(composerPages, func(a, b headerPage) int { return strings.Compare(a.page, b.page) })
+		slices.SortFunc(composerPages, func(a, b headerPage) int { return strings.Compare(a.suffix, b.suffix) })
 		var headers []ComposerConversationHeader
 		for _, p := range composerPages {
 			headers = append(headers, p.headers...)
@@ -242,39 +290,50 @@ func LoadComposerDataBatch(globalDbPath string, composerIDs []string) (map[strin
 		}
 	}()
 
-	composers := make(map[string]*ComposerData)
-	bubbles := make(map[string]map[string]*ComposerConversation)
-	pages := make(map[string][]headerPage)
+	loaded := composerRows{
+		composers: make(map[string]*ComposerData),
+		bubbles:   make(map[string]map[string]*ComposerConversation),
+		pages:     make(map[string][]headerPage),
+	}
 
 	for i := 0; i < len(composerIDs); i += composerBatchSize {
 		end := min(i+composerBatchSize, len(composerIDs))
 		chunk := composerIDs[i:end]
-		if err := loadComposerChunk(db, chunk, composers, bubbles, pages); err != nil {
+		if err := loadComposerChunk(db, chunk, &loaded); err != nil {
 			return nil, err
 		}
 	}
 
-	mergeHeaderPages(composers, pages)
-	assembleComposerConversations(composers, bubbles)
+	mergeHeaderPages(loaded.composers, loaded.pages)
+	assembleComposerConversations(loaded.composers, loaded.bubbles)
 
-	slog.Debug("Loaded composers from global database", "composerCount", len(composers))
-	return composers, nil
+	slog.Debug("Loaded composers from global database", "composerCount", len(loaded.composers))
+	return loaded.composers, nil
 }
 
-// loadComposerChunk runs one bounded query for a slice of composer IDs and merges
-// the results into the caller-provided composers, bubbles and header-page maps.
-func loadComposerChunk(db *sql.DB, composerIDs []string, composers map[string]*ComposerData, bubbles map[string]map[string]*ComposerConversation, pages map[string][]headerPage) error {
+// composerRows accumulates the rows read across all chunks of LoadComposerDataBatch.
+// The pages and bubbles can only be merged into the composers once every chunk has
+// been read, so they are collected here first.
+type composerRows struct {
+	composers map[string]*ComposerData
+	bubbles   map[string]map[string]*ComposerConversation // composerID -> bubbleID -> bubble
+	pages     map[string][]headerPage                     // composerID -> unsorted header pages
+}
+
+// loadComposerChunk runs one bounded query for a slice of composer IDs and adds the
+// rows it reads to loaded.
+func loadComposerChunk(db *sql.DB, composerIDs []string, loaded *composerRows) error {
 	placeholders := make([]string, len(composerIDs))
 	likeConditions := make([]string, 0, len(composerIDs)*2)
-	params := make([]interface{}, 0, len(composerIDs)*3)
+	params := make([]any, 0, len(composerIDs)*3)
 
 	for i, id := range composerIDs {
 		placeholders[i] = "?"
-		params = append(params, "composerData:"+id)
+		params = append(params, composerDataPrefix+id)
 	}
 	for _, id := range composerIDs {
 		likeConditions = append(likeConditions, "key LIKE ?")
-		params = append(params, "bubbleId:"+id+":%")
+		params = append(params, bubbleIDPrefix+id+":%")
 	}
 	for _, id := range composerIDs {
 		likeConditions = append(likeConditions, "key LIKE ?")
@@ -291,54 +350,44 @@ func loadComposerChunk(db *sql.DB, composerIDs []string, composers map[string]*C
 
 	slog.Debug("Executing composer chunk query", "composerCount", len(composerIDs))
 
-	rows, err := db.Query(query, params...)
+	err := scanKV(db, query, params, func(key, valueJSON string) {
+		switch {
+		case strings.HasPrefix(key, composerDataPrefix):
+			if composer := addComposerRow(loaded.composers, key, valueJSON); composer != nil {
+				slog.Debug("Loaded composer", "composerID", strings.TrimPrefix(key, composerDataPrefix), "name", composer.Name)
+			}
+		case strings.HasPrefix(key, bubbleIDPrefix):
+			addBubbleRow(loaded.bubbles, key, valueJSON)
+		case strings.HasPrefix(key, convHeadersPrefix):
+			addHeaderPage(loaded.pages, key, valueJSON)
+		}
+	})
 	if err != nil {
-		return fmt.Errorf("failed to query composer chunk: %w", err)
+		return fmt.Errorf("failed to load composer chunk: %w", err)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			slog.Warn("Failed to close chunk query rows", "error", closeErr)
-		}
-	}()
+	return nil
+}
 
-	for rows.Next() {
-		var key, valueJSON string
-		if err := rows.Scan(&key, &valueJSON); err != nil {
-			slog.Warn("Failed to scan row", "error", err)
-			continue
-		}
-
-		if strings.HasPrefix(key, "composerData:") {
-			composerID := strings.TrimPrefix(key, "composerData:")
-			var composer ComposerData
-			if err := json.Unmarshal([]byte(valueJSON), &composer); err != nil {
-				slog.Warn("Failed to parse composer data", "composerID", composerID, "error", err)
-				continue
-			}
-			composers[composerID] = &composer
-			slog.Debug("Loaded composer", "composerID", composerID, "name", composer.Name)
-		} else if strings.HasPrefix(key, "bubbleId:") {
-			parts := strings.SplitN(key, ":", 3)
-			if len(parts) != 3 {
-				slog.Warn("Invalid bubble key format", "key", key)
-				continue
-			}
-			composerID, bubbleID := parts[1], parts[2]
-			var bubble ComposerConversation
-			if err := json.Unmarshal([]byte(valueJSON), &bubble); err != nil {
-				slog.Warn("Failed to parse bubble data", "composerID", composerID, "bubbleID", bubbleID, "error", err)
-				continue
-			}
-			if bubbles[composerID] == nil {
-				bubbles[composerID] = make(map[string]*ComposerConversation)
-			}
-			bubbles[composerID][bubbleID] = &bubble
-			slog.Debug("Loaded bubble", "composerID", composerID, "bubbleID", bubbleID, "type", bubble.Type)
-		} else if strings.HasPrefix(key, convHeadersPrefix) {
-			addHeaderPage(pages, key, valueJSON)
-		}
+// addBubbleRow parses one bubbleId row into the per-composer bubbles map.
+func addBubbleRow(bubbles map[string]map[string]*ComposerConversation, key, valueJSON string) {
+	// SplitN keeps everything after the second colon as the bubble ID, so suffixed IDs
+	// such as "<uuid>/s:0" stay intact.
+	parts := strings.SplitN(key, ":", 3)
+	if len(parts) != 3 {
+		slog.Warn("Invalid bubble key format", "key", key)
+		return
 	}
-	return rows.Err()
+	composerID, bubbleID := parts[1], parts[2]
+	var bubble ComposerConversation
+	if err := json.Unmarshal([]byte(valueJSON), &bubble); err != nil {
+		slog.Warn("Failed to parse bubble data", "composerID", composerID, "bubbleID", bubbleID, "error", err)
+		return
+	}
+	if bubbles[composerID] == nil {
+		bubbles[composerID] = make(map[string]*ComposerConversation)
+	}
+	bubbles[composerID][bubbleID] = &bubble
+	slog.Debug("Loaded bubble", "composerID", composerID, "bubbleID", bubbleID, "type", bubble.Type)
 }
 
 // assembleComposerConversations merges the per-bubble map into each composer's Conversation slice.
@@ -418,7 +467,7 @@ func InsertComposerSession(db *sql.DB, composerID string, composerJSON []byte, b
 
 	if _, err := tx.Exec(
 		"INSERT OR REPLACE INTO cursorDiskKV (key, value) VALUES (?, ?)",
-		"composerData:"+composerID, string(composerJSON),
+		composerDataPrefix+composerID, string(composerJSON),
 	); err != nil {
 		return fmt.Errorf("failed to insert composer data: %w", err)
 	}
@@ -428,7 +477,7 @@ func InsertComposerSession(db *sql.DB, composerID string, composerJSON []byte, b
 		if err != nil {
 			return fmt.Errorf("failed to marshal bubble %s: %w", bubbles[i].BubbleID, err)
 		}
-		key := "bubbleId:" + composerID + ":" + bubbles[i].BubbleID
+		key := bubbleIDPrefix + composerID + ":" + bubbles[i].BubbleID
 		if _, err := tx.Exec(
 			"INSERT OR REPLACE INTO cursorDiskKV (key, value) VALUES (?, ?)",
 			key, string(bubbleJSON),
@@ -873,74 +922,30 @@ func loadAllComposerData(globalDbPath string, withHeaderPages bool) (map[string]
 		}
 	}()
 
-	rows, err := db.Query("SELECT key, value FROM cursorDiskKV WHERE key LIKE 'composerData:%' AND value IS NOT NULL")
-	if err != nil {
-		return nil, fmt.Errorf("failed to query composer data: %w", err)
-	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			slog.Warn("Failed to close query rows", "error", closeErr)
-		}
-	}()
+	const prefixQuery = "SELECT key, value FROM cursorDiskKV WHERE key LIKE ? AND value IS NOT NULL"
 
 	composers := make(map[string]*ComposerData)
-	for rows.Next() {
-		var key, valueJSON string
-		if err := rows.Scan(&key, &valueJSON); err != nil {
-			slog.Warn("Failed to scan composer row", "error", err)
-			continue
-		}
-		composerID := strings.TrimPrefix(key, "composerData:")
-		var composer ComposerData
-		if err := json.Unmarshal([]byte(valueJSON), &composer); err != nil {
-			slog.Warn("Failed to parse composer data", "composerID", composerID, "error", err)
-			continue
-		}
-		composers[composerID] = &composer
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating composer rows: %w", err)
+	err = scanKV(db, prefixQuery, []any{composerDataPrefix + "%"}, func(key, valueJSON string) {
+		addComposerRow(composers, key, valueJSON)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to load composer data: %w", err)
 	}
 
 	// Cursor >= 3.27.14 leaves fullConversationHeadersOnly empty and pages the headers
 	// into composerConvHeaders rows. Without them, callers that use the header list to
 	// tell an empty composer from a populated one would skip every new session.
 	if withHeaderPages {
-		pages, err := loadAllHeaderPages(db)
+		pages := make(map[string][]headerPage)
+		err := scanKV(db, prefixQuery, []any{convHeadersPrefix + "%"}, func(key, valueJSON string) {
+			addHeaderPage(pages, key, valueJSON)
+		})
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to load conversation header pages: %w", err)
 		}
 		mergeHeaderPages(composers, pages)
 	}
 
-	slog.Debug("Loaded lightweight composer data from global database", "count", len(composers))
+	slog.Debug("Loaded global composer data", "count", len(composers), "withHeaderPages", withHeaderPages)
 	return composers, nil
-}
-
-// loadAllHeaderPages reads every composerConvHeaders row in the global database,
-// grouped by composer ID.
-func loadAllHeaderPages(db *sql.DB) (map[string][]headerPage, error) {
-	rows, err := db.Query("SELECT key, value FROM cursorDiskKV WHERE key LIKE ? AND value IS NOT NULL", convHeadersPrefix+"%")
-	if err != nil {
-		return nil, fmt.Errorf("failed to query conversation header pages: %w", err)
-	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			slog.Warn("Failed to close header page rows", "error", closeErr)
-		}
-	}()
-
-	pages := make(map[string][]headerPage)
-	for rows.Next() {
-		var key, valueJSON string
-		if err := rows.Scan(&key, &valueJSON); err != nil {
-			slog.Warn("Failed to scan header page row", "error", err)
-			continue
-		}
-		addHeaderPage(pages, key, valueJSON)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating header page rows: %w", err)
-	}
-	return pages, nil
 }

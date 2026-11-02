@@ -608,8 +608,12 @@ func pagedComposerJSON(t *testing.T, id, name string) string {
 	return string(raw)
 }
 
-func bubbleJSON(id string, bubbleType int, text string) string {
-	raw, _ := json.Marshal(ComposerConversation{BubbleID: id, Type: bubbleType, Text: text})
+func bubbleJSON(t *testing.T, id string, bubbleType int, text string) string {
+	t.Helper()
+	raw, err := json.Marshal(ComposerConversation{BubbleID: id, Type: bubbleType, Text: text})
+	if err != nil {
+		t.Fatalf("marshal bubble: %v", err)
+	}
 	return string(raw)
 }
 
@@ -623,24 +627,27 @@ func conversationIDs(conv []ComposerConversation) []string {
 
 func TestParseConvHeadersKey(t *testing.T) {
 	tests := []struct {
+		name       string
 		key        string
 		wantID     string
-		wantPage   string
+		wantSuffix string
 		wantParsed bool
 	}{
-		{"composerConvHeaders:abc:000000", "abc", "000000", true},
-		{"composerConvHeaders:abc:000012", "abc", "000012", true},
-		{"composerConvHeaders:abc", "", "", false},
-		{"composerConvHeaders::000000", "", "", false},
-		{"composerConvHeaders:abc:", "", "", false},
-		{"bubbleId:abc:b1", "", "", false},
+		{"first page", "composerConvHeaders:abc:000000", "abc", "000000", true},
+		{"later page", "composerConvHeaders:abc:000012", "abc", "000012", true},
+		{"missing suffix separator", "composerConvHeaders:abc", "", "", false},
+		{"empty composer ID", "composerConvHeaders::000000", "", "", false},
+		{"empty suffix", "composerConvHeaders:abc:", "", "", false},
+		{"other key type", "bubbleId:abc:b1", "", "", false},
 	}
 	for _, tt := range tests {
-		id, page, ok := parseConvHeadersKey(tt.key)
-		if ok != tt.wantParsed || id != tt.wantID || page != tt.wantPage {
-			t.Errorf("parseConvHeadersKey(%q) = (%q, %q, %v), want (%q, %q, %v)",
-				tt.key, id, page, ok, tt.wantID, tt.wantPage, tt.wantParsed)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			id, suffix, ok := parseConvHeadersKey(tt.key)
+			if ok != tt.wantParsed || id != tt.wantID || suffix != tt.wantSuffix {
+				t.Errorf("parseConvHeadersKey(%q) = (%q, %q, %v), want (%q, %q, %v)",
+					tt.key, id, suffix, ok, tt.wantID, tt.wantSuffix, tt.wantParsed)
+			}
+		})
 	}
 }
 
@@ -656,11 +663,11 @@ func TestLoadComposerDataBatch_PagedHeaders(t *testing.T) {
 		// TestMergeHeaderPages for the deterministic check.
 		"composerConvHeaders:" + id + ":000001": `[{"bubbleId":"u2","type":1,"createdAt":"2026-10-27T12:48:00.000Z"},{"bubbleId":"u2/s:0","type":2}]`,
 		"composerConvHeaders:" + id + ":000000": `[{"bubbleId":"u1","type":1,"grouping":{"isRenderable":true,"hasText":true}},{"bubbleId":"u1/s:0","type":2},{"bubbleId":"u1/s:1","type":2}]`,
-		"bubbleId:" + id + ":u1":                bubbleJSON("u1", 1, "first question"),
-		"bubbleId:" + id + ":u1/s:0":            bubbleJSON("u1/s:0", 2, "thinking"),
-		"bubbleId:" + id + ":u1/s:1":            bubbleJSON("u1/s:1", 2, "first answer"),
-		"bubbleId:" + id + ":u2":                bubbleJSON("u2", 1, "second question"),
-		"bubbleId:" + id + ":u2/s:0":            bubbleJSON("u2/s:0", 2, "second answer"),
+		"bubbleId:" + id + ":u1":                bubbleJSON(t, "u1", 1, "first question"),
+		"bubbleId:" + id + ":u1/s:0":            bubbleJSON(t, "u1/s:0", 2, "thinking"),
+		"bubbleId:" + id + ":u1/s:1":            bubbleJSON(t, "u1/s:1", 2, "first answer"),
+		"bubbleId:" + id + ":u2":                bubbleJSON(t, "u2", 1, "second question"),
+		"bubbleId:" + id + ":u2/s:0":            bubbleJSON(t, "u2/s:0", 2, "second answer"),
 		// Another composer's page must not leak in.
 		"composerConvHeaders:other:000000": `[{"bubbleId":"x","type":1}]`,
 	})
@@ -718,8 +725,8 @@ func TestLoadComposerDataBatch_HeaderSources(t *testing.T) {
 			rows: map[string]string{
 				"composerData:inline":               string(inlineRaw),
 				"composerConvHeaders:inline:000000": `[{"bubbleId":"b1","type":1},{"bubbleId":"b2","type":2}]`,
-				"bubbleId:inline:b1":                bubbleJSON("b1", 1, "hi"),
-				"bubbleId:inline:b2":                bubbleJSON("b2", 2, "hello"),
+				"bubbleId:inline:b1":                bubbleJSON(t, "b1", 1, "hi"),
+				"bubbleId:inline:b2":                bubbleJSON(t, "b2", 2, "hello"),
 			},
 			wantHeaders:      1,
 			wantConversation: []string{"b1"},
@@ -734,8 +741,8 @@ func TestLoadComposerDataBatch_HeaderSources(t *testing.T) {
 			rows: map[string]string{
 				"composerData:racing":               pagedComposerJSON(t, "racing", "mid-stream"),
 				"composerConvHeaders:racing:000000": `[{"bubbleId":"u1","type":1},{"bubbleId":"u1/s:0","type":2},{"bubbleId":"u1/s:1","type":2}]`,
-				"bubbleId:racing:u1":                bubbleJSON("u1", 1, "question"),
-				"bubbleId:racing:u1/s:0":            bubbleJSON("u1/s:0", 2, "partial"),
+				"bubbleId:racing:u1":                bubbleJSON(t, "u1", 1, "question"),
+				"bubbleId:racing:u1/s:0":            bubbleJSON(t, "u1/s:0", 2, "partial"),
 			},
 			wantHeaders:      3,
 			wantConversation: []string{"u1", "u1/s:0"},
@@ -748,8 +755,8 @@ func TestLoadComposerDataBatch_HeaderSources(t *testing.T) {
 			id:   "legacy",
 			rows: map[string]string{
 				"composerData:legacy": `{"composerId":"legacy","_v":1,"conversation":[{"bubbleId":"b1","type":1,"text":""},{"bubbleId":"b2","type":2,"text":""}]}`,
-				"bubbleId:legacy:b1":  bubbleJSON("b1", 1, "full user text"),
-				"bubbleId:legacy:b2":  bubbleJSON("b2", 2, "full assistant text"),
+				"bubbleId:legacy:b1":  bubbleJSON(t, "b1", 1, "full user text"),
+				"bubbleId:legacy:b2":  bubbleJSON(t, "b2", 2, "full assistant text"),
 			},
 			wantHeaders:      0,
 			wantConversation: []string{"b1", "b2"},
@@ -836,7 +843,7 @@ func TestMergeHeaderPages(t *testing.T) {
 		for i, id := range ids {
 			headers[i] = ComposerConversationHeader{BubbleID: id}
 		}
-		return headerPage{page: suffix, headers: headers}
+		return headerPage{suffix: suffix, headers: headers}
 	}
 	headerIDs := func(headers []ComposerConversationHeader) []string {
 		ids := make([]string, len(headers))
