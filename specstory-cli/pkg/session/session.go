@@ -245,7 +245,7 @@ func ProcessSingleSession(ctx context.Context, providerID string, session *spi.A
 		// redaction. It happens inside the sync machinery at actual send time,
 		// so payloads replaced during the autosave debounce are never scanned;
 		// the markdown is already redacted above.
-		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), session.SessionDataJSON(), session.SessionData.Provider.Name, spi.ReadableTitleFromSessionData(session.SessionData), opts.RedactSecrets, opts.IsAutosave)
+		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), session.SessionDataJSON, session.SessionData.Provider.Name, spi.ReadableTitleFromSessionData(session.SessionData), opts.RedactSecrets, opts.IsAutosave)
 	}
 
 	if opts.ShowOutput && !log.IsSilent() {

@@ -1065,7 +1065,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 			// Trigger cloud sync with provider-specific data
 			// Manual sync command: perform immediate sync with HEAD check (not autosave mode)
 			// In only-cloud-sync mode: always sync
-			cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), session.SessionDataJSON(), provider.Name(), spi.ReadableTitleFromSessionData(session.SessionData), !noRedactSecrets, false)
+			cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), session.SessionDataJSON, provider.Name(), spi.ReadableTitleFromSessionData(session.SessionData), !noRedactSecrets, false)
 		}()
 
 		// Print progress with [n/m] format

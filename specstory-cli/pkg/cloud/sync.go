@@ -60,17 +60,18 @@ type SyncSession struct {
 	MDContent    string
 }
 
-// pendingSyncRequest holds a queued sync request during debounce period
-// Debounced syncs always skip HEAD check since we know content just changed
+// pendingSyncRequest holds a queued sync request during debounce period or
+// while another send for the same session is in flight.
 type pendingSyncRequest struct {
-	sessionID      string
-	mdPath         string
-	mdContent      string
-	rawData        []byte
-	sessionData    string // normalized SessionData JSON (canonical cloud-resume blob)
-	agentName      string
-	title          string // readable session title (first user message), for metadata.title
-	redactPayloads bool   // redact rawData/sessionData at send time (mdContent arrives already redacted)
+	sessionID       string
+	mdPath          string
+	mdContent       string
+	rawData         []byte
+	sessionDataJSON func() string // normalized SessionData JSON, built only if this request starts
+	agentName       string
+	title           string // readable session title (first user message), for metadata.title
+	redactPayloads  bool   // redact rawData/sessionData at send time (mdContent arrives already redacted)
+	skipHeadCheck   bool   // autosave knows the content changed; manual sync checks first
 }
 
 // BulkSizesResponse represents the API response for bulk session sizes
@@ -158,8 +159,9 @@ func (stats *CloudSyncStats) calculateTimedOut() {
 type sessionDebounceState struct {
 	mu           sync.Mutex          // Protects concurrent access to this session's debounce state
 	lastSyncTime time.Time           // Timestamp when last sync started (used to calculate debounce window)
-	pending      *pendingSyncRequest // Most recent sync request queued during debounce window (newer requests replace older)
+	pending      *pendingSyncRequest // Most recent sync request queued during debounce or an in-flight send
 	timer        *time.Timer         // Fires after debounce interval to flush pending sync (nil if no pending sync)
+	inFlight     bool                // One goroutine owns all payload processing and HTTP work for this session
 }
 
 // SyncManager handles cloud synchronization operations
@@ -1016,79 +1018,90 @@ func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, raw
 	}
 }
 
-// debouncedSync implements debouncing logic for a session
-// Always skips HEAD check since we know content just changed in autosave mode
-func (syncMgr *SyncManager) debouncedSync(sessionID, mdPath, mdContent string, rawData []byte, sessionData string, agentName, title string, redactPayloads bool) {
-	// Get or create debounce state for this session
+// debouncedSync implements debouncing logic for a session.
+// Autosave always skips the HEAD check since the content just changed.
+func (syncMgr *SyncManager) debouncedSync(sessionID, mdPath, mdContent string, rawData []byte, sessionDataJSON func() string, agentName, title string, redactPayloads bool) {
+	syncMgr.enqueueSync(sessionID, mdPath, mdContent, rawData, sessionDataJSON, agentName, title, redactPayloads, true)
+}
+
+// enqueueSync keeps one latest-wins request per session. A single goroutine
+// drains that request so expensive payload work cannot overlap either.
+func (syncMgr *SyncManager) enqueueSync(sessionID, mdPath, mdContent string, rawData []byte, sessionDataJSON func() string, agentName, title string, redactPayloads, skipHeadCheck bool) {
 	stateInterface, _ := syncMgr.debounceSessions.LoadOrStore(sessionID, &sessionDebounceState{})
 	state := stateInterface.(*sessionDebounceState)
 
 	state.mu.Lock()
 	defer state.mu.Unlock()
+	state.pending = &pendingSyncRequest{
+		sessionID:       sessionID,
+		mdPath:          mdPath,
+		mdContent:       mdContent,
+		rawData:         rawData,
+		sessionDataJSON: sessionDataJSON,
+		agentName:       agentName,
+		title:           title,
+		redactPayloads:  redactPayloads,
+		skipHeadCheck:   skipHeadCheck,
+	}
+	syncMgr.startPendingSync(sessionID, state, false)
+}
 
-	now := time.Now()
-	timeSinceLastSync := now.Sub(state.lastSyncTime)
-
-	// Check if we can sync immediately (no recent sync or first sync)
-	if state.lastSyncTime.IsZero() || timeSinceLastSync >= syncMgr.debounceInterval {
-		// Sync immediately
-		state.lastSyncTime = now
-		state.pending = nil
-
-		// Cancel any pending timer
-		if state.timer != nil {
-			state.timer.Stop()
-			state.timer = nil
-		}
-
-		// Start sync in goroutine (always skip HEAD check in autosave mode)
-		atomic.AddInt32(&syncMgr.syncCount, 1)
-		syncMgr.wg.Go(func() {
-			defer atomic.AddInt32(&syncMgr.syncCount, -1)
-			syncMgr.performSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, redactPayloads, true)
-		})
-
-		// Log with timeSinceLastSync only if meaningful (not after cleanup)
-		if state.lastSyncTime.IsZero() {
-			slog.Debug("Cloud sync started immediately",
-				"sessionId", sessionID)
-		} else {
-			slog.Debug("Cloud sync started immediately",
-				"sessionId", sessionID,
-				"timeSinceLastSync", timeSinceLastSync)
-		}
+// startPendingSync starts the queued request when no send is active and its
+// debounce window has elapsed. The caller holds state.mu.
+func (syncMgr *SyncManager) startPendingSync(sessionID string, state *sessionDebounceState, force bool) {
+	if state.inFlight || state.pending == nil {
 		return
 	}
 
-	// Within debounce window - queue or replace pending request
-	state.pending = &pendingSyncRequest{
-		sessionID:      sessionID,
-		mdPath:         mdPath,
-		mdContent:      mdContent,
-		rawData:        rawData,
-		sessionData:    sessionData,
-		agentName:      agentName,
-		title:          title,
-		redactPayloads: redactPayloads,
+	req := state.pending
+	now := time.Now()
+	if !force && req.skipHeadCheck && !state.lastSyncTime.IsZero() {
+		remaining := syncMgr.debounceInterval - now.Sub(state.lastSyncTime)
+		if remaining > 0 {
+			if state.timer == nil {
+				state.timer = time.AfterFunc(remaining, func() {
+					syncMgr.flushPendingSync(sessionID)
+				})
+			}
+			return
+		}
 	}
 
-	// Set timer if not already set
-	if state.timer == nil {
-		timeUntilSync := syncMgr.debounceInterval - timeSinceLastSync
-		state.timer = time.AfterFunc(timeUntilSync, func() {
-			syncMgr.flushPendingSync(sessionID)
-		})
-
-		slog.Debug("Cloud sync queued with new timer",
-			"sessionId", sessionID,
-			"timeUntilSync", timeUntilSync)
-	} else {
-		slog.Debug("Cloud sync queued (replaced pending)",
-			"sessionId", sessionID)
+	state.pending = nil
+	if state.timer != nil {
+		state.timer.Stop()
+		state.timer = nil
 	}
+	state.lastSyncTime = now
+	state.inFlight = true
+	atomic.AddInt32(&syncMgr.syncCount, 1)
+	syncMgr.wg.Go(func() {
+		defer atomic.AddInt32(&syncMgr.syncCount, -1)
+		sessionData := ""
+		if req.sessionDataJSON != nil {
+			sessionData = req.sessionDataJSON()
+		}
+		syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, sessionData, req.agentName, req.title, req.redactPayloads, req.skipHeadCheck)
+		syncMgr.finishSync(sessionID)
+	})
 }
 
-// flushPendingSync is called by timer to flush a queued sync
+// finishSync hands the newest queued request to the same per-session pipeline.
+// It runs before the current wait-group goroutine exits, so shutdown cannot miss
+// a follow-up send while waiting for cloud work to drain.
+func (syncMgr *SyncManager) finishSync(sessionID string) {
+	stateInterface, ok := syncMgr.debounceSessions.Load(sessionID)
+	if !ok {
+		return
+	}
+	state := stateInterface.(*sessionDebounceState)
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	state.inFlight = false
+	syncMgr.startPendingSync(sessionID, state, false)
+}
+
+// flushPendingSync is called by the debounce timer.
 func (syncMgr *SyncManager) flushPendingSync(sessionID string) {
 	stateInterface, ok := syncMgr.debounceSessions.Load(sessionID)
 	if !ok {
@@ -1098,36 +1111,12 @@ func (syncMgr *SyncManager) flushPendingSync(sessionID string) {
 
 	state.mu.Lock()
 	defer state.mu.Unlock()
-
-	// Sync the pending request (timer is only set when pending is non-nil)
-	req := state.pending
-	state.pending = nil
 	state.timer = nil
-
-	// Guard against nil pending request (defensive programming)
-	if req == nil {
-		slog.Warn("Timer fired but no pending request found",
-			"sessionId", sessionID)
-		syncMgr.debounceSessions.Delete(sessionID)
-		return
-	}
-
-	// Clean up the session state from the map since we're done with this debounce cycle
-	// If another event comes later, LoadOrStore will create a fresh state
-	syncMgr.debounceSessions.Delete(sessionID)
-
-	// Start sync in goroutine (always skip HEAD check for debounced syncs)
-	atomic.AddInt32(&syncMgr.syncCount, 1)
-	syncMgr.wg.Go(func() {
-		defer atomic.AddInt32(&syncMgr.syncCount, -1)
-		syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, req.sessionData, req.agentName, req.title, req.redactPayloads, true)
-	})
-
-	slog.Debug("Flushed pending sync after debounce, cleaned up session state",
-		"sessionId", sessionID)
+	syncMgr.startPendingSync(sessionID, state, true)
 }
 
-// flushAllPending flushes all pending debounced syncs (called on shutdown)
+// flushAllPending flushes all queued syncs on shutdown. Requests behind an
+// in-flight send are started by finishSync before that send's goroutine exits.
 func (syncMgr *SyncManager) flushAllPending() {
 	slog.Debug("Flushing all pending debounced syncs")
 
@@ -1137,29 +1126,11 @@ func (syncMgr *SyncManager) flushAllPending() {
 
 		state.mu.Lock()
 		defer state.mu.Unlock()
-
-		// Cancel timer
 		if state.timer != nil {
 			state.timer.Stop()
 			state.timer = nil
 		}
-
-		// If there's a pending request, sync it immediately
-		if state.pending != nil {
-			req := state.pending
-			state.pending = nil
-
-			// Start sync in goroutine (always skip HEAD check for debounced syncs)
-			atomic.AddInt32(&syncMgr.syncCount, 1)
-			syncMgr.wg.Go(func() {
-				defer atomic.AddInt32(&syncMgr.syncCount, -1)
-				syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, req.sessionData, req.agentName, req.title, req.redactPayloads, true)
-			})
-
-			slog.Info("Flushing pending sync on shutdown",
-				"sessionId", sessionID)
-		}
-
+		syncMgr.startPendingSync(sessionID, state, true)
 		return true
 	})
 }
@@ -1169,8 +1140,9 @@ func (syncMgr *SyncManager) flushAllPending() {
 // When isAutosaveMode is false (manual sync), syncs are immediate with HEAD checks
 // When redactPayloads is true, rawData and sessionData have secrets redacted at
 // actual send time in performSync; mdContent must arrive already redacted (the
-// caller also writes it to disk).
-func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawData []byte, sessionData string, agentName string, title string, redactPayloads bool, isAutosaveMode bool) {
+// caller also writes it to disk). sessionDataJSON is deferred until this request
+// starts, so disabled sync and replaced pending requests never marshal it.
+func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawData []byte, sessionDataJSON func() string, agentName string, title string, redactPayloads bool, isAutosaveMode bool) {
 	syncManagerMutex.RLock()
 	syncMgr := globalSyncManager
 	syncManagerMutex.RUnlock()
@@ -1190,17 +1162,12 @@ func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawDa
 		return
 	}
 
-	// Route to debounced or immediate sync based on mode
+	// Both modes share the per-session single-flight queue. Autosave adds the
+	// debounce interval and skips HEAD; manual sync starts as soon as it can.
 	if isAutosaveMode {
-		// Autosave mode: debounce syncs and skip HEAD checks
-		syncMgr.debouncedSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, redactPayloads)
+		syncMgr.debouncedSync(sessionID, mdPath, mdContent, rawData, sessionDataJSON, agentName, title, redactPayloads)
 	} else {
-		// Manual sync mode: immediate sync with HEAD check
-		atomic.AddInt32(&syncMgr.syncCount, 1)
-		syncMgr.wg.Go(func() {
-			defer atomic.AddInt32(&syncMgr.syncCount, -1)
-			syncMgr.performSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, redactPayloads, false)
-		})
+		syncMgr.enqueueSync(sessionID, mdPath, mdContent, rawData, sessionDataJSON, agentName, title, redactPayloads, false)
 	}
 }
 
