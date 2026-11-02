@@ -578,3 +578,48 @@ func TestFirstWorkspaceFolder(t *testing.T) {
 		t.Errorf("missing file should yield \"\", got %q", got)
 	}
 }
+
+// A symlinked workspace file with a relative folder resolves that folder differently
+// depending on whether the link's or the target's directory is used. The folder the
+// global listing attributes sessions to (FirstWorkspaceFolder) must be one FindWorkspaces
+// matches back to the same entry, or a listed session can't be synced from its project.
+func TestFirstWorkspaceFolder_SymlinkedFileMatchesFindWorkspaces(t *testing.T) {
+	base := t.TempDir()
+	targetDir := filepath.Join(base, "dotfiles", "ws")
+	linkDir := filepath.Join(base, "home")
+	// "app" exists next to both the link and the target, so resolving against the
+	// wrong directory yields a real but different folder rather than an error.
+	for _, dir := range []string{filepath.Join(targetDir, "app"), filepath.Join(linkDir, "app")} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	targetFile := filepath.Join(targetDir, "proj.code-workspace")
+	if err := os.WriteFile(targetFile, []byte(`{"folders": [{"path": "app"}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	linkFile := filepath.Join(linkDir, "proj.code-workspace")
+	if err := os.Symlink(targetFile, linkFile); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	wantFolder, err := NormalizePathForComparison(filepath.Join(targetDir, "app"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The IDE records the workspace file by the path it was opened from: the link.
+	storageRoot := t.TempDir()
+	writeWorkspaceEntry(t, storageRoot, "linked", `{"workspace": "`+PathToFileURI(linkFile)+`"}`)
+
+	got := FirstWorkspaceFolder(linkFile)
+	if got != wantFolder {
+		t.Fatalf("FirstWorkspaceFolder = %q, want %q", got, wantFolder)
+	}
+	entries, err := FindWorkspaces(storageRoot, got, MatchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].ID != "linked" {
+		t.Errorf("FindWorkspaces(%q) should match the linked entry, got %v", got, entries)
+	}
+}

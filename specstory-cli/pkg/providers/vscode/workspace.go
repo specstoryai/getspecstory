@@ -271,7 +271,15 @@ func SelectPrimary(entries []WorkspaceEntry, projectPath string) *WorkspaceEntry
 // treats as the project for a multi-root window, so callers use it to attribute a
 // multi-root workspace's sessions to a real project directory.
 func FirstWorkspaceFolder(workspaceFilePath string) string {
-	folders := collectCodeWorkspaceFolders(workspaceFilePath)
+	// Canonicalize the file the same way FindWorkspaces does before reading it. Relative
+	// folders resolve against the file's directory, and for a symlinked workspace file
+	// the link's and the target's directories differ; resolving both sides the same way
+	// keeps the folder reported here one that FindWorkspaces matches back to this entry.
+	canonicalFile, err := NormalizePathForComparison(workspaceFilePath)
+	if err != nil {
+		canonicalFile = workspaceFilePath
+	}
+	folders := collectCodeWorkspaceFolders(canonicalFile)
 	if len(folders) == 0 {
 		return ""
 	}
