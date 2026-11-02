@@ -201,16 +201,6 @@ func ScanAllWorkspacePaths() (*WorkspacePathIndex, error) {
 	return scanWorkspaceDir(workspaceStoragePath)
 }
 
-// scanWorkspaceDirForComposerPaths is the composer-keyed view of scanWorkspaceDir,
-// kept for callers and tests that only need the composer mapping.
-func scanWorkspaceDirForComposerPaths(workspaceStoragePath string) (map[string]string, error) {
-	index, err := scanWorkspaceDir(workspaceStoragePath)
-	if err != nil {
-		return nil, err
-	}
-	return index.ByComposer, nil
-}
-
 // scanWorkspaceDir does the actual directory walk for ScanAllWorkspacePaths. It is
 // a separate function so tests can call it directly with a temp directory rather
 // than relying on the live Cursor installation.
@@ -224,7 +214,6 @@ func scanWorkspaceDir(workspaceStoragePath string) (*WorkspacePathIndex, error) 
 		ByWorkspaceID: make(map[string]string),
 		ByComposer:    make(map[string]string),
 	}
-	composerToPath := index.ByComposer
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -275,16 +264,16 @@ func scanWorkspaceDir(workspaceStoragePath string) (*WorkspacePathIndex, error) 
 		}
 
 		for _, id := range composerIDs {
-			if _, exists := composerToPath[id]; !exists {
+			if _, exists := index.ByComposer[id]; !exists {
 				// First-seen workspace path wins; a composer scoped to multiple workspaces
 				// (WSL/SSH setups) is attributed to whichever workspace is encountered first.
-				composerToPath[id] = projectPath
+				index.ByComposer[id] = projectPath
 			}
 		}
 	}
 
 	slog.Debug("Scanned all workspaces for project paths",
-		"workspaceCount", len(index.ByWorkspaceID), "composerCount", len(composerToPath))
+		"workspaceCount", len(index.ByWorkspaceID), "composerCount", len(index.ByComposer))
 	return index, nil
 }
 
