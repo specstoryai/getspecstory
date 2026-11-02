@@ -17,6 +17,7 @@ const (
 	EventProjectIdentityCreated = "ext_project_identity_created" // Tracks when new project identity is created
 	EventCheckInstallSuccess    = "ext_check_install_success"    // Tracks successful agent installation check
 	EventCheckInstallFailed     = "ext_check_install_failed"     // Tracks failed agent installation check
+	EventUpdateCommand          = "ext_update_command"           // Tracks explicit update/check/rollback commands
 	EventVersionCommand         = "ext_version_command"          // Tracks when users check the version
 	EventHelpCommand            = "ext_help_command"             // Tracks when users view help
 	EventAutosaveNew            = "ext_autosave_new"             // Tracks when a new markdown file is created during `run` or `--sync-markdown`
