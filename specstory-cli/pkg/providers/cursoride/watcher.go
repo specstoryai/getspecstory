@@ -2,7 +2,9 @@ package cursoride
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"log/slog"
 	"path/filepath"
 	"strings"
@@ -19,6 +21,72 @@ import (
 // catches changes fsnotify missed.
 const defaultCheckInterval = 2 * time.Minute
 
+// composerWatermark is what the watcher last processed for one composer.
+type composerWatermark struct {
+	lastUpdatedAt int64
+	// fingerprint hashes the loaded conversation. It is needed because Cursor >= 3.27.14
+	// bumps lastUpdatedAt only when the user sends a message: the agent's tool calls,
+	// results and final reply land afterwards without touching the composerData row, so
+	// a timestamp-only watermark would leave every turn's ending unsaved until the next
+	// message. Zero means "not fingerprinted yet" (a session seeded at startup).
+	fingerprint uint64
+}
+
+// composerChangeKind is the watcher's verdict on one composer for one check.
+type composerChangeKind int
+
+const (
+	changeNone composerChangeKind = iota
+	changeNew
+	changeUpdated
+	// changeAdoptFingerprint records the first fingerprint of a session seeded at
+	// startup without emitting it, so watch doesn't re-save every existing session
+	// on its first check.
+	changeAdoptFingerprint
+)
+
+// composerChange decides whether a composer needs processing, comparing what the
+// current check loaded against the last processed (or seeded) watermark.
+func composerChange(known composerWatermark, exists bool, current composerWatermark) composerChangeKind {
+	switch {
+	case !exists:
+		return changeNew
+	case current.lastUpdatedAt > known.lastUpdatedAt:
+		return changeUpdated
+	case current.fingerprint == 0:
+		// Fingerprinting failed this check; only the timestamp can be trusted.
+		return changeNone
+	case known.fingerprint == 0:
+		return changeAdoptFingerprint
+	case current.fingerprint != known.fingerprint:
+		return changeUpdated
+	default:
+		return changeNone
+	}
+}
+
+// conversationFingerprint hashes the loaded conversation so in-place updates are seen
+// too, e.g. a tool call bubble that goes from "loading" to "completed" without adding a
+// bubble. JSON is used because it covers every parsed field and sorts map keys, so the
+// same data always hashes the same.
+func conversationFingerprint(composerID string, conversation []ComposerConversation) uint64 {
+	data, err := json.Marshal(conversation)
+	if err != nil {
+		// Zero would read as "not fingerprinted yet", so fall back to timestamp-only
+		// detection for this check instead.
+		slog.Warn("Failed to fingerprint conversation", "composerID", composerID, "error", err)
+		return 0
+	}
+	hash := fnv.New64a()
+	_, _ = hash.Write(data) // hash.Hash writes never fail
+	sum := hash.Sum64()
+	if sum == 0 {
+		// Keep zero reserved for "not fingerprinted yet".
+		sum = 1
+	}
+	return sum
+}
+
 // CursorIDEWatcher monitors Cursor IDE databases for changes and notifies when sessions are updated
 type CursorIDEWatcher struct {
 	projectPath     string
@@ -32,11 +100,10 @@ type CursorIDEWatcher struct {
 	callbackWg      sync.WaitGroup // Tracks in-flight sessionCallback goroutines
 	mu              sync.RWMutex
 	lastCheck       time.Time
-	// knownComposers is the per-composer change watermark (composerID -> lastUpdatedAt).
-	// Seeded in Start() with the sessions that already exist so startup doesn't re-emit
-	// every historical session; only timestamps that advance past the seeded (or last
-	// processed) value trigger the callback.
-	knownComposers    map[string]int64
+	// knownComposers is the per-composer change watermark. Seeded in Start() with the
+	// sessions that already exist so startup doesn't re-emit every historical session;
+	// see composerChange for what counts as a change after that.
+	knownComposers    map[string]composerWatermark
 	checkInterval     time.Duration // How often to check DB if no file events (default: 2 minutes)
 	throttleDuration  time.Duration // Minimum time between checks (default: 10 seconds)
 	lastThrottledCall time.Time     // Track last throttled call
@@ -111,7 +178,7 @@ func NewCursorIDEWatcher(
 		sessionCallback:  sessionCallback,
 		ctx:              ctx,
 		cancel:           cancel,
-		knownComposers:   make(map[string]int64),
+		knownComposers:   make(map[string]composerWatermark),
 		checkInterval:    checkInterval,
 		throttleDuration: 10 * time.Second,
 		// Zero value, not time.Now(): lastThrottledCall means "the last time a check
@@ -216,7 +283,9 @@ func (w *CursorIDEWatcher) seedKnownComposers() {
 		if timestamp == 0 {
 			timestamp = composer.CreatedAt
 		}
-		w.knownComposers[composerID] = timestamp
+		// The lightweight loader has no bubbles, so there is nothing to fingerprint yet;
+		// the first check adopts the fingerprint without emitting (see composerChange).
+		w.knownComposers[composerID] = composerWatermark{lastUpdatedAt: timestamp}
 		seeded++
 	}
 	slog.Debug("Seeded existing sessions as known", "count", seeded)
@@ -473,30 +542,40 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 
 		// Check if this is a new or updated session
 		w.mu.RLock()
-		knownTimestamp, exists := w.knownComposers[composerID]
+		known, exists := w.knownComposers[composerID]
 		w.mu.RUnlock()
 
 		currentTimestamp := composer.LastUpdatedAt
 		if currentTimestamp == 0 {
 			currentTimestamp = composer.CreatedAt
 		}
+		current := composerWatermark{
+			lastUpdatedAt: currentTimestamp,
+			fingerprint:   conversationFingerprint(composerID, composer.Conversation),
+		}
 
 		// Determine if we should process this session
 		shouldProcess := false
-		if !exists {
-			// New session
+		switch composerChange(known, exists, current) {
+		case changeNew:
 			shouldProcess = true
 			newCount++
 			slog.Info("Found new session", "composerID", composerID, "name", composer.Name)
-		} else if currentTimestamp > knownTimestamp {
-			// Updated session
+		case changeUpdated:
 			shouldProcess = true
 			updatedCount++
 			slog.Info("Found updated session",
 				"composerID", composerID,
 				"name", composer.Name,
-				"oldTimestamp", knownTimestamp,
-				"newTimestamp", currentTimestamp)
+				"oldTimestamp", known.lastUpdatedAt,
+				"newTimestamp", current.lastUpdatedAt,
+				"contentChanged", known.fingerprint != current.fingerprint)
+		case changeAdoptFingerprint:
+			w.mu.Lock()
+			w.knownComposers[composerID] = current
+			w.mu.Unlock()
+			slog.Debug("Recorded fingerprint for seeded session", "composerID", composerID)
+		case changeNone:
 		}
 
 		if shouldProcess {
@@ -581,7 +660,7 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 			// Update known timestamp. Only done after a successful conversion so a
 			// failure (see above) doesn't permanently poison the watermark for this composer.
 			w.mu.Lock()
-			w.knownComposers[composerID] = currentTimestamp
+			w.knownComposers[composerID] = current
 			w.mu.Unlock()
 
 			// Write debug output if requested
