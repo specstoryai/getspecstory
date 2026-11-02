@@ -1,5 +1,13 @@
 # Specstory CLI Changelog
 
+## v2.16.1 2026-11-02
+
+### 🐛 Bug Fixes
+
+- Cursor IDE chats created in Cursor `3.27.14` or higher are saved again. That Cursor release changed how it stores a chat's message list, so SpecStory treated every new chat as empty: `specstory sync`, `run` and `watch` skipped it with "no conversation", and `specstory list`, `search` and `resume` left it out. Chats created before the Cursor update were not affected. Re-run `specstory sync cursoride` to save any chats that were skipped. Thanks to [diegodtanton](https://github.com/diegodtanton) for the detailed report in [issue 377](https://github.com/specstoryai/getspecstory/issues/377).
+- Cursor IDE chats from multi-root windows that were never saved as a `.code-workspace` file (folders added with "Add Folder to Workspace…") are now found. SpecStory only recognized saved `.code-workspace` files as multi-root workspaces, so `specstory sync` and `watch` run from one of the window's folders found none of its chats. Those chats are now saved to the first folder's `.specstory/history`, the same place a saved `.code-workspace` window already puts them. The same matching is used for VS Code Copilot. Re-run `specstory sync cursoride` from the first folder to save chats that were missed. Thanks to [iemgnod](https://github.com/iemgnod) for the report in [issue 223](https://github.com/specstoryai/getspecstory/issues/223).
+- `specstory list`, `search` and `resume` now show Cursor IDE chats from a multi-root window under the window's first folder instead of under the `.code-workspace` file path, so the project they list is one you can run `specstory sync` from.
+
 ## v2.16.0 2026-10-18
 
 ### 📢 Announcements
