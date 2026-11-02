@@ -1,5 +1,11 @@
 # Specstory CLI Changelog
 
+## v2.16.1 2026-11-02
+
+### 🐛 Bug Fixes
+
+- Cursor IDE chats created in Cursor `3.27.14` or higher are saved again. That Cursor release changed how it stores a chat's message list, so SpecStory treated every new chat as empty: `specstory sync`, `run` and `watch` skipped it with "no conversation", and `specstory list`, `search` and `resume` left it out. Chats created before the Cursor update were not affected. Re-run `specstory sync cursoride` to save any chats that were skipped. Thanks to [diegodtanton](https://github.com/diegodtanton) for the detailed report in [issue 377](https://github.com/specstoryai/getspecstory/issues/377).
+
 ## v2.16.0 2026-10-18
 
 ### 📢 Announcements
