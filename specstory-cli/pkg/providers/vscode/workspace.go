@@ -292,8 +292,9 @@ func FirstWorkspaceFolder(workspaceFilePath string) string {
 // .code-workspace or an untitled workspace.json, which share the same layout) and
 // returns the canonical path of each listed folder, in listed order. A folder is
 // given either as a "path" (relative paths resolve against the workspace file's
-// directory) or as a "uri" (e.g. file:// or vscode-remote://). A folder that cannot
-// be resolved is returned as "" so positions are preserved: callers that care about
+// directory) or as a "uri" (e.g. file:// or a WSL vscode-remote://). SSH, tunnel and
+// dev-container folder URIs name another machine and are never resolved locally. A
+// folder that cannot be resolved is returned as "" so positions are preserved: callers that care about
 // order, like FirstWorkspaceFolder, must not see a later folder shift into its place.
 func collectWorkspaceFileFolders(workspaceFilePath string) []string {
 	data, err := os.ReadFile(workspaceFilePath)
@@ -325,6 +326,10 @@ func collectWorkspaceFileFolders(workspaceFilePath string) []string {
 			if !filepath.IsAbs(resolved) {
 				resolved = filepath.Join(workspaceDir, resolved)
 			}
+		case spi.IsRemoteURIRequiringBasenameMatch(folder.URI):
+			// URIToPath drops an SSH, tunnel or dev-container host, so the remote
+			// folder's path would read as an unrelated local directory that happens to
+			// share it. Leave it unresolved; WSL folder URIs are reachable and resolve below.
 		case folder.URI != "":
 			uriPath, err := URIToPath(folder.URI)
 			if err != nil {

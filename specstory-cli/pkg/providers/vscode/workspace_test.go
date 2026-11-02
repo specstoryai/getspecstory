@@ -432,6 +432,14 @@ func TestWorkspaceFileContainsFolder(t *testing.T) {
 			expected:         true,
 		},
 		{
+			name:             "SSH uri folder naming the target's path does not match the local folder",
+			workspaceContent: `{"folders": [{"uri": "vscode-remote://ssh-remote%2Bdevbox` + filepath.ToSlash(canonicalProjectDir) + `"}]}`,
+			workspaceFile:    workspaceFile,
+			targetFolder:     canonicalProjectDir,
+			isRemote:         false,
+			expected:         false,
+		},
+		{
 			name:             "no folders entry matching target",
 			workspaceContent: `{"folders": [{"path": "../other-project"}]}`,
 			workspaceFile:    workspaceFile,
@@ -595,6 +603,12 @@ func TestFirstWorkspaceFolder(t *testing.T) {
 		{
 			name:    "malformed uri first folder does not fall through to the second",
 			content: `{"folders": [{"uri": "file://%zz"}, ` + secondPath + `]}`,
+			want:    "",
+		},
+		{
+			// first exists locally, so resolving the remote path would wrongly yield it.
+			name:    "SSH uri first folder is not resolved to a local path",
+			content: `{"folders": [{"uri": "vscode-remote://ssh-remote%2Bdevbox` + filepath.ToSlash(first) + `"}, ` + secondPath + `]}`,
 			want:    "",
 		},
 		{
