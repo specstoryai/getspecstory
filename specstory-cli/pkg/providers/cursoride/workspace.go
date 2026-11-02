@@ -86,8 +86,7 @@ func EnsureWorkspaceForProject(projectPath string) (*vscode.WorkspaceEntry, erro
 //     so this embedded field is the only association that updates live.
 //
 // The global scan reads every composerData row (headers only, no bubbles), so the
-// cost of parsing the composer rows is acceptable. Callers that already hold the
-// scanned map should use projectComposerIDs directly instead of scanning again.
+// cost of parsing the composer rows is acceptable.
 func FindProjectComposerIDs(globalDbPath, projectPath string, workspaces []vscode.WorkspaceEntry) ([]string, error) {
 	composers, err := LoadAllComposerDataLightweight(globalDbPath)
 	if err != nil {
@@ -96,14 +95,7 @@ func FindProjectComposerIDs(globalDbPath, projectPath string, workspaces []vscod
 		slog.Warn("Failed to load global composer data for workspaceIdentifier matching", "error", err)
 		composers = nil
 	}
-	return projectComposerIDs(composers, projectPath, workspaces)
-}
 
-// projectComposerIDs is the load-free core of FindProjectComposerIDs: it matches an
-// already-scanned composer map against the project. Split out so callers that need the
-// scanned map for their own purposes too (e.g. the watcher's seeding, which also reads
-// the timestamps) don't scan the global database twice.
-func projectComposerIDs(composers map[string]*ComposerData, projectPath string, workspaces []vscode.WorkspaceEntry) ([]string, error) {
 	ids, err := LoadComposerIDsFromAllWorkspaces(workspaces)
 	if err != nil {
 		return nil, err

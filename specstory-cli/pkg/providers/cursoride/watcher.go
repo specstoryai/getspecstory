@@ -2,7 +2,9 @@ package cursoride
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"log/slog"
 	"path/filepath"
 	"strings"
@@ -19,6 +21,64 @@ import (
 // catches changes fsnotify missed.
 const defaultCheckInterval = 2 * time.Minute
 
+// composerWatermark is what the watcher last processed for one composer.
+type composerWatermark struct {
+	lastUpdatedAt int64
+	// fingerprint hashes the loaded conversation. It is needed because Cursor >= 3.27.14
+	// bumps lastUpdatedAt only when the user sends a message: the agent's tool calls,
+	// results and final reply land afterwards without touching the composerData row, so
+	// a timestamp-only watermark would leave every turn's ending unsaved until the next
+	// message. Zero means fingerprinting failed.
+	fingerprint uint64
+}
+
+// composerChangeKind is the watcher's verdict on one composer for one check.
+type composerChangeKind int
+
+const (
+	changeNone composerChangeKind = iota
+	changeNew
+	changeUpdated
+)
+
+// composerChange decides whether a composer needs processing, comparing what the
+// current check loaded against the last processed (or seeded) watermark.
+func composerChange(known composerWatermark, exists bool, current composerWatermark) composerChangeKind {
+	switch {
+	case !exists:
+		return changeNew
+	case current.lastUpdatedAt > known.lastUpdatedAt:
+		return changeUpdated
+	case current.fingerprint == 0:
+		// Fingerprinting failed this check; only the timestamp can be trusted.
+		return changeNone
+	case current.fingerprint != known.fingerprint:
+		return changeUpdated
+	default:
+		return changeNone
+	}
+}
+
+// conversationFingerprint hashes the loaded conversation so in-place updates are seen
+// too, e.g. a tool call bubble that goes from "loading" to "completed" without adding a
+// bubble. JSON is used because it covers every parsed field and sorts map keys, so the
+// same data always hashes the same.
+func conversationFingerprint(composerID string, conversation []ComposerConversation) uint64 {
+	data, err := json.Marshal(conversation)
+	if err != nil {
+		slog.Warn("Failed to fingerprint conversation", "composerID", composerID, "error", err)
+		return 0
+	}
+	hash := fnv.New64a()
+	_, _ = hash.Write(data) // hash.Hash writes never fail
+	sum := hash.Sum64()
+	if sum == 0 {
+		// Keep zero reserved for "fingerprinting failed".
+		sum = 1
+	}
+	return sum
+}
+
 // CursorIDEWatcher monitors Cursor IDE databases for changes and notifies when sessions are updated
 type CursorIDEWatcher struct {
 	projectPath     string
@@ -29,14 +89,20 @@ type CursorIDEWatcher struct {
 	ctx             context.Context
 	cancel          context.CancelFunc
 	wg              sync.WaitGroup
-	callbackWg      sync.WaitGroup // Tracks in-flight sessionCallback goroutines
-	mu              sync.RWMutex
-	lastCheck       time.Time
-	// knownComposers is the per-composer change watermark (composerID -> lastUpdatedAt).
-	// Seeded in Start() with the sessions that already exist so startup doesn't re-emit
-	// every historical session; only timestamps that advance past the seeded (or last
-	// processed) value trigger the callback.
-	knownComposers    map[string]int64
+	callbackWg      sync.WaitGroup // Tracks the session delivery worker
+	// sessionQueue feeds sessionCallback from a single delivery worker, one session at
+	// a time in the order checks queued them. Delivery must not be concurrent: two
+	// in-flight callbacks for the same session have no ordering guarantee, so an older
+	// partial snapshot could be written after a newer complete one, and later checks
+	// would see an unchanged fingerprint and never repair it. The buffer absorbs a
+	// check's worth of sessions; if it ever fills, the check waits for the worker.
+	sessionQueue chan *spi.AgentChatSession
+	mu           sync.RWMutex
+	lastCheck    time.Time
+	// knownComposers is the per-composer change watermark. Seeded in Start() with the
+	// sessions that already exist so startup doesn't re-emit every historical session;
+	// see composerChange for what counts as a change after that.
+	knownComposers    map[string]composerWatermark
 	checkInterval     time.Duration // How often to check DB if no file events (default: 2 minutes)
 	throttleDuration  time.Duration // Minimum time between checks (default: 10 seconds)
 	lastThrottledCall time.Time     // Track last throttled call
@@ -111,7 +177,7 @@ func NewCursorIDEWatcher(
 		sessionCallback:  sessionCallback,
 		ctx:              ctx,
 		cancel:           cancel,
-		knownComposers:   make(map[string]int64),
+		knownComposers:   make(map[string]composerWatermark),
 		checkInterval:    checkInterval,
 		throttleDuration: 10 * time.Second,
 		// Zero value, not time.Now(): lastThrottledCall means "the last time a check
@@ -124,7 +190,30 @@ func NewCursorIDEWatcher(
 		fsWatcher:         fsWatcher,
 		pendingIncomplete: make(map[string]time.Time),
 		incompleteTimeout: 60 * time.Second,
+		sessionQueue:      make(chan *spi.AgentChatSession, 64),
 	}, nil
+}
+
+// startSessionDelivery starts the single worker that drains sessionQueue into
+// sessionCallback. It exits once Stop closes the queue and the queue is empty.
+func (w *CursorIDEWatcher) startSessionDelivery() {
+	w.callbackWg.Go(func() {
+		for session := range w.sessionQueue {
+			w.deliverSession(session)
+		}
+	})
+}
+
+// deliverSession invokes the callback with panic isolation so a failure during
+// processing (e.g. markdown write or cloud sync) can't crash the watcher or stop the
+// worker from delivering the sessions queued behind it.
+func (w *CursorIDEWatcher) deliverSession(session *spi.AgentChatSession) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("Session callback panicked", "panic", r, "sessionID", session.SessionID)
+		}
+	}()
+	w.sessionCallback(session)
 }
 
 // Start begins monitoring the Cursor IDE databases
@@ -149,6 +238,9 @@ func (w *CursorIDEWatcher) Start() error {
 	if err := spi.EnsureWALMode(w.globalDbPath); err != nil {
 		slog.Warn("Failed to ensure WAL mode on global database", "error", err)
 	}
+
+	// Started before anything can queue a session, including the final check in Stop.
+	w.startSessionDelivery()
 
 	// Seed knownComposers with the sessions that already exist so startup doesn't
 	// re-emit every historical session — matching the other providers' watchers
@@ -186,40 +278,37 @@ func (w *CursorIDEWatcher) Start() error {
 	return nil
 }
 
-// seedKnownComposers records the current lastUpdatedAt of every composer already in the
-// project's workspaces, without firing callbacks. Uses the lightweight loader (composer
-// rows only, no bubbles) since only the timestamps are needed. Failures are non-fatal:
-// the worst case is that the first check re-emits existing sessions, which is the exact
-// behavior this seeding exists to avoid, not a correctness problem.
+// seedKnownComposers records the current watermark of every composer already in the
+// project's workspaces, without firing callbacks. It loads the full conversations (the
+// same load every check does) so the seeded fingerprints describe exactly what existed
+// at startup: anything Cursor writes after that, even before the first check, reads as
+// a change. Failures are non-fatal: the worst case is that the first check re-emits
+// existing sessions, which is the exact behavior this seeding exists to avoid, not a
+// correctness problem.
 func (w *CursorIDEWatcher) seedKnownComposers() {
-	// One lightweight scan serves both needs here: discovery (via projectComposerIDs)
-	// and the per-composer timestamps read below.
-	composers, err := LoadAllComposerDataLightweight(w.globalDbPath)
-	if err != nil {
-		slog.Warn("Failed to seed existing sessions; first check may re-emit them", "error", err)
+	composerIDs, err := FindProjectComposerIDs(w.globalDbPath, w.projectPath, w.workspaces)
+	if err != nil || len(composerIDs) == 0 {
 		return
 	}
-	composerIDs, err := projectComposerIDs(composers, w.projectPath, w.workspaces)
-	if err != nil || len(composerIDs) == 0 {
+	composers, err := LoadComposerDataBatch(w.globalDbPath, composerIDs)
+	if err != nil {
+		slog.Warn("Failed to seed existing sessions; first check may re-emit them", "error", err)
 		return
 	}
 
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	seeded := 0
-	for _, composerID := range composerIDs {
-		composer, exists := composers[composerID]
-		if !exists {
-			continue
-		}
+	for composerID, composer := range composers {
 		timestamp := composer.LastUpdatedAt
 		if timestamp == 0 {
 			timestamp = composer.CreatedAt
 		}
-		w.knownComposers[composerID] = timestamp
-		seeded++
+		w.knownComposers[composerID] = composerWatermark{
+			lastUpdatedAt: timestamp,
+			fingerprint:   conversationFingerprint(composerID, composer.Conversation),
+		}
 	}
-	slog.Debug("Seeded existing sessions as known", "count", seeded)
+	slog.Debug("Seeded existing sessions as known", "count", len(composers))
 }
 
 // Stop gracefully stops the watcher
@@ -252,8 +341,11 @@ func (w *CursorIDEWatcher) Stop() {
 	w.mu.Unlock()
 	w.wg.Wait()
 
-	// Wait for any pending callback goroutines to complete
+	// Every check has finished (the final one ran above, the async ones are drained by
+	// wg.Wait), so nothing can queue another session: close the queue and let the
+	// delivery worker finish what is already in it.
 	slog.Info("Waiting for pending callbacks to complete")
+	close(w.sessionQueue)
 	w.callbackWg.Wait()
 
 	slog.Info("Cursor IDE watcher stopped")
@@ -473,30 +565,35 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 
 		// Check if this is a new or updated session
 		w.mu.RLock()
-		knownTimestamp, exists := w.knownComposers[composerID]
+		known, exists := w.knownComposers[composerID]
 		w.mu.RUnlock()
 
 		currentTimestamp := composer.LastUpdatedAt
 		if currentTimestamp == 0 {
 			currentTimestamp = composer.CreatedAt
 		}
+		current := composerWatermark{
+			lastUpdatedAt: currentTimestamp,
+			fingerprint:   conversationFingerprint(composerID, composer.Conversation),
+		}
 
 		// Determine if we should process this session
 		shouldProcess := false
-		if !exists {
-			// New session
+		switch composerChange(known, exists, current) {
+		case changeNew:
 			shouldProcess = true
 			newCount++
 			slog.Info("Found new session", "composerID", composerID, "name", composer.Name)
-		} else if currentTimestamp > knownTimestamp {
-			// Updated session
+		case changeUpdated:
 			shouldProcess = true
 			updatedCount++
 			slog.Info("Found updated session",
 				"composerID", composerID,
 				"name", composer.Name,
-				"oldTimestamp", knownTimestamp,
-				"newTimestamp", currentTimestamp)
+				"oldTimestamp", known.lastUpdatedAt,
+				"newTimestamp", current.lastUpdatedAt,
+				"contentChanged", known.fingerprint != current.fingerprint)
+		case changeNone:
 		}
 
 		if shouldProcess {
@@ -581,7 +678,7 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 			// Update known timestamp. Only done after a successful conversion so a
 			// failure (see above) doesn't permanently poison the watermark for this composer.
 			w.mu.Lock()
-			w.knownComposers[composerID] = currentTimestamp
+			w.knownComposers[composerID] = current
 			w.mu.Unlock()
 
 			// Write debug output if requested
@@ -593,20 +690,12 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 				}
 			}
 
-			// Invoke callback asynchronously so a panic during processing (e.g. markdown
-			// write or cloud sync) doesn't crash the watcher, and slow callback I/O
-			// doesn't delay processing of the remaining sessions in this check.
-			slog.Info("Invoking callback for session",
+			// Queue rather than call, so slow callback I/O doesn't delay processing of the
+			// remaining sessions in this check; the delivery worker runs them in order.
+			slog.Info("Queueing callback for session",
 				"sessionID", session.SessionID,
 				"slug", session.Slug)
-			w.callbackWg.Go(func() {
-				defer func() {
-					if r := recover(); r != nil {
-						slog.Error("Session callback panicked", "panic", r, "sessionID", session.SessionID)
-					}
-				}()
-				w.sessionCallback(session)
-			})
+			w.sessionQueue <- session
 		}
 	}
 

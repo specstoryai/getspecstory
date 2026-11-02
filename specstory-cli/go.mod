@@ -11,7 +11,7 @@ go 1.27.3
 // `go list -m -u -json all | jq -r 'select(.Indirect != true) | select(.Update != null) | "\(.Path) \(.Version) -> \(.Update.Version)"'`
 require (
 	charm.land/bubbles/v2 v2.2.1 // Terminal UI components for Go https://github.com/charmbracelet/bubbles
-	charm.land/bubbletea/v2 v2.1.0 // Terminal UI framework for Go https://github.com/charmbracelet/bubbletea
+	charm.land/bubbletea/v2 v2.1.1 // Terminal UI framework for Go https://github.com/charmbracelet/bubbletea
 	charm.land/lipgloss/v2 v2.0.6 // Terminal styling for Go https://github.com/charmbracelet/lipgloss
 	github.com/BurntSushi/toml v1.6.0 // TOML parsing for configuration files
 	github.com/betterleaks/betterleaks v1.9.0 // Detect and redact secrets
@@ -20,7 +20,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/fsnotify/fsnotify v1.10.1 // Cross-platform file system event notifications
 	github.com/google/uuid v1.6.0 // Generates and inspects UUIDs
-	github.com/posthog/posthog-go v1.37.0 // Analytics tracking
+	github.com/posthog/posthog-go v1.39.0 // Analytics tracking
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // Git ignore file parsing
 	github.com/spf13/cobra v1.10.2 // Command-line interface framework
 	github.com/xeipuuv/gojsonschema v1.2.0 // JSON document validation against a JSON schema
