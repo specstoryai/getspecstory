@@ -229,6 +229,9 @@ func startProjectWatcher(claudeProjectDir string) error {
 		// Session files watched individually, one fd each. The project directory
 		// itself is never added to the watcher — see spi.WatchWindowDays for why.
 		watchedFiles := make(map[string]bool)
+		// Coalesce bursts of writes and watch additions into one scan per path
+		// per tick. The latest file state wins, so intermediate states need no work.
+		dirtyFiles := make(map[string]struct{})
 
 		// reconcile lists the project directory and converges the watched set on
 		// the files modified within the window. Files gaining a watch are scanned
@@ -290,7 +293,7 @@ func startProjectWatcher(claudeProjectDir string) error {
 				// Scan after adding the watch so writes landing in between are
 				// covered by either the scan or a subsequent event
 				if scanAdds {
-					scanJSONLFiles(claudeProjectDir, file)
+					dirtyFiles[file] = struct{}{}
 				}
 			}
 		}
@@ -303,6 +306,14 @@ func startProjectWatcher(claudeProjectDir string) error {
 
 		ticker := time.NewTicker(watchReconcileInterval)
 		defer ticker.Stop()
+		flushDirtyScans := func() {
+			flushDirtyJSONLFiles(dirtyFiles, func(path string) {
+				scanJSONLFiles(claudeProjectDir, path)
+			})
+		}
+		// Channel closures end the loop as well as cancellation, so every exit
+		// must persist the latest state before the callback is torn down.
+		defer flushDirtyScans()
 
 		// Watch for file events
 		for {
@@ -333,10 +344,11 @@ func startProjectWatcher(claudeProjectDir string) error {
 				}
 
 				slog.Info("JSONL file modified", "file", event.Name, "operation", event.Op.String())
-				scanJSONLFiles(claudeProjectDir, event.Name)
+				dirtyFiles[event.Name] = struct{}{}
 
 			case <-ticker.C:
 				reconcile(true)
+				flushDirtyScans()
 				flushExpiredDeferredScans(time.Now())
 
 			case err, ok := <-watcher.Errors:
@@ -349,6 +361,16 @@ func startProjectWatcher(claudeProjectDir string) error {
 	})
 
 	return nil
+}
+
+// flushDirtyJSONLFiles scans each changed path once and empties the set. The
+// caller supplies the scan function so the batching behavior is testable without
+// parsing real transcripts.
+func flushDirtyJSONLFiles(dirty map[string]struct{}, scan func(string)) {
+	for path := range dirty {
+		delete(dirty, path)
+		scan(path)
+	}
 }
 
 // scanJSONLFiles scans JSONL files and optionally filters processing to a specific changed file

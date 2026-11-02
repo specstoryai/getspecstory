@@ -127,6 +127,58 @@ func TestReconcileFileWatches(t *testing.T) {
 	}
 }
 
+func TestFlushDirtyJSONLFiles(t *testing.T) {
+	tests := []struct {
+		name      string
+		events    []string
+		wantScans []string
+	}{
+		{
+			name:      "burst for one file scans once per tick",
+			events:    []string{"/p/session.jsonl", "/p/session.jsonl", "/p/session.jsonl"},
+			wantScans: []string{"/p/session.jsonl"},
+		},
+		{
+			name:      "each dirty file scans once",
+			events:    []string{"/p/a.jsonl", "/p/b.jsonl", "/p/a.jsonl"},
+			wantScans: []string{"/p/a.jsonl", "/p/b.jsonl"},
+		},
+		{
+			name:      "no events means no scans",
+			events:    nil,
+			wantScans: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dirty := make(map[string]struct{})
+			var scans []string
+			scan := func(path string) { scans = append(scans, path) }
+			for _, path := range tt.events {
+				dirty[path] = struct{}{}
+			}
+			if len(scans) != 0 {
+				t.Fatalf("marking events triggered scans: %v", scans)
+			}
+
+			flushDirtyJSONLFiles(dirty, scan)
+			sort.Strings(scans)
+			if !equalStringSlices(scans, tt.wantScans) {
+				t.Errorf("scans = %v, expected %v", scans, tt.wantScans)
+			}
+			if len(dirty) != 0 {
+				t.Errorf("dirty paths remain after flush: %v", dirty)
+			}
+
+			flushDirtyJSONLFiles(dirty, scan)
+			if len(scans) != len(tt.wantScans) {
+				t.Errorf("empty tick scanned again: %v", scans)
+			}
+		})
+	}
+}
+
 // equalStringSlices compares two string slices treating nil and empty as equal
 func equalStringSlices(a, b []string) bool {
 	if len(a) != len(b) {
