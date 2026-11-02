@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -74,15 +74,14 @@ func addHeaderPage(pages map[string][]headerPage, key, valueJSON string) {
 func mergeHeaderPages(composers map[string]*ComposerData, pages map[string][]headerPage) {
 	for composerID, composerPages := range pages {
 		composer, exists := composers[composerID]
-		if !exists || len(composer.FullConversationHeadersOnly) > 0 || len(composerPages) == 0 {
+		if !exists || len(composer.FullConversationHeadersOnly) > 0 {
 			continue
 		}
-		sort.Slice(composerPages, func(i, j int) bool { return composerPages[i].page < composerPages[j].page })
-		total := 0
-		for _, p := range composerPages {
-			total += len(p.headers)
-		}
-		headers := make([]ComposerConversationHeader, 0, total)
+		// Rows arrive in unspecified order. A plain string compare orders the pages
+		// correctly only because Cursor zero-pads the suffix to a fixed width; if a
+		// future Cursor drops the padding, page "10" would sort before page "2".
+		slices.SortFunc(composerPages, func(a, b headerPage) int { return strings.Compare(a.page, b.page) })
+		var headers []ComposerConversationHeader
 		for _, p := range composerPages {
 			headers = append(headers, p.headers...)
 		}
