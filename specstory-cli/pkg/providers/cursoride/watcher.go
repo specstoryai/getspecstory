@@ -89,9 +89,16 @@ type CursorIDEWatcher struct {
 	ctx             context.Context
 	cancel          context.CancelFunc
 	wg              sync.WaitGroup
-	callbackWg      sync.WaitGroup // Tracks in-flight sessionCallback goroutines
-	mu              sync.RWMutex
-	lastCheck       time.Time
+	callbackWg      sync.WaitGroup // Tracks the session delivery worker
+	// sessionQueue feeds sessionCallback from a single delivery worker, one session at
+	// a time in the order checks queued them. Delivery must not be concurrent: two
+	// in-flight callbacks for the same session have no ordering guarantee, so an older
+	// partial snapshot could be written after a newer complete one, and later checks
+	// would see an unchanged fingerprint and never repair it. The buffer absorbs a
+	// check's worth of sessions; if it ever fills, the check waits for the worker.
+	sessionQueue chan *spi.AgentChatSession
+	mu           sync.RWMutex
+	lastCheck    time.Time
 	// knownComposers is the per-composer change watermark. Seeded in Start() with the
 	// sessions that already exist so startup doesn't re-emit every historical session;
 	// see composerChange for what counts as a change after that.
@@ -183,7 +190,30 @@ func NewCursorIDEWatcher(
 		fsWatcher:         fsWatcher,
 		pendingIncomplete: make(map[string]time.Time),
 		incompleteTimeout: 60 * time.Second,
+		sessionQueue:      make(chan *spi.AgentChatSession, 64),
 	}, nil
+}
+
+// startSessionDelivery starts the single worker that drains sessionQueue into
+// sessionCallback. It exits once Stop closes the queue and the queue is empty.
+func (w *CursorIDEWatcher) startSessionDelivery() {
+	w.callbackWg.Go(func() {
+		for session := range w.sessionQueue {
+			w.deliverSession(session)
+		}
+	})
+}
+
+// deliverSession invokes the callback with panic isolation so a failure during
+// processing (e.g. markdown write or cloud sync) can't crash the watcher or stop the
+// worker from delivering the sessions queued behind it.
+func (w *CursorIDEWatcher) deliverSession(session *spi.AgentChatSession) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("Session callback panicked", "panic", r, "sessionID", session.SessionID)
+		}
+	}()
+	w.sessionCallback(session)
 }
 
 // Start begins monitoring the Cursor IDE databases
@@ -208,6 +238,9 @@ func (w *CursorIDEWatcher) Start() error {
 	if err := spi.EnsureWALMode(w.globalDbPath); err != nil {
 		slog.Warn("Failed to ensure WAL mode on global database", "error", err)
 	}
+
+	// Started before anything can queue a session, including the final check in Stop.
+	w.startSessionDelivery()
 
 	// Seed knownComposers with the sessions that already exist so startup doesn't
 	// re-emit every historical session — matching the other providers' watchers
@@ -308,8 +341,11 @@ func (w *CursorIDEWatcher) Stop() {
 	w.mu.Unlock()
 	w.wg.Wait()
 
-	// Wait for any pending callback goroutines to complete
+	// Every check has finished (the final one ran above, the async ones are drained by
+	// wg.Wait), so nothing can queue another session: close the queue and let the
+	// delivery worker finish what is already in it.
 	slog.Info("Waiting for pending callbacks to complete")
+	close(w.sessionQueue)
 	w.callbackWg.Wait()
 
 	slog.Info("Cursor IDE watcher stopped")
@@ -654,20 +690,12 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 				}
 			}
 
-			// Invoke callback asynchronously so a panic during processing (e.g. markdown
-			// write or cloud sync) doesn't crash the watcher, and slow callback I/O
-			// doesn't delay processing of the remaining sessions in this check.
-			slog.Info("Invoking callback for session",
+			// Queue rather than call, so slow callback I/O doesn't delay processing of the
+			// remaining sessions in this check; the delivery worker runs them in order.
+			slog.Info("Queueing callback for session",
 				"sessionID", session.SessionID,
 				"slug", session.Slug)
-			w.callbackWg.Go(func() {
-				defer func() {
-					if r := recover(); r != nil {
-						slog.Error("Session callback panicked", "panic", r, "sessionID", session.SessionID)
-					}
-				}()
-				w.sessionCallback(session)
-			})
+			w.sessionQueue <- session
 		}
 	}
 

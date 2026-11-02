@@ -1,6 +1,66 @@
 package cursoride
 
-import "testing"
+import (
+	"slices"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+)
+
+// Saves must reach the callback one at a time and finish in queue order, even when an
+// earlier save is slow or panics. Concurrent delivery would let a slow, older partial
+// snapshot finish after the newer complete one and overwrite it.
+func TestSessionDelivery_OrderedAndSerial(t *testing.T) {
+	var (
+		mu          sync.Mutex
+		finished    []string
+		inFlight    atomic.Int32
+		maxInFlight atomic.Int32
+	)
+	w := &CursorIDEWatcher{
+		sessionQueue: make(chan *spi.AgentChatSession, 64),
+		sessionCallback: func(s *spi.AgentChatSession) {
+			n := inFlight.Add(1)
+			for {
+				m := maxInFlight.Load()
+				if n <= m || maxInFlight.CompareAndSwap(m, n) {
+					break
+				}
+			}
+			// Recorded on the way out, so the order is completion order.
+			defer func() {
+				inFlight.Add(-1)
+				mu.Lock()
+				finished = append(finished, s.SessionID)
+				mu.Unlock()
+			}()
+			switch s.SessionID {
+			case "partial":
+				time.Sleep(50 * time.Millisecond) // e.g. a slow cloud sync
+			case "panics":
+				panic("callback failure")
+			}
+		},
+	}
+
+	w.startSessionDelivery()
+	queued := []string{"partial", "complete", "panics", "after-panic"}
+	for _, id := range queued {
+		w.sessionQueue <- &spi.AgentChatSession{SessionID: id}
+	}
+	close(w.sessionQueue)
+	w.callbackWg.Wait()
+
+	if !slices.Equal(finished, queued) {
+		t.Errorf("completion order: got %v, want %v", finished, queued)
+	}
+	if got := maxInFlight.Load(); got != 1 {
+		t.Errorf("max concurrent callbacks: got %d, want 1", got)
+	}
+}
 
 // composerChange is the whole decision of whether watch re-saves a Cursor session, so
 // each case pins one way a session can (or must not) be picked up.
