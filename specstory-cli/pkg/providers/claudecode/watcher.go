@@ -23,6 +23,7 @@ var (
 	watcherCallback func(*spi.AgentChatSession) // Callback for session updates
 	watcherDebugRaw bool                        // Whether to write debug raw data files
 	watcherMutex    sync.RWMutex                // Protects watcherCallback and watcherDebugRaw
+	sessionReader   = newIncrementalSessionReader()
 )
 
 // watchReconcileInterval is how often the project directory is re-listed to
@@ -403,8 +404,6 @@ func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force
 	} else {
 		slog.Info("ScanJSONLFiles: Scanning JSONL files", "directory", claudeProjectDir)
 	}
-	// Parse files and create history files:
-	parser := NewJSONLParser()
 	var targetSessionUuid string
 
 	// Set the target file for conditional debug output
@@ -430,6 +429,76 @@ func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force
 			"file", targetFile)
 	}
 
+	// Get the session callback
+	callback := getWatcherCallback()
+	if callback == nil {
+		slog.Error("ScanJSONLFiles: No callback provided - this should not happen")
+		return
+	}
+
+	deliver := func(session Session, agentSession *spi.AgentChatSession, converted bool, shellGateIDs func() []string) {
+		// Shell gate: while a Bash call is open, saving would land inside
+		// Claude Code's before/after diff of that command and surface our
+		// files as its edits. Wait for the tool_result event instead.
+		pendingSession := deferredSession{claudeProjectDir: claudeProjectDir, sessionID: session.SessionUuid}
+		if targetFile != "" && !force {
+			var open []string
+			if shellGateIDs != nil {
+				open = shellGateIDs()
+			} else {
+				open = openShellToolUses(session.Records)
+			}
+			if len(open) > 0 {
+				deferScan(pendingSession, targetFile, open)
+				return
+			}
+		}
+		if targetFile != "" {
+			clearDeferredScan(pendingSession)
+		}
+
+		// Full rebuilds convert here so debug-raw output remains behind the shell
+		// gate. Incremental reads already carry their cached normalized session.
+		if !converted {
+			agentSession = convertToAgentChatSession(session, "", getWatcherDebugRaw())
+		}
+		if agentSession == nil {
+			return
+		}
+		slog.Info("ScanJSONLFiles: Calling callback for session", "sessionId", agentSession.SessionID)
+		// Deliver synchronously so Stop joins every save in order.
+		func(s *spi.AgentChatSession) {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("ScanJSONLFiles: Callback panicked", "panic", r)
+				}
+			}()
+			callback(s)
+		}(agentSession)
+	}
+
+	if targetSessionUuid != "" && !getWatcherDebugRaw() && !GetJsonlBurst() {
+		result, err := sessionReader.read(claudeProjectDir, targetFile, targetSessionUuid, getWatcherDebugRaw())
+		if err != nil {
+			log.UserWarn("Error parsing project sessions: %v", err)
+			slog.Error("ScanJSONLFiles: Error parsing project sessions", "error", err)
+			return
+		}
+		if len(result.session.Records) == 0 || (result.incremental && !result.changed && !force) {
+			slog.Debug("ScanJSONLFiles: No complete appended records to save", "sessionId", targetSessionUuid)
+			return
+		}
+		slog.Info("ScanJSONLFiles: Processing targeted session",
+			"sessionId", targetSessionUuid,
+			"incremental", result.incremental)
+		deliver(result.session, result.agentSession, true, result.openShellToolUses)
+		slog.Info("ScanJSONLFiles: Processing complete")
+		return
+	}
+
+	// Debug scans and untargeted manual sweeps retain the full rebuild, with
+	// conversion after the shell gate as before.
+	parser := NewJSONLParser()
 	var parseErr error
 	if targetSessionUuid != "" {
 		parseErr = parser.ParseProjectSessionsForSession(claudeProjectDir, true, targetSessionUuid)
@@ -441,61 +510,10 @@ func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force
 		slog.Error("ScanJSONLFiles: Error parsing project sessions", "error", parseErr)
 		return
 	}
-
-	// Process JSONL sessions (isAutosave = true, silent = false for autosave)
-	slog.Info("ScanJSONLFiles: Processing sessions",
-		"sessionCount", len(parser.Sessions),
-		"targetSessionUuid", targetSessionUuid)
-
-	// Get the session callback
-	callback := getWatcherCallback()
-	if callback == nil {
-		slog.Error("ScanJSONLFiles: No callback provided - this should not happen")
-		return
-	}
-
-	slog.Info("ScanJSONLFiles: Processing sessions with callback")
-	// Process sessions and call the callback for each
+	slog.Info("ScanJSONLFiles: Processing sessions", "sessionCount", len(parser.Sessions))
 	for _, session := range parser.Sessions {
-		// Skip empty sessions
-		if len(session.Records) == 0 {
-			continue
-		}
-
-		// Skip if we're targeting a specific session and this isn't it
-		if targetSessionUuid != "" && session.SessionUuid != targetSessionUuid {
-			continue
-		}
-
-		// Shell gate: while a Bash call is open, saving would land inside
-		// Claude Code's before/after diff of that command and surface our
-		// files as its edits. Wait for the tool_result event instead. This
-		// runs before convertToAgentChatSession because the debug-raw files
-		// are written in there too.
-		pendingSession := deferredSession{claudeProjectDir: claudeProjectDir, sessionID: session.SessionUuid}
-		if targetFile != "" && !force {
-			if open := openShellToolUses(session.Records); len(open) > 0 {
-				deferScan(pendingSession, targetFile, open)
-				continue
-			}
-		}
-		if targetFile != "" {
-			clearDeferredScan(pendingSession)
-		}
-
-		// Convert to AgentChatSession (workspaceRoot extracted from records' cwd field)
-		agentSession := convertToAgentChatSession(session, "", getWatcherDebugRaw())
-		if agentSession != nil {
-			slog.Info("ScanJSONLFiles: Calling callback for session", "sessionId", agentSession.SessionID)
-			// Deliver synchronously so Stop joins every save in order.
-			func(s *spi.AgentChatSession) {
-				defer func() {
-					if r := recover(); r != nil {
-						slog.Error("ScanJSONLFiles: Callback panicked", "panic", r)
-					}
-				}()
-				callback(s)
-			}(agentSession)
+		if len(session.Records) > 0 {
+			deliver(session, nil, false, nil)
 		}
 	}
 	slog.Info("ScanJSONLFiles: Processing complete")

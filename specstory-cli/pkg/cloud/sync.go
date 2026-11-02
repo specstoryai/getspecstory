@@ -63,15 +63,15 @@ type SyncSession struct {
 // pendingSyncRequest holds a queued sync request during debounce period or
 // while another send for the same session is in flight.
 type pendingSyncRequest struct {
-	sessionID       string
-	mdPath          string
-	mdContent       string
-	rawData         []byte
-	sessionDataJSON func() string // normalized SessionData JSON, built only if this request starts
-	agentName       string
-	title           string // readable session title (first user message), for metadata.title
-	redactPayloads  bool   // redact rawData/sessionData at send time (mdContent arrives already redacted)
-	skipHeadCheck   bool   // autosave knows the content changed; manual sync checks first
+	sessionID      string
+	mdPath         string
+	mdContent      string
+	rawData        []byte
+	sessionData    string // immutable normalized JSON snapshot captured after the cloud gates
+	agentName      string
+	title          string // readable session title (first user message), for metadata.title
+	redactPayloads bool   // redact rawData/sessionData at send time (mdContent arrives already redacted)
+	skipHeadCheck  bool   // autosave knows the content changed; manual sync checks first
 }
 
 // BulkSizesResponse represents the API response for bulk session sizes
@@ -1020,28 +1020,28 @@ func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, raw
 
 // debouncedSync implements debouncing logic for a session.
 // Autosave always skips the HEAD check since the content just changed.
-func (syncMgr *SyncManager) debouncedSync(sessionID, mdPath, mdContent string, rawData []byte, sessionDataJSON func() string, agentName, title string, redactPayloads bool) {
-	syncMgr.enqueueSync(sessionID, mdPath, mdContent, rawData, sessionDataJSON, agentName, title, redactPayloads, true)
+func (syncMgr *SyncManager) debouncedSync(sessionID, mdPath, mdContent string, rawData []byte, sessionData string, agentName, title string, redactPayloads bool) {
+	syncMgr.enqueueSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, redactPayloads, true)
 }
 
 // enqueueSync keeps one latest-wins request per session. A single goroutine
 // drains that request so expensive payload work cannot overlap either.
-func (syncMgr *SyncManager) enqueueSync(sessionID, mdPath, mdContent string, rawData []byte, sessionDataJSON func() string, agentName, title string, redactPayloads, skipHeadCheck bool) {
+func (syncMgr *SyncManager) enqueueSync(sessionID, mdPath, mdContent string, rawData []byte, sessionData string, agentName, title string, redactPayloads, skipHeadCheck bool) {
 	stateInterface, _ := syncMgr.debounceSessions.LoadOrStore(sessionID, &sessionDebounceState{})
 	state := stateInterface.(*sessionDebounceState)
 
 	state.mu.Lock()
 	defer state.mu.Unlock()
 	state.pending = &pendingSyncRequest{
-		sessionID:       sessionID,
-		mdPath:          mdPath,
-		mdContent:       mdContent,
-		rawData:         rawData,
-		sessionDataJSON: sessionDataJSON,
-		agentName:       agentName,
-		title:           title,
-		redactPayloads:  redactPayloads,
-		skipHeadCheck:   skipHeadCheck,
+		sessionID:      sessionID,
+		mdPath:         mdPath,
+		mdContent:      mdContent,
+		rawData:        rawData,
+		sessionData:    sessionData,
+		agentName:      agentName,
+		title:          title,
+		redactPayloads: redactPayloads,
+		skipHeadCheck:  skipHeadCheck,
 	}
 	syncMgr.startPendingSync(sessionID, state, false)
 }
@@ -1077,11 +1077,7 @@ func (syncMgr *SyncManager) startPendingSync(sessionID string, state *sessionDeb
 	atomic.AddInt32(&syncMgr.syncCount, 1)
 	syncMgr.wg.Go(func() {
 		defer atomic.AddInt32(&syncMgr.syncCount, -1)
-		sessionData := ""
-		if req.sessionDataJSON != nil {
-			sessionData = req.sessionDataJSON()
-		}
-		syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, sessionData, req.agentName, req.title, req.redactPayloads, req.skipHeadCheck)
+		syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, req.sessionData, req.agentName, req.title, req.redactPayloads, req.skipHeadCheck)
 		syncMgr.finishSync(sessionID)
 	})
 }
@@ -1140,8 +1136,8 @@ func (syncMgr *SyncManager) flushAllPending() {
 // When isAutosaveMode is false (manual sync), syncs are immediate with HEAD checks
 // When redactPayloads is true, rawData and sessionData have secrets redacted at
 // actual send time in performSync; mdContent must arrive already redacted (the
-// caller also writes it to disk). sessionDataJSON is deferred until this request
-// starts, so disabled sync and replaced pending requests never marshal it.
+// caller also writes it to disk). sessionDataJSON is evaluated only after the
+// enabled and authentication checks, capturing an immutable request snapshot.
 func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawData []byte, sessionDataJSON func() string, agentName string, title string, redactPayloads bool, isAutosaveMode bool) {
 	syncManagerMutex.RLock()
 	syncMgr := globalSyncManager
@@ -1162,12 +1158,19 @@ func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawDa
 		return
 	}
 
+	// Capture the normalized snapshot only after both cloud gates. In particular,
+	// the incremental Claude cache may mutate its source on the next autosave.
+	sessionData := ""
+	if sessionDataJSON != nil {
+		sessionData = sessionDataJSON()
+	}
+
 	// Both modes share the per-session single-flight queue. Autosave adds the
 	// debounce interval and skips HEAD; manual sync starts as soon as it can.
 	if isAutosaveMode {
-		syncMgr.debouncedSync(sessionID, mdPath, mdContent, rawData, sessionDataJSON, agentName, title, redactPayloads)
+		syncMgr.debouncedSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, redactPayloads)
 	} else {
-		syncMgr.enqueueSync(sessionID, mdPath, mdContent, rawData, sessionDataJSON, agentName, title, redactPayloads, false)
+		syncMgr.enqueueSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, redactPayloads, false)
 	}
 }
 

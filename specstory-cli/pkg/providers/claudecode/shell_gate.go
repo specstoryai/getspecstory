@@ -40,6 +40,77 @@ func isShellToolName(name string) bool {
 	return shellToolNames[strings.ToLower(name)]
 }
 
+// shellGateState carries the current exchange's open calls across incremental
+// appends, avoiding a full transcript scan after every new record.
+type shellGateState struct {
+	open  map[string]bool
+	order []string
+}
+
+func newShellGateState(records []JSONLRecord) *shellGateState {
+	state := &shellGateState{open: make(map[string]bool)}
+	for _, record := range records {
+		state.apply(record)
+	}
+	return state
+}
+
+func (s *shellGateState) apply(record JSONLRecord) {
+	recordType, _ := record.Data["type"].(string)
+	message, _ := record.Data["message"].(map[string]interface{})
+	content, _ := message["content"].([]interface{})
+
+	switch recordType {
+	case "assistant":
+		for _, part := range content {
+			block, ok := part.(map[string]interface{})
+			if !ok || block["type"] != "tool_use" {
+				continue
+			}
+			name, _ := block["name"].(string)
+			id, _ := block["id"].(string)
+			if id == "" || !isShellToolName(name) {
+				continue
+			}
+			if !s.open[id] {
+				s.open[id] = true
+				s.order = append(s.order, id)
+			}
+		}
+
+	case "user":
+		isToolResult := false
+		for _, part := range content {
+			block, ok := part.(map[string]interface{})
+			if !ok || block["type"] != "tool_result" {
+				continue
+			}
+			isToolResult = true
+			if id, _ := block["tool_use_id"].(string); id != "" {
+				delete(s.open, id)
+			}
+		}
+		isSidechain, _ := record.Data["isSidechain"].(bool)
+		if !isToolResult && !isSidechain {
+			// A new prompt on the main thread: whatever was open belongs
+			// to a finished turn.
+			s.open = make(map[string]bool)
+			s.order = nil
+		}
+	}
+}
+
+func (s *shellGateState) ids() []string {
+	// Do not filter in place: order is cached and must survive repeated reads.
+	var ids []string
+	for _, id := range s.order {
+		if s.open[id] {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
 // openShellToolUses returns the ids of shell tool calls in the current exchange
 // that have no tool_result yet. The set resets on every regular user prompt,
 // since a new prompt means the previous turn is over. Sidechain (subagent)
@@ -47,61 +118,7 @@ func isShellToolName(name string) bool {
 // diff, and a sidechain user message is a prompt to the subagent, not a new
 // turn, so it does not reset the set.
 func openShellToolUses(records []JSONLRecord) []string {
-	open := make(map[string]bool)
-	var order []string
-
-	for _, record := range records {
-		recordType, _ := record.Data["type"].(string)
-		message, _ := record.Data["message"].(map[string]interface{})
-		content, _ := message["content"].([]interface{})
-
-		switch recordType {
-		case "assistant":
-			for _, part := range content {
-				block, ok := part.(map[string]interface{})
-				if !ok || block["type"] != "tool_use" {
-					continue
-				}
-				name, _ := block["name"].(string)
-				id, _ := block["id"].(string)
-				if id == "" || !isShellToolName(name) {
-					continue
-				}
-				if !open[id] {
-					open[id] = true
-					order = append(order, id)
-				}
-			}
-
-		case "user":
-			isToolResult := false
-			for _, part := range content {
-				block, ok := part.(map[string]interface{})
-				if !ok || block["type"] != "tool_result" {
-					continue
-				}
-				isToolResult = true
-				if id, _ := block["tool_use_id"].(string); id != "" {
-					delete(open, id)
-				}
-			}
-			isSidechain, _ := record.Data["isSidechain"].(bool)
-			if !isToolResult && !isSidechain {
-				// A new prompt on the main thread: whatever was open belongs
-				// to a finished turn
-				open = make(map[string]bool)
-				order = nil
-			}
-		}
-	}
-
-	ids := order[:0]
-	for _, id := range order {
-		if open[id] {
-			ids = append(ids, id)
-		}
-	}
-	return ids
+	return newShellGateState(records).ids()
 }
 
 // deferredSession identifies the merged session, which may span several JSONL

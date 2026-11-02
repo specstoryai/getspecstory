@@ -150,6 +150,7 @@ func TestSyncSessionToCloud_SingleFlightLatestWins(t *testing.T) {
 	var maxActive int32
 	var requestsMu sync.Mutex
 	var markdowns []string
+	var sessionDataSnapshots []string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPut {
@@ -181,6 +182,7 @@ func TestSyncSessionToCloud_SingleFlightLatestWins(t *testing.T) {
 		}
 		requestsMu.Lock()
 		markdowns = append(markdowns, request.Markdown)
+		sessionDataSnapshots = append(sessionDataSnapshots, request.SessionData)
 		requestCount := len(markdowns)
 		requestsMu.Unlock()
 		if requestCount == 1 {
@@ -218,8 +220,11 @@ func TestSyncSessionToCloud_SingleFlightLatestWins(t *testing.T) {
 	syncMgr.debounceInterval = 0
 	t.Cleanup(func() { InitSyncManager(false) })
 
+	currentSessionData := "first"
+	sessionDataJSON := func() string { return currentSessionData }
 	sync := func(markdown string) {
-		SyncSessionToCloud("session-id", "session.md", markdown, nil, func() string { return "{}" }, "Claude Code", "title", false, true)
+		currentSessionData = markdown
+		SyncSessionToCloud("session-id", "session.md", markdown, nil, sessionDataJSON, "Claude Code", "title", false, true)
 	}
 	sync("first")
 	select {
@@ -229,6 +234,7 @@ func TestSyncSessionToCloud_SingleFlightLatestWins(t *testing.T) {
 	}
 	sync("superseded")
 	sync("latest")
+	currentSessionData = "a later cache mutation"
 
 	// Give an incorrect overlapping sender an opportunity to enter the handler.
 	time.Sleep(50 * time.Millisecond)
@@ -242,5 +248,8 @@ func TestSyncSessionToCloud_SingleFlightLatestWins(t *testing.T) {
 	defer requestsMu.Unlock()
 	if len(markdowns) != 2 || markdowns[0] != "first" || markdowns[1] != "latest" {
 		t.Errorf("uploaded markdowns = %v, want [first latest]", markdowns)
+	}
+	if len(sessionDataSnapshots) != 2 || sessionDataSnapshots[0] != "first" || sessionDataSnapshots[1] != "latest" {
+		t.Errorf("uploaded SessionData snapshots = %v, want [first latest]", sessionDataSnapshots)
 	}
 }
