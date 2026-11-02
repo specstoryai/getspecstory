@@ -415,7 +415,7 @@ func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 
 	// Resolve every workspace entry to a project directory, indexed by workspace ID
 	// (for the embedded workspaceIdentifier) and by referenced composer ID (fallback).
-	workspaceIndex, err := ScanAllWorkspacePaths()
+	workspaceIndex, err := scanAllWorkspacePaths()
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan workspaces: %w", err)
 	}

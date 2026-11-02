@@ -3,6 +3,7 @@ package vscode
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -363,7 +364,7 @@ func TestWorkspaceURIMap_SepMarker(t *testing.T) {
 	}
 }
 
-func TestCodeWorkspaceContainsFolder(t *testing.T) {
+func TestWorkspaceFileContainsFolder(t *testing.T) {
 	// Create a temporary directory structure.
 	tmpDir := t.TempDir()
 
@@ -417,6 +418,14 @@ func TestCodeWorkspaceContainsFolder(t *testing.T) {
 			name: "absolute path matching target folder",
 			// JSONString: a raw Windows path in a JSON literal is invalid escaping.
 			workspaceContent: `{"folders": [{"path": ` + testutil.JSONString(projectDir) + `}]}`,
+			workspaceFile:    workspaceFile,
+			targetFolder:     canonicalProjectDir,
+			isRemote:         false,
+			expected:         true,
+		},
+		{
+			name:             "uri folder after an unrelated path folder matches target folder",
+			workspaceContent: `{"folders": [{"path": "../other-project"}, {"uri": "` + PathToFileURI(projectDir) + `"}]}`,
 			workspaceFile:    workspaceFile,
 			targetFolder:     canonicalProjectDir,
 			isRemote:         false,
@@ -478,9 +487,9 @@ func TestCodeWorkspaceContainsFolder(t *testing.T) {
 			if tt.workspaceContent != "" {
 				writeWorkspaceFile(tt.workspaceContent)
 			}
-			result := codeWorkspaceContainsFolder(tt.workspaceFile, tt.targetFolder, tt.isRemote)
+			result := workspaceFileContainsFolder(tt.workspaceFile, tt.targetFolder, tt.isRemote)
 			if result != tt.expected {
-				t.Errorf("codeWorkspaceContainsFolder() = %v, want %v", result, tt.expected)
+				t.Errorf("workspaceFileContainsFolder() = %v, want %v", result, tt.expected)
 			}
 		})
 	}
@@ -545,6 +554,9 @@ func TestFindWorkspaces_UntitledMultiRootWorkspace(t *testing.T) {
 	}
 }
 
+// The first listed folder is the project a multi-root window's sessions are attributed
+// to, so it must be resolved in either listed form, and an unresolvable first folder
+// must yield "" rather than letting the second folder take its place.
 func TestFirstWorkspaceFolder(t *testing.T) {
 	base := t.TempDir()
 	first := filepath.Join(base, "first")
@@ -558,24 +570,55 @@ func TestFirstWorkspaceFolder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	secondPath := `{"path": ` + testutil.JSONString(second) + `}`
 
-	wsFile := filepath.Join(base, "multi.code-workspace")
-	if err := os.WriteFile(wsFile, []byte(`{"folders": [{"path": "first"}, {"path": `+testutil.JSONString(second)+`}]}`), 0o644); err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name    string
+		content string // "" means no file is written
+		want    string
+	}{
+		{
+			name:    "relative path first folder",
+			content: `{"folders": [{"path": "first"}, ` + secondPath + `]}`,
+			want:    canonicalFirst,
+		},
+		{
+			name:    "uri first folder before a path folder",
+			content: `{"folders": [{"uri": "` + PathToFileURI(first) + `"}, ` + secondPath + `]}`,
+			want:    canonicalFirst,
+		},
+		{
+			name:    "unresolvable first folder does not fall through to the second",
+			content: `{"folders": [{"name": "no path or uri"}, ` + secondPath + `]}`,
+			want:    "",
+		},
+		{
+			name:    "malformed uri first folder does not fall through to the second",
+			content: `{"folders": [{"uri": "file://%zz"}, ` + secondPath + `]}`,
+			want:    "",
+		},
+		{
+			name:    "empty folder list",
+			content: `{"folders": []}`,
+			want:    "",
+		},
+		{
+			name: "missing file",
+			want: "",
+		},
 	}
-	if got := FirstWorkspaceFolder(wsFile); got != canonicalFirst {
-		t.Errorf("FirstWorkspaceFolder = %q, want %q", got, canonicalFirst)
-	}
-
-	emptyFile := filepath.Join(base, "empty.code-workspace")
-	if err := os.WriteFile(emptyFile, []byte(`{"folders": []}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if got := FirstWorkspaceFolder(emptyFile); got != "" {
-		t.Errorf("empty folder list should yield \"\", got %q", got)
-	}
-	if got := FirstWorkspaceFolder(filepath.Join(base, "missing.code-workspace")); got != "" {
-		t.Errorf("missing file should yield \"\", got %q", got)
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wsFile := filepath.Join(base, fmt.Sprintf("case%d.code-workspace", i))
+			if tt.content != "" {
+				if err := os.WriteFile(wsFile, []byte(tt.content), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if got := FirstWorkspaceFolder(wsFile); got != tt.want {
+				t.Errorf("FirstWorkspaceFolder = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

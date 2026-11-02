@@ -432,11 +432,13 @@ func TestCheckDatabaseFailures(t *testing.T) {
 	}
 }
 
-// A multi-root workspace entry (saved .code-workspace or untitled workspace.json)
-// resolves to its workspace file. Its composers must be attributed to the first
-// listed folder, the project directory the extension and FindWorkspaces use.
-func TestScanWorkspaceDir_MultiRootUsesFirstFolder(t *testing.T) {
-	tmpDir := t.TempDir()
+// A multi-root entry (an untitled window's workspace.json or a saved .code-workspace)
+// resolves to its workspace file, not a project directory. It must be indexed under its
+// first listed folder, the project the extension and FindWorkspaces use: by workspace ID
+// always, and by the composers its database references when it has one. An entry with
+// no database yet is still indexed by ID, because a composer's embedded
+// workspaceIdentifier can name it.
+func TestScanWorkspaceDir_MultiRoot(t *testing.T) {
 	base := t.TempDir()
 	first := filepath.Join(base, "monorepo")
 	second := filepath.Join(base, "cli")
@@ -449,91 +451,78 @@ func TestScanWorkspaceDir_MultiRootUsesFirstFolder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	folders := []byte(`{"folders":[{"path":` + testutil.JSONString(first) + `},{"path":` + testutil.JSONString(second) + `}]}`)
 
+	// Mirror Cursor's layout for an untitled window: <user data>/Workspaces/<timestamp>/workspace.json.
 	untitledDir := filepath.Join(base, "Workspaces", "1793105102369")
 	if err := os.MkdirAll(untitledDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 	untitledFile := filepath.Join(untitledDir, "workspace.json")
-	if err := os.WriteFile(untitledFile, []byte(`{"folders":[{"path":`+testutil.JSONString(first)+`},{"path":`+testutil.JSONString(second)+`}]}`), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	ws := filepath.Join(tmpDir, "ws-multi")
-	if err := os.Mkdir(ws, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(ws, "workspace.json"), []byte(`{"workspace":"`+vscode.PathToFileURI(untitledFile)+`"}`), 0644); err != nil {
-		t.Fatal(err)
-	}
-	createWorkspaceDB(t, filepath.Join(ws, "state.vscdb"), []string{"composer-multi"})
-
-	index, err := scanWorkspaceDir(tmpDir)
-	if err != nil {
-		t.Fatalf("scanWorkspaceDir: %v", err)
-	}
-	result := index.ByComposer
-	if got := result["composer-multi"]; got != canonicalFirst {
-		t.Errorf("composer-multi path = %q, want first folder %q", got, canonicalFirst)
-	}
-}
-
-// scanWorkspaceDir must index every entry by workspace ID, resolving multi-root
-// workspaces to their first folder, even when the entry has no state.vscdb yet
-// (no composer references, but the embedded workspaceIdentifier can still name it).
-func TestScanWorkspaceDir_ByWorkspaceID(t *testing.T) {
-	tmpDir := t.TempDir()
-	base := t.TempDir()
-	first := filepath.Join(base, "monorepo")
-	second := filepath.Join(base, "cli")
-	for _, dir := range []string{first, second} {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+	savedFile := filepath.Join(base, "multi.code-workspace")
+	for _, file := range []string{untitledFile, savedFile} {
+		if err := os.WriteFile(file, folders, 0644); err != nil {
 			t.Fatal(err)
 		}
 	}
-	canonicalFirst, err := vscode.NormalizePathForComparison(first)
-	if err != nil {
-		t.Fatal(err)
-	}
-	wsFile := filepath.Join(base, "multi.code-workspace")
-	if err := os.WriteFile(wsFile, []byte(`{"folders":[{"path":`+testutil.JSONString(first)+`},{"path":`+testutil.JSONString(second)+`}]}`), 0644); err != nil {
-		t.Fatal(err)
-	}
 
-	// Single-folder entry with a database and one composer.
-	ws1 := filepath.Join(tmpDir, "ws-folder")
-	if err := os.Mkdir(ws1, 0755); err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name          string
+		workspaceFile string
+		withDB        bool
+	}{
+		{name: "untitled window with a database", workspaceFile: untitledFile, withDB: true},
+		{name: "untitled window without a database", workspaceFile: untitledFile, withDB: false},
+		{name: "saved .code-workspace with a database", workspaceFile: savedFile, withDB: true},
+		{name: "saved .code-workspace without a database", workspaceFile: savedFile, withDB: false},
 	}
-	if err := os.WriteFile(filepath.Join(ws1, "workspace.json"), []byte(`{"folder":"file:///project-a"}`), 0644); err != nil {
-		t.Fatal(err)
-	}
-	createWorkspaceDB(t, filepath.Join(ws1, "state.vscdb"), []string{"composer-aaa"})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			storage := t.TempDir()
+			writeEntry := func(id, workspaceJSON string, composerIDs []string) {
+				dir := filepath.Join(storage, id)
+				if err := os.Mkdir(dir, 0755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "workspace.json"), []byte(workspaceJSON), 0644); err != nil {
+					t.Fatal(err)
+				}
+				if composerIDs != nil {
+					createWorkspaceDB(t, filepath.Join(dir, "state.vscdb"), composerIDs)
+				}
+			}
+			var multiComposers []string
+			if tt.withDB {
+				multiComposers = []string{"composer-multi"}
+			}
+			writeEntry("ws-multi", `{"workspace":"`+vscode.PathToFileURI(tt.workspaceFile)+`"}`, multiComposers)
+			// A single-folder neighbor shows multi-root resolution stays within its entry.
+			writeEntry("ws-folder", `{"folder":"file:///project-a"}`, []string{"composer-aaa"})
 
-	// Multi-root entry without a database: indexed by workspace ID only.
-	ws2 := filepath.Join(tmpDir, "ws-multi-nodb")
-	if err := os.Mkdir(ws2, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(ws2, "workspace.json"), []byte(`{"workspace":"`+vscode.PathToFileURI(wsFile)+`"}`), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	index, err := scanWorkspaceDir(tmpDir)
-	if err != nil {
-		t.Fatalf("scanWorkspaceDir: %v", err)
-	}
-	if got := index.ByWorkspaceID["ws-folder"]; got != "/project-a" {
-		t.Errorf("ws-folder path = %q, want /project-a", got)
-	}
-	if got := index.ByWorkspaceID["ws-multi-nodb"]; got != canonicalFirst {
-		t.Errorf("ws-multi-nodb path = %q, want first folder %q", got, canonicalFirst)
-	}
-	if got := index.ByComposer["composer-aaa"]; got != "/project-a" {
-		t.Errorf("composer-aaa path = %q, want /project-a", got)
-	}
-	if len(index.ByComposer) != 1 {
-		t.Errorf("ByComposer should hold only the referenced composer, got %v", index.ByComposer)
+			index, err := scanWorkspaceDir(storage)
+			if err != nil {
+				t.Fatalf("scanWorkspaceDir: %v", err)
+			}
+			if got := index.ByWorkspaceID["ws-multi"]; got != canonicalFirst {
+				t.Errorf("ws-multi path = %q, want first folder %q", got, canonicalFirst)
+			}
+			if got := index.ByWorkspaceID["ws-folder"]; got != "/project-a" {
+				t.Errorf("ws-folder path = %q, want /project-a", got)
+			}
+			if got := index.ByComposer["composer-aaa"]; got != "/project-a" {
+				t.Errorf("composer-aaa path = %q, want /project-a", got)
+			}
+			wantComposers := 1
+			if tt.withDB {
+				wantComposers = 2
+				if got := index.ByComposer["composer-multi"]; got != canonicalFirst {
+					t.Errorf("composer-multi path = %q, want first folder %q", got, canonicalFirst)
+				}
+			}
+			if len(index.ByComposer) != wantComposers {
+				t.Errorf("ByComposer should hold only referenced composers, got %v", index.ByComposer)
+			}
+		})
 	}
 }
 
@@ -545,7 +534,7 @@ func TestResolveComposerProjectPath(t *testing.T) {
 	// Every source maps to a distinct path, so each case can only pass by resolving
 	// through the source it names: a wrong precedence order returns another source's
 	// path. The workspace-DB paths are what a lower-priority fallback would yield.
-	index := &WorkspacePathIndex{
+	index := &workspacePathIndex{
 		ByWorkspaceID: map[string]string{
 			"ws-multi":  "/code/monorepo", // first folder of a multi-root workspace
 			"ws-single": "/code/single",

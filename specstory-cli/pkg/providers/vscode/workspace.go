@@ -109,7 +109,7 @@ func FindWorkspaces(storageRoot, projectPath string, opts MatchOptions) ([]Works
 	// folders so entries opened directly from those folders match too (method 4).
 	var workspaceFileFolders []string
 	if strings.HasSuffix(canonicalProjectPath, ".code-workspace") {
-		workspaceFileFolders = collectCodeWorkspaceFolders(canonicalProjectPath)
+		workspaceFileFolders = collectWorkspaceFileFolders(canonicalProjectPath)
 	}
 
 	dirEntries, err := os.ReadDir(storageRoot)
@@ -173,7 +173,7 @@ func FindWorkspaces(storageRoot, projectPath string, opts MatchOptions) ([]Works
 		// the workspace URI being present rather than a .code-workspace suffix so
 		// untitled workspaces, which the IDE stores as a plain workspace.json, match too.
 		if !isMatch && workspaceJSON.Workspace != "" {
-			if codeWorkspaceContainsFolder(canonicalWorkspacePath, canonicalProjectPath, spi.IsRemoteURIRequiringBasenameMatch(workspaceURI)) {
+			if workspaceFileContainsFolder(canonicalWorkspacePath, canonicalProjectPath, spi.IsRemoteURIRequiringBasenameMatch(workspaceURI)) {
 				isMatch = true
 				slog.Debug("Matched workspace by multi-root folder reference",
 					"workspaceID", workspaceID,
@@ -267,9 +267,11 @@ func SelectPrimary(entries []WorkspaceEntry, projectPath string) *WorkspaceEntry
 
 // FirstWorkspaceFolder returns the canonical path of the first folder listed in a
 // multi-root workspace file (.code-workspace or an untitled workspace.json), or ""
-// when the file cannot be read or lists no folders. It is the folder the extension
-// treats as the project for a multi-root window, so callers use it to attribute a
-// multi-root workspace's sessions to a real project directory.
+// when the file cannot be read, lists no folders, or its first folder cannot be
+// resolved. It is the folder the extension treats as the project for a multi-root
+// window, so callers use it to attribute a multi-root workspace's sessions to a real
+// project directory. A later folder is never substituted for an unresolvable first
+// one: that would attribute the window's sessions to the wrong project.
 func FirstWorkspaceFolder(workspaceFilePath string) string {
 	// Canonicalize the file the same way FindWorkspaces does before reading it. Relative
 	// folders resolve against the file's directory, and for a symlinked workspace file
@@ -279,21 +281,24 @@ func FirstWorkspaceFolder(workspaceFilePath string) string {
 	if err != nil {
 		canonicalFile = workspaceFilePath
 	}
-	folders := collectCodeWorkspaceFolders(canonicalFile)
+	folders := collectWorkspaceFileFolders(canonicalFile)
 	if len(folders) == 0 {
 		return ""
 	}
 	return folders[0]
 }
 
-// collectCodeWorkspaceFolders reads a multi-root workspace JSON file (a saved
+// collectWorkspaceFileFolders reads a multi-root workspace JSON file (a saved
 // .code-workspace or an untitled workspace.json, which share the same layout) and
-// returns the canonical paths of all listed folders. Relative paths are resolved
-// against the workspace file's directory.
-func collectCodeWorkspaceFolders(workspaceFilePath string) []string {
+// returns the canonical path of each listed folder, in listed order. A folder is
+// given either as a "path" (relative paths resolve against the workspace file's
+// directory) or as a "uri" (e.g. file:// or vscode-remote://). A folder that cannot
+// be resolved is returned as "" so positions are preserved: callers that care about
+// order, like FirstWorkspaceFolder, must not see a later folder shift into its place.
+func collectWorkspaceFileFolders(workspaceFilePath string) []string {
 	data, err := os.ReadFile(workspaceFilePath)
 	if err != nil {
-		slog.Debug("collectCodeWorkspaceFolders: failed to read workspace file",
+		slog.Debug("collectWorkspaceFileFolders: failed to read workspace file",
 			"path", workspaceFilePath, "error", err)
 		return nil
 	}
@@ -301,25 +306,36 @@ func collectCodeWorkspaceFolders(workspaceFilePath string) []string {
 	var workspace struct {
 		Folders []struct {
 			Path string `json:"path"`
+			URI  string `json:"uri"`
 		} `json:"folders"`
 	}
 	if err := json.Unmarshal(data, &workspace); err != nil {
-		slog.Debug("collectCodeWorkspaceFolders: failed to parse workspace file",
+		slog.Debug("collectWorkspaceFileFolders: failed to parse workspace file",
 			"path", workspaceFilePath, "error", err)
 		return nil
 	}
 
 	workspaceDir := filepath.Dir(workspaceFilePath)
-	var folders []string
+	folders := make([]string, 0, len(workspace.Folders))
 	for _, folder := range workspace.Folders {
-		if folder.Path == "" {
-			continue
+		resolved := ""
+		switch {
+		case folder.Path != "":
+			resolved = folder.Path
+			if !filepath.IsAbs(resolved) {
+				resolved = filepath.Join(workspaceDir, resolved)
+			}
+		case folder.URI != "":
+			uriPath, err := URIToPath(folder.URI)
+			if err != nil {
+				slog.Debug("collectWorkspaceFileFolders: unresolvable folder URI",
+					"path", workspaceFilePath, "uri", folder.URI, "error", err)
+			}
+			resolved = uriPath
 		}
-
-		// Resolve relative paths against the workspace file's directory.
-		resolved := folder.Path
-		if !filepath.IsAbs(resolved) {
-			resolved = filepath.Join(workspaceDir, resolved)
+		if resolved == "" {
+			folders = append(folders, "")
+			continue
 		}
 
 		canonical, err := NormalizePathForComparison(resolved)
@@ -332,8 +348,8 @@ func collectCodeWorkspaceFolders(workspaceFilePath string) []string {
 	return folders
 }
 
-// codeWorkspaceContainsFolder reports whether canonicalFolder is listed in the
-// .code-workspace file at workspaceFilePath.
+// workspaceFileContainsFolder reports whether canonicalFolder is listed in the
+// multi-root workspace file at workspaceFilePath.
 //
 // isRemote must be true when workspaceFilePath was decoded from a remote URI. The
 // file then lives on the remote host and cannot be read locally, so an unreadable
@@ -341,8 +357,8 @@ func collectCodeWorkspaceFolders(workspaceFilePath string) []string {
 // the single-root remote workspaces this covers. The fallback is gated on isRemote
 // because for a local workspace an unreadable file means it was deleted, and matching
 // on its parent directory would be a false positive.
-func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string, isRemote bool) bool {
-	folders := collectCodeWorkspaceFolders(workspaceFilePath)
+func workspaceFileContainsFolder(workspaceFilePath, canonicalFolder string, isRemote bool) bool {
+	folders := collectWorkspaceFileFolders(workspaceFilePath)
 	if len(folders) == 0 && isRemote {
 		return filepath.Dir(workspaceFilePath) == canonicalFolder
 	}
