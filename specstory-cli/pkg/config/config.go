@@ -79,6 +79,12 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # Default: true
 # enabled = false # equivalent to --no-version-check
 
+[markdown]
+# Tint the 👤 user-turn heading with a CSS color, for readers that render inline
+# HTML (e.g. VS Code preview). Leave unset for plain Markdown — clean in every
+# reader (GitHub, Quick Look, etc.). To enable, set a CSS color, e.g.:
+# user_turn_color = "#2563eb"
+
 [analytics]
 # Send anonymous product usage analytics to help improve SpecStory.
 # Default: true
@@ -185,6 +191,7 @@ type Config struct {
 	Telemetry    TelemetryConfig    `toml:"telemetry"`
 	Redaction    RedactionConfig    `toml:"redaction"`
 	Providers    ProvidersConfig    `toml:"providers"`
+	Markdown     MarkdownConfig     `toml:"markdown"`
 	Resume       ResumeConfig       `toml:"resume"`
 	Skills       SkillsConfig       `toml:"skills"`
 }
@@ -214,6 +221,15 @@ type RedactionConfig struct {
 	// Enabled controls whether secrets are redacted from saved markdown files
 	// and cloud-synced session data. Defaults to true when not explicitly set.
 	Enabled *bool `toml:"enabled"`
+}
+
+// MarkdownConfig holds Markdown rendering options.
+type MarkdownConfig struct {
+	// UserTurnColor, when set to a CSS color (e.g. "#2563eb"), wraps the 👤
+	// user-turn heading in an inline-color span for readers that render inline
+	// HTML (e.g. VS Code preview). Empty (default) means plain Markdown, which
+	// renders cleanly in every reader (incl. GitHub and Quick Look).
+	UserTurnColor string `toml:"user_turn_color"`
 }
 
 // VersionCheckConfig holds version check settings
@@ -1046,6 +1062,12 @@ func (c *Config) IsRedactionEnabled() bool {
 		return *c.Redaction.Enabled
 	}
 	return true // default: redaction on
+}
+
+// GetUserTurnColor returns the CSS color for user-turn headings, or "" to
+// disable (plain Markdown). Defaults to "" if not set.
+func (c *Config) GetUserTurnColor() string {
+	return c.Markdown.UserTurnColor
 }
 
 // GetProviderCmd returns the custom execution command for a provider, or empty
