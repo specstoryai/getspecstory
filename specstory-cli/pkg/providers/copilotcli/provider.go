@@ -367,7 +367,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 
 	var watcher *sessionWatcher
 	if sessionCallback != nil {
-		watcher, err = startWatcher(root, debugRaw, sessionCallback)
+		watcher, err = startWatcher(root, resumeSessionID, debugRaw, sessionCallback)
 		if err != nil {
 			// Copilot still launches; its sessions are recovered by a later sync.
 			slog.Error("ExecAgentAndWatch: Failed to start Copilot CLI session watcher", "error", err)
@@ -392,7 +392,7 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 	if err != nil {
 		return err
 	}
-	watcher, err := startWatcher(root, debugRaw, sessionCallback)
+	watcher, err := startWatcher(root, "", debugRaw, sessionCallback)
 	if err != nil {
 		return fmt.Errorf("failed to start watcher: %w", err)
 	}

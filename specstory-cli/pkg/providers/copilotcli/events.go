@@ -38,6 +38,14 @@ const (
 	// taskCompleteTool is how Copilot ends an autonomous turn; its summary
 	// argument is the closing answer shown to the user.
 	taskCompleteTool = "task_complete"
+
+	// applyPatchTool edits files from raw patch text rather than a path
+	// argument, so the files it wrote are read from the patch's headers.
+	applyPatchTool = "apply_patch"
+
+	// exitCodeKey holds a shell command's non-zero exit code in a tool's
+	// output, beside its result text.
+	exitCodeKey = "exit_code"
 )
 
 // Event types the transcript is built from. Everything else in events.jsonl
@@ -102,6 +110,12 @@ type toolCompleteData struct {
 	Error *struct {
 		Message string `json:"message"`
 	} `json:"error"`
+	// ShellExecution is present on shell tool results. A command that exits
+	// non-zero is still recorded as a successful call, so its exit code is the
+	// only structured sign that it failed.
+	ShellExecution *struct {
+		ExitCode *int `json:"exitCode"`
+	} `json:"shellExecution"`
 }
 
 // sessionHeader is what the first record (session.start) says about a session:
@@ -592,7 +606,7 @@ func (b *transcriptBuilder) add(event rawEvent) bool {
 	case eventToolCompleted:
 		var data toolCompleteData
 		if err = json.Unmarshal(event.Data, &data); err == nil {
-			used = b.addToolResult(data)
+			used = b.addToolResult(event, data)
 		}
 	}
 	if err != nil {
@@ -696,6 +710,8 @@ func (b *transcriptBuilder) addAssistantMessage(event rawEvent, data assistantMe
 			}
 		}
 		pending := newPendingTool(request, arguments)
+		pending.exchange = exchange
+		pending.index = len(exchange.Messages)
 		exchange.Messages = append(exchange.Messages, schema.Message{
 			ID:        request.ToolCallID,
 			Timestamp: event.Timestamp,
@@ -712,7 +728,7 @@ func (b *transcriptBuilder) addAssistantMessage(event rawEvent, data assistantMe
 	return true
 }
 
-func (b *transcriptBuilder) addToolResult(data toolCompleteData) bool {
+func (b *transcriptBuilder) addToolResult(event rawEvent, data toolCompleteData) bool {
 	// Tool call IDs are unique across the parent and its sub-agents, so one
 	// lookup pairs results on either side of the sidechain.
 	pending, ok := b.pendingTools[data.ToolCallID]
@@ -731,8 +747,27 @@ func (b *transcriptBuilder) addToolResult(data toolCompleteData) bool {
 	case data.Result != nil:
 		pending.tool.Output = map[string]any{"result": data.Result.Content}
 	}
+	if exitCode := data.exitCode(); exitCode != 0 && pending.tool.Output != nil {
+		pending.tool.Output[exitCodeKey] = exitCode
+	}
 	pending.render()
+
+	// The call is stamped with when it finished, not when the agent asked for
+	// it: provenance matches a file change to the write that caused it within
+	// a few seconds, and a permission prompt can hold a write far longer.
+	if event.Timestamp != "" {
+		pending.exchange.Messages[pending.index].Timestamp = event.Timestamp
+	}
 	return true
+}
+
+// exitCode returns a shell command's exit code, or 0 when the result is not
+// from a shell command or did not record one.
+func (data toolCompleteData) exitCode() int {
+	if data.ShellExecution == nil || data.ShellExecution.ExitCode == nil {
+		return 0
+	}
+	return *data.ShellExecution.ExitCode
 }
 
 // ensureExchange returns the open exchange, opening one for agent output that
@@ -762,6 +797,12 @@ func (b *transcriptBuilder) finish() []schema.Exchange {
 type pendingTool struct {
 	tool   *schema.ToolInfo
 	intent string
+	// exchange and index locate the call's message so its result can restamp
+	// it. An index rather than a message pointer, because later appends can
+	// move the slice; the exchange stays reachable after it is flushed, since
+	// the flushed copy shares its message array.
+	exchange *schema.Exchange
+	index    int
 }
 
 // newPendingTool converts a tool request. It is rendered up front so a call
@@ -798,6 +839,11 @@ func (p *pendingTool) render() {
 		if p.intent != "" {
 			formatted = "\n" + p.intent + "\n" + formatted
 		}
+	}
+	// Shown outside the capped result: Copilot writes the exit status as the
+	// output's last line, which the cap cuts off on a long output.
+	if exitCode, ok := p.tool.Output[exitCodeKey].(int); ok {
+		formatted += fmt.Sprintf("\nExit code: %d\n", exitCode)
 	}
 	p.tool.FormattedMarkdown = nil
 	if formatted != "" {
@@ -937,6 +983,11 @@ func toolPathHints(tool *schema.ToolInfo, workspaceRoot string) []string {
 	}
 	if path := spi.StringValue(tool.Input, "path", "filePath"); path != "" {
 		return []string{spi.NormalizePath(path, workspaceRoot)}
+	}
+	// apply_patch has no path argument: its raw patch text, kept under "input"
+	// by decodeArguments, names each file it writes in a header line.
+	if patch := spi.StringValue(tool.Input, "input"); tool.Name == applyPatchTool && patch != "" {
+		return spi.ExtractPatchPathHints(patch, workspaceRoot)
 	}
 	return nil
 }

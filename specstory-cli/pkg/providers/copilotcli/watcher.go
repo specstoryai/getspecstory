@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -56,9 +57,14 @@ func stampOf(file sessionFile) fileStamp {
 // covers everything else.
 type sessionWatcher struct {
 	projectRoot string
-	debugRaw    bool
-	callback    func(*spi.AgentChatSession)
-	fsWatcher   *fsnotify.Watcher
+	// resumedSessionID is the session `specstory resume` launched Copilot on,
+	// or "" for a new session. It belongs to this run wherever it started: a
+	// session picked from another project keeps that project's directory in
+	// its transcript, yet Copilot is now continuing it here.
+	resumedSessionID string
+	debugRaw         bool
+	callback         func(*spi.AgentChatSession)
+	fsWatcher        *fsnotify.Watcher
 
 	// The fields below are owned by the worker goroutine after start.
 	// watched holds the transcript files under an fsnotify watch.
@@ -89,16 +95,18 @@ type sessionWatcher struct {
 // startWatcher records the startup boundary, establishes the watch and starts
 // the worker. Sessions already on disk are `sync`'s to save, so only changes
 // after this call are delivered; the boundary is taken before Copilot launches
-// so a fast first write cannot be absorbed into it.
-func startWatcher(projectRoot string, debugRaw bool, callback func(*spi.AgentChatSession)) (*sessionWatcher, error) {
-	return startWatcherWithHook(projectRoot, debugRaw, callback, nil)
+// so a fast first write cannot be absorbed into it. resumedSessionID is the
+// session being resumed, if any, which is followed even when it was started in
+// another project.
+func startWatcher(projectRoot string, resumedSessionID string, debugRaw bool, callback func(*spi.AgentChatSession)) (*sessionWatcher, error) {
+	return startWatcherWithHook(projectRoot, resumedSessionID, debugRaw, callback, nil)
 }
 
 // startWatcherWithHook is startWatcher with a hook that runs once the baseline
 // is taken and before the worker starts: the window where real activity can
 // race startup. Tests use it to land writes in that window; production passes
 // nil.
-func startWatcherWithHook(projectRoot string, debugRaw bool, callback func(*spi.AgentChatSession), beforeFirstCheck func()) (*sessionWatcher, error) {
+func startWatcherWithHook(projectRoot string, resumedSessionID string, debugRaw bool, callback func(*spi.AgentChatSession), beforeFirstCheck func()) (*sessionWatcher, error) {
 	if callback == nil {
 		return nil, errors.New("session callback must not be nil")
 	}
@@ -113,16 +121,17 @@ func startWatcherWithHook(projectRoot string, debugRaw bool, callback func(*spi.
 
 	ctx, cancel := context.WithCancel(context.Background())
 	w := &sessionWatcher{
-		projectRoot: projectRoot,
-		debugRaw:    debugRaw,
-		callback:    callback,
-		fsWatcher:   fsWatcher,
-		watched:     make(map[string]bool),
-		known:       make(map[string]fileStamp),
-		owned:       make(map[string]bool),
-		startTime:   time.Now(),
-		ctx:         ctx,
-		cancel:      cancel,
+		projectRoot:      projectRoot,
+		resumedSessionID: resumedSessionID,
+		debugRaw:         debugRaw,
+		callback:         callback,
+		fsWatcher:        fsWatcher,
+		watched:          make(map[string]bool),
+		known:            make(map[string]fileStamp),
+		owned:            make(map[string]bool),
+		startTime:        time.Now(),
+		ctx:              ctx,
+		cancel:           cancel,
 	}
 
 	files, err := listSessionFiles()
@@ -147,7 +156,7 @@ func startWatcherWithHook(projectRoot string, debugRaw bool, callback func(*spi.
 	}
 
 	slog.Info("Copilot CLI watcher started",
-		"projectRoot", projectRoot, "sessionsRoot", root, "storeExists", w.storeAtStartup,
+		"projectRoot", projectRoot, "resumedSessionId", resumedSessionID, "sessionsRoot", root, "storeExists", w.storeAtStartup,
 		"baselined", len(w.known), "watchedFiles", len(w.watched))
 	w.wg.Go(w.run)
 	return w, nil
@@ -357,7 +366,8 @@ func (w *sessionWatcher) check(trigger string) {
 }
 
 // ownership returns a transcript's header and whether it belongs to the
-// project, caching the answer once the header is readable.
+// project or is the session being resumed, caching the answer once the header
+// is readable.
 func (w *sessionWatcher) ownership(path string) (*sessionHeader, bool) {
 	header, err := readSessionHeader(path, true)
 	if err != nil {
@@ -366,7 +376,10 @@ func (w *sessionWatcher) ownership(path string) (*sessionHeader, bool) {
 	}
 	belongs, cached := w.owned[path]
 	if !cached {
-		belongs = belongsToProject(header, w.projectRoot)
+		// Matched by directory: `copilot --resume=<id>` loads
+		// session-state/<id>/events.jsonl.
+		resumed := w.resumedSessionID != "" && filepath.Base(filepath.Dir(path)) == w.resumedSessionID
+		belongs = resumed || belongsToProject(header, w.projectRoot)
 		w.owned[path] = belongs
 	}
 	return header, belongs

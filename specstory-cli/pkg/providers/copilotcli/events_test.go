@@ -351,7 +351,7 @@ func TestToolMarkdown(t *testing.T) {
 			name:     "shell command exiting non-zero shows its output and exit code",
 			request:  `{"toolCallId":"c6","name":"bash","arguments":{"command":"ls /missing"}}`,
 			result:   `{"toolCallId":"c6","success":true,"result":{"content":"ls: /missing: No such file or directory\n<shellId: 0 completed with exit code 1>"},"shellExecution":{"exitCode":1}}`,
-			wantBody: "\n```bash\nls /missing\n```\n\n**Result:**\n\n```\nls: /missing: No such file or directory\n<shellId: 0 completed with exit code 1>\n```\n",
+			wantBody: "\n```bash\nls /missing\n```\n\n**Result:**\n\n```\nls: /missing: No such file or directory\n<shellId: 0 completed with exit code 1>\n```\n\nExit code: 1\n",
 		},
 		{
 			name:     "call with no result yet still renders its input",
@@ -661,5 +661,77 @@ func TestCapturedToolExercise(t *testing.T) {
 		if !seenTools[name] {
 			t.Errorf("exercised tool %q missing from the transcript", name)
 		}
+	}
+}
+
+// A failing command's output can exceed the result cap, which cuts off the exit
+// line Copilot appends; the exit code is rendered outside the cap so the
+// failure survives in the markdown and in cross-agent resume.
+func TestLongFailingShellOutputKeepsExitCode(t *testing.T) {
+	output := strings.Repeat("x", spi.ToolResultCap+500) + "\n<shellId: 0 completed with exit code 2>"
+	result, err := json.Marshal(map[string]any{
+		"toolCallId":     "c1",
+		"success":        true,
+		"result":         map[string]any{"content": output},
+		"shellExecution": map[string]any{"exitCode": 2},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	builder := newTranscriptBuilder("/w")
+	builder.add(event("user.message", "u", `{"content":"go"}`))
+	builder.add(event("assistant.message", "a", `{"toolRequests":[{"toolCallId":"c1","name":"bash","arguments":{"command":"make"}}]}`))
+	builder.add(event("tool.execution_complete", "r", string(result)))
+
+	body := *builder.finish()[0].Messages[1].Tool.FormattedMarkdown
+	if strings.Contains(body, "completed with exit code 2") {
+		t.Fatalf("test setup: the exit line should have been cut by the result cap")
+	}
+	if !strings.HasSuffix(body, "\nExit code: 2\n") {
+		t.Errorf("body does not end with the exit code:\n%s", body[max(0, len(body)-200):])
+	}
+}
+
+// A tool call is stamped with when it finished, not when the agent asked for
+// it, so a write held by a permission prompt still lines up with its file
+// change in provenance.
+func TestToolMessageTakesCompletionTime(t *testing.T) {
+	const (
+		requested = "2026-10-09T07:35:38.000Z"
+		completed = "2026-10-09T07:36:20.000Z" // well past provenance's 5s window
+	)
+	builder := newTranscriptBuilder("/w")
+	builder.add(event("user.message", "u", `{"content":"go"}`))
+	request := event("assistant.message", "a", `{"toolRequests":[{"toolCallId":"c1","name":"edit","arguments":{"path":"/w/a.go"}}]}`)
+	request.Timestamp = requested
+	builder.add(request)
+	// The result can land after the exchange has closed.
+	builder.add(event("user.message", "u2", `{"content":"next"}`))
+	result := event("tool.execution_complete", "r", `{"toolCallId":"c1","success":true,"result":{"content":"ok"}}`)
+	result.Timestamp = completed
+	builder.add(result)
+
+	message := builder.finish()[0].Messages[1]
+	if message.Timestamp != completed {
+		t.Errorf("tool message timestamp = %q, want completion time %q", message.Timestamp, completed)
+	}
+}
+
+// apply_patch carries no path argument, so the files it writes come from its
+// patch headers, including a rename's destination.
+func TestApplyPatchPathHints(t *testing.T) {
+	patch := "*** Begin Patch\n*** Add File: /w/new.go\n+package main\n*** Update File: /w/old.go\n*** Move to: /w/moved.go\n@@\n-a\n+b\n*** End Patch"
+	arguments, err := json.Marshal(patch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	builder := newTranscriptBuilder("/w")
+	builder.add(event("user.message", "u", `{"content":"go"}`))
+	builder.add(event("assistant.message", "a", `{"toolRequests":[{"toolCallId":"c1","name":"apply_patch","arguments":`+string(arguments)+`}]}`))
+
+	got := builder.finish()[0].Messages[1].PathHints
+	if want := []string{"new.go", "old.go", "moved.go"}; !slices.Equal(got, want) {
+		t.Errorf("PathHints = %v, want %v", got, want)
 	}
 }

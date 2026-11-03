@@ -157,7 +157,7 @@ func TestWatcherLeavesUnchangedSessionsAloneAtStartup(t *testing.T) {
 	writeOldSession(t, home, "existing", project)
 
 	var got deliveries
-	w, err := startWatcher(project, false, got.callback)
+	w, err := startWatcher(project, "", false, got.callback)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestWatcherEmitsActivityDuringStartup(t *testing.T) {
 	}
 
 	var got deliveries
-	w, err := startWatcherWithHook(project, false, got.callback, duringStartup)
+	w, err := startWatcherWithHook(project, "", false, got.callback, duringStartup)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +202,7 @@ func TestWatcherAdoptsSessionsArrivingAfterStartup(t *testing.T) {
 		writeOldSession(t, home, "existing", project)
 
 		var got deliveries
-		w, err := startWatcher(project, false, got.callback)
+		w, err := startWatcher(project, "", false, got.callback)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -224,7 +224,7 @@ func TestWatcherAdoptsSessionsArrivingAfterStartup(t *testing.T) {
 		project := newProjectDir(t, "project")
 
 		var got deliveries
-		w, err := startWatcher(project, false, got.callback)
+		w, err := startWatcher(project, "", false, got.callback)
 		if err != nil {
 			t.Fatalf("watcher must wait for a missing store, got %v", err)
 		}
@@ -258,7 +258,7 @@ func TestWatcherBaselinesSessionsDiscoveredLate(t *testing.T) {
 	}
 
 	var got deliveries
-	w, err := startWatcher(project, false, got.callback)
+	w, err := startWatcher(project, "", false, got.callback)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +282,7 @@ func TestWatcherShutdown(t *testing.T) {
 		writeOldSession(t, home, "existing", project)
 
 		var got deliveries
-		w, err := startWatcher(project, false, got.callback)
+		w, err := startWatcher(project, "", false, got.callback)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -302,7 +302,7 @@ func TestWatcherShutdown(t *testing.T) {
 		existing := writeOldSession(t, home, "existing", project)
 
 		var got deliveries
-		w, err := startWatcher(project, false, got.callback)
+		w, err := startWatcher(project, "", false, got.callback)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -328,7 +328,7 @@ func TestWatcherDeliversLiveUpdatesForProjectOnly(t *testing.T) {
 	existing := writeOldSession(t, home, "existing", project)
 
 	delivered := make(chan string, 10)
-	watcher, err := startWatcher(project, false, func(session *spi.AgentChatSession) {
+	watcher, err := startWatcher(project, "", false, func(session *spi.AgentChatSession) {
 		delivered <- session.SessionID
 	})
 	if err != nil {
@@ -375,5 +375,42 @@ func TestWatcherDeliversLiveUpdatesForProjectOnly(t *testing.T) {
 	slices.Sort(watched)
 	if want := []string{"existing/" + eventsFileName, "fresh/" + eventsFileName}; !slices.Equal(watched, want) {
 		t.Errorf("watched = %v, want %v", watched, want)
+	}
+}
+
+// A session picked from another project and resumed here keeps that project's
+// directory in its transcript. It must still be followed, live and through
+// the shutdown sweep, while that project's other sessions stay excluded.
+func TestWatcherFollowsResumedSessionFromAnotherProject(t *testing.T) {
+	fastWatcherTiming(t)
+	home := useSessionStore(t)
+	project := newProjectDir(t, "project")
+	other := newProjectDir(t, "other")
+
+	resumed := writeOldSession(t, home, "resumed", other)
+	unrelated := writeOldSession(t, home, "unrelated", other)
+
+	var got deliveries
+	w, err := startWatcher(project, "resumed", false, got.callback)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	appendRecord(t, resumed, record(t, eventAssistantMsg, "a1", map[string]any{"content": "continued here"}))
+	appendRecord(t, unrelated, record(t, eventAssistantMsg, "a1", map[string]any{"content": "not this run"}))
+	if !waitFor(t, func() bool { return slices.Contains(got.ids(), "resumed") }) {
+		t.Fatalf("resumed session was not delivered live; delivered %v", got.ids())
+	}
+
+	// A last write just before Copilot exits is caught by the shutdown sweep.
+	before := len(got.ids())
+	appendRecord(t, resumed, record(t, eventAssistantMsg, "a2", map[string]any{"content": "final words"}))
+	w.Stop()
+	if len(got.ids()) == before {
+		t.Errorf("shutdown sweep did not deliver the resumed session's last write")
+	}
+
+	if slices.Contains(got.ids(), "unrelated") {
+		t.Errorf("delivered %v, want only the resumed session from the other project", got.ids())
 	}
 }
