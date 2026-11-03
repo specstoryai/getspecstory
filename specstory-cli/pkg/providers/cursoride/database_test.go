@@ -3,7 +3,9 @@ package cursoride
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 )
@@ -586,5 +588,379 @@ func TestRegisterGlassProjectMembership_ReusesProject(t *testing.T) {
 	if membership["comp-1"] != projectID || membership["comp-2"] != projectID {
 		t.Errorf("both composers should map to project %q, got comp-1=%q comp-2=%q",
 			projectID, membership["comp-1"], membership["comp-2"])
+	}
+}
+
+// pagedComposerJSON builds a Cursor >= 3.27.14 composerData row: _v 18 with an empty
+// inline header list, the shape that moved the ordered headers into composerConvHeaders.
+func pagedComposerJSON(t *testing.T, id, name string) string {
+	t.Helper()
+	raw, err := json.Marshal(ComposerData{
+		ComposerID:                  id,
+		Name:                        name,
+		Version:                     18,
+		CreatedAt:                   1793105192455,
+		LastUpdatedAt:               1793105239300,
+		FullConversationHeadersOnly: []ComposerConversationHeader{},
+	})
+	if err != nil {
+		t.Fatalf("marshal composer: %v", err)
+	}
+	return string(raw)
+}
+
+func bubbleJSON(t *testing.T, id string, bubbleType int, text string) string {
+	t.Helper()
+	raw, err := json.Marshal(ComposerConversation{BubbleID: id, Type: bubbleType, Text: text})
+	if err != nil {
+		t.Fatalf("marshal bubble: %v", err)
+	}
+	return string(raw)
+}
+
+func conversationIDs(conv []ComposerConversation) []string {
+	ids := make([]string, len(conv))
+	for i, c := range conv {
+		ids[i] = c.BubbleID
+	}
+	return ids
+}
+
+func TestParseConvHeadersKey(t *testing.T) {
+	tests := []struct {
+		name       string
+		key        string
+		wantID     string
+		wantSuffix string
+		wantParsed bool
+	}{
+		{"first page", "composerConvHeaders:abc:000000", "abc", "000000", true},
+		{"later page", "composerConvHeaders:abc:000012", "abc", "000012", true},
+		{"missing suffix separator", "composerConvHeaders:abc", "", "", false},
+		{"empty composer ID", "composerConvHeaders::000000", "", "", false},
+		{"empty suffix", "composerConvHeaders:abc:", "", "", false},
+		{"other key type", "bubbleId:abc:b1", "", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			id, suffix, ok := parseConvHeadersKey(tt.key)
+			if ok != tt.wantParsed || id != tt.wantID || suffix != tt.wantSuffix {
+				t.Errorf("parseConvHeadersKey(%q) = (%q, %q, %v), want (%q, %q, %v)",
+					tt.key, id, suffix, ok, tt.wantID, tt.wantSuffix, tt.wantParsed)
+			}
+		})
+	}
+}
+
+// Cursor 3.27.14: headers are paged into composerConvHeaders rows and the inline list is
+// empty. The loader must concatenate the pages in key order (even when the rows are
+// inserted out of order) and resolve suffixed bubble IDs such as "<uuid>/s:0" verbatim.
+func TestLoadComposerDataBatch_PagedHeaders(t *testing.T) {
+	const id = "396cc8c0-346d-4098-8e57-d15758197093"
+	dbPath := createTestGlobalDB(t, map[string]string{
+		"composerData:" + id: pagedComposerJSON(t, id, "CLI integration in monorepo"),
+		// Listed out of order, but map iteration and SQLite row order are both
+		// unspecified, so this alone cannot pin the ordering requirement; see
+		// TestMergeHeaderPages for the deterministic check.
+		"composerConvHeaders:" + id + ":000001": `[{"bubbleId":"u2","type":1,"createdAt":"2026-10-27T12:48:00.000Z"},{"bubbleId":"u2/s:0","type":2}]`,
+		"composerConvHeaders:" + id + ":000000": `[{"bubbleId":"u1","type":1,"grouping":{"isRenderable":true,"hasText":true}},{"bubbleId":"u1/s:0","type":2},{"bubbleId":"u1/s:1","type":2}]`,
+		"bubbleId:" + id + ":u1":                bubbleJSON(t, "u1", 1, "first question"),
+		"bubbleId:" + id + ":u1/s:0":            bubbleJSON(t, "u1/s:0", 2, "thinking"),
+		"bubbleId:" + id + ":u1/s:1":            bubbleJSON(t, "u1/s:1", 2, "first answer"),
+		"bubbleId:" + id + ":u2":                bubbleJSON(t, "u2", 1, "second question"),
+		"bubbleId:" + id + ":u2/s:0":            bubbleJSON(t, "u2/s:0", 2, "second answer"),
+		// Another composer's page must not leak in.
+		"composerConvHeaders:other:000000": `[{"bubbleId":"x","type":1}]`,
+	})
+
+	composers, err := LoadComposerDataBatch(dbPath, []string{id})
+	if err != nil {
+		t.Fatalf("LoadComposerDataBatch: %v", err)
+	}
+	composer, ok := composers[id]
+	if !ok {
+		t.Fatalf("composer %s not loaded", id)
+	}
+	if got := len(composer.FullConversationHeadersOnly); got != 5 {
+		t.Fatalf("FullConversationHeadersOnly: got %d headers, want 5", got)
+	}
+	if composer.FullConversationHeadersOnly[0].Grouping == nil || !composer.FullConversationHeadersOnly[0].Grouping.IsRenderable {
+		t.Errorf("header grouping hints should survive the page parse")
+	}
+	want := []string{"u1", "u1/s:0", "u1/s:1", "u2", "u2/s:0"}
+	if got := conversationIDs(composer.Conversation); !slices.Equal(got, want) {
+		t.Fatalf("Conversation order: got %v, want %v", got, want)
+	}
+	if composer.Conversation[4].Text != "second answer" {
+		t.Errorf("bubble content not merged: got %q", composer.Conversation[4].Text)
+	}
+}
+
+// The paging fallback must only kick in when the inline header list is empty, and must
+// not disturb the other header sources or hide gaps the watcher relies on.
+func TestLoadComposerDataBatch_HeaderSources(t *testing.T) {
+	inlineRaw, err := json.Marshal(ComposerData{
+		ComposerID: "inline",
+		Version:    17,
+		FullConversationHeadersOnly: []ComposerConversationHeader{
+			{BubbleID: "b1", Type: 1},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal composer: %v", err)
+	}
+
+	tests := []struct {
+		name             string
+		id               string
+		rows             map[string]string
+		wantHeaders      int
+		wantConversation []string
+		wantLastText     string
+	}{
+		{
+			// Pre-3.27.14 composers still carry the inline list; it must win over any
+			// page so existing exports are unchanged.
+			name: "inline headers win over pages",
+			id:   "inline",
+			rows: map[string]string{
+				"composerData:inline":               string(inlineRaw),
+				"composerConvHeaders:inline:000000": `[{"bubbleId":"b1","type":1},{"bubbleId":"b2","type":2}]`,
+				"bubbleId:inline:b1":                bubbleJSON(t, "b1", 1, "hi"),
+				"bubbleId:inline:b2":                bubbleJSON(t, "b2", 2, "hello"),
+			},
+			wantHeaders:      1,
+			wantConversation: []string{"b1"},
+			wantLastText:     "hi",
+		},
+		{
+			// A page that references a bubble Cursor hasn't committed yet must leave the
+			// gap visible (headers > loaded bubbles) so the watcher's incomplete-data
+			// guard retries.
+			name: "missing bubble leaves the gap visible",
+			id:   "racing",
+			rows: map[string]string{
+				"composerData:racing":               pagedComposerJSON(t, "racing", "mid-stream"),
+				"composerConvHeaders:racing:000000": `[{"bubbleId":"u1","type":1},{"bubbleId":"u1/s:0","type":2},{"bubbleId":"u1/s:1","type":2}]`,
+				"bubbleId:racing:u1":                bubbleJSON(t, "u1", 1, "question"),
+				"bubbleId:racing:u1/s:0":            bubbleJSON(t, "u1/s:0", 2, "partial"),
+			},
+			wantHeaders:      3,
+			wantConversation: []string{"u1", "u1/s:0"},
+			wantLastText:     "partial",
+		},
+		{
+			// Cursor 2 rows embed the conversation inline with no header list and no
+			// pages; the inline-merge branch must be untouched by the paging fallback.
+			name: "legacy inline conversation unchanged",
+			id:   "legacy",
+			rows: map[string]string{
+				"composerData:legacy": `{"composerId":"legacy","_v":1,"conversation":[{"bubbleId":"b1","type":1,"text":""},{"bubbleId":"b2","type":2,"text":""}]}`,
+				"bubbleId:legacy:b1":  bubbleJSON(t, "b1", 1, "full user text"),
+				"bubbleId:legacy:b2":  bubbleJSON(t, "b2", 2, "full assistant text"),
+			},
+			wantHeaders:      0,
+			wantConversation: []string{"b1", "b2"},
+			wantLastText:     "full assistant text",
+		},
+		{
+			// No inline headers, no pages and no bubbles is a genuinely empty composer.
+			name: "empty composer stays empty",
+			id:   "draft",
+			rows: map[string]string{
+				"composerData:draft": pagedComposerJSON(t, "draft", ""),
+			},
+			wantHeaders:      0,
+			wantConversation: []string{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dbPath := createTestGlobalDB(t, tt.rows)
+			composers, err := LoadComposerDataBatch(dbPath, []string{tt.id})
+			if err != nil {
+				t.Fatalf("LoadComposerDataBatch: %v", err)
+			}
+			c, ok := composers[tt.id]
+			if !ok {
+				t.Fatalf("composer %s not loaded", tt.id)
+			}
+			if got := len(c.FullConversationHeadersOnly); got != tt.wantHeaders {
+				t.Errorf("headers: got %d, want %d", got, tt.wantHeaders)
+			}
+			got := conversationIDs(c.Conversation)
+			if !slices.Equal(got, tt.wantConversation) {
+				t.Fatalf("conversation: got %v, want %v", got, tt.wantConversation)
+			}
+			if len(got) > 0 && c.Conversation[len(got)-1].Text != tt.wantLastText {
+				t.Errorf("last bubble text: got %q, want %q", c.Conversation[len(got)-1].Text, tt.wantLastText)
+			}
+		})
+	}
+}
+
+// Each composer adds an IN entry and two LIKE conditions to a chunk's query, so a full
+// chunk is the largest query SQLite has to accept; anything past it must spill into a
+// second chunk whose rows merge with the first. Projects with that many chats are where
+// a query over SQLite's expression-depth limit would break sync and watch outright.
+func TestLoadComposerDataBatch_ChunkBoundary(t *testing.T) {
+	tests := []struct {
+		name  string
+		count int
+	}{
+		{name: "one full chunk", count: composerBatchSize},
+		{name: "spills into a second chunk", count: composerBatchSize + 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rows := make(map[string]string)
+			ids := make([]string, tt.count)
+			for i := range tt.count {
+				// Unpadded IDs (c1, c10, c100) are prefixes of one another, so a key that
+				// matched the wrong composer would surface as a mismatch below.
+				id := fmt.Sprintf("c%d", i)
+				ids[i] = id
+				question, answer := id+"-q", id+"-a"
+				rows["bubbleId:"+id+":"+question] = bubbleJSON(t, question, 1, "question "+id)
+				rows["bubbleId:"+id+":"+answer] = bubbleJSON(t, answer, 2, "answer "+id)
+				if i%2 == 0 {
+					// Cursor >= 3.27.14: headers paged, one bubble per page.
+					rows["composerData:"+id] = pagedComposerJSON(t, id, id)
+					rows["composerConvHeaders:"+id+":000000"] = fmt.Sprintf(`[{"bubbleId":%q,"type":1}]`, question)
+					rows["composerConvHeaders:"+id+":000001"] = fmt.Sprintf(`[{"bubbleId":%q,"type":2}]`, answer)
+				} else {
+					// Cursor < 3.27.14: headers inline in the composerData row.
+					raw, err := json.Marshal(ComposerData{
+						ComposerID: id,
+						Version:    17,
+						FullConversationHeadersOnly: []ComposerConversationHeader{
+							{BubbleID: question, Type: 1},
+							{BubbleID: answer, Type: 2},
+						},
+					})
+					if err != nil {
+						t.Fatalf("marshal composer: %v", err)
+					}
+					rows["composerData:"+id] = string(raw)
+				}
+			}
+			dbPath := createTestGlobalDB(t, rows)
+
+			composers, err := LoadComposerDataBatch(dbPath, ids)
+			if err != nil {
+				t.Fatalf("LoadComposerDataBatch: %v", err)
+			}
+			if len(composers) != tt.count {
+				t.Fatalf("loaded %d composers, want %d", len(composers), tt.count)
+			}
+			for _, id := range ids {
+				c := composers[id]
+				if c == nil {
+					t.Fatalf("composer %s not loaded", id)
+				}
+				want := []string{id + "-q", id + "-a"}
+				if got := conversationIDs(c.Conversation); !slices.Equal(got, want) {
+					t.Fatalf("composer %s conversation: got %v, want %v", id, got, want)
+				}
+				if c.Conversation[1].Text != "answer "+id {
+					t.Errorf("composer %s answer text: got %q", id, c.Conversation[1].Text)
+				}
+			}
+		})
+	}
+}
+
+// ListAllAgentChatSessions uses the header list to tell an empty composer from a
+// populated one, so its loader must see the paged headers too. The lightweight loader
+// must not, because it runs on every watcher check.
+func TestLoadAllComposerDataWithHeaders(t *testing.T) {
+	dbPath := createTestGlobalDB(t, map[string]string{
+		"composerData:paged":                pagedComposerJSON(t, "paged", "new chat"),
+		"composerConvHeaders:paged:000000":  `[{"bubbleId":"u1","type":1},{"bubbleId":"u1/s:0","type":2}]`,
+		"composerConvHeaders:paged:000001":  `[{"bubbleId":"u2","type":1}]`,
+		"composerData:draft":                pagedComposerJSON(t, "draft", ""),
+		"composerConvHeaders:orphan:000000": `[{"bubbleId":"z","type":1}]`,
+		"composerConvHeaders:paged:bad":     `not json`,
+	})
+
+	composers, err := LoadAllComposerDataWithHeaders(dbPath)
+	if err != nil {
+		t.Fatalf("LoadAllComposerDataWithHeaders: %v", err)
+	}
+	if got := len(composers["paged"].FullConversationHeadersOnly); got != 3 {
+		t.Errorf("paged composer: got %d headers, want 3", got)
+	}
+	if got := len(composers["draft"].FullConversationHeadersOnly); got != 0 {
+		t.Errorf("draft composer: got %d headers, want 0", got)
+	}
+	if _, exists := composers["orphan"]; exists {
+		t.Errorf("a page without a composerData row must not create a composer")
+	}
+
+	// The lightweight loader backs every watcher check, so it must stay metadata-only.
+	light, err := LoadAllComposerDataLightweight(dbPath)
+	if err != nil {
+		t.Fatalf("LoadAllComposerDataLightweight: %v", err)
+	}
+	if got := len(light["paged"].FullConversationHeadersOnly); got != 0 {
+		t.Errorf("lightweight loader: got %d headers, want 0 (pages must not be read)", got)
+	}
+}
+
+// mergeHeaderPages must concatenate pages by their zero-padded suffix regardless of
+// the order the rows were scanned in, and must leave an inline header list alone.
+func TestMergeHeaderPages(t *testing.T) {
+	page := func(suffix string, ids ...string) headerPage {
+		headers := make([]ComposerConversationHeader, len(ids))
+		for i, id := range ids {
+			headers[i] = ComposerConversationHeader{BubbleID: id}
+		}
+		return headerPage{suffix: suffix, headers: headers}
+	}
+	headerIDs := func(headers []ComposerConversationHeader) []string {
+		ids := make([]string, len(headers))
+		for i, h := range headers {
+			ids[i] = h.BubbleID
+		}
+		return ids
+	}
+
+	tests := []struct {
+		name   string
+		inline []ComposerConversationHeader
+		pages  []headerPage
+		want   []string
+	}{
+		{
+			name:  "pages scanned in order",
+			pages: []headerPage{page("000000", "a", "b"), page("000001", "c")},
+			want:  []string{"a", "b", "c"},
+		},
+		{
+			name:  "pages scanned in reverse",
+			pages: []headerPage{page("000001", "c"), page("000000", "a", "b")},
+			want:  []string{"a", "b", "c"},
+		},
+		{
+			name:  "pages scanned shuffled, suffix order not insertion order",
+			pages: []headerPage{page("000010", "e"), page("000000", "a"), page("000002", "d"), page("000001", "b", "c")},
+			want:  []string{"a", "b", "c", "d", "e"},
+		},
+		{
+			name:   "inline headers win over pages",
+			inline: []ComposerConversationHeader{{BubbleID: "x"}},
+			pages:  []headerPage{page("000000", "a", "b")},
+			want:   []string{"x"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			composers := map[string]*ComposerData{"c": {ComposerID: "c", FullConversationHeadersOnly: tt.inline}}
+			pages := map[string][]headerPage{"c": tt.pages}
+			mergeHeaderPages(composers, pages)
+			if got := headerIDs(composers["c"].FullConversationHeadersOnly); !slices.Equal(got, tt.want) {
+				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
