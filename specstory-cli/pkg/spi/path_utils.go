@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -299,23 +300,31 @@ func GetCanonicalPath(p string) (string, error) {
 		}
 
 		// Find the correct case
-		found := false
-		for _, name := range names {
-			if strings.EqualFold(name, parts[i]) {
-				result = filepath.Join(result, name)
-				found = true
-				break
-			}
-		}
-
+		name, found := matchDirEntry(names, parts[i])
 		if !found {
 			// Component doesn't exist, append remaining as-is
 			result = appendRemainingParts(result, parts, i)
 			break
 		}
+		result = filepath.Join(result, name)
 	}
 
 	return result, nil
+}
+
+// matchDirEntry finds the directory entry a path component refers to. An exact
+// name wins over a case-insensitive match: a case-sensitive filesystem can hold
+// both "Project" and "project", and listing order must not swap one for the other.
+func matchDirEntry(names []string, component string) (string, bool) {
+	if slices.Contains(names, component) {
+		return component, true
+	}
+	for _, name := range names {
+		if strings.EqualFold(name, component) {
+			return name, true
+		}
+	}
+	return "", false
 }
 
 // CanonicalizePathOrClean resolves path to the canonical form used for
