@@ -520,10 +520,16 @@ func TestExtractPatchPathHints(t *testing.T) {
 			want:          []string{"a.go"},
 		},
 		{
-			name:          "CRLF line endings and indented headers",
-			patch:         "*** Begin Patch\r\n  *** Add File: /w/a.go\r\n*** End Patch\r\n",
+			name:          "CRLF line endings",
+			patch:         "*** Begin Patch\r\n*** Add File: /w/a.go\r\n*** End Patch\r\n",
 			workspaceRoot: "/w",
 			want:          []string{"a.go"},
+		},
+		{
+			name:          "hunk context that looks like a header is not a file",
+			patch:         "*** Begin Patch\n*** Update File: /w/notes.patch\n@@\n *** Update File: /w/untouched.go\n-old\n+new\n*** End Patch",
+			workspaceRoot: "/w",
+			want:          []string{"notes.patch"},
 		},
 		{
 			name:          "path outside the workspace stays absolute",

@@ -614,9 +614,6 @@ func (b *transcriptBuilder) add(event rawEvent) bool {
 	}
 	if used && event.Timestamp != "" {
 		b.lastTimestamp = event.Timestamp
-		if b.current != nil {
-			b.current.EndTime = event.Timestamp
-		}
 	}
 	return used
 }
@@ -786,9 +783,27 @@ func (b *transcriptBuilder) flush() {
 	b.current = nil
 }
 
+// finish returns the transcript. End times are set here, from each exchange's
+// own messages, because a tool result can land after the next prompt and move a
+// message in an exchange that has already been flushed.
 func (b *transcriptBuilder) finish() []schema.Exchange {
 	b.flush()
+	for i := range b.exchanges {
+		b.exchanges[i].EndTime = latestTimestamp(b.exchanges[i].Messages)
+	}
 	return b.exchanges
+}
+
+// latestTimestamp returns the latest message time, which is not always the last
+// message's: parallel tool calls can finish out of order. Timestamps compare as
+// strings because Copilot and reconstruction both write fixed-width UTC
+// milliseconds.
+func latestTimestamp(messages []schema.Message) string {
+	latest := ""
+	for _, message := range messages {
+		latest = max(latest, message.Timestamp)
+	}
+	return latest
 }
 
 // pendingTool is a tool call awaiting its result. intent is Copilot's one-line

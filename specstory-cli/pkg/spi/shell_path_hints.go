@@ -93,7 +93,10 @@ var patchPathMarkers = []string{
 func ExtractPatchPathHints(patchText, workspaceRoot string) []string {
 	var paths []string
 	for line := range strings.Lines(patchText) {
-		line = strings.TrimSpace(line)
+		// Only trailing whitespace is trimmed: a leading space marks a hunk's
+		// context line, whose text can look just like a header when the patched
+		// file is itself a patch.
+		line = strings.TrimRight(line, " \t\r\n")
 		for _, marker := range patchPathMarkers {
 			rest, found := strings.CutPrefix(line, marker)
 			if !found {

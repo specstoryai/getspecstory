@@ -698,8 +698,9 @@ func TestLongFailingShellOutputKeepsExitCode(t *testing.T) {
 // change in provenance.
 func TestToolMessageTakesCompletionTime(t *testing.T) {
 	const (
-		requested = "2026-10-09T07:35:38.000Z"
-		completed = "2026-10-09T07:36:20.000Z" // well past provenance's 5s window
+		requested  = "2026-10-09T07:35:38.000Z"
+		nextPrompt = "2026-10-09T07:35:50.000Z"
+		completed  = "2026-10-09T07:36:20.000Z" // well past provenance's 5s window
 	)
 	builder := newTranscriptBuilder("/w")
 	builder.add(event("user.message", "u", `{"content":"go"}`))
@@ -707,14 +708,46 @@ func TestToolMessageTakesCompletionTime(t *testing.T) {
 	request.Timestamp = requested
 	builder.add(request)
 	// The result can land after the exchange has closed.
-	builder.add(event("user.message", "u2", `{"content":"next"}`))
+	next := event("user.message", "u2", `{"content":"next"}`)
+	next.Timestamp = nextPrompt
+	builder.add(next)
 	result := event("tool.execution_complete", "r", `{"toolCallId":"c1","success":true,"result":{"content":"ok"}}`)
 	result.Timestamp = completed
 	builder.add(result)
 
-	message := builder.finish()[0].Messages[1]
-	if message.Timestamp != completed {
-		t.Errorf("tool message timestamp = %q, want completion time %q", message.Timestamp, completed)
+	exchanges := builder.finish()
+	if got := exchanges[0].Messages[1].Timestamp; got != completed {
+		t.Errorf("tool message timestamp = %q, want completion time %q", got, completed)
+	}
+	// The late result extends the exchange that made the call, not the one
+	// that happened to be open when it arrived.
+	if exchanges[0].EndTime != completed {
+		t.Errorf("first exchange EndTime = %q, want its tool's completion time %q", exchanges[0].EndTime, completed)
+	}
+	if exchanges[1].EndTime != nextPrompt {
+		t.Errorf("second exchange EndTime = %q, want its own prompt's time %q", exchanges[1].EndTime, nextPrompt)
+	}
+}
+
+// Parallel calls can finish out of order, so an exchange ends at its latest
+// message rather than its last one.
+func TestExchangeEndsAtItsLatestMessage(t *testing.T) {
+	const (
+		slowDone = "2026-10-09T07:36:20.000Z"
+		fastDone = "2026-10-09T07:35:40.000Z"
+	)
+	builder := newTranscriptBuilder("/w")
+	builder.add(event("user.message", "u", `{"content":"go"}`))
+	builder.add(event("assistant.message", "a", `{"toolRequests":[{"toolCallId":"slow","name":"bash","arguments":{"command":"make"}},{"toolCallId":"fast","name":"bash","arguments":{"command":"ls"}}]}`))
+	fast := event("tool.execution_complete", "r1", `{"toolCallId":"fast","success":true,"result":{"content":"ok"}}`)
+	fast.Timestamp = fastDone
+	builder.add(fast)
+	slow := event("tool.execution_complete", "r2", `{"toolCallId":"slow","success":true,"result":{"content":"ok"}}`)
+	slow.Timestamp = slowDone
+	builder.add(slow)
+
+	if got := builder.finish()[0].EndTime; got != slowDone {
+		t.Errorf("EndTime = %q, want the later completion %q", got, slowDone)
 	}
 }
 
