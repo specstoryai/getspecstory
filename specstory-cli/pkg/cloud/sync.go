@@ -174,6 +174,7 @@ type SyncManager struct {
 	stats            CloudSyncStats // Statistics for the current sync operation
 	debounceInterval time.Duration  // Debounce interval for run mode (default: SessionDebounceInterval)
 	debounceSessions sync.Map       // Maps sessionID -> *sessionDebounceState
+	draining         atomic.Bool    // Set at shutdown: follow-up sends skip the debounce window
 	bulkSizes        map[string]int // Optional: sessionID -> size cache for batch operations
 	bulkSizesMu      sync.RWMutex   // Protects bulkSizes map
 }
@@ -1055,7 +1056,7 @@ func (syncMgr *SyncManager) startPendingSync(sessionID string, state *sessionDeb
 
 	req := state.pending
 	now := time.Now()
-	if !force && req.skipHeadCheck && !state.lastSyncTime.IsZero() {
+	if !force && !syncMgr.draining.Load() && req.skipHeadCheck && !state.lastSyncTime.IsZero() {
 		remaining := syncMgr.debounceInterval - now.Sub(state.lastSyncTime)
 		if remaining > 0 {
 			if state.timer == nil {
@@ -1115,6 +1116,9 @@ func (syncMgr *SyncManager) flushPendingSync(sessionID string) {
 // in-flight send are started by finishSync before that send's goroutine exits.
 func (syncMgr *SyncManager) flushAllPending() {
 	slog.Debug("Flushing all pending debounced syncs")
+	// Requests queued behind an in-flight send must not wait out the debounce
+	// window, or Shutdown would return before they upload.
+	syncMgr.draining.Store(true)
 
 	syncMgr.debounceSessions.Range(func(key, value interface{}) bool {
 		sessionID := key.(string)

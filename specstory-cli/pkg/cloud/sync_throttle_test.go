@@ -260,3 +260,88 @@ func TestSyncSessionToCloud_SingleFlightLatestWins(t *testing.T) {
 		t.Errorf("uploaded SessionData snapshots = %v, want [first latest]", sessionDataSnapshots)
 	}
 }
+
+func TestShutdownFlushUploadsSnapshotQueuedBehindInFlightSend(t *testing.T) {
+	releaseFirst := make(chan struct{})
+	firstStarted := make(chan struct{}, 1)
+	var requestsMu sync.Mutex
+	var markdowns []string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		gz, err := gzip.NewReader(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		var request APIRequest
+		decodeErr := json.NewDecoder(gz).Decode(&request)
+		_ = gz.Close()
+		if decodeErr != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		requestsMu.Lock()
+		markdowns = append(markdowns, request.Markdown)
+		count := len(markdowns)
+		requestsMu.Unlock()
+		if count == 1 {
+			firstStarted <- struct{}{}
+			<-releaseFirst
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	tempDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tempDir, ".project.json"), []byte(`{"project_name":"test","git_id":"project-id"}`), 0600); err != nil {
+		t.Fatalf("write project config: %v", err)
+	}
+	oldSpecstoryDir := specstoryDir
+	oldAPIBaseURL := apiBaseURL
+	oldHasSessionToken := hasSessionToken
+	oldSessionAccessToken := sessionAccessToken
+	oldDeviceID := deviceID
+	SetSpecstoryDir(tempDir)
+	SetAPIBaseURL(server.URL)
+	hasSessionToken = true
+	sessionAccessToken = "test-token"
+	deviceID = "test-device"
+	t.Cleanup(func() {
+		SetSpecstoryDir(oldSpecstoryDir)
+		SetAPIBaseURL(oldAPIBaseURL)
+		hasSessionToken = oldHasSessionToken
+		sessionAccessToken = oldSessionAccessToken
+		deviceID = oldDeviceID
+	})
+
+	InitSyncManager(true)
+	syncMgr := GetSyncManager()
+	syncMgr.debounceInterval = time.Hour
+	t.Cleanup(func() { InitSyncManager(false) })
+
+	sync := func(markdown string) {
+		SyncSessionToCloud("session-id", "session.md", func() string { return markdown }, nil, func() string { return markdown }, "Claude Code", "title", false, true)
+	}
+	sync("first")
+	select {
+	case <-firstStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("first cloud send did not start")
+	}
+	sync("latest")
+
+	// Shutdown flushes while the first send is still in flight.
+	syncMgr.flushAllPending()
+	close(releaseFirst)
+	syncMgr.wg.Wait()
+
+	requestsMu.Lock()
+	defer requestsMu.Unlock()
+	if len(markdowns) != 2 || markdowns[1] != "latest" {
+		t.Errorf("uploaded markdowns = %v, want [first latest]", markdowns)
+	}
+}
