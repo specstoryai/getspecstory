@@ -438,7 +438,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		slog.Info("Attempting to resume Muse Code session", "sessionId", resumeSessionID)
 	}
 
-	return ExecuteMuse(customCommand, resumeSessionID)
+	return ExecuteMuse(projectPath, customCommand, resumeSessionID)
 }
 
 // WatchAgent watches for Muse Code agent activity and calls the callback with

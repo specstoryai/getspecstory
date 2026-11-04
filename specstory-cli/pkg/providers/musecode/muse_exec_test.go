@@ -137,7 +137,7 @@ exit "$FAKE_MUSE_EXIT"
 }
 
 func TestExecuteMuse_StartFailure(t *testing.T) {
-	err := ExecuteMuse(fmt.Sprintf("%q", filepath.Join(t.TempDir(), "missing-muse")), "")
+	err := ExecuteMuse(t.TempDir(), fmt.Sprintf("%q", filepath.Join(t.TempDir(), "missing-muse")), "")
 	var agentExit *spi.AgentExitError
 	if err == nil || errors.As(err, &agentExit) {
 		t.Fatalf("error = %v, want a start failure rather than an agent exit status", err)

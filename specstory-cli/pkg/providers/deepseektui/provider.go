@@ -179,7 +179,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 
 	if sessionCallback == nil {
 		slog.Info("ExecAgentAndWatch: no callback provided, running without watcher")
-		return ExecuteDeepSeek(customCommand, resumeSessionID)
+		return ExecuteDeepSeek(projectPath, customCommand, resumeSessionID)
 	}
 
 	// Capture before launching either goroutine so a fast child cannot become
@@ -196,7 +196,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	}()
 
 	slog.Info("ExecAgentAndWatch: executing DeepSeek TUI", "command", customCommand)
-	err := ExecuteDeepSeek(customCommand, resumeSessionID)
+	err := ExecuteDeepSeek(projectPath, customCommand, resumeSessionID)
 	slog.Info("ExecAgentAndWatch: DeepSeek TUI exited, stopping watcher", "execError", err)
 	cancel()
 

@@ -390,7 +390,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 
 	// Execute Claude Code - this blocks until Claude exits
 	slog.Info("Executing Claude Code", "command", customCommand)
-	err := ExecuteClaude(customCommand, resumeSessionID)
+	err := ExecuteClaude(projectPath, customCommand, resumeSessionID)
 
 	// Stop the watcher goroutine before returning
 	slog.Info("Claude Code has exited, stopping watcher")

@@ -385,7 +385,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		}
 	}
 
-	execErr := ExecuteCopilot(customCommand, resumeSessionID)
+	execErr := ExecuteCopilot(root, customCommand, resumeSessionID)
 
 	if watcher != nil {
 		watcher.Stop()
@@ -477,12 +477,13 @@ func resumeArgs(args []string, sessionID string) []string {
 // ExecuteCopilot launches Copilot CLI attached to the terminal and blocks until
 // it exits, returning an *spi.AgentExitError when Copilot exits non-zero so the
 // CLI can report Copilot's own status after saving the last turn.
-func ExecuteCopilot(customCommand string, resumeSessionID string) error {
+func ExecuteCopilot(projectPath string, customCommand string, resumeSessionID string) error {
 	cmdName, args := parseCommand(customCommand)
 	args = resumeArgs(args, resumeSessionID)
 	slog.Info("ExecuteCopilot: Launching Copilot CLI", "command", cmdName, "args", args)
 
 	command := exec.Command(cmdName, args...)
+	spi.RunInProject(command, projectPath, homeEnvVar)
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr

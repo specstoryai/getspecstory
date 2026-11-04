@@ -44,8 +44,8 @@ func ensureResumeArgs(args []string, resumeSessionID string) []string {
 	return spi.EnsureResumeFlagArgs(args, resumeSessionID, "--resume", "-r")
 }
 
-// ExecuteGemini runs the Gemini CLI with the given arguments
-func ExecuteGemini(customCommand string, resumeSessionID string) error {
+// ExecuteGemini runs the Gemini CLI in projectPath with the given arguments
+func ExecuteGemini(projectPath string, customCommand string, resumeSessionID string) error {
 	// Parse the command and any custom arguments
 	geminiCmd, customArgs := parseGeminiCommand(customCommand)
 
@@ -56,6 +56,7 @@ func ExecuteGemini(customCommand string, resumeSessionID string) error {
 
 	// Create the command
 	cmd := exec.Command(geminiCmd, customArgs...)
+	spi.RunInProject(cmd, projectPath)
 
 	// Set up stdin/stdout/stderr to match the parent process
 	cmd.Stdin = os.Stdin

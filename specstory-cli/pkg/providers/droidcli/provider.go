@@ -174,7 +174,7 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 // invokes the callback as they are discovered.
 func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	if sessionCallback == nil {
-		return ExecuteDroid(customCommand, resumeSessionID)
+		return ExecuteDroid(projectPath, customCommand, resumeSessionID)
 	}
 
 	// Capture before launching either goroutine so a fast child cannot become
@@ -189,7 +189,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		watchErr <- watchSessions(ctx, projectPath, debugRaw, sessionCallback)
 	}()
 
-	err := ExecuteDroid(customCommand, resumeSessionID)
+	err := ExecuteDroid(projectPath, customCommand, resumeSessionID)
 	cancel()
 
 	if werr := <-watchErr; werr != nil && !errors.Is(werr, context.Canceled) {

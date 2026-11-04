@@ -72,6 +72,15 @@ func TestRegisterAll_VariantRegistersViaUserDataDirOverride(t *testing.T) {
 func TestAgentExitChild(t *testing.T) {
 	if value := os.Getenv("SPECSTORY_EXIT_TEST_CODE"); value != "" {
 		code, _ := strconv.Atoi(value)
+		if cwdFile := os.Getenv("SPECSTORY_EXIT_TEST_CWD_FILE"); cwdFile != "" {
+			cwd, err := os.Getwd()
+			if err != nil {
+				os.Exit(93)
+			}
+			if err := os.WriteFile(cwdFile, []byte(cwd), 0600); err != nil {
+				os.Exit(94)
+			}
+		}
 		if destination := os.Getenv("SPECSTORY_EXIT_TEST_DESTINATION"); destination != "" {
 			data, err := os.ReadFile(os.Getenv("SPECSTORY_EXIT_TEST_SOURCE"))
 			if err != nil {
@@ -88,33 +97,41 @@ func TestAgentExitChild(t *testing.T) {
 	}
 }
 
-func TestTerminalAgentExitStatus(t *testing.T) {
-	exe, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-	command := fmt.Sprintf("%q -test.run=^TestAgentExitChild$", exe)
-	for _, tt := range []struct {
+// agentLaunchers lists every provider that starts a terminal agent.
+func agentLaunchers() []struct {
+	name string
+	run  func(projectPath, command, id string) error
+} {
+	return []struct {
 		name string
-		run  func(string, string) error
+		run  func(projectPath, command, id string) error
 	}{
 		{"claude", claudecode.ExecuteClaude},
 		{"codex", codexcli.ExecuteCodex},
 		{"copilot", copilotcli.ExecuteCopilot},
 		{"cursor", cursorcli.ExecuteCursorCLI},
 		{"gemini", geminicli.ExecuteGemini},
-		{"grok", func(command, id string) error { return grokbuild.ExecuteGrok(t.TempDir(), command, id) }},
+		{"grok", grokbuild.ExecuteGrok},
 		{"droid", droidcli.ExecuteDroid},
 		{"deepseek", deepseektui.ExecuteDeepSeek},
 		{"antigravity", antigravitycli.ExecuteAntigravity},
 		{"pi", piagent.ExecutePi},
 		{"muse", musecode.ExecuteMuse},
-		{"qwen", func(command, id string) error { return qwencode.ExecuteQwen(t.TempDir(), command, id) }},
-	} {
+		{"qwen", qwencode.ExecuteQwen},
+	}
+}
+
+func TestTerminalAgentExitStatus(t *testing.T) {
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := fmt.Sprintf("%q -test.run=^TestAgentExitChild$", exe)
+	for _, tt := range agentLaunchers() {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, code := range []int{0, 7} {
 				t.Setenv("SPECSTORY_EXIT_TEST_CODE", strconv.Itoa(code))
-				err := tt.run(command, "")
+				err := tt.run(t.TempDir(), command, "")
 				if code == 0 {
 					if err != nil {
 						t.Fatal(err)
@@ -127,8 +144,46 @@ func TestTerminalAgentExitStatus(t *testing.T) {
 				}
 			}
 			var exit *spi.AgentExitError
-			if err := tt.run(filepath.Join(t.TempDir(), "missing-agent"), ""); err == nil || errors.As(err, &exit) {
+			if err := tt.run(t.TempDir(), filepath.Join(t.TempDir(), "missing-agent"), ""); err == nil || errors.As(err, &exit) {
 				t.Fatalf("launch failure classified as agent exit: %v", err)
+			}
+		})
+	}
+}
+
+// Agents key sessions to the directory they run in, so with --project-path the
+// agent must run in the project or the watcher never sees its sessions.
+func TestTerminalAgentRunsInProjectDirectory(t *testing.T) {
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := fmt.Sprintf("%q -test.run=^TestAgentExitChild$", exe)
+	for _, tt := range agentLaunchers() {
+		t.Run(tt.name, func(t *testing.T) {
+			project := t.TempDir()
+			cwdFile := filepath.Join(t.TempDir(), "cwd")
+			t.Setenv("SPECSTORY_EXIT_TEST_CODE", "0")
+			t.Setenv("SPECSTORY_EXIT_TEST_CWD_FILE", cwdFile)
+
+			if err := tt.run(project, command, ""); err != nil {
+				t.Fatal(err)
+			}
+			cwd, err := os.ReadFile(cwdFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.Stat(string(cwd))
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := os.Stat(project)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// SameFile: temp paths differ by symlink and case between platforms.
+			if !os.SameFile(got, want) {
+				t.Errorf("agent ran in %q, want %q", cwd, project)
 			}
 		})
 	}

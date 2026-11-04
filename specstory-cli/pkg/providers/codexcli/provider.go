@@ -394,7 +394,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	slog.Info("Executing Codex CLI", "command", customCommand, "resumeSessionID", resumeSessionID)
 	homeDir, _ := osUserHomeDir()
 	finalChanges := spi.SessionFileChanges(codexSessionsRoot(homeDir), "*/*/*/*.jsonl")
-	err := ExecuteCodex(customCommand, resumeSessionID)
+	err := ExecuteCodex(projectPath, customCommand, resumeSessionID)
 
 	// Stop the watcher goroutine and wait for it to finish before returning
 	slog.Info("Codex CLI has exited, stopping watcher")

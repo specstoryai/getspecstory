@@ -343,7 +343,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 
 	// Execute Cursor CLI - this blocks until Cursor exits
 	slog.Info("Executing Cursor CLI", "command", customCommand)
-	err = ExecuteCursorCLI(customCommand, resumeSessionID)
+	err = ExecuteCursorCLI(projectPath, customCommand, resumeSessionID)
 
 	// Stop the watcher if it was started
 	if watcher != nil {

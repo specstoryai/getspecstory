@@ -233,7 +233,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 
 	if sessionCallback == nil {
 		slog.Info("ExecAgentAndWatch: no callback provided, running without watcher")
-		return ExecuteAntigravity(customCommand, resumeSessionID)
+		return ExecuteAntigravity(projectPath, customCommand, resumeSessionID)
 	}
 
 	// Capture before launching either goroutine so a fast child cannot become
@@ -250,7 +250,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	}()
 
 	slog.Info("ExecAgentAndWatch: executing Antigravity CLI", "command", customCommand)
-	err := ExecuteAntigravity(customCommand, resumeSessionID)
+	err := ExecuteAntigravity(projectPath, customCommand, resumeSessionID)
 	slog.Info("ExecAgentAndWatch: Antigravity CLI exited, stopping watcher", "execError", err)
 	cancel()
 

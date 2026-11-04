@@ -192,7 +192,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	}
 
 	slog.Info("ExecAgentAndWatch: Pi watcher ready", "projectPath", projectPath)
-	err = ExecutePi(customCommand, resumeSessionID)
+	err = ExecutePi(projectPath, customCommand, resumeSessionID)
 	slog.Info("ExecAgentAndWatch: draining Pi session saves")
 	// Stop the watcher and join in-flight saves BEFORE the exit status is acted
 	// on: pi writes its session file right before it exits, and the callback

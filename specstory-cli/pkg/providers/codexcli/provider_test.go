@@ -1009,7 +1009,7 @@ func TestExecuteCodex(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Execute the command
-			err := ExecuteCodex(tt.customCommand, tt.resumeSessionID)
+			err := ExecuteCodex(t.TempDir(), tt.customCommand, tt.resumeSessionID)
 
 			// Check error expectation
 			if tt.wantError && err == nil {

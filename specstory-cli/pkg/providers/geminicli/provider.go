@@ -175,7 +175,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		slog.Info("Attempting to resume Gemini CLI session", "sessionId", resumeSessionID)
 	}
 
-	return ExecuteGemini(customCommand, resumeSessionID)
+	return ExecuteGemini(projectPath, customCommand, resumeSessionID)
 }
 
 // WatchAgent watches for Gemini CLI agent activity and calls the callback with AgentChatSession

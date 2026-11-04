@@ -184,7 +184,7 @@ func executeOpenCode(customCommand, projectPath, resumeSessionID string) error {
 	// OpenCode records the directory it runs in as the session's project;
 	// running it in the project keeps a --project-path run's sessions where
 	// the watcher looks for them.
-	cmd.Dir = projectPath
+	spi.RunInProject(cmd, projectPath, "XDG_DATA_HOME", dbEnvVar)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
