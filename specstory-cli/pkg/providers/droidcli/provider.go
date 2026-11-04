@@ -181,12 +181,13 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	// part of the watcher's silent startup baseline.
 	finalState := &watchState{lastProcessed: make(map[string]int64)}
 	seedProcessedSessions(finalState)
+	agentDir := spi.RunningAgentDir(projectPath)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	watchErr := make(chan error, 1)
 	go func() {
-		watchErr <- watchSessions(ctx, projectPath, debugRaw, sessionCallback)
+		watchErr <- watchSessions(ctx, agentDir, debugRaw, sessionCallback)
 	}()
 
 	err := ExecuteDroid(projectPath, customCommand, resumeSessionID)
@@ -196,7 +197,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		slog.Warn("droidcli: watcher stopped with error", "error", werr)
 	}
 
-	if scanErr := scanAndProcessSessions(projectPath, debugRaw, sessionCallback, finalState); scanErr != nil {
+	if scanErr := scanAndProcessSessions(agentDir, debugRaw, sessionCallback, finalState); scanErr != nil {
 		slog.Warn("Final session scan failed", "error", scanErr)
 	}
 

@@ -150,17 +150,18 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 
 	// Start watching
 	SetWatcherDebugRaw(debugRaw)
-	if err := WatchGeminiProject(projectPath, sessionCallback); err != nil {
+	agentDir := spi.RunningAgentDir(projectPath)
+	if err := WatchGeminiProject(agentDir, sessionCallback); err != nil {
 		slog.Error("Failed to start watcher", "error", err)
 	}
 	// Include both hashed and named project stores, since a first run may
 	// choose its directory after the watcher starts. The final sweep selects
 	// only files in the resolved project directory.
-	hashDir, _ := GetGeminiProjectDir(projectPath)
+	hashDir, _ := GetGeminiProjectDir(agentDir)
 	finalChanges := spi.SessionFileChanges(filepath.Dir(hashDir), "*/chats/*.json")
 	defer func() {
 		StopWatcher()
-		resolved, err := ResolveGeminiProjectDir(projectPath)
+		resolved, err := ResolveGeminiProjectDir(agentDir)
 		if err != nil {
 			return
 		}

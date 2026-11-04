@@ -324,7 +324,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		"resumeSessionId", resumeSessionID,
 		"debugRaw", debugRaw)
 
-	root, err := canonicalProjectPath(projectPath)
+	root, err := canonicalProjectPath(spi.RunningAgentDir(projectPath))
 	if err != nil {
 		return err
 	}
@@ -341,8 +341,6 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		slog.Error("ExecAgentAndWatch: Failed to start OpenCode session watcher", "error", err)
 	}
 
-	// The caller's path, not root: root has a current drive stapled onto a
-	// remote path on Windows, which could name an unrelated local directory.
 	execErr := executeOpenCode(customCommand, projectPath, resumeSessionID)
 
 	if watcher != nil {

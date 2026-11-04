@@ -44,6 +44,27 @@ func TestAgentWorkingDir(t *testing.T) {
 	}
 }
 
+// A watcher must follow the agent: into a local project, and to the launch
+// directory when the project path is one no process can run in.
+func TestRunningAgentDir(t *testing.T) {
+	project := t.TempDir()
+	t.Chdir(t.TempDir())
+	launchDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	launchDir = CanonicalizePathOrClean(launchDir)
+
+	if got := RunningAgentDir(project); got != project {
+		t.Errorf("local project: got %q, want %q", got, project)
+	}
+	for _, projectPath := range []string{"", filepath.Join(project, "not-here"), "/no/such/remote/project"} {
+		if got := RunningAgentDir(projectPath); got != launchDir {
+			t.Errorf("RunningAgentDir(%q) = %q, want the launch directory %q", projectPath, got, launchDir)
+		}
+	}
+}
+
 func TestSplitCommandLine(t *testing.T) {
 	tests := []struct {
 		name  string

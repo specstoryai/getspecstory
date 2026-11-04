@@ -23,6 +23,19 @@ func AgentWorkingDir(projectPath, launchDir string) string {
 	return launchDir
 }
 
+// RunningAgentDir returns the directory of an agent launched from this process,
+// which is what its watcher and exit sweep must follow: the agent records that
+// directory on its sessions, so with a non-local --project-path a watcher on
+// projectPath would save nothing and report no error.
+func RunningAgentDir(projectPath string) string {
+	launchDir, err := os.Getwd()
+	if err != nil {
+		slog.Warn("RunningAgentDir: Failed to read the working directory", "error", err)
+		return projectPath
+	}
+	return AgentWorkingDir(projectPath, CanonicalizePathOrClean(launchDir))
+}
+
 // RunInProject makes cmd run in the project directory. Agents key their sessions
 // to the directory they run in, so with --project-path a child left in the
 // launch directory writes sessions the watcher never looks at. Moving the child

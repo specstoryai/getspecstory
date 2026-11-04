@@ -388,10 +388,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	slog.Info("ExecAgentAndWatch: Starting Copilot CLI",
 		"projectPath", projectPath, "resumeSessionId", resumeSessionID, "debugRaw", debugRaw)
 
-	// Watch where Copilot runs: it records that directory as the session's cwd,
-	// which for a non-local --project-path is the launch directory ("" resolves
-	// to it).
-	root, err := canonicalProjectPath(spi.AgentWorkingDir(projectPath, ""))
+	root, err := canonicalProjectPath(spi.RunningAgentDir(projectPath))
 	if err != nil {
 		return err
 	}

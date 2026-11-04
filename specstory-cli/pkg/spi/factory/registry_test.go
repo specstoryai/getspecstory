@@ -92,6 +92,9 @@ func TestAgentExitChild(t *testing.T) {
 			if err := os.WriteFile(destination, data, 0600); err != nil {
 				os.Exit(92)
 			}
+			if linger, err := time.ParseDuration(os.Getenv("SPECSTORY_EXIT_TEST_LINGER")); err == nil {
+				time.Sleep(linger)
+			}
 		}
 		os.Exit(code)
 	}
@@ -197,10 +200,21 @@ func TestRunSavesSessionWhenProjectPathIsNotLocal(t *testing.T) {
 		provider spi.Provider
 	}{
 		{"claude", claudecode.NewProvider()},
+		{"codex", codexcli.NewProvider()},
 		{"copilot", copilotcli.NewProvider()},
+		{"cursor", cursorcli.NewProvider()},
+		{"gemini", geminicli.NewProvider()},
+		{"grok", grokbuild.NewProvider()},
+		{"droid", droidcli.NewProvider()},
+		{"deepseek", deepseektui.NewProvider()},
+		{"pi", piagent.NewProvider()},
+		{"muse", musecode.NewProvider()},
+		{"qwen", qwencode.NewProvider()},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			testutil.SetHome(t, t.TempDir())
+			home := t.TempDir()
+			testutil.SetHome(t, home)
+			t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))
 			launchDir := spi.CanonicalizePathOrClean(t.TempDir())
 			t.Chdir(launchDir)
 			exe, err := os.Executable()
@@ -225,6 +239,14 @@ func TestRunSavesSessionWhenProjectPathIsNotLocal(t *testing.T) {
 			staged := filepath.Join(t.TempDir(), "staged-session")
 			if err := os.WriteFile(staged, native.Content, 0600); err != nil {
 				t.Fatal(err)
+			}
+			// Muse has no sweep at exit and only watches a day directory that
+			// exists, so its store is seeded and its agent stays up to be seen.
+			if tt.name == "muse" {
+				if err := os.MkdirAll(filepath.Dir(filepath.Dir(destination)), 0755); err != nil {
+					t.Fatal(err)
+				}
+				t.Setenv("SPECSTORY_EXIT_TEST_LINGER", "3s")
 			}
 			t.Setenv("SPECSTORY_EXIT_TEST_SOURCE", staged)
 			t.Setenv("SPECSTORY_EXIT_TEST_DESTINATION", destination)

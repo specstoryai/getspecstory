@@ -336,7 +336,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		slog.Info("Resuming Cursor session", "sessionId", resumeSessionID)
 	}
 
-	watcher, err := WatchCursorProject(projectPath, debugRaw, sessionCallback)
+	watcher, err := WatchCursorProject(spi.RunningAgentDir(projectPath), debugRaw, sessionCallback)
 	if err != nil {
 		return fmt.Errorf("failed to start Cursor watcher: %w", err)
 	}
