@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 const incrementalTestSessionID = "22222222-2222-2222-2222-222222222222"
@@ -630,5 +632,84 @@ func TestIncrementalSessionReader_AssistantFirstOutOfOrderDoesNotDuplicateLeadin
 	if !reflect.DeepEqual(result.agentSession.SessionData.Exchanges, fullAgent.SessionData.Exchanges) {
 		t.Errorf("assistant-first exchanges differ from full rebuild: got %d exchanges, want %d",
 			len(result.agentSession.SessionData.Exchanges), len(fullAgent.SessionData.Exchanges))
+	}
+}
+
+// The writer reuses its markdown prefix when AppendOnly is true. An out-of-order
+// merge that is held back by an open shell call must keep the next ordered
+// append from claiming the prefix is still valid.
+func TestScan_FullRenderRequirementSurvivesShellGateDeferral(t *testing.T) {
+	text := func(s string) []interface{} {
+		return []interface{}{map[string]interface{}{"type": "text", "text": s}}
+	}
+	root := incrementalTestLine(t, incrementalTestRecord("user", "root", 0, nil, "first"))
+	reply := incrementalTestLine(t, incrementalTestRecord("assistant", "reply", 1, "root", text("answer")))
+	prompt := incrementalTestLine(t, incrementalTestRecord("user", "prompt", 4, "reply", "second"))
+	reply2 := incrementalTestLine(t, incrementalTestRecord("assistant", "reply2", 5, "prompt", text("answer two")))
+	middle := incrementalTestLine(t, incrementalTestRecord("assistant", "middle", 2, "reply", text("late earlier answer")))
+	bash := incrementalTestLine(t, incrementalTestRecord("assistant", "bash", 6, "reply2", []interface{}{
+		map[string]interface{}{"type": "tool_use", "id": "toolu_1", "name": "Bash", "input": map[string]interface{}{"command": "ls"}},
+	}))
+	result := incrementalTestLine(t, incrementalTestRecord("user", "result", 7, "bash", []interface{}{
+		map[string]interface{}{"type": "tool_result", "tool_use_id": "toolu_1", "content": "ok"},
+	}))
+
+	sessionReader.reset()
+	t.Cleanup(func() {
+		ClearWatcherCallback()
+		sessionReader.reset()
+		clear(deferredScans)
+	})
+	var delivered []bool
+	SetWatcherCallback(func(s *spi.AgentChatSession) { delivered = append(delivered, s.AppendOnly) })
+
+	dir, path := incrementalTestFile(t, root+reply+prompt+reply2)
+	scanJSONLFiles(dir, path)
+	appendIncrementalTestData(t, path, middle+bash)
+	scanJSONLFiles(dir, path)
+	if len(delivered) != 1 {
+		t.Fatalf("saves after deferred Bash call = %d, want 1", len(delivered))
+	}
+	appendIncrementalTestData(t, path, result)
+	scanJSONLFiles(dir, path)
+	if len(delivered) != 2 {
+		t.Fatalf("saves after tool result = %d, want 2", len(delivered))
+	}
+	if delivered[1] {
+		t.Error("save after a deferred out-of-order merge claimed AppendOnly, so the writer would reuse a stale prefix")
+	}
+
+	// Once delivered, the next ordered append is append-only again.
+	appendIncrementalTestData(t, path, incrementalTestLine(t, incrementalTestRecord("assistant", "tail", 8, "result", text("done"))))
+	scanJSONLFiles(dir, path)
+	if len(delivered) != 3 || !delivered[2] {
+		t.Errorf("deliveries = %v, want the third to be append-only", delivered)
+	}
+}
+
+func TestIncrementalSessionReader_EvictsIdleSessionsAndResets(t *testing.T) {
+	root := incrementalTestLine(t, incrementalTestRecord("user", "root", 0, nil, "first"))
+	dir, path := incrementalTestFile(t, root)
+	reader := newIncrementalSessionReader()
+	if _, err := reader.read(dir, path, incrementalTestSessionID, false); err != nil {
+		t.Fatalf("initial read: %v", err)
+	}
+	if len(reader.sessions) != 1 {
+		t.Fatalf("cached sessions = %d, want 1", len(reader.sessions))
+	}
+	reader.evictIdle(time.Now().Add(incrementalSessionIdleLimit/2), incrementalSessionIdleLimit)
+	if len(reader.sessions) != 1 {
+		t.Fatal("recently used session was evicted")
+	}
+	reader.evictIdle(time.Now().Add(incrementalSessionIdleLimit+time.Minute), incrementalSessionIdleLimit)
+	if len(reader.sessions) != 0 {
+		t.Fatal("idle session was not evicted")
+	}
+	if _, err := reader.read(dir, path, incrementalTestSessionID, false); err != nil {
+		t.Fatalf("read after eviction: %v", err)
+	}
+	reader.reset()
+	if len(reader.sessions) != 0 {
+		t.Fatal("reset left cached sessions")
 	}
 }

@@ -103,6 +103,7 @@ func StopWatcher() {
 	// No event or deadline scans can add work now. Save synchronously before
 	// the caller clears the callback and closes its persistence dependencies.
 	flushDeferredScans()
+	sessionReader.reset()
 	slog.Info("StopWatcher: Watcher stopped")
 }
 
@@ -351,6 +352,7 @@ func startProjectWatcher(claudeProjectDir string) error {
 				reconcile(true)
 				flushDirtyScans()
 				flushExpiredDeferredScans(time.Now())
+				sessionReader.evictIdle(time.Now(), incrementalSessionIdleLimit)
 
 			case err, ok := <-watcher.Errors:
 				if !ok {
@@ -436,7 +438,7 @@ func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force
 		return
 	}
 
-	deliver := func(session Session, agentSession *spi.AgentChatSession, converted bool, shellGateIDs func() []string) {
+	deliver := func(session Session, agentSession *spi.AgentChatSession, converted bool, shellGateIDs func() []string) bool {
 		// Shell gate: while a Bash call is open, saving would land inside
 		// Claude Code's before/after diff of that command and surface our
 		// files as its edits. Wait for the tool_result event instead.
@@ -450,7 +452,7 @@ func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force
 			}
 			if len(open) > 0 {
 				deferScan(pendingSession, targetFile, open)
-				return
+				return false
 			}
 		}
 		if targetFile != "" {
@@ -463,10 +465,11 @@ func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force
 			agentSession = convertToAgentChatSession(session, "", getWatcherDebugRaw())
 		}
 		if agentSession == nil {
-			return
+			return false
 		}
 		slog.Info("ScanJSONLFiles: Calling callback for session", "sessionId", agentSession.SessionID)
 		// Deliver synchronously so Stop joins every save in order.
+		delivered := false
 		func(s *spi.AgentChatSession) {
 			defer func() {
 				if r := recover(); r != nil {
@@ -474,7 +477,9 @@ func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force
 				}
 			}()
 			callback(s)
+			delivered = true
 		}(agentSession)
+		return delivered
 	}
 
 	if targetSessionUuid != "" && !getWatcherDebugRaw() && !GetJsonlBurst() {
@@ -492,9 +497,12 @@ func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force
 			"sessionId", targetSessionUuid,
 			"incremental", result.incremental)
 		if result.agentSession != nil {
-			result.agentSession.AppendOnly = result.appendOnly
+			// AppendOnly describes the last delivered save, not just this read.
+			result.agentSession.AppendOnly = !sessionReader.requiresFullRender(claudeProjectDir, targetSessionUuid, result.appendOnly)
 		}
-		deliver(result.session, result.agentSession, true, result.openShellToolUses)
+		if deliver(result.session, result.agentSession, true, result.openShellToolUses) {
+			sessionReader.delivered(claudeProjectDir, targetSessionUuid)
+		}
 		slog.Info("ScanJSONLFiles: Processing complete")
 		return
 	}

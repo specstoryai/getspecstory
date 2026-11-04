@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
@@ -74,8 +75,16 @@ type incrementalReadResult struct {
 	appendOnly   bool
 }
 
+// incrementalSessionIdleLimit is how long a cached session may go unread before
+// the watcher releases its records, normalized messages, and raw transcript.
+const incrementalSessionIdleLimit = 15 * time.Minute
+
 type incrementalSessionReader struct {
 	sessions map[string]*incrementalSessionState
+	// fullRender holds sessions whose markdown prefix may be stale: an
+	// out-of-order merge or full rebuild changed older exchanges and the result
+	// has not yet been delivered for saving. Deferred reads must not clear it.
+	fullRender map[string]bool
 }
 
 type toolOwner struct {
@@ -92,10 +101,46 @@ type incrementalSessionState struct {
 	shellGate    *shellGateState
 	rawData      strings.Builder
 	rawRecords   []string
+	lastUsed     time.Time
 }
 
 func newIncrementalSessionReader() *incrementalSessionReader {
-	return &incrementalSessionReader{sessions: make(map[string]*incrementalSessionState)}
+	return &incrementalSessionReader{
+		sessions:   make(map[string]*incrementalSessionState),
+		fullRender: make(map[string]bool),
+	}
+}
+
+// evictIdle drops cached sessions unread for longer than idle. The next read of
+// an evicted session is a full rebuild, the reference behavior.
+func (r *incrementalSessionReader) evictIdle(now time.Time, idle time.Duration) {
+	for key, state := range r.sessions {
+		if now.Sub(state.lastUsed) > idle {
+			delete(r.sessions, key)
+			delete(r.fullRender, key)
+		}
+	}
+}
+
+// reset releases every cached session. The watcher calls it when it stops.
+func (r *incrementalSessionReader) reset() {
+	clear(r.sessions)
+	clear(r.fullRender)
+}
+
+// requiresFullRender folds one read into the sticky full-render requirement and
+// reports whether the markdown writer must render in full.
+func (r *incrementalSessionReader) requiresFullRender(projectDir, sessionID string, appendOnly bool) bool {
+	key := incrementalSessionKey(projectDir, sessionID)
+	if !appendOnly {
+		r.fullRender[key] = true
+	}
+	return r.fullRender[key]
+}
+
+// delivered clears the requirement once the session has been handed to the save callback.
+func (r *incrementalSessionReader) delivered(projectDir, sessionID string) {
+	delete(r.fullRender, incrementalSessionKey(projectDir, sessionID))
 }
 
 func incrementalSessionKey(projectDir, sessionID string) string {
@@ -110,6 +155,7 @@ func (r *incrementalSessionReader) read(projectDir, changedFile, sessionID strin
 		if state, ok := r.sessions[key]; ok {
 			changed, appendOnly, err := state.applyAppend(changedFile)
 			if err == nil {
+				state.lastUsed = time.Now()
 				return incrementalReadResult{
 					session:      state.session,
 					agentSession: state.agentSession,
@@ -150,6 +196,7 @@ func (r *incrementalSessionReader) read(projectDir, changedFile, sessionID strin
 	if !debugRaw && !GetJsonlBurst() {
 		if state := newIncrementalSessionState(*parsedSession, result.agentSession, parser.fileStates); state != nil {
 			state.shellGate = result.shellGate
+			state.lastUsed = time.Now()
 			r.sessions[key] = state
 		}
 	}
