@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -172,19 +173,37 @@ func TestSweepSessionChanges(t *testing.T) {
 	})
 
 	changes := sessionChangesInWindow(root, now)
-	sweepSessionChanges(changes)
+	sweepSessionChanges(changes, now)
 	if delivered != 0 {
 		t.Fatalf("delivered %d with no activity, want 0", delivered)
 	}
 
-	writeSession(t, root, today, basicSessionID, "session-basic.jsonl", project)
-	sweepSessionChanges(changes)
+	path := writeSession(t, root, today, basicSessionID, "session-basic.jsonl", project)
+
+	// A transcript that cannot be read yet stays eligible for the sweep, with
+	// its size and modification time unchanged: the failed attempt must not
+	// count as processed. Windows has no equivalent of removing read permission.
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(path, 0); err != nil {
+			t.Fatal(err)
+		}
+		if file, err := os.Open(path); err == nil {
+			_ = file.Close()
+			t.Log("running with permission to read anything: skipping the failed read")
+		}
+		processSessionChange(path)
+		if err := os.Chmod(path, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	sweepSessionChanges(changes, now)
 	if delivered != 1 {
 		t.Fatalf("delivered %d for a write the watcher missed, want 1", delivered)
 	}
 
 	// The same state again stands in for a session the live path already saved.
-	sweepSessionChanges(changes)
+	sweepSessionChanges(changes, now)
 	if delivered != 1 {
 		t.Errorf("delivered %d after a repeat sweep, want the session republished 0 more times", delivered)
 	}
@@ -192,9 +211,22 @@ func TestSweepSessionChanges(t *testing.T) {
 	// History outside the window is sync's job, and is not read here.
 	old := now.AddDate(0, 0, -(spi.WatchWindowDays + 2)).Format("2006/01/02")
 	writeSession(t, root, old, basicSessionID, "session-basic.jsonl", project)
-	sweepSessionChanges(changes)
+	sweepSessionChanges(changes, now)
 	if delivered != 1 {
 		t.Errorf("delivered %d after a write outside the window, want 1", delivered)
+	}
+
+	// A long `watch` outlives several midnights, so days past the startup window
+	// are still swept, without a baseline to compare against.
+	later := now.AddDate(0, 0, 3)
+	writeSession(t, root, later.Format("2006/01/02"), basicSessionID, "session-basic.jsonl", project)
+	sweepSessionChanges(changes, later)
+	if delivered != 2 {
+		t.Errorf("delivered %d after a write three days on, want 2", delivered)
+	}
+	sweepSessionChanges(changes, later)
+	if delivered != 2 {
+		t.Errorf("delivered %d after a repeat sweep three days on, want 2", delivered)
 	}
 }
 

@@ -3,6 +3,7 @@ package musecode
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -28,7 +29,7 @@ var (
 	// watcherFinalChanges reports what changed on disk since the watcher started.
 	// watcherProcessed holds each transcript as it last was when processed, so
 	// the sweep at stop does not republish a session the live path delivered.
-	watcherFinalChanges func() []string
+	watcherFinalChanges func(now time.Time) []string
 	watcherProcessed    = make(map[string]os.FileInfo)
 )
 
@@ -108,18 +109,18 @@ func StopWatcher() {
 	slog.Info("StopWatcher: Signaling Muse watcher to stop")
 	cancel()
 	watcherWg.Wait()
-	sweepSessionChanges(finalChanges)
+	sweepSessionChanges(finalChanges, time.Now())
 	slog.Info("StopWatcher: Muse watcher stopped")
 }
 
 // sweepSessionChanges processes transcripts that changed since the watcher
 // started and were not processed in that state, so stopping alone delivers
 // nothing.
-func sweepSessionChanges(finalChanges func() []string) {
+func sweepSessionChanges(finalChanges func(now time.Time) []string, now time.Time) {
 	if finalChanges == nil {
 		return
 	}
-	for _, path := range finalChanges() {
+	for _, path := range finalChanges(now) {
 		watcherMutex.RLock()
 		processed := watcherProcessed[path]
 		watcherMutex.RUnlock()
@@ -134,16 +135,29 @@ func sweepSessionChanges(finalChanges func() []string) {
 // sessionChangesInWindow records the transcripts in the trailing window and
 // returns a function reporting which changed since. Muse's store is global and
 // keeps every session it has ever run, so only the days a watch could cover are
-// read. Tomorrow is included for a session that runs past midnight.
-func sessionChangesInWindow(sessionsRoot string, now time.Time) func() []string {
+// read. Tomorrow is included for a session that runs past midnight. Later days
+// cannot have a baseline, and a `watch` can outlive several midnights: whatever
+// is in them was written after startup, so all of it counts as changed.
+func sessionChangesInWindow(sessionsRoot string, start time.Time) func(now time.Time) []string {
 	var sweeps []func() []string
 	for offset := -1; offset <= spi.WatchWindowDays; offset++ {
-		sweeps = append(sweeps, spi.SessionFileChanges(dayDirectory(sessionsRoot, now.AddDate(0, 0, -offset)), "*/"+sessionFileName))
+		sweeps = append(sweeps, spi.SessionFileChanges(dayDirectory(sessionsRoot, start.AddDate(0, 0, -offset)), "*/"+sessionFileName))
 	}
-	return func() []string {
+	return func(now time.Time) []string {
 		var changed []string
 		for _, sweep := range sweeps {
 			changed = append(changed, sweep()...)
+		}
+		for offset := 2; !start.AddDate(0, 0, offset).After(now.AddDate(0, 0, 1)); offset++ {
+			dayDir := dayDirectory(sessionsRoot, start.AddDate(0, 0, offset))
+			paths, err := fs.Glob(os.DirFS(dayDir), "*/"+sessionFileName)
+			if err != nil {
+				slog.Error("sessionChangesInWindow: Invalid session file pattern", "error", err)
+				continue
+			}
+			for _, path := range paths {
+				changed = append(changed, filepath.Join(dayDir, filepath.FromSlash(path)))
+			}
 		}
 		return changed
 	}
@@ -470,17 +484,20 @@ func (s *watchSet) storeDepth(dir string) int {
 func processSessionChange(filePath string) {
 	slog.Debug("processSessionChange: Detected Muse session file change", "file", filePath)
 
-	// Before parsing, so a write that lands during the parse still looks new.
-	if info, err := os.Stat(filePath); err == nil {
-		watcherMutex.Lock()
-		watcherProcessed[filePath] = info
-		watcherMutex.Unlock()
-	}
+	// Read before parsing, so a write that lands during the parse still looks
+	// new, but kept only once the parse succeeds, so the sweep can retry a
+	// transcript that could not be read.
+	info, statErr := os.Stat(filePath)
 
 	session, err := ParseSessionFile(filePath)
 	if err != nil {
 		slog.Error("processSessionChange: Failed to parse session file", "file", filePath, "error", err)
 		return
+	}
+	if statErr == nil {
+		watcherMutex.Lock()
+		watcherProcessed[filePath] = info
+		watcherMutex.Unlock()
 	}
 	if len(session.Events) == 0 {
 		slog.Debug("processSessionChange: Session file has no conversation events yet", "file", filePath)
