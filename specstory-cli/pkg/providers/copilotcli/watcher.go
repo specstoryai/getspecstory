@@ -345,7 +345,7 @@ func (w *sessionWatcher) check(trigger string) {
 			w.known[file.Path] = stamp
 			continue
 		}
-		session, err := convertSession(file, header, w.debugRaw, true)
+		session, err := convertSession(file, header, w.projectRoot, w.debugRaw, true)
 		if err != nil {
 			slog.Warn("Copilot CLI watcher: Failed to read session", "sessionId", file.SessionID, "error", err)
 			continue

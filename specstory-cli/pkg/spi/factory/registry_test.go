@@ -189,6 +189,67 @@ func TestTerminalAgentRunsInProjectDirectory(t *testing.T) {
 	}
 }
 
+// With a non-local --project-path the agent stays in the launch directory and
+// records that as its project, so the session must be followed there.
+func TestRunSavesSessionWhenProjectPathIsNotLocal(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		provider spi.Provider
+	}{
+		{"claude", claudecode.NewProvider()},
+		{"copilot", copilotcli.NewProvider()},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			testutil.SetHome(t, t.TempDir())
+			launchDir := spi.CanonicalizePathOrClean(t.TempDir())
+			t.Chdir(launchDir)
+			exe, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			native, err := tt.provider.ReconstructSession(&schema.SessionData{
+				SchemaVersion: schema.CurrentSchemaVersion,
+				SessionID:     "source-session",
+				WorkspaceRoot: launchDir,
+				Exchanges: []schema.Exchange{{Messages: []schema.Message{
+					{Role: schema.RoleUser, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "work in the launch directory"}}},
+				}}},
+			}, spi.ReconstructOptions{WorkspaceRoot: launchDir})
+			if err != nil {
+				t.Fatal(err)
+			}
+			destination, err := tt.provider.NativeSessionPath(launchDir, native.Filename)
+			if err != nil {
+				t.Fatal(err)
+			}
+			staged := filepath.Join(t.TempDir(), "staged-session")
+			if err := os.WriteFile(staged, native.Content, 0600); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("SPECSTORY_EXIT_TEST_SOURCE", staged)
+			t.Setenv("SPECSTORY_EXIT_TEST_DESTINATION", destination)
+			t.Setenv("SPECSTORY_EXIT_TEST_CODE", "0")
+
+			var mu sync.Mutex
+			saved := make(map[string]bool)
+			command := fmt.Sprintf("%q -test.run=^TestAgentExitChild$", exe)
+			err = tt.provider.ExecAgentAndWatch("/no/such/remote/project", command, "", false, func(session *spi.AgentChatSession) {
+				mu.Lock()
+				defer mu.Unlock()
+				saved[session.SessionID] = true
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if !saved[native.SessionID] {
+				t.Errorf("session was not saved; delivered: %v", saved)
+			}
+		})
+	}
+}
+
 // A remote workspace's root must not gain the current drive on its way to the
 // launcher, or the agent starts in whatever local directory that names.
 func TestDrivelessRemoteRootKeepsAgentInLaunchDirectoryOnWindows(t *testing.T) {

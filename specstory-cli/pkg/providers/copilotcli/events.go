@@ -43,6 +43,15 @@ const (
 	// argument, so the files it wrote are read from the patch's headers.
 	applyPatchTool = "apply_patch"
 
+	// editTool and createTool carry everything needed to show the change in
+	// their arguments, as observed in sessions written by version 1.0.95.
+	editTool   = "edit"
+	createTool = "create"
+
+	// powerShellTool is the tool that replaces bash on Windows, so its command
+	// is fenced as PowerShell.
+	powerShellTool = "powershell"
+
 	// exitCodeKey holds a shell command's non-zero exit code in a tool's
 	// output, beside its result text.
 	exitCodeKey = "exit_code"
@@ -527,8 +536,12 @@ func slugFromPrompt(prompt string) string {
 
 // convertSession reads a whole transcript into an AgentChatSession, or returns
 // nil when the session has no input yet.
-func convertSession(file sessionFile, header *sessionHeader, debugRaw, live bool) (*spi.AgentChatSession, error) {
-	builder := newTranscriptBuilder(header.Cwd)
+//
+// fallbackRoot is the caller's project path, used as the workspace root for a
+// session that recorded no working directory.
+func convertSession(file sessionFile, header *sessionHeader, fallbackRoot string, debugRaw, live bool) (*spi.AgentChatSession, error) {
+	workspaceRoot := resolveWorkspaceRoot(header.Cwd, fallbackRoot)
+	builder := newTranscriptBuilder(workspaceRoot)
 	var rawData strings.Builder
 	var debugRecords []json.RawMessage
 	unknownKinds := map[string]bool{}
@@ -579,7 +592,7 @@ func convertSession(file sessionFile, header *sessionHeader, debugRaw, live bool
 		CreatedAt:     createdAt,
 		UpdatedAt:     builder.lastTimestamp,
 		Slug:          slugFromPrompt(builder.name),
-		WorkspaceRoot: header.Cwd,
+		WorkspaceRoot: workspaceRoot,
 		Exchanges:     builder.finish(),
 	}
 
@@ -597,6 +610,25 @@ func convertSession(file sessionFile, header *sessionHeader, debugRaw, live bool
 		SessionData: sessionData,
 		RawData:     rawData.String(),
 	}, nil
+}
+
+// resolveWorkspaceRoot picks the root paths are normalized against: the recorded
+// directory, then the caller's project path, then the process working directory
+// as a last resort, because session data must never have an empty root. The
+// fallbacks only serve rendering. They say nothing about which project owns the
+// session, which is why ownership and OriginCwd read the recorded value alone.
+func resolveWorkspaceRoot(recorded, fallbackRoot string) string {
+	if recorded != "" {
+		return recorded
+	}
+	if fallbackRoot != "" {
+		return fallbackRoot
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		slog.Warn("Copilot CLI session has no workspace root", "error", err)
+	}
+	return cwd
 }
 
 // transcriptBuilder folds transcript events into exchanges: each input (a user
@@ -725,7 +757,7 @@ func (b *transcriptBuilder) addUserToolRequest(event rawEvent, data userToolRequ
 		slog.Debug("Not rendering a user-started Copilot CLI tool", "toolName", data.ToolName)
 		return false
 	}
-	b.openUserExchange(event, "User ran a shell command:\n\n"+spi.CodeFence("bash", command))
+	b.openUserExchange(event, "User ran a shell command:\n\n"+spi.CodeFence(shellFenceLanguage(data.ToolName), command))
 	if data.ToolCallID != "" {
 		b.userShells[data.ToolCallID] = &userShell{exchange: b.current}
 	}
@@ -985,19 +1017,12 @@ func newPendingTool(request toolRequest, arguments map[string]any) *pendingTool 
 	return pending
 }
 
-// render pre-renders the tool body: Copilot's one-line intent as prose, then a
-// shell command in a bash fence or the arguments as an Input list, then the
-// capped, fenced result. A failed call's error text is its result.
+// render pre-renders the tool body: Copilot's one-line intent as prose, then the
+// call and its capped, fenced result. A failed call's error text is its result.
 func (p *pendingTool) render() {
-	result, _ := p.tool.Output["result"].(string)
-	var formatted string
-	if command := spi.StringValue(p.tool.Input, "command"); p.tool.Type == schema.ToolTypeShell && command != "" {
-		formatted = spi.RenderShellCall(p.intent, command, result)
-	} else {
-		formatted = spi.RenderToolInputList(p.tool.Input) + spi.RenderToolResult(result)
-		if p.intent != "" {
-			formatted = "\n" + p.intent + "\n" + formatted
-		}
+	formatted := renderToolCall(p.tool) + renderToolOutput(p.tool)
+	if p.intent != "" {
+		formatted = "\n" + p.intent + "\n" + formatted
 	}
 	// Shown outside the capped result: Copilot writes the exit status as the
 	// output's last line, which the cap cuts off on a long output.
@@ -1008,6 +1033,68 @@ func (p *pendingTool) render() {
 	if formatted != "" {
 		p.tool.FormattedMarkdown = &formatted
 	}
+}
+
+// renderToolCall renders what a call asked for: a shell command in a fence, a
+// file change as a path and its content, and anything else as an Input list.
+func renderToolCall(tool *schema.ToolInfo) string {
+	if command := spi.StringValue(tool.Input, "command"); tool.Type == schema.ToolTypeShell && command != "" {
+		return "\n" + spi.CodeFence(shellFenceLanguage(tool.Name), command) + "\n"
+	}
+	if call := renderFileChange(tool); call != "" {
+		return call
+	}
+	return spi.RenderToolInputList(tool.Input)
+}
+
+// renderFileChange renders an edit as a diff and a created file in a fence
+// tagged by its extension, or returns "" for any other tool. A call missing what
+// that takes returns "" too, so it degrades to the Input list rather than losing
+// arguments, and any argument not shown here stays listed after the change.
+func renderFileChange(tool *schema.ToolInfo) string {
+	path := spi.StringValue(tool.Input, "path")
+	var body string
+	var shown []string
+	switch tool.Name {
+	case editTool:
+		oldText := spi.StringValue(tool.Input, "old_str")
+		newText := spi.StringValue(tool.Input, "new_str")
+		if oldText != "" || newText != "" {
+			body = spi.FormatDiffBlock(oldText, newText)
+		}
+		shown = []string{"path", "old_str", "new_str"}
+	case createTool:
+		if text := strings.TrimRight(spi.StringValue(tool.Input, "file_text"), "\n"); text != "" {
+			body = spi.CodeFence(spi.LanguageFromPath(path), text)
+		}
+		shown = []string{"path", "file_text"}
+	}
+	if path == "" || body == "" {
+		return ""
+	}
+	return "\nPath: " + spi.InlineCode(path) + "\n\n" + body + "\n" + spi.RenderToolInputList(spi.WithoutKeys(tool.Input, shown...))
+}
+
+// renderToolOutput renders a call's result. Shell output is terminal text, so it
+// goes in a text fence with its control bytes removed.
+func renderToolOutput(tool *schema.ToolInfo) string {
+	result, _ := tool.Output["result"].(string)
+	if tool.Type != schema.ToolTypeShell {
+		return spi.RenderToolResult(result)
+	}
+	output := strings.TrimRight(spi.SanitizeShellOutput(result), " \t\n")
+	if output == "" {
+		return ""
+	}
+	return "\n**Result:**\n\n" + spi.CodeFence("text", spi.CapRunes(output, spi.ToolResultCap)) + "\n"
+}
+
+// shellFenceLanguage labels a command's fence with the shell that ran it.
+func shellFenceLanguage(toolName string) string {
+	if toolName == powerShellTool {
+		return "powershell"
+	}
+	return "bash"
 }
 
 // decodeArguments returns tool arguments as a map. A non-object payload (the

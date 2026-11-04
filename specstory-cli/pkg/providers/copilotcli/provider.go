@@ -223,7 +223,7 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 	}
 	result := make([]spi.AgentChatSession, 0, len(sessions))
 	for i, session := range sessions {
-		chat, err := convertSession(session.File, session.Header, debugRaw, false)
+		chat, err := convertSession(session.File, session.Header, projectPath, debugRaw, false)
 		if err != nil {
 			slog.Warn("GetAgentChatSessions: Failed to read Copilot CLI session, skipping",
 				"sessionId", session.File.SessionID, "error", err)
@@ -266,11 +266,12 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 			"sessionId", sessionID, "cwd", header.Cwd, "projectPath", root)
 		return nil, nil
 	}
-	return convertSession(file, header, debugRaw, false)
+	return convertSession(file, header, root, debugRaw, false)
 }
 
 // GetAgentChatSessionByPath reads a session straight from its transcript path,
-// as recorded by reindex. originCwd is unused: the transcript records its own.
+// as recorded by reindex. The transcript records its own working directory;
+// originCwd is the workspace root for one that does not.
 func (p *Provider) GetAgentChatSessionByPath(nativePath string, originCwd string, debugRaw bool) (*spi.AgentChatSession, error) {
 	file, ok := statSessionFile(nativePath)
 	if !ok {
@@ -280,7 +281,7 @@ func (p *Provider) GetAgentChatSessionByPath(nativePath string, originCwd string
 	if err != nil {
 		return nil, err
 	}
-	return convertSession(file, header, debugRaw, false)
+	return convertSession(file, header, originCwd, debugRaw, false)
 }
 
 // statSessionFile describes the transcript at path, or reports false when it is
@@ -371,7 +372,10 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	slog.Info("ExecAgentAndWatch: Starting Copilot CLI",
 		"projectPath", projectPath, "resumeSessionId", resumeSessionID, "debugRaw", debugRaw)
 
-	root, err := canonicalProjectPath(projectPath)
+	// Watch where Copilot runs: it records that directory as the session's cwd,
+	// which for a non-local --project-path is the launch directory ("" resolves
+	// to it).
+	root, err := canonicalProjectPath(spi.AgentWorkingDir(projectPath, ""))
 	if err != nil {
 		return err
 	}
@@ -385,8 +389,6 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		}
 	}
 
-	// The caller's path, not root: root has a current drive stapled onto a
-	// remote path, which could name an unrelated local directory.
 	execErr := ExecuteCopilot(projectPath, customCommand, resumeSessionID)
 
 	if watcher != nil {

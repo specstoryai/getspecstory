@@ -380,12 +380,15 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	// Start watching for project directory in the background
 	slog.Info("Initializing project directory monitoring...")
 
-	if err := WatchForProjectDir(); err != nil {
+	// Claude writes sessions under the directory it runs in, which for a
+	// non-local --project-path is the launch directory ("" resolves to it).
+	agentDir := spi.AgentWorkingDir(projectPath, "")
+	if err := WatchForProjectDir(agentDir); err != nil {
 		// Log the error but don't fail - watcher might work later
 		slog.Error("Failed to start project directory watcher", "error", err)
 	}
 
-	projectDir, _ := resolveClaudeProjectDir(projectPath)
+	projectDir, _ := resolveClaudeProjectDir(agentDir)
 	finalChanges := spi.SessionFileChanges(projectDir, "*.jsonl")
 
 	// Execute Claude Code - this blocks until Claude exits

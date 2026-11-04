@@ -275,22 +275,6 @@ func TestRenderToolResult(t *testing.T) {
 	})
 }
 
-func TestRenderShellCall(t *testing.T) {
-	tests := []struct {
-		name, explanation, command, result, want string
-	}{
-		{"command only", "", "ls", "", "\n```bash\nls\n```\n"},
-		{"explanation, command and result", "List files", "ls -a", "a.go\n", "\nList files\n\n```bash\nls -a\n```\n\n**Result:**\n\n```\na.go\n```\n"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := RenderShellCall(tt.explanation, tt.command, tt.result); got != tt.want {
-				t.Errorf("RenderShellCall() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestFormatInputSchema(t *testing.T) {
 	tests := []struct {
 		name   string

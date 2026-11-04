@@ -505,16 +505,21 @@ func formatCustomToolMarkdown(tool *schema.ToolInfo) string {
 	return ""
 }
 
-// formatTerminalMarkdown renders a terminal command with its explanation and
-// result through the shared shell layout.
+// formatTerminalMarkdown renders a terminal command the way it reads in a
+// shell session: the explanation as prose, the command in a bash fence
+// (uncapped — it is what the agent chose to run), then the fenced result.
 func formatTerminalMarkdown(tool *schema.ToolInfo) string {
 	command, _ := tool.Input["command"].(string)
 	if command == "" {
 		return ""
 	}
-	explanation, _ := tool.Input["explanation"].(string)
-	result, _ := tool.Output["result"].(string)
-	return spi.RenderShellCall(explanation, command, result)
+	var b strings.Builder
+	if explanation, _ := tool.Input["explanation"].(string); explanation != "" {
+		fmt.Fprintf(&b, "\n%s\n", explanation)
+	}
+	fmt.Fprintf(&b, "\n%s\n", spi.CodeFence("bash", command))
+	b.WriteString(resultSection(tool))
+	return b.String()
 }
 
 // formatTodoListMarkdown renders a todo-list write as a markdown checklist.

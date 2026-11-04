@@ -342,7 +342,7 @@ func TestToolMarkdown(t *testing.T) {
 			name:     "shell call: intent, bash fence, capped result",
 			request:  `{"toolCallId":"c1","name":"bash","intentionSummary":"List  files","arguments":{"command":"ls -a","description":"List files"}}`,
 			result:   `{"toolCallId":"c1","success":true,"result":{"content":"a.go\nb.go\n\n\n"}}`,
-			wantBody: "\nList files\n\n```bash\nls -a\n```\n\n**Result:**\n\n```\na.go\nb.go\n```\n",
+			wantBody: "\nList files\n\n```bash\nls -a\n```\n\n**Result:**\n\n```text\na.go\nb.go\n```\n",
 		},
 		{
 			name:     "other tool: intent line, sorted input list, result",
@@ -363,7 +363,61 @@ func TestToolMarkdown(t *testing.T) {
 			name:     "shell command exiting non-zero shows its output and exit code",
 			request:  `{"toolCallId":"c6","name":"bash","arguments":{"command":"ls /missing"}}`,
 			result:   `{"toolCallId":"c6","success":true,"result":{"content":"ls: /missing: No such file or directory\n<shellId: 0 completed with exit code 1>"},"shellExecution":{"exitCode":1}}`,
-			wantBody: "\n```bash\nls /missing\n```\n\n**Result:**\n\n```\nls: /missing: No such file or directory\n<shellId: 0 completed with exit code 1>\n```\n\nExit code: 1\n",
+			wantBody: "\n```bash\nls /missing\n```\n\n**Result:**\n\n```text\nls: /missing: No such file or directory\n<shellId: 0 completed with exit code 1>\n```\n\nExit code: 1\n",
+		},
+		{
+			name:     "shell output loses its terminal control bytes",
+			request:  `{"toolCallId":"c7","name":"bash","arguments":{"command":"make"}}`,
+			result:   `{"toolCallId":"c7","success":true,"result":{"content":"\u001b[32mok\u001b[0m\n"}}`,
+			wantBody: "\n```bash\nmake\n```\n\n**Result:**\n\n```text\nok\n```\n",
+		},
+		{
+			name:     "a shell tool with no command still shows its output as terminal text",
+			request:  `{"toolCallId":"c8","name":"read_bash","arguments":{"shellId":"0"}}`,
+			result:   `{"toolCallId":"c8","success":true,"result":{"content":"done"}}`,
+			wantBody: "\n**Input:**\n\n- shellId: `0`\n\n**Result:**\n\n```text\ndone\n```\n",
+		},
+		{
+			name:     "a powershell command is fenced as powershell",
+			request:  `{"toolCallId":"c9","name":"powershell","arguments":{"command":"Get-ChildItem"}}`,
+			wantBody: "\n```powershell\nGet-ChildItem\n```\n",
+		},
+		{
+			name:     "edit: path and diff, then its confirmation",
+			request:  `{"toolCallId":"c10","name":"edit","intentionSummary":"edit a.go","arguments":{"path":"/w/a.go","old_str":"one\ntwo","new_str":"one\n2"}}`,
+			result:   `{"toolCallId":"c10","success":true,"result":{"content":"File updated."}}`,
+			wantBody: "\nedit a.go\n\nPath: `/w/a.go`\n\n```diff\n-one\n-two\n+one\n+2\n```\n\n**Result:**\n\n```\nFile updated.\n```\n",
+		},
+		{
+			name:     "edit that deletes text has no added side",
+			request:  `{"toolCallId":"c11","name":"edit","arguments":{"path":"a.go","old_str":"gone","new_str":""}}`,
+			wantBody: "\nPath: `a.go`\n\n```diff\n-gone\n```\n",
+		},
+		{
+			name:     "failed edit keeps its diff and shows the error",
+			request:  `{"toolCallId":"c12","name":"edit","arguments":{"path":"a.go","old_str":"x","new_str":"y"}}`,
+			result:   `{"toolCallId":"c12","success":false,"error":{"message":"no match"}}`,
+			wantBody: "\nPath: `a.go`\n\n```diff\n-x\n+y\n```\n\n**Result:**\n\n```\nno match\n```\n",
+		},
+		{
+			name:     "create: path and a fence tagged by extension",
+			request:  `{"toolCallId":"c13","name":"create","arguments":{"path":"/w/main.go","file_text":"package main\n"}}`,
+			wantBody: "\nPath: `/w/main.go`\n\n```go\npackage main\n```\n",
+		},
+		{
+			name:     "create with an unknown extension is fenced untagged",
+			request:  `{"toolCallId":"c14","name":"create","arguments":{"path":"notes","file_text":"hello"}}`,
+			wantBody: "\nPath: `notes`\n\n```\nhello\n```\n",
+		},
+		{
+			name:     "an argument the renderer does not show stays listed",
+			request:  `{"toolCallId":"c15","name":"edit","arguments":{"path":"a.go","old_str":"x","new_str":"y","replace_all":true}}`,
+			wantBody: "\nPath: `a.go`\n\n```diff\n-x\n+y\n```\n\n**Input:**\n\n- replace_all: `true`\n",
+		},
+		{
+			name:     "a file tool without its content degrades to the Input list",
+			request:  `{"toolCallId":"c16","name":"create","arguments":{"path":"a.go"}}`,
+			wantBody: "\n**Input:**\n\n- path: `a.go`\n",
 		},
 		{
 			name:     "call with no result yet still renders its input",
@@ -844,6 +898,7 @@ func TestApplyPatchPathHints(t *testing.T) {
 // rather than being dropped as a result with no request.
 func TestUserShellCommand(t *testing.T) {
 	const label = "User ran a shell command:\n\n```bash\nmake test\n```"
+	const powerShellLabel = "User ran a shell command:\n\n```powershell\nmake test\n```"
 	tests := []struct {
 		name      string
 		toolName  string
@@ -863,7 +918,7 @@ func TestUserShellCommand(t *testing.T) {
 			toolName:  "powershell",
 			arguments: `{"command":"make test"}`,
 			result:    `{"toolCallId":"c1","success":true,"result":{"content":"boom"},"shellExecution":{"exitCode":2}}`,
-			wantLines: []string{"1:user:text=" + label + ",text=Output:\n\n```text\nboom\n```\n\nExit code: 2"},
+			wantLines: []string{"1:user:text=" + powerShellLabel + ",text=Output:\n\n```text\nboom\n```\n\nExit code: 2"},
 		},
 		{
 			name:      "a failed call shows its error",
@@ -1021,10 +1076,79 @@ func TestPowerShellCallIsAShellCall(t *testing.T) {
 	if message.Tool.Type != schema.ToolTypeShell {
 		t.Errorf("type = %q, want shell", message.Tool.Type)
 	}
-	if !strings.Contains(*message.Tool.FormattedMarkdown, "```bash\necho hi > /w/out.txt\n```") {
+	if !strings.Contains(*message.Tool.FormattedMarkdown, "```powershell\necho hi > /w/out.txt\n```") {
 		t.Errorf("command not fenced: %q", *message.Tool.FormattedMarkdown)
 	}
 	if want := []string{"out.txt"}; !slices.Equal(message.PathHints, want) {
 		t.Errorf("PathHints = %v, want %v", message.PathHints, want)
+	}
+}
+
+// A session with no recorded directory still needs a root to normalize paths
+// against, but the fallback must not read as the session's own origin.
+func TestWorkspaceRootFallback(t *testing.T) {
+	launchDir := newProjectDir(t, "launch")
+	start := func(t *testing.T, cwd string) string {
+		data := map[string]any{"sessionId": "s1", "startTime": "2026-10-09T07:35:38.043Z"}
+		if cwd != "" {
+			data["context"] = map[string]any{"cwd": cwd}
+		}
+		return record(t, eventSessionStart, "start", data)
+	}
+	tests := []struct {
+		name      string
+		recorded  string
+		originCwd string
+		wantRoot  string
+		editPath  string
+		wantHints []string
+	}{
+		{"the recorded directory wins", "/recorded", "/caller", "/recorded", "/recorded/a.go", []string{"a.go"}},
+		{"no record uses the caller's path", "", "/caller", "/caller", "/caller/a.go", []string{"a.go"}},
+		{"no record or caller uses the process directory", "", "", launchDir, "a.go", []string{"a.go"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := useSessionStore(t)
+			t.Chdir(launchDir)
+			path := writeSession(t, home, "s1",
+				start(t, tt.recorded),
+				record(t, eventUserMessage, "u1", map[string]any{"content": "go"}),
+				record(t, eventAssistantMsg, "a1", map[string]any{"toolRequests": []any{map[string]any{
+					"toolCallId": "c1", "name": "edit", "arguments": map[string]any{"path": tt.editPath, "old_str": "x", "new_str": "y"},
+				}}}),
+			)
+			session, err := NewProvider().GetAgentChatSessionByPath(path, tt.originCwd, false)
+			if err != nil || session == nil {
+				t.Fatalf("GetAgentChatSessionByPath = %v, %v", session, err)
+			}
+			if session.SessionData.WorkspaceRoot != tt.wantRoot {
+				t.Errorf("WorkspaceRoot = %q, want %q", session.SessionData.WorkspaceRoot, tt.wantRoot)
+			}
+			if !session.SessionData.Validate() {
+				t.Error("session data fails schema validation")
+			}
+			if hints := session.SessionData.Exchanges[0].Messages[1].PathHints; !slices.Equal(hints, tt.wantHints) {
+				t.Errorf("PathHints = %v, want %v normalized against the root", hints, tt.wantHints)
+			}
+		})
+	}
+}
+
+// The fallback root must stay out of enumeration: reindex attributes a session
+// by OriginCwd, and a guessed origin would file it under the wrong project.
+func TestSessionWithoutADirectoryHasNoOrigin(t *testing.T) {
+	home := useSessionStore(t)
+	t.Chdir(newProjectDir(t, "launch"))
+	writeSession(t, home, "s1",
+		record(t, eventSessionStart, "start", map[string]any{"sessionId": "s1"}),
+		record(t, eventUserMessage, "u1", map[string]any{"content": "go"}),
+	)
+	refs, err := NewProvider().ListAllAgentChatSessions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].OriginCwd != "" {
+		t.Errorf("refs = %+v, want one session with no OriginCwd", refs)
 	}
 }

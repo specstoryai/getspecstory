@@ -227,19 +227,6 @@ func RenderToolResult(result string) string {
 	return fmt.Sprintf("\n**Result:**\n\n%s\n", CodeFence("", capped))
 }
 
-// RenderShellCall renders a shell command the way it reads in a terminal
-// session: the explanation as prose, the command in a bash fence (uncapped —
-// it is what the agent chose to run), then the fenced, capped result.
-func RenderShellCall(explanation, command, result string) string {
-	var b strings.Builder
-	if explanation != "" {
-		fmt.Fprintf(&b, "\n%s\n", explanation)
-	}
-	fmt.Fprintf(&b, "\n%s\n", CodeFence("bash", command))
-	b.WriteString(RenderToolResult(result))
-	return b.String()
-}
-
 // toolInputValueString renders one tool-input value for RenderToolInputList.
 // Scalars print as-is; maps and slices marshal as JSON — Go's %v formatting
 // (map[args:[x] command:echo ...]) is meaningless to readers of the archive.
