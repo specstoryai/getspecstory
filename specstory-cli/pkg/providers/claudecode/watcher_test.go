@@ -186,16 +186,9 @@ func TestWatchForProjectDirFollowsProjectNotLaunchDirectory(t *testing.T) {
 	}
 	// Keep writing, as a running agent does: the watch registers in the
 	// background, and a lone write ahead of it would look like existing history.
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = file.Close() }()
 	deadline := time.After(10 * time.Second)
 	for {
-		if _, err := file.Write(native.Content); err != nil {
-			t.Fatal(err)
-		}
+		appendToFile(t, path, native.Content)
 		select {
 		case id := <-delivered:
 			if id != native.SessionID {
@@ -206,5 +199,23 @@ func TestWatchForProjectDirFollowsProjectNotLaunchDirectory(t *testing.T) {
 			t.Fatal("no live delivery for the project's session")
 		case <-time.After(100 * time.Millisecond):
 		}
+	}
+}
+
+// appendToFile opens and closes the file for each write: Windows may not report
+// writes to a directory watcher until the writing handle closes.
+func appendToFile(t *testing.T, path string, data []byte) {
+	t.Helper()
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	if _, err := file.Write(data); err != nil {
+		t.Fatal(err)
 	}
 }
