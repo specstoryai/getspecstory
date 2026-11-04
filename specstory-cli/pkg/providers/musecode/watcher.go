@@ -25,6 +25,11 @@ var (
 	watcherMutex         sync.RWMutex
 	watcherDebugRaw      bool
 	watcherWorkspaceRoot string
+	// watcherFinalChanges reports what changed on disk since the watcher started.
+	// watcherProcessed holds each transcript as it last was when processed, so
+	// the sweep at stop does not republish a session the live path delivered.
+	watcherFinalChanges func() []string
+	watcherProcessed    = make(map[string]os.FileInfo)
 )
 
 const (
@@ -85,12 +90,16 @@ func getWatcherDebugRaw() bool {
 	return watcherDebugRaw
 }
 
-// StopWatcher gracefully stops the watcher goroutine. Safe to call when no
-// watcher is running.
+// StopWatcher gracefully stops the watcher goroutine, then saves anything it
+// did not get to: Muse can write its last turn and exit before fsnotify delivers
+// the event, and a watcher that has stopped will never read it. Safe to call
+// when no watcher is running.
 func StopWatcher() {
 	watcherMutex.Lock()
 	cancel := watcherCancel
+	finalChanges := watcherFinalChanges
 	watcherCancel = nil
+	watcherFinalChanges = nil
 	watcherMutex.Unlock()
 	if cancel == nil {
 		return
@@ -99,7 +108,51 @@ func StopWatcher() {
 	slog.Info("StopWatcher: Signaling Muse watcher to stop")
 	cancel()
 	watcherWg.Wait()
+	sweepSessionChanges(finalChanges)
 	slog.Info("StopWatcher: Muse watcher stopped")
+}
+
+// sweepSessionChanges processes transcripts that changed since the watcher
+// started and were not processed in that state, so stopping alone delivers
+// nothing.
+func sweepSessionChanges(finalChanges func() []string) {
+	if finalChanges == nil {
+		return
+	}
+	for _, path := range finalChanges() {
+		watcherMutex.RLock()
+		processed := watcherProcessed[path]
+		watcherMutex.RUnlock()
+		info, err := os.Stat(path)
+		if err == nil && processed != nil && processed.Size() == info.Size() && processed.ModTime().Equal(info.ModTime()) {
+			continue
+		}
+		processSessionChange(path)
+	}
+}
+
+// sessionChangesInWindow records the transcripts in the trailing window and
+// returns a function reporting which changed since. Muse's store is global and
+// keeps every session it has ever run, so only the days a watch could cover are
+// read. Tomorrow is included for a session that runs past midnight.
+func sessionChangesInWindow(sessionsRoot string, now time.Time) func() []string {
+	var sweeps []func() []string
+	for offset := -1; offset <= spi.WatchWindowDays; offset++ {
+		sweeps = append(sweeps, spi.SessionFileChanges(dayDirectory(sessionsRoot, now.AddDate(0, 0, -offset)), "*/"+sessionFileName))
+	}
+	return func() []string {
+		var changed []string
+		for _, sweep := range sweeps {
+			changed = append(changed, sweep()...)
+		}
+		return changed
+	}
+}
+
+// dayDirectory is where Muse stores the sessions of a date.
+func dayDirectory(sessionsRoot string, date time.Time) string {
+	return filepath.Join(sessionsRoot,
+		fmt.Sprintf("%04d", date.Year()), fmt.Sprintf("%02d", int(date.Month())), fmt.Sprintf("%02d", date.Day()))
 }
 
 // WatchMuseProject watches Muse Code's session store for transcript changes
@@ -132,8 +185,11 @@ func WatchMuseProject(projectPath string, callback func(*spi.AgentChatSession)) 
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	finalChanges := sessionChangesInWindow(sessionsRoot, time.Now())
 	watcherMutex.Lock()
 	watcherCancel = cancel
+	watcherFinalChanges = finalChanges
+	watcherProcessed = make(map[string]os.FileInfo)
 	watcherMutex.Unlock()
 
 	set := &watchSet{watcher: watcher, sessionsRoot: sessionsRoot, watched: make(map[string]bool)}
@@ -256,9 +312,9 @@ func desiredWatchDirs(sessionsRoot string, now time.Time) map[string]bool {
 
 	for offset := 0; offset <= spi.WatchWindowDays; offset++ {
 		date := now.AddDate(0, 0, -offset)
-		yearDir := filepath.Join(sessionsRoot, fmt.Sprintf("%04d", date.Year()))
-		monthDir := filepath.Join(yearDir, fmt.Sprintf("%02d", int(date.Month())))
-		dayDir := filepath.Join(monthDir, fmt.Sprintf("%02d", date.Day()))
+		dayDir := dayDirectory(sessionsRoot, date)
+		monthDir := filepath.Dir(dayDir)
+		yearDir := filepath.Dir(monthDir)
 
 		// Ancestors are watched too, so the day directory's creation is seen
 		// the moment Muse starts the first session of a new day/month/year.
@@ -413,6 +469,13 @@ func (s *watchSet) storeDepth(dir string) int {
 // session for an unrelated project can land in the same directory.
 func processSessionChange(filePath string) {
 	slog.Debug("processSessionChange: Detected Muse session file change", "file", filePath)
+
+	// Before parsing, so a write that lands during the parse still looks new.
+	if info, err := os.Stat(filePath); err == nil {
+		watcherMutex.Lock()
+		watcherProcessed[filePath] = info
+		watcherMutex.Unlock()
+	}
 
 	session, err := ParseSessionFile(filePath)
 	if err != nil {

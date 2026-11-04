@@ -152,6 +152,52 @@ func TestTriggerCallback_ContainsConsumerPanic(t *testing.T) {
 // The watcher must be restartable: each start owns its own context, so a stop
 // must only end the current run, never poison a later start (a context created
 // once at package load would leave every watcher after the first stillborn).
+// The sweep at stop saves what the live path missed, and nothing else: stopping
+// alone must not republish a session.
+func TestSweepSessionChanges(t *testing.T) {
+	root := seedStore(t)
+	project := t.TempDir()
+	now := time.Now()
+	today := now.Format("2006/01/02")
+	watcherMutex.Lock()
+	watcherProcessed = make(map[string]os.FileInfo)
+	watcherMutex.Unlock()
+
+	delivered := 0
+	SetWatcherCallback(func(*spi.AgentChatSession) { delivered++ })
+	SetWatcherWorkspaceRoot(project)
+	t.Cleanup(func() {
+		SetWatcherCallback(nil)
+		SetWatcherWorkspaceRoot("")
+	})
+
+	changes := sessionChangesInWindow(root, now)
+	sweepSessionChanges(changes)
+	if delivered != 0 {
+		t.Fatalf("delivered %d with no activity, want 0", delivered)
+	}
+
+	writeSession(t, root, today, basicSessionID, "session-basic.jsonl", project)
+	sweepSessionChanges(changes)
+	if delivered != 1 {
+		t.Fatalf("delivered %d for a write the watcher missed, want 1", delivered)
+	}
+
+	// The same state again stands in for a session the live path already saved.
+	sweepSessionChanges(changes)
+	if delivered != 1 {
+		t.Errorf("delivered %d after a repeat sweep, want the session republished 0 more times", delivered)
+	}
+
+	// History outside the window is sync's job, and is not read here.
+	old := now.AddDate(0, 0, -(spi.WatchWindowDays + 2)).Format("2006/01/02")
+	writeSession(t, root, old, basicSessionID, "session-basic.jsonl", project)
+	sweepSessionChanges(changes)
+	if delivered != 1 {
+		t.Errorf("delivered %d after a write outside the window, want 1", delivered)
+	}
+}
+
 func TestWatcherRestart(t *testing.T) {
 	seedStore(t)
 	project := t.TempDir()

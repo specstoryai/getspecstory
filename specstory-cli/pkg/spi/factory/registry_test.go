@@ -92,9 +92,6 @@ func TestAgentExitChild(t *testing.T) {
 			if err := os.WriteFile(destination, data, 0600); err != nil {
 				os.Exit(92)
 			}
-			if linger, err := time.ParseDuration(os.Getenv("SPECSTORY_EXIT_TEST_LINGER")); err == nil {
-				time.Sleep(linger)
-			}
 		}
 		os.Exit(code)
 	}
@@ -240,14 +237,6 @@ func TestRunSavesSessionWhenProjectPathIsNotLocal(t *testing.T) {
 			if err := os.WriteFile(staged, native.Content, 0600); err != nil {
 				t.Fatal(err)
 			}
-			// Muse has no sweep at exit and only watches a day directory that
-			// exists, so its store is seeded and its agent stays up to be seen.
-			if tt.name == "muse" {
-				if err := os.MkdirAll(filepath.Dir(filepath.Dir(destination)), 0755); err != nil {
-					t.Fatal(err)
-				}
-				t.Setenv("SPECSTORY_EXIT_TEST_LINGER", "3s")
-			}
 			t.Setenv("SPECSTORY_EXIT_TEST_SOURCE", staged)
 			t.Setenv("SPECSTORY_EXIT_TEST_DESTINATION", destination)
 			t.Setenv("SPECSTORY_EXIT_TEST_CODE", "0")
@@ -333,6 +322,7 @@ func TestRunFinalWriteAndWatcherRestart(t *testing.T) {
 		{"gemini", geminicli.NewProvider()},
 		{"deepseek", deepseektui.NewProvider()},
 		{"droid", droidcli.NewProvider()},
+		{"muse", musecode.NewProvider()},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			home := t.TempDir()
