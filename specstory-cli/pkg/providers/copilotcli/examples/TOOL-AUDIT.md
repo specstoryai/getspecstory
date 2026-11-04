@@ -1,50 +1,70 @@
 # Copilot CLI tool rendering audit
 
-Source session: [`testdata/tool-exercise.jsonl`](../testdata/tool-exercise.jsonl), a real capture (session `4ea18a78-3f3c-4f67-a61e-21fab96427be`) with hook and `system.message` records removed and paths anonymized. Rendered history: [`tool-exercise.md`](tool-exercise.md), produced by `specstory sync copilot -s 4ea18a78-3f3c-4f67-a61e-21fab96427be --print` from the session's recorded directory (`/private/tmp/copilot-tools-exercise`). The capture was also synced with `--log --debug --debug-raw`: no schema warnings and no unknown-kind logs. Versions: [`versions.txt`](versions.txt). Inventory: [`testdata/tools.txt`](../testdata/tools.txt).
+Source session: [`testdata/tool-exercise.jsonl`](../testdata/tool-exercise.jsonl), a real capture (session `ab68f63a-ec2a-4635-947c-487f56661807`) with the system prompt, model-call records and an attached screenshot removed, and account data, home paths and other sessions' IDs anonymized. Rendered history: [`tool-exercise.md`](tool-exercise.md), produced by `specstory sync copilot` from the session's recorded directory (`/private/tmp/copilot-v3`). The capture was also synced with `--log --debug --debug-raw`: no schema warnings and no unknown-kind logs. Versions: [`versions.txt`](versions.txt). Inventory: [`testdata/tools.txt`](../testdata/tools.txt).
 
-Configuration: an isolated `COPILOT_HOME` holding only the login and settings; no plugins, no user MCP servers, no custom instructions, no extensions. Main model `claude-sonnet-5.5`; the `task` sub-agent ran on `gpt-5.6-luna`.
+Configuration: GitHub Copilot CLI 1.0.105 on macOS, run interactively; no plugin or user MCP server tools, no custom instructions. The experimental extensions feature was turned on partway, because the workflow tools need it. Main model `claude-sonnet-5.5`; the `task` sub-agents ran on `gpt-5.6-luna`.
 
 ## Declared, enabled and exercised
 
-- **Declared:** Copilot publishes no tool declaration, so the 25 tools in the first section of `tools.txt` are the model's report of its tools in this configuration.
-- **Enabled:** all 25. Nothing was disabled.
-- **Exercised:** 21 of the 25, in 27 calls (`view`, `bash` and `list_agents` more than once), including two failed calls (`success: false`), one shell command that exits 1, and one sub-agent (sidechain) call.
+- **Declared:** Copilot publishes no tool declaration, so the 27 tools in the first section of `tools.txt` are the model's report of its tools in this configuration.
+- **Enabled:** all 27. Nothing was disabled.
+- **Exercised:** all 27, in 46 calls, including four failed calls (`success: false`), one shell command that exits 1, and three sub-agent (sidechain) calls.
+- **Grades:** all 46 formatted.
 
 Every invocation in the native log appears once, in native order, with its own result. The prompts and agent replies that quote tool names produce no phantom blocks.
 
-Every block has a `Tool use: **<name>**` summary and the call's intent or main argument as the first line of the body. `edit` then shows a `Path:` line and a `diff` fence, `create` a `Path:` line and a fence tagged by extension, and a shell command a `bash` or `powershell` fence with its output in a `text` fence. Every other tool uses the shared **Input** list. Results are capped at `spi.ToolResultCap`. Failed calls render the native error message as their result, as the VS Code provider does; the normalized output marks them `is_error`.
+Every block has a `Tool use: **<name>**` summary and the call's intent or main argument as the first line of the body. `edit` then shows a `Path:` line and a `diff` fence, `create` a `Path:` line and a fence tagged by extension, and a shell command a `bash` or `powershell` fence with its output in a `text` fence. Every other tool uses the shared **Input** list. A result that is a JSON document is indented in a `json` fence. Results are capped at `spi.ToolResultCap`. Failed calls render the native error message as their result, as the VS Code provider does; the normalized output marks them `is_error`.
 
 ## Exercised tools
 
 | Tool | Markdown line | Grade | Data file | Data line | Comment |
 | --- | --- | --- | --- | --- | --- |
-| `view` | 15 | formatted | `testdata/tool-exercise.jsonl` | 7 (call), 9 (result) | `read`. Path in the intent line and the input; file list as a plain fenced result. |
-| `bash` | 65 | formatted | `testdata/tool-exercise.jsonl` | 13 (call), 35 (result) | `shell`. Description as the intent line, command in a bash fence, output with the shell's exit line. |
-| `bash` | 84 | formatted | `testdata/tool-exercise.jsonl` | 13 (call), 32 (result) | `shell`. Failed command (exit 1): the stderr text and exit code are shown; the call itself succeeded. |
-| `bash` | 105 | formatted | `testdata/tool-exercise.jsonl` | 13 (call), 31 (result) | `shell`. Async start: the background-shell notice is the result. |
-| `create` | 123 | formatted | `testdata/tool-exercise.jsonl` | 13 (call), 29 (result) | `write`. `Path:` line, then file_text in a fence tagged by extension. |
-| `glob` | 143 | formatted | `testdata/tool-exercise.jsonl` | 13 (call), 34 (result) | `search`. Pattern as the intent line; both inputs; matched paths. |
-| `web_fetch` | 163 | formatted | `testdata/tool-exercise.jsonl` | 13 (call), 33 (result) | `read`. URL as the intent line; max_length and url inputs; fetched text. |
-| `dynamic_workflows_manage` | 183 | formatted | `testdata/tool-exercise.jsonl` | 13 (call), 25 (result) | `generic`. Intent line from the call's own description; operation input; result text. |
-| `sql` | 201 | formatted | `testdata/tool-exercise.jsonl` | 13 (call), 28 (result) | `generic`. Description and SQL query inputs; the tool's markdown table kept verbatim in the result fence. |
-| `session_store_sql` | 224 | formatted | `testdata/tool-exercise.jsonl` | 13 (call), 26 (result) | `generic`. Same as sql, plus the source input. |
-| `list_agents` | 250 | formatted | `testdata/tool-exercise.jsonl` | 13 (call), 27 (result) | `generic`. No arguments, so no Input list; result shown. |
-| `list_bash` | 262 | formatted | `testdata/tool-exercise.jsonl` | 13 (call), 30 (result) | `shell`. No arguments; result shown. |
-| `edit` | 280 | formatted | `testdata/tool-exercise.jsonl` | 39 (call), 45 (result) | `write`. `Path:` line, then a diff of old_str and new_str; confirmation result. |
-| `read_bash` | 301 | formatted | `testdata/tool-exercise.jsonl` | 39 (call), 52 (result) | `shell`. delay and shellId inputs; still-running notice. |
-| `task` | 320 | formatted | `testdata/tool-exercise.jsonl` | 39 (call), 60 (result) | `generic`. Sub-agent launch: all five inputs and the agent's final reply. Its own turns follow as sidechain messages. |
-| `fetch_copilot_cli_documentation` | 343 | formatted | `testdata/tool-exercise.jsonl` | 39 (call), 44 (result) | `read`. No arguments; long help text capped by the shared result limit with the truncation marker. |
-| `view` | 411 | formatted | `testdata/tool-exercise.jsonl` | 54 (call), 56 (result) | `read`. Sidechain tool call, under an `Agent - sidechain` header with the sub-agent's model. |
-| `view` | 441 | formatted | `testdata/tool-exercise.jsonl` | 67 (call), 72 (result) | `read`. Shows the edited content. |
-| `grep` | 459 | formatted | `testdata/tool-exercise.jsonl` | 67 (call), 73 (result) | `search`. Pattern as the intent line; flag-style input (-n) kept literally. |
-| `stop_bash` | 480 | formatted | `testdata/tool-exercise.jsonl` | 67 (call), 71 (result) | `shell`. shellId input; stop confirmation. |
-| `view` | 532 | formatted | `testdata/tool-exercise.jsonl` | 85 (call), 94 (result, failed) | `read`. Failed call (success=false): the native error message is the result; schema output carries is_error. |
-| `list_agents` | 550 | formatted | `testdata/tool-exercise.jsonl` | 85 (call), 93 (result) | `generic`. scope input; result. |
-| `github-mcp-server-search_users` | 566 | formatted | `testdata/tool-exercise.jsonl` | 85 (call), 97 (result) | `search`. GitHub MCP call: query as the intent line; JSON result kept verbatim. |
-| `github-mcp-server-get_file_contents` | 585 | formatted | `testdata/tool-exercise.jsonl` | 85 (call), 100 (result) | `read`. GitHub MCP call: path as the intent line; long file capped with the truncation marker. |
-| `github-mcp-server-list_copilot_spaces` | 642 | formatted | `testdata/tool-exercise.jsonl` | 85 (call), 98 (result, failed) | `generic`. Failed GitHub MCP call (success=false): the server's error message is the result. |
-| `github-mcp-server-search_code` | 654 | formatted | `testdata/tool-exercise.jsonl` | 85 (call), 99 (result) | `search`. GitHub MCP call: array input (fields) rendered as compact JSON. |
-| `skill` | 674 | formatted | `testdata/tool-exercise.jsonl` | 85 (call), 95 (result) | `generic`. Skill name as the intent line and input; load confirmation. |
+| `create` | 15 | formatted | `testdata/tool-exercise.jsonl` | 8 (call), 10 (result) | `write`. `Path:` line, then file_text in a fence tagged by extension. |
+| `bash` | 94 | formatted | `testdata/tool-exercise.jsonl` | 20 (call), 31 (result) | `shell`. Intent line, command in a bash fence, output in a text fence. |
+| `bash` | 112 | formatted | `testdata/tool-exercise.jsonl` | 20 (call), 32 (result) | `shell`. Command exited 1: output and `Exit code: 1` shown; the call itself succeeded. Intent line, command in a bash fence, output in a text fence. |
+| `view` | 133 | formatted | `testdata/tool-exercise.jsonl` | 20 (call), 27 (result, failed) | `read`. Failed call: the native error is the result. Path in the intent line and the input; contents as a fenced result. |
+| `view` | 151 | formatted | `testdata/tool-exercise.jsonl` | 20 (call), 28 (result) | `read`. Path in the intent line and the input; contents as a fenced result. |
+| `glob` | 174 | formatted | `testdata/tool-exercise.jsonl` | 20 (call), 30 (result) | `search`. Pattern as the intent line and the input. |
+| `grep` | 192 | formatted | `testdata/tool-exercise.jsonl` | 20 (call), 29 (result) | `search`. Input list with the options; matches as a fenced result. |
+| `read_bash` | 221 | formatted | `testdata/tool-exercise.jsonl` | 36 (call), 41 (result) | `shell`. Input list, output in a text fence with the exit line. |
+| `bash` | 242 | formatted | `testdata/tool-exercise.jsonl` | 36 (call), 42 (result) | `shell`. Intent line, command in a bash fence, output in a text fence. |
+| `create` | 260 | formatted | `testdata/tool-exercise.jsonl` | 36 (call), 40 (result) | `write`. `Path:` line, then file_text in a fence tagged by extension. |
+| `list_bash` | 280 | formatted | `testdata/tool-exercise.jsonl` | 46 (call), 49 (result) | `shell`. Session list in a text fence. |
+| `edit` | 298 | formatted | `testdata/tool-exercise.jsonl` | 46 (call), 50 (result) | `write`. `Path:` line, then a diff of old_str and new_str; confirmation result. |
+| `stop_bash` | 323 | formatted | `testdata/tool-exercise.jsonl` | 54 (call), 62 (result) | `shell`. Input list, stop notice in a text fence. |
+| `web_fetch` | 339 | formatted | `testdata/tool-exercise.jsonl` | 54 (call), 70 (result) | `read`. URL as the intent line. |
+| `fetch_copilot_cli_documentation` | 359 | formatted | `testdata/tool-exercise.jsonl` | 54 (call), 63 (result) | `read`. Long result capped with the visible marker. |
+| `sql` | 423 | formatted | `testdata/tool-exercise.jsonl` | 54 (call), 64 (result) | `generic`. Query in the input; rows as a fenced result. |
+| `session_store_sql` | 452 | formatted | `testdata/tool-exercise.jsonl` | 54 (call), 82 (result) | `generic`. Query in the input; rows as a fenced result (session IDs anonymized in the fixture). |
+| `task` | 482 | formatted | `testdata/tool-exercise.jsonl` | 54 (call), 81 (result) | `generic`. Description as the intent line; prompt in the input. |
+| `bash` | 508 | formatted | `testdata/tool-exercise.jsonl` | 72 (call), 74 (result) | `shell`. Sub-agent call. Intent line, command in a bash fence, output in a text fence. |
+| `task` | 539 | formatted | `testdata/tool-exercise.jsonl` | 86 (call), 95 (result) | `generic`. Description as the intent line; prompt in the input. |
+| `semantic_code_search` | 561 | formatted | `testdata/tool-exercise.jsonl` | 86 (call), 104 (result) | `search`. Query as the intent line; long result capped with the visible marker. |
+| `github-mcp-server-get_file_contents` | 656 | formatted | `testdata/tool-exercise.jsonl` | 86 (call), 112 (result) | `read`. JSON result indented in a json fence. |
+| `github-mcp-server-search_code` | 702 | formatted | `testdata/tool-exercise.jsonl` | 86 (call), 105 (result) | `search`. JSON result indented in a json fence. |
+| `github-mcp-server-search_users` | 735 | formatted | `testdata/tool-exercise.jsonl` | 86 (call), 103 (result) | `search`. JSON result indented in a json fence. |
+| `github-mcp-server-list_copilot_spaces` | 765 | formatted | `testdata/tool-exercise.jsonl` | 86 (call), 102 (result) | `generic`. JSON result indented in a json fence. |
+| `dynamic_workflows_manage` | 785 | formatted | `testdata/tool-exercise.jsonl` | 86 (call), 96 (result) | `generic`. Operation in the input; object meta in a fence. |
+| `bash` | 807 | formatted | `testdata/tool-exercise.jsonl` | 107 (call), 109 (result) | `shell`. Sub-agent call. Intent line, command in a bash fence, output in a text fence. |
+| `github-mcp-server-get_copilot_space` | 830 | formatted | `testdata/tool-exercise.jsonl` | 120 (call), 127 (result) | `generic`. Plain-text result. |
+| `read_agent` | 849 | formatted | `testdata/tool-exercise.jsonl` | 120 (call), 125 (result) | `generic`. Agent ID in the input; reply as a fenced result. |
+| `list_agents` | 870 | formatted | `testdata/tool-exercise.jsonl` | 120 (call), 126 (result) | `generic`. Agent list as a fenced result. |
+| `ask_user` | 886 | formatted | `testdata/tool-exercise.jsonl` | 120 (call), 129 (result) | `generic`. Question and fenced schema in the input; the answer is the result. |
+| `write_agent` | 929 | formatted | `testdata/tool-exercise.jsonl` | 133 (call), 136 (result) | `generic`. Message in the input; delivery notice. |
+| `skill` | 946 | formatted | `testdata/tool-exercise.jsonl` | 133 (call), 137 (result) | `generic`. Skill name as the intent line and the input. |
+| `bash` | 976 | formatted | `testdata/tool-exercise.jsonl` | 145 (call), 147 (result) | `shell`. Sub-agent call. Intent line, command in a bash fence, output in a text fence. |
+| `read_agent` | 1005 | formatted | `testdata/tool-exercise.jsonl` | 154 (call), 158 (result) | `generic`. Agent ID in the input; reply as a fenced result. |
+| `bash` | 1031 | formatted | `testdata/tool-exercise.jsonl` | 154 (call), 160 (result) | `shell`. Intent line, command in a bash fence, output in a text fence. |
+| `sql` | 1050 | formatted | `testdata/tool-exercise.jsonl` | 154 (call), 159 (result) | `generic`. Query in the input; rows as a fenced result. |
+| `bash` | 1116 | formatted | `testdata/tool-exercise.jsonl` | 170 (call), 172 (result) | `shell`. Intent line, command in a bash fence, output in a text fence. |
+| `dynamic_workflows_manage` | 1152 | formatted | `testdata/tool-exercise.jsonl` | 182 (call), 184 (result, failed) | `generic`. Failed call: the native error is the result. Operation in the input; object meta in a fence. |
+| `dynamic_workflows_manage` | 1178 | formatted | `testdata/tool-exercise.jsonl` | 188 (call), 190 (result, failed) | `generic`. Failed call: the native error is the result. Operation in the input; object meta in a fence. |
+| `run_dynamic_workflow` | 1242 | formatted | `testdata/tool-exercise.jsonl` | 200 (call), 202 (result, failed) | `generic`. Failed call: the native error is the result. Name and args in the input. |
+| `dynamic_workflows_manage` | 1300 | formatted | `testdata/tool-exercise.jsonl` | 220 (call), 222 (result) | `generic`. Operation in the input; object meta in a fence. |
+| `view` | 1323 | formatted | `testdata/tool-exercise.jsonl` | 226 (call), 228 (result) | `read`. Path in the intent line and the input; contents as a fenced result. |
+| `dynamic_workflows_manage` | 1400 | formatted | `testdata/tool-exercise.jsonl` | 232 (call), 234 (result) | `generic`. Operation in the input; object meta in a fence. |
+| `run_dynamic_workflow` | 1436 | formatted | `testdata/tool-exercise.jsonl` | 238 (call), 240 (result) | `generic`. Name and args in the input. |
+| `dynamic_workflows_manage` | 1465 | formatted | `testdata/tool-exercise.jsonl` | 258 (call), 260 (result) | `generic`. Operation in the input; object meta in a fence. |
 
 ## Unexercised tools
 
@@ -52,11 +72,7 @@ Not graded.
 
 | Tool | Reason |
 | --- | --- |
-| `run_dynamic_workflow` | Deliberately not called: it launches a multi-agent workflow and spends credits. Types `generic`; would render through the shared input list. |
-| `read_agent`, `write_agent` | Need a background agent ID; the one `task` agent ran synchronously and finished, leaving none (`list_agents` confirms). |
-| `github-mcp-server-get_copilot_space` | Needs a Copilot Space owner and name; this account has no Spaces (`list_copilot_spaces` failed with not_found). |
 | Tools in the later sections of `tools.txt` | Not in this configuration's tool set: they were observed in the user's own sessions (terminal CLI with plan mode and the GitHub app's session tools, the GitHub Copilot app host, VS Code's agent host). They render through the same shared input list; `TestToolInventorySweep` asserts each name's type, and the 126 sessions in the author's own store (52 projects) sync with no Warn or Error log. |
-| `semantic_code_search` | New in 1.0.105, after this capture. Types `search`; renders through the shared input list. |
 | `write_bash` | Named by the CLI bundle but absent from the model report and from captured sessions. Types `shell`. |
 | `powershell`, `read_powershell`, `write_powershell`, `stop_powershell`, `list_powershell` | Windows only, and this audit ran on macOS. Named by the CLI bundle. Type `shell`; a `powershell` call renders like `bash`. |
 | `local_shell` | Not a model tool: recorded only for a user's `!` command, which renders as a user message (`TestCapturedUserShellCommands`). |

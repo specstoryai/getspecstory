@@ -58,7 +58,7 @@ func TestProviderSessionsAreScopedToProject(t *testing.T) {
 		if !session.SessionData.Validate() {
 			t.Errorf("SessionData for %s failed schema validation", session.SessionID)
 		}
-		if session.SessionData.Provider.ID != providerID || session.SessionData.Provider.Version != "1.0.95-2" {
+		if session.SessionData.Provider.ID != providerID || session.SessionData.Provider.Version != "1.0.105" {
 			t.Errorf("unexpected provider for %s: %+v", session.SessionID, session.SessionData.Provider)
 		}
 		slugs[session.SessionID] = session.Slug
@@ -129,7 +129,8 @@ func TestParseVersion(t *testing.T) {
 		output string
 		want   string
 	}{
-		{"release banner with update hint", "GitHub Copilot CLI 1.0.95-2.\nRun 'copilot update' to check for updates.\n", "1.0.95-2"},
+		{"release banner with update hint", "GitHub Copilot CLI 1.0.105.\nRun 'copilot update' to check for updates.\n", "1.0.105"},
+		{"prerelease banner", "GitHub Copilot CLI 1.0.106-9.\n", "1.0.106-9"},
 		{"bare version", "1.2.3", "1.2.3"},
 		{"empty output", "  \n", "unknown"},
 	}
@@ -341,7 +342,7 @@ func TestCheck(t *testing.T) {
 		name, script, version string
 		success               bool
 	}{
-		{"release banner", `echo "GitHub Copilot CLI 1.0.95-2."; echo "Run 'copilot update' to check for updates."`, "1.0.95-2", true},
+		{"release banner", `echo "GitHub Copilot CLI 1.0.105."; echo "Run 'copilot update' to check for updates."`, "1.0.105", true},
 		{"empty output", "exit 0", "unknown", true},
 		{"failure", "echo boom >&2; exit 3", "", false},
 	} {

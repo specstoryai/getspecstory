@@ -1,6 +1,6 @@
 # GitHub Copilot CLI Session Format
 
-This describes what GitHub Copilot CLI writes for a session, as observed in sessions written by `GitHub Copilot CLI 1.0.95-2.` (the exact `copilot --version` banner; the provider's baseline) on macOS, and confirmed against `1.0.94` installed from npm by the factory scripts.
+This describes what GitHub Copilot CLI writes for a session, as observed in sessions written by `GitHub Copilot CLI 1.0.105.` (the exact `copilot --version` banner; the provider's baseline) on macOS, and confirmed against the same version installed from npm by the factory scripts.
 
 ## Store layout
 
@@ -42,6 +42,7 @@ Observed kinds and how the provider treats them:
 | `tool.execution_complete` | A tool call's result or error, paired to its request by `toolCallId` |
 | `tool.user_requested` | A tool the user started themselves (`toolName`, `arguments`, `toolCallId`). A `!` command has `toolName` `local_shell` and renders as a user message, with its output from the `tool.execution_complete` of the same `toolCallId`. Other tools are left to the raw data |
 | `tool.execution_start` | Not rendered: duplicates the request already carried by `assistant.message` |
+| `human_response.recorded` | Not rendered: a typed answer to `ask_user`, which that call's result repeats (`User responded: green`) |
 | `session.*` (other than start), `subagent.*`, `skill.*`, `external_tool.*`, `assistant.turn_*`, `system.notification`, `abort` | Not rendered: lifecycle, sub-agent and skill bookkeeping, turn boundaries, and notices shown in the terminal rather than in the conversation |
 | `hook.*`, `permission.*`, `model.*`, `system.message`, `session.usage_checkpoint`, `session.usage_record` | Harness machinery; `session.usage_record` supplies token counts (see below): not rendered (see below) |
 
@@ -78,7 +79,7 @@ Tool names in `toolRequests` are the names the model calls, so the recorded name
 
 `task_complete` is how Copilot ends an autonomous turn: its `summary` argument is the closing answer the user sees, so it renders as agent text rather than as a tool block.
 
-Tool bodies render as Copilot's one-line `intentionSummary`, then the call: a shell command in a `bash` or `powershell` fence, `edit` as a `Path:` line and a diff built from `old_str` and `new_str`, `create` as a `Path:` line and `file_text` in a fence tagged by extension, and any other tool as an `Input:` list. The result follows in a fence capped at 2000 runes; shell output is a `text` fence with control bytes removed. The classification of every inventoried tool is in `toolTypes` in `events.go`, checked against `testdata/tools.txt`.
+Tool bodies render as Copilot's one-line `intentionSummary`, then the call: a shell command in a `bash` or `powershell` fence, `edit` as a `Path:` line and a diff built from `old_str` and `new_str`, `create` as a `Path:` line and `file_text` in a fence tagged by extension, and any other tool as an `Input:` list. The result follows in a fence capped at 2000 runes; shell output is a `text` fence with control bytes removed, and a result that is a whole JSON object or array, as MCP tools return, is indented in a `json` fence. A `view` result is never reformatted, because it is the file's own bytes. The classification of every inventoried tool is in `toolTypes` in `events.go`, checked against `testdata/tools.txt`.
 
 ## Sub-agents
 
@@ -94,7 +95,7 @@ A `task` call starts a sub-agent. Its prompt arrives as a `user.message` with an
 
 ## Version
 
-`session.start.data.copilotVersion` records the version, e.g. `1.0.95-2`. A reconstructed session records it empty, which the provider reports as `unknown`.
+`session.start.data.copilotVersion` records the version, e.g. `1.0.105`. A reconstructed session records it empty, which the provider reports as `unknown`.
 
 ## Resume
 

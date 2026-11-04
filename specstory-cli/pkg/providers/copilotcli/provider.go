@@ -106,7 +106,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 }
 
 // parseVersion extracts the version from `copilot --version`, whose first line
-// reads "GitHub Copilot CLI 1.0.95-2." followed by an update hint.
+// reads "GitHub Copilot CLI 1.0.105." followed by an update hint.
 func parseVersion(output string) string {
 	firstLine, _, _ := strings.Cut(strings.TrimSpace(output), "\n")
 	fields := strings.Fields(firstLine)

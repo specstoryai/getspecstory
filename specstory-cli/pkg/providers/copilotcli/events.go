@@ -45,9 +45,12 @@ const (
 	applyPatchTool = "apply_patch"
 
 	// editTool and createTool carry everything needed to show the change in
-	// their arguments, as observed in sessions written by version 1.0.95.
+	// their arguments, as observed in sessions written by version 1.0.105.
 	editTool   = "edit"
 	createTool = "create"
+
+	// viewTool returns a file's own bytes, which must not be reformatted.
+	viewTool = "view"
 
 	// powerShellTool is the tool that replaces bash on Windows, so its command
 	// is fenced as PowerShell.
@@ -296,7 +299,7 @@ func readEvents(path string, live bool, visit func(event rawEvent, line []byte) 
 }
 
 // Record kinds Copilot CLI writes besides the conversation itself, as observed
-// in sessions written by version 1.0.95. They are classified so a genuinely
+// in sessions written through version 1.0.105. They are classified so a genuinely
 // new kind is noticed.
 var (
 	// harnessKindPrefixes and harnessKinds are machinery around the
@@ -315,13 +318,15 @@ var (
 	// either: session lifecycle (start, resume, mode and model
 	// changes, compaction, shutdown), sub-agent and skill bookkeeping whose
 	// content arrives as messages, turn boundaries, tool start and external
-	// tool records duplicated by the tool request and its completion, and
-	// notices the user saw in the terminal rather than in the conversation.
+	// tool records duplicated by the tool request and its completion, a typed
+	// answer that the question's own tool result repeats, and notices the user
+	// saw in the terminal rather than in the conversation.
 	unrenderedKindPrefixes = []string{"session.", "subagent.", "skill.", "external_tool.", "assistant.turn_"}
 	unrenderedKinds        = map[string]bool{
-		"tool.execution_start": true,
-		"system.notification":  true,
-		"abort":                true,
+		"tool.execution_start":    true,
+		"human_response.recorded": true,
+		"system.notification":     true,
+		"abort":                   true,
 	}
 )
 
@@ -1116,17 +1121,40 @@ func renderFileChange(tool *schema.ToolInfo) string {
 }
 
 // renderToolOutput renders a call's result. Shell output is terminal text, so it
-// goes in a text fence with its control bytes removed.
+// goes in a text fence with its control bytes removed, and a JSON document, which
+// MCP tools return on one long line, is indented in a json fence.
 func renderToolOutput(tool *schema.ToolInfo) string {
 	result, _ := tool.Output["result"].(string)
-	if tool.Type != schema.ToolTypeShell {
-		return spi.RenderToolResult(result)
+	if tool.Type == schema.ToolTypeShell {
+		output := strings.TrimRight(spi.SanitizeShellOutput(result), " \t\n")
+		if output == "" {
+			return ""
+		}
+		return renderResultFence("text", output)
 	}
-	output := strings.TrimRight(spi.SanitizeShellOutput(result), " \t\n")
-	if output == "" {
-		return ""
+	if indented, ok := indentJSONDocument(result); ok && tool.Name != viewTool {
+		return renderResultFence("json", indented)
 	}
-	return "\n**Result:**\n\n" + spi.CodeFence("text", spi.CapRunes(output, spi.ToolResultCap)) + "\n"
+	return spi.RenderToolResult(result)
+}
+
+func renderResultFence(language, result string) string {
+	return "\n**Result:**\n\n" + spi.CodeFence(language, spi.CapRunes(result, spi.ToolResultCap)) + "\n"
+}
+
+// indentJSONDocument indents a result that is a whole JSON object or array. Bare
+// values are left alone: a sub-agent's "27" is valid JSON but is plain text to a
+// reader. json.Indent keeps the document's key order, so output stays stable.
+func indentJSONDocument(result string) (string, bool) {
+	trimmed := strings.TrimSpace(result)
+	if !strings.HasPrefix(trimmed, "{") && !strings.HasPrefix(trimmed, "[") {
+		return "", false
+	}
+	var indented bytes.Buffer
+	if err := json.Indent(&indented, []byte(trimmed), "", "  "); err != nil {
+		return "", false
+	}
+	return indented.String(), true
 }
 
 // shellFenceLanguage labels a command's fence with the shell that ran it.

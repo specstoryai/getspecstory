@@ -35,7 +35,7 @@ func record(t *testing.T, eventType, id string, data map[string]any) string {
 func sessionStart(t *testing.T, sessionID, cwd string) string {
 	return record(t, eventSessionStart, "start", map[string]any{
 		"sessionId":      sessionID,
-		"copilotVersion": "1.0.95-2",
+		"copilotVersion": "1.0.105",
 		"startTime":      "2026-10-09T07:35:38.043Z",
 		"context":        map[string]any{"cwd": cwd},
 	})
@@ -415,6 +415,36 @@ func TestToolMarkdown(t *testing.T) {
 			wantBody: "\nPath: `a.go`\n\n```diff\n-x\n+y\n```\n\n**Input:**\n\n- replace_all: `true`\n",
 		},
 		{
+			name:     "a JSON object result is indented in a json fence, keeping its key order",
+			request:  `{"toolCallId":"c17","name":"github-mcp-server-search_code"}`,
+			result:   `{"toolCallId":"c17","success":true,"result":{"content":"{\"zebra\":1,\"apple\":[2]}"}}`,
+			wantBody: "\n**Result:**\n\n```json\n{\n  \"zebra\": 1,\n  \"apple\": [\n    2\n  ]\n}\n```\n",
+		},
+		{
+			name:     "a JSON array result is indented too",
+			request:  `{"toolCallId":"c18","name":"github-mcp-server-get_file_contents"}`,
+			result:   `{"toolCallId":"c18","success":true,"result":{"content":"[{\"name\":\"a\"}]"}}`,
+			wantBody: "\n**Result:**\n\n```json\n[\n  {\n    \"name\": \"a\"\n  }\n]\n```\n",
+		},
+		{
+			name:     "a bare JSON value stays plain text",
+			request:  `{"toolCallId":"c19","name":"task"}`,
+			result:   `{"toolCallId":"c19","success":true,"result":{"content":"27"}}`,
+			wantBody: "\n**Result:**\n\n```\n27\n```\n",
+		},
+		{
+			name:     "text that only looks like JSON stays plain",
+			request:  `{"toolCallId":"c20","name":"fetch_copilot_cli_documentation"}`,
+			result:   `{"toolCallId":"c20","success":true,"result":{"content":"[Could not load README]"}}`,
+			wantBody: "\n**Result:**\n\n```\n[Could not load README]\n```\n",
+		},
+		{
+			name:     "a viewed JSON file keeps its own bytes",
+			request:  `{"toolCallId":"c21","name":"view"}`,
+			result:   `{"toolCallId":"c21","success":true,"result":{"content":"{\"a\":1}"}}`,
+			wantBody: "\n**Result:**\n\n```\n{\"a\":1}\n```\n",
+		},
+		{
 			name:     "a file tool without its content degrades to the Input list",
 			request:  `{"toolCallId":"c16","name":"create","arguments":{"path":"a.go"}}`,
 			wantBody: "\n**Input:**\n\n- path: `a.go`\n",
@@ -668,8 +698,9 @@ func TestToolInventorySweep(t *testing.T) {
 }
 
 // TestCapturedToolExercise converts a real session (testdata/tool-exercise.jsonl,
-// captured from Copilot CLI 1.0.95-2 exercising its tools, with harness hook
-// and system-prompt records removed and home paths anonymized) and checks the
+// captured from Copilot CLI 1.0.105 exercising its tools, with the system prompt,
+// model-call records and an attached image removed, and account data and home
+// paths anonymized) and checks the
 // properties the rendering depends on.
 func TestCapturedToolExercise(t *testing.T) {
 	home := useSessionStore(t)
@@ -686,7 +717,7 @@ func TestCapturedToolExercise(t *testing.T) {
 	if !sessionData.Validate() {
 		t.Error("captured session fails schema validation")
 	}
-	if sessionData.Provider.Version != "1.0.95-2" || sessionData.WorkspaceRoot != "/private/tmp/copilot-tools-exercise" {
+	if sessionData.Provider.Version != "1.0.105" || sessionData.WorkspaceRoot != "/private/tmp/copilot-v3" {
 		t.Errorf("provider/workspace = %+v / %q", sessionData.Provider, sessionData.WorkspaceRoot)
 	}
 
@@ -719,16 +750,19 @@ func TestCapturedToolExercise(t *testing.T) {
 			}
 		}
 	}
-	if prompts != 2 {
-		t.Errorf("user prompts = %d, want the 2 typed prompts (injections excluded)", prompts)
+	if prompts != 9 {
+		t.Errorf("user turns = %d, want the 8 typed prompts and 1 `!` command (injections excluded)", prompts)
 	}
 	if sidechain == 0 {
 		t.Error("the explore sub-agent's work is missing from the transcript")
 	}
-	if failed != 2 {
-		t.Errorf("failed calls = %d, want the 2 the capture holds (view of a missing file, Copilot Spaces)", failed)
+	if failed != 4 {
+		t.Errorf("failed calls = %d, want the 4 the capture holds (view of a missing file, 2 workflow calls with extensions off, an unknown workflow)", failed)
 	}
-	for _, name := range []string{"bash", "view", "create", "edit", "glob", "grep", "web_fetch", "task", "sql", "skill"} {
+	for _, name := range []string{
+		"bash", "view", "create", "edit", "glob", "grep", "web_fetch", "task", "sql", "skill",
+		"ask_user", "semantic_code_search", "run_dynamic_workflow", "read_agent", "write_agent",
+	} {
 		if !seenTools[name] {
 			t.Errorf("exercised tool %q missing from the transcript", name)
 		}
