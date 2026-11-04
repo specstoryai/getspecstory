@@ -97,6 +97,19 @@ func TestAgentExitChild(t *testing.T) {
 	}
 }
 
+// useTempAgentStores keeps a test's fake agent out of the developer's real
+// session stores: a new home, and no inherited store override to escape it.
+func useTempAgentStores(t *testing.T) {
+	t.Helper()
+	testutil.SetHome(t, t.TempDir())
+	for _, key := range []string{
+		"CLAUDE_CONFIG_DIR", "CODEX_HOME", "COPILOT_HOME", "GROK_HOME", "QWEN_HOME", "QWEN_RUNTIME_DIR",
+		"PI_CODING_AGENT_DIR", "PI_CODING_AGENT_SESSION_DIR", "XDG_DATA_HOME", "OPENCODE_DB",
+	} {
+		t.Setenv(key, "")
+	}
+}
+
 // agentLaunchers lists every provider that starts a terminal agent.
 func agentLaunchers() []struct {
 	name string
@@ -209,9 +222,7 @@ func TestRunSavesSessionWhenProjectPathIsNotLocal(t *testing.T) {
 		{"qwen", qwencode.NewProvider()},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			home := t.TempDir()
-			testutil.SetHome(t, home)
-			t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))
+			useTempAgentStores(t)
 			launchDir := spi.CanonicalizePathOrClean(t.TempDir())
 			t.Chdir(launchDir)
 			exe, err := os.Executable()
@@ -274,7 +285,7 @@ func TestDrivelessRemoteRootKeepsAgentInLaunchDirectoryOnWindows(t *testing.T) {
 	command := fmt.Sprintf("%q -test.run=^TestAgentExitChild$", exe)
 	for _, id := range []string{"copilot", "opencode"} {
 		t.Run(id, func(t *testing.T) {
-			testutil.SetHome(t, t.TempDir())
+			useTempAgentStores(t)
 			provider, err := GetRegistry().Get(id)
 			if err != nil {
 				t.Fatal(err)
@@ -325,9 +336,7 @@ func TestRunFinalWriteAndWatcherRestart(t *testing.T) {
 		{"muse", musecode.NewProvider()},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			home := t.TempDir()
-			testutil.SetHome(t, home)
-			t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))
+			useTempAgentStores(t)
 			project := spi.CanonicalizePathOrClean(t.TempDir())
 			t.Chdir(project)
 			exe, err := os.Executable()
@@ -395,9 +404,7 @@ func TestWatchAgentRestart(t *testing.T) {
 		{"gemini", geminicli.NewProvider()},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			home := t.TempDir()
-			testutil.SetHome(t, home)
-			t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))
+			useTempAgentStores(t)
 			project := spi.CanonicalizePathOrClean(t.TempDir())
 			t.Chdir(project)
 			data := &schema.SessionData{SessionID: "source", WorkspaceRoot: project, Exchanges: []schema.Exchange{{Messages: []schema.Message{
