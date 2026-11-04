@@ -196,12 +196,23 @@ func projectSessions(projectPath string) ([]projectSession, error) {
 }
 
 // belongsToProject reports whether a session started in the project directory.
-// Copilot records its working directory as the operating system reports it:
-// symlinks resolved and in on-disk case, the same spelling GetCanonicalPath
-// gives the local project root, so the two compare exactly. The recorded path
-// is not canonicalized itself: it may name a directory on another machine.
+// Copilot records its working directory as the operating system reports it. On
+// macOS and Linux that is symlinks resolved and in on-disk case, the same
+// spelling GetCanonicalPath gives the local project root, so the two compare
+// exactly, which keeps case-distinct siblings apart on a case-sensitive disk.
+// Windows instead reports the spelling the process was started with, so there
+// the case can differ from the disk and only a case-insensitive compare finds
+// the session. Only Windows roots have a volume name, drive or UNC share. The
+// recorded path is not canonicalized itself: it may name a directory on
+// another machine.
 func belongsToProject(header *sessionHeader, canonicalRoot string) bool {
-	return header.Cwd != "" && header.Cwd == canonicalRoot
+	if header.Cwd == "" {
+		return false
+	}
+	if filepath.VolumeName(canonicalRoot) != "" {
+		return strings.EqualFold(header.Cwd, canonicalRoot)
+	}
+	return header.Cwd == canonicalRoot
 }
 
 // GetAgentChatSessions returns every session started in the project directory.

@@ -87,7 +87,7 @@ A `task` call starts a sub-agent. Its prompt arrives as a `user.message` with an
 
 ## Working directory and project
 
-`session.start.data.context.cwd` (and `cwd` in `workspace.yaml`) is the directory as the operating system reports it: symlinks resolved and in on-disk case. Started in `/tmp/x`, Copilot records `/private/tmp/x`. The provider canonicalizes the local project path the same way and compares exactly. A session started in VS Code's Agents window with no workspace selected is filed under a scratch directory such as `~/.copilot/chats/<id>`.
+`session.start.data.context.cwd` (and `cwd` in `workspace.yaml`) is the directory as the operating system reports it: on macOS and Linux, symlinks resolved and in on-disk case. Windows reports the spelling a process was started with (shown by a test process on Windows CI, not by a Copilot capture), so project matching ignores case there. Started in `/tmp/x`, Copilot records `/private/tmp/x`. The provider canonicalizes the local project path the same way and compares exactly. A session started in VS Code's Agents window with no workspace selected is filed under a scratch directory such as `~/.copilot/chats/<id>`.
 
 ## Version
 

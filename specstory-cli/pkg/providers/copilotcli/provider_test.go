@@ -221,6 +221,17 @@ func TestSessionRecordedInAnotherCaseOnWindows(t *testing.T) {
 	}
 }
 
+// A Unix root keeps exact matching: on a case-sensitive disk these are two
+// projects, so folding case everywhere would merge their sessions.
+func TestBelongsToProjectKeepsCaseDistinctUnixRoots(t *testing.T) {
+	if belongsToProject(&sessionHeader{Cwd: "/work/Project"}, "/work/project") {
+		t.Error("a session from /work/Project was claimed by /work/project")
+	}
+	if !belongsToProject(&sessionHeader{Cwd: "/work/project"}, "/work/project") {
+		t.Error("a session from /work/project was not claimed by /work/project")
+	}
+}
+
 func TestCheck(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("POSIX executable fixtures")
