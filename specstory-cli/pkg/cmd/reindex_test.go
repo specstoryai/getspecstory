@@ -321,6 +321,65 @@ func TestLiveIndexerRecordThrottle(t *testing.T) {
 	}
 }
 
+// The final update of a burst, arriving inside the interval, must still reach
+// the index: by its own timer when the interval ends, or at Close.
+func TestLiveIndexerFlushesThrottledFinalUpdate(t *testing.T) {
+	store, err := sessionindex.Open(filepath.Join(t.TempDir(), "sessions.db"))
+	if err != nil {
+		t.Fatalf("open index: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	li := &LiveIndexer{
+		store:       store,
+		cwd:         "/work/proj",
+		projectID:   "proj-1",
+		projectName: "proj",
+		indexedAt:   "2026-06-25T00:00:00Z",
+		lastSeen:    map[string]string{},
+		lastIndexed: map[string]time.Time{},
+	}
+	sess := func(id, text, timestamp string) *spi.AgentChatSession {
+		return &spi.AgentChatSession{
+			SessionID: id,
+			CreatedAt: "2026-06-25T00:00:00Z",
+			SessionData: &schema.SessionData{Exchanges: []schema.Exchange{{Messages: []schema.Message{
+				userMsg(timestamp, text),
+			}}}},
+		}
+	}
+
+	// Timer path: the interval ends 100ms from now.
+	li.Record("claude", sess("sess-timer", "first body", "2026-06-25T00:01:00Z"))
+	li.lastIndexed["sess-timer"] = time.Now().Add(-liveIndexMinInterval + 100*time.Millisecond)
+	li.Record("claude", sess("sess-timer", "timerfinal body", "2026-06-25T00:02:00Z"))
+	if hits, _ := store.Search(ftsQuery("timerfinal"), "proj-1"); len(hits) != 0 {
+		t.Fatalf("throttled update was written immediately")
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		hits, _ := store.Search(ftsQuery("timerfinal"), "proj-1")
+		if len(hits) == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("final throttled update never reached the index")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	// Close path: flushed before the store closes.
+	li.Record("claude", sess("sess-close", "first body", "2026-06-25T00:01:00Z"))
+	li.Record("claude", sess("sess-close", "closefinal body", "2026-06-25T00:02:00Z"))
+	li.flushPending()
+	if hits, _ := store.Search(ftsQuery("closefinal"), "proj-1"); len(hits) != 1 {
+		t.Fatalf("flush wrote %d hits for the final update, want 1", len(hits))
+	}
+	if len(li.pending) != 0 {
+		t.Fatalf("pending not cleared: %d", len(li.pending))
+	}
+}
+
 // TestLiveIndexerRecordConcurrent exercises the mutex that serializes concurrent provider
 // watchers: many goroutines record distinct sessions at once, and each must land exactly one
 // row with no data race on lastSeen or the writer. Run with -race to catch a dropped lock.

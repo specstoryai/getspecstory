@@ -503,6 +503,16 @@ type LiveIndexer struct {
 	mu          sync.Mutex
 	lastSeen    map[string]string    // session id -> last indexed UpdatedAt, to skip no-op upserts
 	lastIndexed map[string]time.Time // session id -> last full-document FTS replacement
+	pending     map[string]*pendingIndexWrite
+}
+
+// pendingIndexWrite is the latest throttled update for one session. It holds a
+// built row, not the live session, because the provider keeps mutating the
+// session in place after Record returns.
+type pendingIndexWrite struct {
+	agentID string
+	row     sessionindex.Session
+	timer   *time.Timer
 }
 
 // NewLiveIndexer opens the index for writing and resolves the project for cwd. It returns nil
@@ -556,24 +566,9 @@ func (li *LiveIndexer) Record(agentID string, sess *spi.AgentChatSession) {
 	if updatedAt != "" && li.lastSeen[sess.SessionID] == updatedAt {
 		return
 	}
-	// FTS replacement rewrites the whole session document. During a burst, the
-	// next record after the interval carries the latest state, so intermediate
-	// replacements are unnecessary.
-	if lastIndexed, ok := li.lastIndexed[sess.SessionID]; ok && time.Since(lastIndexed) < liveIndexMinInterval {
+	if p, ok := li.pending[sess.SessionID]; ok && updatedAt != "" && p.row.UpdatedAt == updatedAt {
 		return
 	}
-
-	// Skip the whole-table FTS delete (session_id/agent are UNINDEXED, so it scans the entire
-	// FTS) when this session has no existing row to replace. Only the first write of a session
-	// in this process can be new, and even then only if it isn't already in the index from a
-	// prior run — so we check by primary key just once, before lastSeen records the write.
-	isNew := false
-	if _, written := li.lastSeen[sess.SessionID]; !written {
-		if exists, err := li.store.Exists(agentID, sess.SessionID); err == nil {
-			isNew = !exists
-		}
-	}
-
 	userTurns, totalTurns := countTurns(data)
 	row := sessionindex.Session{
 		ProjectID:    li.projectID,
@@ -589,17 +584,87 @@ func (li *LiveIndexer) Record(agentID string, sess *spi.AgentChatSession) {
 		IndexVersion: reindexVersion,
 		IndexedAt:    li.indexedAt,
 		Body:         flattenBody(data),
-		IsNew:        isNew,
 	}
-	if err := li.store.Upsert(row); err != nil {
-		slog.Debug("live index: upsert failed", "sessionId", sess.SessionID, "error", err)
+
+	// FTS replacement rewrites the whole session document. Inside the interval
+	// the latest update is held and written when the interval ends, so the final
+	// activity of a burst is never lost.
+	if lastIndexed, ok := li.lastIndexed[sess.SessionID]; ok {
+		if remaining := liveIndexMinInterval - time.Since(lastIndexed); remaining > 0 {
+			li.holdLocked(agentID, row, remaining)
+			return
+		}
+	}
+	li.writeLocked(agentID, row)
+}
+
+// holdLocked keeps only the newest throttled row for a session and schedules
+// its write. The caller holds li.mu.
+func (li *LiveIndexer) holdLocked(agentID string, row sessionindex.Session, delay time.Duration) {
+	if li.pending == nil {
+		li.pending = map[string]*pendingIndexWrite{}
+	}
+	if p, ok := li.pending[row.SessionID]; ok {
+		p.agentID, p.row = agentID, row
 		return
 	}
-	li.lastSeen[sess.SessionID] = updatedAt
+	p := &pendingIndexWrite{agentID: agentID, row: row}
+	p.timer = time.AfterFunc(delay, func() {
+		li.mu.Lock()
+		defer li.mu.Unlock()
+		if li.pending[row.SessionID] == p {
+			li.flushLocked(row.SessionID)
+		}
+	})
+	li.pending[row.SessionID] = p
+}
+
+// flushLocked writes and clears one session's held row. The caller holds li.mu.
+func (li *LiveIndexer) flushLocked(sessionID string) {
+	p, ok := li.pending[sessionID]
+	if !ok {
+		return
+	}
+	delete(li.pending, sessionID)
+	p.timer.Stop()
+	li.writeLocked(p.agentID, p.row)
+}
+
+// writeLocked upserts one row and records the write. The caller holds li.mu.
+func (li *LiveIndexer) writeLocked(agentID string, row sessionindex.Session) {
+	// A newer write supersedes any held row for the session.
+	if p, ok := li.pending[row.SessionID]; ok {
+		p.timer.Stop()
+		delete(li.pending, row.SessionID)
+	}
+	// Skip the whole-table FTS delete (session_id/agent are UNINDEXED, so it scans the entire
+	// FTS) when this session has no existing row to replace. Only the first write of a session
+	// in this process can be new, and even then only if it isn't already in the index from a
+	// prior run — so we check by primary key just once, before lastSeen records the write.
+	row.IsNew = false
+	if _, written := li.lastSeen[row.SessionID]; !written {
+		if exists, err := li.store.Exists(agentID, row.SessionID); err == nil {
+			row.IsNew = !exists
+		}
+	}
+	if err := li.store.Upsert(row); err != nil {
+		slog.Debug("live index: upsert failed", "sessionId", row.SessionID, "error", err)
+		return
+	}
+	li.lastSeen[row.SessionID] = row.UpdatedAt
 	if li.lastIndexed == nil {
 		li.lastIndexed = map[string]time.Time{}
 	}
-	li.lastIndexed[sess.SessionID] = time.Now()
+	li.lastIndexed[row.SessionID] = time.Now()
+}
+
+// flushPending writes every held row. Close calls it before closing the store.
+func (li *LiveIndexer) flushPending() {
+	li.mu.Lock()
+	defer li.mu.Unlock()
+	for id := range li.pending {
+		li.flushLocked(id)
+	}
 }
 
 // Close releases the writer handle. Safe on a nil receiver.
@@ -607,6 +672,7 @@ func (li *LiveIndexer) Close() {
 	if li == nil {
 		return
 	}
+	li.flushPending()
 	if err := li.store.Close(); err != nil {
 		slog.Debug("live index: close failed", "error", err)
 	}
