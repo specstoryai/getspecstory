@@ -47,7 +47,7 @@ type prefixCheckpoint struct {
 func computePrefixCheckpoint(file *os.File, offset int64) (prefixCheckpoint, error) {
 	hashRange := func(start, end int64) ([sha256.Size]byte, error) {
 		buf := make([]byte, end-start)
-		if _, err := file.ReadAt(buf, start); err != nil && !(errors.Is(err, io.EOF) && int64(len(buf)) == end-start) {
+		if _, err := io.ReadFull(io.NewSectionReader(file, start, end-start), buf); err != nil {
 			return [sha256.Size]byte{}, err
 		}
 		return sha256.Sum256(buf), nil
