@@ -56,4 +56,7 @@ Not graded.
 | `read_agent`, `write_agent` | Need a background agent ID; the one `task` agent ran synchronously and finished, leaving none (`list_agents` confirms). |
 | `github-mcp-server-get_copilot_space` | Needs a Copilot Space owner and name; this account has no Spaces (`list_copilot_spaces` failed with not_found). |
 | Tools in the later sections of `tools.txt` | Not in this configuration's tool set: they were observed in the user's own sessions (terminal CLI with plan mode and the GitHub app's session tools, the GitHub Copilot app host, VS Code's agent host). They render through the same shared input list; `TestToolInventorySweep` asserts each name's type, and the 126 sessions in the author's own store (52 projects) sync with no Warn or Error log. |
+| `semantic_code_search` | New in 1.0.105, after this capture. Types `search`; renders through the shared input list. |
+| `write_bash` | Named by the CLI bundle but absent from the model report and from captured sessions. Types `shell`. |
+| `powershell`, `read_powershell`, `write_powershell`, `stop_powershell`, `list_powershell` | Windows only, and this audit ran on macOS. Named by the CLI bundle. Type `shell`; a `powershell` call renders like `bash`. |
 | `task_complete` | Autopilot only; not a tool block. Its summary renders as agent text (`TestTranscriptBuilder`). |

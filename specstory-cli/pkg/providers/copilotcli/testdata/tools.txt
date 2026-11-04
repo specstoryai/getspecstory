@@ -32,6 +32,18 @@ github-mcp-server-list_copilot_spaces
 github-mcp-server-search_code
 github-mcp-server-search_users
 
+# Added to the model's report by GitHub Copilot CLI 1.0.105 (factory list-tools, 2026-11-04).
+semantic_code_search
+
+# Shell tools outside a macOS model report, named by the CLI's own bundle (npm @github/copilot 1.0.20,
+# app.js): the interactive-input tool, and the family that replaces bash on Windows.
+write_bash
+powershell
+read_powershell
+write_powershell
+stop_powershell
+list_powershell
+
 # Observed in sessions of the terminal CLI (client github/cli) but not in the model's report.
 add_artifact_or_reference
 apply_patch

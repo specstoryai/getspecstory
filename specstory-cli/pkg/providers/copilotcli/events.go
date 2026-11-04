@@ -51,10 +51,12 @@ const (
 // Event types the transcript is built from. Everything else in events.jsonl
 // (hooks, permissions, model call telemetry, context snapshots) is plumbing.
 const (
-	eventSessionStart  = "session.start"
-	eventUserMessage   = "user.message"
-	eventAssistantMsg  = "assistant.message"
-	eventToolCompleted = "tool.execution_complete"
+	eventSessionStart      = "session.start"
+	eventUserMessage       = "user.message"
+	eventAssistantMsg      = "assistant.message"
+	eventToolCompleted     = "tool.execution_complete"
+	eventToolUserRequested = "tool.user_requested"
+	eventUsageRecord       = "session.usage_record"
 )
 
 // rawEvent is the envelope every events.jsonl line shares. Data stays raw so
@@ -99,6 +101,30 @@ type assistantMessageData struct {
 	ToolRequests     []toolRequest `json:"toolRequests"`
 	OutputTokens     int           `json:"outputTokens"`
 	ParentToolCallID string        `json:"parentToolCallId"`
+	// APICallID names the model call that produced this message, which is how
+	// its session.usage_record is found.
+	APICallID string `json:"apiCallId"`
+}
+
+// usageRecordData is one model call's token counts. Only some models write
+// outputTokens on the assistant message; this record covers them all.
+type usageRecordData struct {
+	Usage struct {
+		APICallID        string `json:"apiCallId"`
+		InputTokens      int    `json:"inputTokens"`
+		OutputTokens     int    `json:"outputTokens"`
+		CacheReadTokens  int    `json:"cacheReadTokens"`
+		CacheWriteTokens int    `json:"cacheWriteTokens"`
+		ReasoningTokens  int    `json:"reasoningTokens"`
+	} `json:"usage"`
+}
+
+// userToolRequestData is a tool call the user started themselves, such as a
+// `!command`, rather than one the agent asked for.
+type userToolRequestData struct {
+	ToolCallID string          `json:"toolCallId"`
+	ToolName   string          `json:"toolName"`
+	Arguments  json.RawMessage `json:"arguments"`
 }
 
 type toolCompleteData struct {
@@ -252,12 +278,13 @@ var (
 	// harnessKindPrefixes and harnessKinds are machinery around the
 	// conversation, with nothing to render: hook runs, permission prompts,
 	// per-model-call telemetry whose snapshots repeat the whole context, the
-	// system prompt Copilot re-sends on every turn, and token counters.
+	// system prompt Copilot re-sends on every turn, and token counters, whose
+	// per-call counts are read into Usage but never rendered.
 	harnessKindPrefixes = []string{"hook.", "permission.", "model."}
 	harnessKinds        = map[string]bool{
 		"system.message":           true,
 		"session.usage_checkpoint": true,
-		"session.usage_record":     true,
+		eventUsageRecord:           true,
 	}
 
 	// unrenderedKindPrefixes and unrenderedKinds have nothing to render
@@ -291,7 +318,7 @@ func isHarnessKind(kind string) bool {
 // isKnownKind reports whether a record kind has been observed, rendered or not.
 func isKnownKind(kind string) bool {
 	switch kind {
-	case eventSessionStart, eventUserMessage, eventAssistantMsg, eventToolCompleted:
+	case eventSessionStart, eventUserMessage, eventAssistantMsg, eventToolCompleted, eventToolUserRequested:
 		return true
 	}
 	return isHarnessKind(kind) || unrenderedKinds[kind] || hasAnyPrefix(kind, unrenderedKindPrefixes)
@@ -357,6 +384,12 @@ const (
 	subagentPrompt
 )
 
+// Runtime notifications arrive as a user message wholly wrapped in these tags.
+const (
+	notificationOpenTag  = "<system_notification>"
+	notificationCloseTag = "</system_notification>"
+)
+
 // crossSessionTag wraps a message from another session in the transformed
 // content the model receives; content and source look exactly like a prompt.
 const crossSessionTag = "<cross_session_message>"
@@ -376,13 +409,15 @@ const sidechainKey = "isSidechain"
 // their envelope. The envelope is looked for outside the typed text, which
 // transformedContent repeats word for word, so a prompt that merely quotes the
 // tag cannot pass as a session message. The parentAgentTaskId field is no
-// signal: real prompts carry it too.
+// signal: real prompts carry it too. A typed prompt has no source to tell it
+// from a notification, so a notification must be wrapped in its tags end to
+// end: a prompt that only starts with the opening tag is kept.
 func classifyUserMessage(data userMessageData) inputKind {
 	content := strings.TrimSpace(data.Content)
 	switch {
 	case content == "":
 		return machinery
-	case strings.HasPrefix(content, "<system_notification>"):
+	case strings.HasPrefix(content, notificationOpenTag) && strings.HasSuffix(content, notificationCloseTag):
 		// Checked before the agent- source: Copilot also delivers runtime
 		// notices (a child session archived, say) under an
 		// "agent-workspace-<id>" source.
@@ -574,6 +609,11 @@ type transcriptBuilder struct {
 	// pendingTools pairs a tool call with its result, which arrives in a
 	// later tool.execution_complete record.
 	pendingTools map[string]*pendingTool
+	// userShells pairs a command the user ran with its result in the same way.
+	userShells map[string]*userShell
+	// callUsage holds a model call's token counts until its message arrives;
+	// Copilot writes the usage record first.
+	callUsage map[string]*schema.Usage
 	// name is the session's first input, user prompt or session message
 	// alike. It names the markdown file, so it must never change as the
 	// append-only log grows: a later rename would leave the earlier save
@@ -586,6 +626,8 @@ func newTranscriptBuilder(workspaceRoot string) *transcriptBuilder {
 	return &transcriptBuilder{
 		workspaceRoot: workspaceRoot,
 		pendingTools:  make(map[string]*pendingTool),
+		userShells:    make(map[string]*userShell),
+		callUsage:     make(map[string]*schema.Usage),
 	}
 }
 
@@ -608,6 +650,18 @@ func (b *transcriptBuilder) add(event rawEvent) bool {
 		var data toolCompleteData
 		if err = json.Unmarshal(event.Data, &data); err == nil {
 			used = b.addToolResult(event, data)
+		}
+	case eventToolUserRequested:
+		var data userToolRequestData
+		if err = json.Unmarshal(event.Data, &data); err == nil {
+			used = b.addUserToolRequest(event, data)
+		}
+	case eventUsageRecord:
+		// Not "used": a counter is not conversation, so it must not move the
+		// session's update time.
+		var data usageRecordData
+		if err = json.Unmarshal(event.Data, &data); err == nil {
+			b.addUsageRecord(data)
 		}
 	}
 	if err != nil {
@@ -641,6 +695,16 @@ func (b *transcriptBuilder) addUserMessage(event rawEvent, data userMessageData)
 	case sessionMessage:
 		text = sessionMessageText(data)
 	}
+	b.openUserExchange(event, text)
+	if b.name == "" {
+		b.name = data.Content
+	}
+	return true
+}
+
+// openUserExchange closes the current exchange and opens one with this user
+// message.
+func (b *transcriptBuilder) openUserExchange(event rawEvent, text string) {
 	b.flush()
 	b.current = &schema.Exchange{ExchangeID: event.ID, StartTime: event.Timestamp}
 	b.current.Messages = append(b.current.Messages, schema.Message{
@@ -649,10 +713,39 @@ func (b *transcriptBuilder) addUserMessage(event rawEvent, data userMessageData)
 		Role:      schema.RoleUser,
 		Content:   []schema.ContentPart{{Type: schema.ContentTypeText, Text: text}},
 	})
-	if b.name == "" {
-		b.name = data.Content
+}
+
+// addUserToolRequest records a shell command the user ran as a labeled user
+// message, so it reads as past activity rather than a new instruction. It does
+// not name the session: a command is not what the session is about. Other
+// user-started tools are left to the raw data.
+func (b *transcriptBuilder) addUserToolRequest(event rawEvent, data userToolRequestData) bool {
+	command := spi.StringValue(decodeArguments(data.Arguments), "command")
+	if toolType(data.ToolName) != schema.ToolTypeShell || strings.TrimSpace(command) == "" {
+		slog.Debug("Not rendering a user-started Copilot CLI tool", "toolName", data.ToolName)
+		return false
+	}
+	b.openUserExchange(event, "User ran a shell command:\n\n"+spi.CodeFence("bash", command))
+	if data.ToolCallID != "" {
+		b.userShells[data.ToolCallID] = &userShell{exchange: b.current}
 	}
 	return true
+}
+
+// addUsageRecord keeps a model call's counts for its message. Copilot's input
+// count already includes cached tokens, the same shape as the cached-input field.
+func (b *transcriptBuilder) addUsageRecord(data usageRecordData) {
+	usage := data.Usage
+	if usage.APICallID == "" {
+		return
+	}
+	b.callUsage[usage.APICallID] = &schema.Usage{
+		InputTokens:              usage.InputTokens,
+		OutputTokens:             usage.OutputTokens,
+		CachedInputTokens:        usage.CacheReadTokens,
+		CacheCreationInputTokens: usage.CacheWriteTokens,
+		ReasoningOutputTokens:    usage.ReasoningTokens,
+	}
 }
 
 func (b *transcriptBuilder) addAssistantMessage(event rawEvent, data assistantMessageData) bool {
@@ -720,17 +813,30 @@ func (b *transcriptBuilder) addAssistantMessage(event rawEvent, data assistantMe
 			b.pendingTools[request.ToolCallID] = pending
 		}
 	}
+	// The usage record is the full account of the call. Sessions from versions
+	// that do not write one fall back on the message's own output count.
+	usage := b.callUsage[data.APICallID]
+	delete(b.callUsage, data.APICallID)
+	if usage == nil && data.OutputTokens > 0 {
+		usage = &schema.Usage{OutputTokens: data.OutputTokens}
+	}
 	// One native message can become several schema messages, and a turn that
 	// only calls tools has no text message at all. The count covers the whole
 	// native message, so it goes on the first one: stats sum per message, and
 	// repeating it would double count.
-	if data.OutputTokens > 0 && len(exchange.Messages) > first {
-		exchange.Messages[first].Usage = &schema.Usage{OutputTokens: data.OutputTokens}
+	if usage != nil && len(exchange.Messages) > first {
+		exchange.Messages[first].Usage = usage
 	}
 	return true
 }
 
 func (b *transcriptBuilder) addToolResult(event rawEvent, data toolCompleteData) bool {
+	if shell, ok := b.userShells[data.ToolCallID]; ok {
+		delete(b.userShells, data.ToolCallID)
+		shell.addResult(data)
+		return true
+	}
+
 	// Tool call IDs are unique across the parent and its sub-agents, so one
 	// lookup pairs results on either side of the sidechain.
 	pending, ok := b.pendingTools[data.ToolCallID]
@@ -741,11 +847,7 @@ func (b *transcriptBuilder) addToolResult(event rawEvent, data toolCompleteData)
 
 	switch {
 	case !data.Success:
-		message := "Tool call failed"
-		if data.Error != nil && data.Error.Message != "" {
-			message = data.Error.Message
-		}
-		pending.tool.Output = map[string]any{"result": message, "is_error": true}
+		pending.tool.Output = map[string]any{"result": data.failureMessage(), "is_error": true}
 	case data.Result != nil:
 		pending.tool.Output = map[string]any{"result": data.Result.Content}
 	}
@@ -761,6 +863,14 @@ func (b *transcriptBuilder) addToolResult(event rawEvent, data toolCompleteData)
 		pending.exchange.Messages[pending.index].Timestamp = event.Timestamp
 	}
 	return true
+}
+
+// failureMessage returns a failed call's error text.
+func (data toolCompleteData) failureMessage() string {
+	if data.Error != nil && data.Error.Message != "" {
+		return data.Error.Message
+	}
+	return "Tool call failed"
 }
 
 // exitCode returns a shell command's exit code, or 0 when the result is not
@@ -809,6 +919,35 @@ func latestTimestamp(messages []schema.Message) string {
 		latest = max(latest, message.Timestamp)
 	}
 	return latest
+}
+
+// userShell locates a user-run command's message so its result can join it. The
+// message is always the first of the exchange the command opened, which stays
+// reachable after it is flushed for the same reason as pendingTool's.
+type userShell struct {
+	exchange *schema.Exchange
+}
+
+// addResult appends the command's output and exit status to its message.
+func (s *userShell) addResult(data toolCompleteData) {
+	var output string
+	switch {
+	case !data.Success:
+		output = data.failureMessage()
+	case data.Result != nil:
+		output = data.Result.Content
+	}
+	var sections []string
+	if output = strings.TrimRight(spi.SanitizeShellOutput(output), " \t\n"); output != "" {
+		sections = append(sections, "Output:\n\n"+spi.CodeFence("text", spi.CapRunes(output, spi.ToolResultCap)))
+	}
+	if exitCode := data.exitCode(); exitCode != 0 {
+		sections = append(sections, fmt.Sprintf("Exit code: %d", exitCode))
+	}
+	if len(sections) > 0 {
+		message := &s.exchange.Messages[0]
+		message.Content = append(message.Content, schema.ContentPart{Type: schema.ContentTypeText, Text: strings.Join(sections, "\n\n")})
+	}
 }
 
 // pendingTool is a tool call awaiting its result. intent is Copilot's one-line
@@ -891,7 +1030,8 @@ func decodeArguments(raw json.RawMessage) map[string]any {
 
 // toolType classifies a tool from Copilot's inventory (testdata/tools.txt) by
 // what it acts on: workspace files are read, write or search; shell commands
-// are shell; the todo list is task; and agent state (sub-agents, sessions,
+// are shell, under their bash names or the powershell names Copilot uses on
+// Windows; the todo list is task; and agent state (sub-agents, sessions,
 // skills, the session database, canvases, workflows, pull requests, the
 // editor host's browser) is generic. A remote read, such as a URL fetch or a
 // GitHub file, is read; a remote query is search. A tool outside the inventory
@@ -905,10 +1045,17 @@ func toolType(name string) string {
 }
 
 var toolTypes = map[string]string{
-	"bash":      schema.ToolTypeShell,
-	"read_bash": schema.ToolTypeShell,
-	"stop_bash": schema.ToolTypeShell,
-	"list_bash": schema.ToolTypeShell,
+	"bash":       schema.ToolTypeShell,
+	"read_bash":  schema.ToolTypeShell,
+	"stop_bash":  schema.ToolTypeShell,
+	"list_bash":  schema.ToolTypeShell,
+	"write_bash": schema.ToolTypeShell,
+
+	"powershell":       schema.ToolTypeShell,
+	"read_powershell":  schema.ToolTypeShell,
+	"write_powershell": schema.ToolTypeShell,
+	"stop_powershell":  schema.ToolTypeShell,
+	"list_powershell":  schema.ToolTypeShell,
 
 	"view":                                schema.ToolTypeRead,
 	"web_fetch":                           schema.ToolTypeRead,
@@ -928,6 +1075,7 @@ var toolTypes = map[string]string{
 	"glob":                                   schema.ToolTypeSearch,
 	"javaFindSymbol":                         schema.ToolTypeSearch,
 	"usages":                                 schema.ToolTypeSearch,
+	"semantic_code_search":                   schema.ToolTypeSearch,
 	"github-mcp-server-search_code":          schema.ToolTypeSearch,
 	"github-mcp-server-search_issues":        schema.ToolTypeSearch,
 	"github-mcp-server-search_pull_requests": schema.ToolTypeSearch,

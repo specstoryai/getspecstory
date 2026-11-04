@@ -40,9 +40,10 @@ Observed kinds and how the provider treats them:
 | `user.message` | A prompt, a message from another session, a sub-agent's prompt, or injected machinery (see below) |
 | `assistant.message` | Agent text, reasoning and tool requests |
 | `tool.execution_complete` | A tool call's result or error, paired to its request by `toolCallId` |
+| `tool.user_requested` | A tool the user started themselves (`toolName`, `arguments`, `toolCallId`), such as a `!` command. A shell command renders as a user message; other tools are left to the raw data. Its shape comes from the published `@github/copilot-sdk` event types, not from a capture |
 | `tool.execution_start` | Not rendered: duplicates the request already carried by `assistant.message` |
 | `session.*` (other than start), `subagent.*`, `skill.*`, `external_tool.*`, `assistant.turn_*`, `system.notification`, `abort` | Not rendered: lifecycle, sub-agent and skill bookkeeping, turn boundaries, and notices shown in the terminal rather than in the conversation |
-| `hook.*`, `permission.*`, `model.*`, `system.message`, `session.usage_checkpoint`, `session.usage_record` | Harness machinery: not rendered (see below) |
+| `hook.*`, `permission.*`, `model.*`, `system.message`, `session.usage_checkpoint`, `session.usage_record` | Harness machinery; `session.usage_record` supplies token counts (see below): not rendered (see below) |
 
 A kind not in this table is logged at debug level and otherwise ignored.
 
@@ -52,7 +53,7 @@ A kind not in this table is logged at debug level and otherwise ignored.
 
 | `source` | Meaning | Rendered as |
 |---|---|---|
-| empty or `user`, `content` starting `<system_notification>` | A runtime notice (a background agent finishing) | Not rendered |
+| empty or `user`, `content` wrapped end to end in `<system_notification>` tags (one that only starts with the tag is a typed prompt) | A runtime notice (a background agent finishing) | Not rendered |
 | empty or `user`, `transformedContent` containing `<cross_session_message>` outside the typed text (which it repeats verbatim, so a prompt quoting the tag stays a prompt) | A message another Copilot session sent with `send_session_message`; the envelope names the sender in a `from_session_id:` line | A user turn labeled `_Message from Copilot session <id>:_` |
 | empty or `user` | Something the user typed | A user turn |
 | `agent-<id>` | The prompt the agent handed a sub-agent | A sidechain agent message |
@@ -111,6 +112,6 @@ No end-of-session record is needed: resumed with `copilot --resume=<id> -p ...`,
 - Harness records (hooks, permission prompts, per-model-call telemetry including full context snapshots, the system prompt Copilot resends each turn, token counters) are not rendered. All of them are in the `--debug-raw` export. The raw data synced to the cloud leaves out `system.message`, which holds the user's custom instructions, and `model.*`, which carries account quota and hidden side calls such as the automatic permission judge and otherwise repeats the conversation; it keeps the rest.
 - `tool.execution_start`, turn boundaries and lifecycle records are kept in the raw data but not rendered.
 - A tool result's `detailedContent` (for example the diff of an edit) is not rendered; `content` is.
-- Token usage is partial. `outputTokens` is per `assistant.message` and goes on the first schema message built from it, but it can be absent (one observed `claude-sonnet-5` session has none). Input, cache and reasoning tokens, and any output tokens missing that way, appear only in `session.shutdown` `modelMetrics`, totalled per model for the session; `schema.Usage` is per message, so they are not mapped.
+- Token usage comes from `session.usage_record`, written once per model call just before the `assistant.message` that shares its `usage.apiCallId`. It carries `inputTokens` (which includes cached tokens), `outputTokens`, `cacheReadTokens`, `cacheWriteTokens` and `reasoningTokens`, and goes on the first schema message built from that call. A session with no such record falls back on the message's own `outputTokens`, which only some models write (`gpt-5.3-codex` does; Claude models do not).
 - Opaque reasoning (`reasoningOpaque`, `encryptedContent`) is kept in the raw data only.
 - Reconstruction keeps the conversation as plain text turns; Copilot's own tool records, reasoning and model metadata are not recreated.

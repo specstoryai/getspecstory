@@ -155,6 +155,18 @@ func TestTranscriptBuilder(t *testing.T) {
 			wantName: "first",
 		},
 		{
+			name: "a typed prompt that only starts with the notification tag is the user's own prompt",
+			events: []rawEvent{
+				event("user.message", "u1", `{"content":"<system_notification> why does this tag show up in my logs?"}`),
+				event("assistant.message", "a1", `{"content":"Because..."}`),
+			},
+			wantLines: []string{
+				"0:user:text=<system_notification> why does this tag show up in my logs?",
+				"0:agent:text=Because...",
+			},
+			wantName: "<system_notification> why does this tag show up in my logs?",
+		},
+		{
 			name: "a sub-agent's prompt and work are kept as a sidechain inside the parent's exchange",
 			events: []rawEvent{
 				event("user.message", "u1", `{"content":"delegate","parentAgentTaskId":"p1"}`),
@@ -582,6 +594,10 @@ func TestToolInventorySweep(t *testing.T) {
 		"web_fetch":                      schema.ToolTypeRead,
 		"apply_patch":                    schema.ToolTypeWrite,
 		"rg":                             schema.ToolTypeSearch,
+		"semantic_code_search":           schema.ToolTypeSearch,
+		"powershell":                     schema.ToolTypeShell,
+		"write_powershell":               schema.ToolTypeShell,
+		"write_bash":                     schema.ToolTypeShell,
 		"github-mcp-server-search_code":  schema.ToolTypeSearch,
 		"update_todo":                    schema.ToolTypeTask,
 		"task":                           schema.ToolTypeGeneric,
@@ -820,5 +836,195 @@ func TestApplyPatchPathHints(t *testing.T) {
 	got := builder.finish()[0].Messages[1].PathHints
 	if want := []string{"new.go", "old.go", "moved.go"}; !slices.Equal(got, want) {
 		t.Errorf("PathHints = %v, want %v", got, want)
+	}
+}
+
+// A `!command` is the user's own activity: it opens an exchange, labeled so it
+// cannot be mistaken for an instruction, and its result joins that message
+// rather than being dropped as a result with no request.
+func TestUserShellCommand(t *testing.T) {
+	const label = "User ran a shell command:\n\n```bash\nmake test\n```"
+	tests := []struct {
+		name      string
+		toolName  string
+		arguments string
+		result    string
+		wantLines []string
+	}{
+		{
+			name:      "output joins the labeled command",
+			toolName:  "bash",
+			arguments: `{"command":"make test"}`,
+			result:    `{"toolCallId":"c1","success":true,"result":{"content":"ok\n\n"}}`,
+			wantLines: []string{"1:user:text=" + label + ",text=Output:\n\n```text\nok\n```"},
+		},
+		{
+			name:      "a non-zero exit is shown with the output",
+			toolName:  "powershell",
+			arguments: `{"command":"make test"}`,
+			result:    `{"toolCallId":"c1","success":true,"result":{"content":"boom"},"shellExecution":{"exitCode":2}}`,
+			wantLines: []string{"1:user:text=" + label + ",text=Output:\n\n```text\nboom\n```\n\nExit code: 2"},
+		},
+		{
+			name:      "a failed call shows its error",
+			toolName:  "bash",
+			arguments: `{"command":"make test"}`,
+			result:    `{"toolCallId":"c1","success":false,"error":{"message":"denied"}}`,
+			wantLines: []string{"1:user:text=" + label + ",text=Output:\n\n```text\ndenied\n```"},
+		},
+		{
+			name:      "a command with no result yet still appears",
+			toolName:  "bash",
+			arguments: `{"command":"make test"}`,
+			wantLines: []string{"1:user:text=" + label},
+		},
+		{
+			name:      "a user-started tool that is not a shell is left to the raw data",
+			toolName:  "view",
+			arguments: `{"path":"a.go"}`,
+			result:    `{"toolCallId":"c1","success":true,"result":{"content":"package a"}}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder := newTranscriptBuilder("/w")
+			builder.add(event("user.message", "u", `{"content":"hi"}`))
+			builder.add(event(eventToolUserRequested, "q", `{"toolCallId":"c1","toolName":"`+tt.toolName+`","arguments":`+tt.arguments+`}`))
+			if tt.result != "" {
+				builder.add(event("tool.execution_complete", "r", tt.result))
+			}
+			got := renderExchanges(builder.finish())[1:]
+			if !slices.Equal(got, tt.wantLines) {
+				t.Errorf("exchanges mismatch\n got: %q\nwant: %q", got, tt.wantLines)
+			}
+			if builder.name != "hi" {
+				t.Errorf("name = %q, want it left on the first prompt", builder.name)
+			}
+		})
+	}
+}
+
+// Copilot writes a call's usage record just before its message, joined by
+// apiCallId. Models that never write outputTokens depend on this record.
+func TestUsageRecordsReachTheirMessages(t *testing.T) {
+	const record = `{"usage":{"apiCallId":"call-1","inputTokens":100,"outputTokens":7,"cacheReadTokens":60,"cacheWriteTokens":30,"reasoningTokens":3}}`
+	full := schema.Usage{InputTokens: 100, OutputTokens: 7, CachedInputTokens: 60, CacheCreationInputTokens: 30, ReasoningOutputTokens: 3}
+	tests := []struct {
+		name    string
+		records []string
+		message string
+		want    []schema.Usage
+	}{
+		{
+			name:    "a message with no count of its own",
+			records: []string{record},
+			message: `{"apiCallId":"call-1","content":"hi"}`,
+			want:    []schema.Usage{full},
+		},
+		{
+			name:    "the record wins over the message's output count",
+			records: []string{record},
+			message: `{"apiCallId":"call-1","content":"hi","outputTokens":7}`,
+			want:    []schema.Usage{full},
+		},
+		{
+			name:    "several schema messages from one call count once",
+			records: []string{record},
+			message: `{"apiCallId":"call-1","toolRequests":[{"toolCallId":"c1","name":"view","arguments":{}},{"toolCallId":"c2","name":"view","arguments":{}}]}`,
+			want:    []schema.Usage{full, {}},
+		},
+		{
+			name:    "another call's record is not borrowed",
+			records: []string{record},
+			message: `{"apiCallId":"call-2","content":"hi"}`,
+			want:    []schema.Usage{{}},
+		},
+		{
+			name:    "no record falls back on the message's output count",
+			message: `{"apiCallId":"call-1","content":"hi","outputTokens":40}`,
+			want:    []schema.Usage{{OutputTokens: 40}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder := newTranscriptBuilder("/w")
+			builder.add(event("user.message", "u", `{"content":"go"}`))
+			for _, data := range tt.records {
+				builder.add(event(eventUsageRecord, "usage", data))
+			}
+			builder.add(event("assistant.message", "a", tt.message))
+
+			var got []schema.Usage
+			for _, message := range builder.finish()[0].Messages[1:] {
+				usage := schema.Usage{}
+				if message.Usage != nil {
+					usage = *message.Usage
+				}
+				got = append(got, usage)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("usage per message = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+// A usage record is a counter, not conversation: it must not move the session's
+// update time, or a session would look active without a new message.
+func TestUsageRecordDoesNotAdvanceTheTranscript(t *testing.T) {
+	builder := newTranscriptBuilder("/w")
+	builder.add(event("user.message", "u", `{"content":"go"}`))
+	before := builder.lastTimestamp
+	record := event(eventUsageRecord, "usage", `{"usage":{"apiCallId":"call-1","outputTokens":7}}`)
+	record.Timestamp = "2030-01-01T00:00:00.000Z"
+	builder.add(record)
+	if builder.lastTimestamp != before {
+		t.Errorf("lastTimestamp = %q, want %q", builder.lastTimestamp, before)
+	}
+}
+
+// The captured session writes a usage record for every model call, so every
+// agent turn in it must end up with its tokens.
+func TestCapturedSessionCarriesUsage(t *testing.T) {
+	home := useSessionStore(t)
+	data, err := os.ReadFile(filepath.Join("testdata", "tool-exercise.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := writeSession(t, home, "capture", strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")...)
+	session, err := NewProvider().GetAgentChatSessionByPath(path, "", false)
+	if err != nil || session == nil {
+		t.Fatalf("GetAgentChatSessionByPath = %v, %v", session, err)
+	}
+	var withUsage, input int
+	for _, exchange := range session.SessionData.Exchanges {
+		for _, message := range exchange.Messages {
+			if message.Usage != nil {
+				withUsage++
+				input += message.Usage.InputTokens
+			}
+		}
+	}
+	if want := strings.Count(string(data), `"type":"session.usage_record"`); withUsage != want || input == 0 {
+		t.Errorf("%d messages with usage (%d input tokens), want one per usage record (%d)", withUsage, input, want)
+	}
+}
+
+// On Windows the shell tool is powershell. It must be treated as bash is, or its
+// writes get no path hints and provenance skips them.
+func TestPowerShellCallIsAShellCall(t *testing.T) {
+	builder := newTranscriptBuilder("/w")
+	builder.add(event("user.message", "u", `{"content":"go"}`))
+	builder.add(event("assistant.message", "a", `{"toolRequests":[{"toolCallId":"c1","name":"powershell","arguments":{"command":"echo hi > /w/out.txt"}}]}`))
+
+	message := builder.finish()[0].Messages[1]
+	if message.Tool.Type != schema.ToolTypeShell {
+		t.Errorf("type = %q, want shell", message.Tool.Type)
+	}
+	if !strings.Contains(*message.Tool.FormattedMarkdown, "```bash\necho hi > /w/out.txt\n```") {
+		t.Errorf("command not fenced: %q", *message.Tool.FormattedMarkdown)
+	}
+	if want := []string{"out.txt"}; !slices.Equal(message.PathHints, want) {
+		t.Errorf("PathHints = %v, want %v", message.PathHints, want)
 	}
 }
