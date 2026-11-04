@@ -178,10 +178,16 @@ type sessionFile struct {
 // callers skip rather than report as a failure.
 var errNotSession = errors.New("not a Copilot CLI session transcript")
 
-// copilotHome returns Copilot CLI's state directory, honoring COPILOT_HOME.
+// copilotHome returns Copilot CLI's state directory, honoring COPILOT_HOME. A
+// relative override is made absolute here because transcript paths are built
+// from it and persisted by reindex, where they must outlive this directory.
 func copilotHome() (string, error) {
 	if override := strings.TrimSpace(os.Getenv(homeEnvVar)); override != "" {
-		return override, nil
+		absolute, err := filepath.Abs(override)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve %s: %w", homeEnvVar, err)
+		}
+		return absolute, nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {

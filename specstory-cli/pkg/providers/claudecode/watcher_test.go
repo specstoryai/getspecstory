@@ -150,6 +150,9 @@ func equalStringSlices(a, b []string) bool {
 // on the launch directory, so this asserts delivery before anything stops.
 func TestWatchForProjectDirFollowsProjectNotLaunchDirectory(t *testing.T) {
 	testutil.SetHome(t, t.TempDir())
+	// An inherited override outranks the temp home and would put the fake
+	// transcript in the developer's real store.
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
 	t.Chdir(t.TempDir())
 	project := spi.CanonicalizePathOrClean(t.TempDir())
 	dir, err := resolveClaudeProjectDir(project)

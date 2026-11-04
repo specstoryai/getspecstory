@@ -334,6 +334,61 @@ func TestBelongsToProjectKeepsCaseDistinctUnixRoots(t *testing.T) {
 	}
 }
 
+// reindex persists NativePath and reads it back from any directory later, so a
+// relative COPILOT_HOME must not reach it.
+func TestRelativeHomeGivesAbsoluteTranscriptPaths(t *testing.T) {
+	launchDir := t.TempDir()
+	t.Chdir(launchDir)
+	t.Setenv(homeEnvVar, "state")
+	project := newProjectDir(t, "project")
+	writeSession(t, filepath.Join(launchDir, "state"), "s1",
+		sessionStart(t, "s1", project),
+		record(t, eventUserMessage, "u1", map[string]any{"content": "hello"}),
+	)
+
+	p := NewProvider()
+	refs, err := p.ListAllAgentChatSessions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("listed %d sessions, want 1", len(refs))
+	}
+	if !filepath.IsAbs(refs[0].NativePath) {
+		t.Fatalf("NativePath = %q, want an absolute path", refs[0].NativePath)
+	}
+
+	t.Chdir(t.TempDir())
+	session, err := p.GetAgentChatSessionByPath(refs[0].NativePath, "", false)
+	if err != nil || session == nil {
+		t.Errorf("by-path read from another directory = %v, %v", session, err)
+	}
+}
+
+// A flag after "--" is positional to Copilot, so a custom command holding one
+// must not make a working install fail its check.
+func TestCheckKeepsVersionFlagBeforeSeparator(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX executable fixtures")
+	}
+	path := filepath.Join(t.TempDir(), "copilot")
+	script := `#!/bin/sh
+for arg in "$@"; do
+  [ "$arg" = "--" ] && break
+  if [ "$arg" = "--version" ]; then echo "GitHub Copilot CLI 1.0.105."; exit 0; fi
+done
+echo "error: unrecognized subcommand" >&2
+exit 1
+`
+	if err := os.WriteFile(path, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	result := NewProvider().Check(`"` + path + `" --model x -- prompt`)
+	if !result.Success || result.Version != "1.0.105" {
+		t.Errorf("Check() = %+v, want success at 1.0.105", result)
+	}
+}
+
 func TestCheck(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("POSIX executable fixtures")

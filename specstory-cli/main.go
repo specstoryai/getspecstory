@@ -445,8 +445,9 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			// Keep sessions.db current in real time alongside the markdown writes (nil/no-op
 			// if the index can't be opened — never block the running agent on it). Keyed to
 			// the effective project path so --project-path sessions index under the project
-			// they belong to, not the launch directory.
-			liveIndex := cmdpkg.NewLiveIndexer(effectiveProjectPath)
+			// they belong to, not the launch directory, with the origin set to
+			// where the agent actually runs.
+			liveIndex := cmdpkg.NewLiveIndexerForAgent(effectiveProjectPath, spi.RunningAgentDir(effectiveProjectPath))
 			defer liveIndex.Close()
 
 			// This callback pattern enables real-time processing of agent sessions

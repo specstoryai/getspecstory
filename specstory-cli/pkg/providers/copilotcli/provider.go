@@ -74,7 +74,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 
 	// A custom command's arguments are part of how the user runs Copilot (a
 	// wrapper script may need them), so the probe keeps them.
-	probeArgs := append(slices.Clone(cmdArgs), versionFlag)
+	probeArgs := insertBeforeSeparator(cmdArgs, versionFlag)
 	var stdout, stderr bytes.Buffer
 	cmd := exec.Command(resolved, probeArgs...)
 	cmd.Stdout = &stdout
@@ -476,16 +476,13 @@ func expandTilde(path string) string {
 
 // resumeArgs makes the requested session override any configured resume flag.
 // A fresh flag is attached with "=" because --resume's value is optional and
-// a separate argument could be read as a prompt or another option. It goes
-// before any "--", after which Copilot reads arguments as positional input.
+// a separate argument could be read as a prompt or another option.
 func resumeArgs(args []string, sessionID string) []string {
 	if sessionID == "" {
 		return args
 	}
-	end := len(args)
-	for i, arg := range args {
-		if arg == "--" {
-			end = i
+	for _, arg := range args {
+		if arg == optionSeparator {
 			break
 		}
 		flag, _, _ := strings.Cut(arg, "=")
@@ -493,7 +490,21 @@ func resumeArgs(args []string, sessionID string) []string {
 			return spi.EnsureResumeFlagArgs(args, sessionID, resumeFlag, resumeShortFlag)
 		}
 	}
-	return slices.Insert(slices.Clone(args), end, resumeFlag+"="+sessionID)
+	return insertBeforeSeparator(args, resumeFlag+"="+sessionID)
+}
+
+// optionSeparator ends Copilot's options: what follows is read as positional
+// input, so a flag placed after it is not a flag.
+const optionSeparator = "--"
+
+// insertBeforeSeparator returns args with flag added where Copilot still reads
+// it as an option, leaving the caller's slice alone.
+func insertBeforeSeparator(args []string, flag string) []string {
+	end := slices.Index(args, optionSeparator)
+	if end < 0 {
+		end = len(args)
+	}
+	return slices.Insert(slices.Clone(args), end, flag)
 }
 
 // ExecuteCopilot launches Copilot CLI attached to the terminal and blocks until
