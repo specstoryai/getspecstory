@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -212,10 +213,19 @@ func listSessionFiles() ([]sessionFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	entries, err := os.ReadDir(root)
+	// Stat first: Windows reports ReadDir of a regular file as "path not found",
+	// which would pass off an invalid store as one that does not exist yet.
+	info, err := os.Stat(root)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
+	if err == nil && !info.IsDir() {
+		err = fmt.Errorf("%s is not a directory", root)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to list Copilot CLI sessions in %s: %w", root, err)
+	}
+	entries, err := os.ReadDir(root)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list Copilot CLI sessions in %s: %w", root, err)
 	}
@@ -439,12 +449,39 @@ func classifyUserMessage(data userMessageData) inputKind {
 	case strings.HasPrefix(data.Source, "agent-"):
 		return subagentPrompt
 	case data.Source != "" && data.Source != "user":
-		slog.Debug("Not rendering Copilot CLI input from a non-user source", "source", data.Source)
+		logMachinerySource(data.Source)
 		return machinery
 	case strings.Contains(strings.Replace(data.TransformedContent, data.Content, "", 1), crossSessionTag):
 		return sessionMessage
 	default:
 		return userPrompt
+	}
+}
+
+// Sources Copilot uses for injected input, as observed in sessions written by
+// version 1.0.95, besides the skill-<name> family.
+var knownMachinerySources = map[string]bool{
+	"autopilot":             true,
+	"system":                true,
+	"instruction-discovery": true,
+}
+
+// warnedSources remembers the unfamiliar sources already warned about. It lasts
+// for the process because a watch re-reads a session on every change, which
+// would otherwise repeat the warning for as long as the session runs.
+var warnedSources sync.Map
+
+// logMachinerySource records input left out because of its source. An unfamiliar
+// source is worth a warning: the allowlist drops it, so if Copilot starts tagging
+// typed prompts with a new source, whole sessions would go missing and this
+// would be the only sign.
+func logMachinerySource(source string) {
+	if knownMachinerySources[source] || strings.HasPrefix(source, "skill-") {
+		slog.Debug("Not rendering Copilot CLI input from a non-user source", "source", source)
+		return
+	}
+	if _, warned := warnedSources.LoadOrStore(source, true); !warned {
+		slog.Warn("Not rendering Copilot CLI input from an unfamiliar source", "source", source)
 	}
 }
 

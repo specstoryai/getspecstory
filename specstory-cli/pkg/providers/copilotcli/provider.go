@@ -156,9 +156,12 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 		return true
 	}
 	if helpOutput {
-		root, _ := sessionsRoot()
 		log.UserWarn("No Copilot CLI sessions were found for this directory.\n")
-		log.UserMessage("Copilot CLI stores sessions in %s and records the directory each one starts in.\n", root)
+		if root, err := sessionsRoot(); err == nil {
+			log.UserMessage("Copilot CLI stores sessions in %s and records the directory each one starts in.\n", root)
+		} else {
+			slog.Warn("DetectAgent: Failed to resolve the Copilot CLI session store", "error", err)
+		}
 		log.UserMessage("Start `copilot` from this directory, then run this command again.\n")
 	}
 	return false

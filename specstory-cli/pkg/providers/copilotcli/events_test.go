@@ -1152,3 +1152,37 @@ func TestSessionWithoutADirectoryHasNoOrigin(t *testing.T) {
 		t.Errorf("refs = %+v, want one session with no OriginCwd", refs)
 	}
 }
+
+// An unfamiliar source could be Copilot tagging typed prompts in a new way, which
+// would drop them, so it warns. It warns once, because a watch re-reads a session
+// on every change, and known injections stay quiet because they arrive every turn.
+func TestUnfamiliarInputSourceWarnsOnce(t *testing.T) {
+	tests := []struct {
+		name      string
+		source    string
+		wantWarns int
+	}{
+		{"unfamiliar source", "brand-new-host", 1},
+		{"known injection", "autopilot", 0},
+		{"skill injection", "skill-pdf", 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			warnedSources.Clear()
+			var logs bytes.Buffer
+			previous := slog.Default()
+			slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+			t.Cleanup(func() { slog.SetDefault(previous) })
+
+			message := userMessageData{Content: "hello", Source: tt.source}
+			for range 3 {
+				if kind := classifyUserMessage(message); kind != machinery {
+					t.Fatalf("classifyUserMessage = %v, want machinery", kind)
+				}
+			}
+			if got := strings.Count(logs.String(), "level=WARN"); got != tt.wantWarns {
+				t.Errorf("%d warnings, want %d:\n%s", got, tt.wantWarns, logs.String())
+			}
+		})
+	}
+}

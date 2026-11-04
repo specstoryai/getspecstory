@@ -318,8 +318,9 @@ func (w *sessionWatcher) updateWatches(files []sessionFile) {
 // check delivers every project session whose transcript changed since it was
 // last delivered or baselined.
 //
-// Updates are collected first and delivered afterwards, so a slow callback (a
-// markdown write) never delays noticing the next change.
+// Updates are collected first and delivered afterwards, so the scan covers every
+// session before a slow callback (a markdown write) runs. Callbacks still run on
+// this worker, so a slow one delays the next check.
 func (w *sessionWatcher) check(trigger string) {
 	files, err := listSessionFiles()
 	if err != nil {
