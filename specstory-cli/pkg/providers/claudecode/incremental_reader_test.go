@@ -72,7 +72,16 @@ func incrementalFileState(t *testing.T, path string, offset int64, line int, las
 	if err != nil {
 		t.Fatalf("stat transcript: %v", err)
 	}
-	return jsonlFileParseState{offset: offset, line: line, lastUUID: lastUUID, info: info, complete: true, stable: true}
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open transcript: %v", err)
+	}
+	defer func() { _ = file.Close() }()
+	prefix, err := computePrefixCheckpoint(file, offset)
+	if err != nil {
+		t.Fatalf("checkpoint transcript: %v", err)
+	}
+	return jsonlFileParseState{offset: offset, line: line, lastUUID: lastUUID, info: info, complete: true, stable: true, prefix: prefix}
 }
 
 func TestReadAppendedJSONL_ReadsFromStoredOffset(t *testing.T) {
@@ -542,5 +551,84 @@ func TestIncrementalSessionReader_ExistingFixturesMatchFullRebuild(t *testing.T)
 		if got, want := result.openShellToolUses(), openShellToolUses(fullSession.Records); !reflect.DeepEqual(got, want) {
 			t.Errorf("fixture record %d: open shell tool uses = %v, want %v", i, got, want)
 		}
+	}
+}
+
+// A rewrite that keeps the file's identity and grows it past the cached size
+// must be detected by the prefix checkpoint, not read from the stale offset.
+func TestIncrementalSessionReader_InPlaceLargerRewriteUsesFullRebuild(t *testing.T) {
+	root := incrementalTestLine(t, incrementalTestRecord("user", "root", 0, nil, "first"))
+	reply := incrementalTestLine(t, incrementalTestRecord("assistant", "reply", 1, "root", []interface{}{
+		map[string]interface{}{"type": "text", "text": "answer"},
+	}))
+	rewrittenRoot := incrementalTestLine(t, incrementalTestRecord("user", "root", 0, nil, "a much longer rewritten first prompt"))
+	newPrompt := incrementalTestLine(t, incrementalTestRecord("user", "new-prompt", 2, "reply", "next"))
+
+	dir, path := incrementalTestFile(t, root+reply)
+	reader := newIncrementalSessionReader()
+	if _, err := reader.read(dir, path, incrementalTestSessionID, false); err != nil {
+		t.Fatalf("initial full read: %v", err)
+	}
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// WriteFile truncates and rewrites the same inode.
+	if err := os.WriteFile(path, []byte(rewrittenRoot+reply+newPrompt), 0600); err != nil {
+		t.Fatalf("rewrite transcript in place: %v", err)
+	}
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(before, after) || after.Size() <= before.Size() {
+		t.Fatalf("test setup must keep identity and grow the file")
+	}
+
+	result, err := reader.read(dir, path, incrementalTestSessionID, false)
+	if err != nil {
+		t.Fatalf("read rewritten transcript: %v", err)
+	}
+	if result.incremental {
+		t.Error("in-place larger rewrite was applied incrementally, want full rebuild")
+	}
+	if len(result.session.Records) != 3 {
+		t.Errorf("records = %d, want 3", len(result.session.Records))
+	}
+	if got := result.session.Records[0].Data["message"].(map[string]interface{})["content"]; got != "a much longer rewritten first prompt" {
+		t.Errorf("first record content = %v, want the rewritten prompt", got)
+	}
+}
+
+// Inserting a record after the leading assistant record but before the first
+// prompt rebuilds from record zero, so no old exchange may be retained.
+func TestIncrementalSessionReader_AssistantFirstOutOfOrderDoesNotDuplicateLeadingExchange(t *testing.T) {
+	text := func(s string) []interface{} {
+		return []interface{}{map[string]interface{}{"type": "text", "text": s}}
+	}
+	lead := incrementalTestLine(t, incrementalTestRecord("assistant", "lead", 1, nil, text("leading")))
+	prompt := incrementalTestLine(t, incrementalTestRecord("user", "prompt", 3, "lead", "question"))
+	reply := incrementalTestLine(t, incrementalTestRecord("assistant", "reply", 4, "prompt", text("answer")))
+	inserted := incrementalTestLine(t, incrementalTestRecord("assistant", "inserted", 2, "lead", text("inserted")))
+
+	dir, path := incrementalTestFile(t, lead+prompt+reply)
+	reader := newIncrementalSessionReader()
+	if _, err := reader.read(dir, path, incrementalTestSessionID, false); err != nil {
+		t.Fatalf("initial full read: %v", err)
+	}
+	appendIncrementalTestData(t, path, inserted)
+	result, err := reader.read(dir, path, incrementalTestSessionID, false)
+	if err != nil {
+		t.Fatalf("read out-of-order append: %v", err)
+	}
+	parser := NewJSONLParser()
+	if err := parser.ParseProjectSessionsForSession(dir, true, incrementalTestSessionID); err != nil {
+		t.Fatalf("full reference parse: %v", err)
+	}
+	fullSession := parser.FindSession(incrementalTestSessionID)
+	fullAgent := convertToAgentChatSession(*fullSession, "", false)
+	if !reflect.DeepEqual(result.agentSession.SessionData.Exchanges, fullAgent.SessionData.Exchanges) {
+		t.Errorf("assistant-first exchanges differ from full rebuild: got %d exchanges, want %d",
+			len(result.agentSession.SessionData.Exchanges), len(fullAgent.SessionData.Exchanges))
 	}
 }

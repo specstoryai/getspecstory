@@ -2,6 +2,7 @@ package claudecode
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,6 +27,42 @@ type jsonlFileParseState struct {
 	info     os.FileInfo
 	complete bool
 	stable   bool
+	prefix   prefixCheckpoint
+}
+
+// prefixCheckpointWindow bounds the bytes hashed at each end of the consumed prefix.
+const prefixCheckpointWindow = 4096
+
+// prefixCheckpoint fingerprints the consumed prefix of a transcript: the first
+// and last bytes before the stored offset. An in-place rewrite that keeps the
+// file's identity and grows it past the cached size changes these bytes, which
+// size, mtime, and identity checks alone cannot see.
+type prefixCheckpoint struct {
+	set  bool
+	head [sha256.Size]byte
+	tail [sha256.Size]byte
+}
+
+func computePrefixCheckpoint(file *os.File, offset int64) (prefixCheckpoint, error) {
+	hashRange := func(start, end int64) ([sha256.Size]byte, error) {
+		buf := make([]byte, end-start)
+		if _, err := file.ReadAt(buf, start); err != nil && !(errors.Is(err, io.EOF) && int64(len(buf)) == end-start) {
+			return [sha256.Size]byte{}, err
+		}
+		return sha256.Sum256(buf), nil
+	}
+	window := int64(prefixCheckpointWindow)
+	headEnd := min(offset, window)
+	tailStart := max(offset-window, 0)
+	head, err := hashRange(0, headEnd)
+	if err != nil {
+		return prefixCheckpoint{}, err
+	}
+	tail, err := hashRange(tailStart, offset)
+	if err != nil {
+		return prefixCheckpoint{}, err
+	}
+	return prefixCheckpoint{set: true, head: head, tail: tail}, nil
 }
 
 type incrementalReadResult struct {
@@ -134,7 +171,7 @@ func (r incrementalReadResult) openShellToolUses() []string {
 func newIncrementalSessionState(session Session, agentSession *spi.AgentChatSession, parsedFiles map[string]jsonlFileParseState) *incrementalSessionState {
 	files := make(map[string]jsonlFileParseState, len(parsedFiles))
 	for path, state := range parsedFiles {
-		if !state.complete || !state.stable || state.info == nil {
+		if !state.complete || !state.stable || state.info == nil || !state.prefix.set {
 			return nil
 		}
 		files[path] = state
@@ -305,7 +342,9 @@ func (s *incrementalSessionState) applyOutOfOrderAppend(changedFile string, reco
 		}
 	}
 	affectedIndex := 0
-	if firstNewPosition > 0 {
+	// Conversion that starts at record zero rebuilds every exchange, so the
+	// retained prefix must be empty.
+	if firstNewPosition > 0 && tailStart > 0 {
 		boundary := mergedRecords[tailStart]
 		oldStart := sort.Search(len(oldRecords), func(i int) bool {
 			return !recordLess(oldRecords[i], boundary)
@@ -573,6 +612,16 @@ func readAppendedJSONL(filePath string, state jsonlFileParseState) ([]JSONLRecor
 	if info.Size() == state.info.Size() && !info.ModTime().Equal(state.info.ModTime()) {
 		return nil, next, fmt.Errorf("%w: file was rewritten without an append", errIncrementalFullRebuild)
 	}
+	if !state.prefix.set {
+		return nil, next, fmt.Errorf("%w: no prefix checkpoint", errIncrementalFullRebuild)
+	}
+	if info.Size() < state.offset {
+		return nil, next, fmt.Errorf("%w: file shrank below the stored offset", errIncrementalFullRebuild)
+	}
+	current, err := computePrefixCheckpoint(file, state.offset)
+	if err != nil || current != state.prefix {
+		return nil, next, fmt.Errorf("%w: file prefix was rewritten", errIncrementalFullRebuild)
+	}
 	next.info = info
 	if _, err := file.Seek(state.offset, io.SeekStart); err != nil {
 		return nil, next, err
@@ -609,7 +658,7 @@ func readAppendedJSONL(filePath string, state jsonlFileParseState) ([]JSONLRecor
 			return nil, next, readErr
 		}
 		if lineBytes == 0 || (errors.Is(readErr, io.EOF) && !terminated) {
-			return records, next, nil
+			return finishAppendedRead(file, records, next)
 		}
 
 		next.offset = lineStart + int64(lineBytes)
@@ -639,4 +688,14 @@ func readAppendedJSONL(filePath string, state jsonlFileParseState) ([]JSONLRecor
 			next.lastUUID = uuid
 		}
 	}
+}
+
+// finishAppendedRead records the checkpoint for the advanced offset.
+func finishAppendedRead(file *os.File, records []JSONLRecord, next jsonlFileParseState) ([]JSONLRecord, jsonlFileParseState, error) {
+	checkpoint, err := computePrefixCheckpoint(file, next.offset)
+	if err != nil {
+		return nil, next, fmt.Errorf("%w: cannot checkpoint prefix: %v", errIncrementalFullRebuild, err)
+	}
+	next.prefix = checkpoint
+	return records, next, nil
 }

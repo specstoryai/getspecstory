@@ -452,6 +452,9 @@ func (p *JSONLParser) parseSessionFile(filePath string) ([]JSONLRecord, error) {
 	}
 	if finalInfo != nil {
 		state.offset = finalInfo.Size()
+		if checkpoint, err := computePrefixCheckpoint(file, state.offset); err == nil {
+			state.prefix = checkpoint
+		}
 	}
 	if lastNonSummaryRecord != nil {
 		state.lastUUID, _ = lastNonSummaryRecord.Data["uuid"].(string)
