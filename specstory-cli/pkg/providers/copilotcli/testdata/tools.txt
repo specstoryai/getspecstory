@@ -44,6 +44,10 @@ write_powershell
 stop_powershell
 list_powershell
 
+# Never offered to the model: the name Copilot CLI 1.0.105 records for a user's `!` command, in
+# tool.user_requested.
+local_shell
+
 # Observed in sessions of the terminal CLI (client github/cli) but not in the model's report.
 add_artifact_or_reference
 apply_patch

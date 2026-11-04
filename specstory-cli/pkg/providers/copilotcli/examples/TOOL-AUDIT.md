@@ -59,4 +59,5 @@ Not graded.
 | `semantic_code_search` | New in 1.0.105, after this capture. Types `search`; renders through the shared input list. |
 | `write_bash` | Named by the CLI bundle but absent from the model report and from captured sessions. Types `shell`. |
 | `powershell`, `read_powershell`, `write_powershell`, `stop_powershell`, `list_powershell` | Windows only, and this audit ran on macOS. Named by the CLI bundle. Type `shell`; a `powershell` call renders like `bash`. |
+| `local_shell` | Not a model tool: recorded only for a user's `!` command, which renders as a user message (`TestCapturedUserShellCommands`). |
 | `task_complete` | Autopilot only; not a tool block. Its summary renders as agent text (`TestTranscriptBuilder`). |

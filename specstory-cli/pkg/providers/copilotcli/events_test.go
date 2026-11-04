@@ -652,6 +652,7 @@ func TestToolInventorySweep(t *testing.T) {
 		"powershell":                     schema.ToolTypeShell,
 		"write_powershell":               schema.ToolTypeShell,
 		"write_bash":                     schema.ToolTypeShell,
+		"local_shell":                    schema.ToolTypeShell,
 		"github-mcp-server-search_code":  schema.ToolTypeSearch,
 		"update_todo":                    schema.ToolTypeTask,
 		"task":                           schema.ToolTypeGeneric,
@@ -898,7 +899,6 @@ func TestApplyPatchPathHints(t *testing.T) {
 // rather than being dropped as a result with no request.
 func TestUserShellCommand(t *testing.T) {
 	const label = "User ran a shell command:\n\n```bash\nmake test\n```"
-	const powerShellLabel = "User ran a shell command:\n\n```powershell\nmake test\n```"
 	tests := []struct {
 		name      string
 		toolName  string
@@ -908,28 +908,28 @@ func TestUserShellCommand(t *testing.T) {
 	}{
 		{
 			name:      "output joins the labeled command",
-			toolName:  "bash",
+			toolName:  "local_shell",
 			arguments: `{"command":"make test"}`,
 			result:    `{"toolCallId":"c1","success":true,"result":{"content":"ok\n\n"}}`,
 			wantLines: []string{"1:user:text=" + label + ",text=Output:\n\n```text\nok\n```"},
 		},
 		{
 			name:      "a non-zero exit is shown with the output",
-			toolName:  "powershell",
+			toolName:  "local_shell",
 			arguments: `{"command":"make test"}`,
 			result:    `{"toolCallId":"c1","success":true,"result":{"content":"boom"},"shellExecution":{"exitCode":2}}`,
-			wantLines: []string{"1:user:text=" + powerShellLabel + ",text=Output:\n\n```text\nboom\n```\n\nExit code: 2"},
+			wantLines: []string{"1:user:text=" + label + ",text=Output:\n\n```text\nboom\n```\n\nExit code: 2"},
 		},
 		{
 			name:      "a failed call shows its error",
-			toolName:  "bash",
+			toolName:  "local_shell",
 			arguments: `{"command":"make test"}`,
 			result:    `{"toolCallId":"c1","success":false,"error":{"message":"denied"}}`,
 			wantLines: []string{"1:user:text=" + label + ",text=Output:\n\n```text\ndenied\n```"},
 		},
 		{
 			name:      "a command with no result yet still appears",
-			toolName:  "bash",
+			toolName:  "local_shell",
 			arguments: `{"command":"make test"}`,
 			wantLines: []string{"1:user:text=" + label},
 		},
@@ -1184,5 +1184,37 @@ func TestUnfamiliarInputSourceWarnsOnce(t *testing.T) {
 				t.Errorf("%d warnings, want %d:\n%s", got, tt.wantWarns, logs.String())
 			}
 		})
+	}
+}
+
+// TestCapturedUserShellCommands converts the records of a real interactive session
+// (testdata/user-shell.jsonl, from Copilot CLI 1.0.105, reduced to its session,
+// tool and message records): a `!` command that succeeds, one that fails, and a
+// prompt. A slash command was also run; Copilot does not record it.
+func TestCapturedUserShellCommands(t *testing.T) {
+	home := useSessionStore(t)
+	data, err := os.ReadFile(filepath.Join("testdata", "user-shell.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := writeSession(t, home, "capture", strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")...)
+	session, err := NewProvider().GetAgentChatSessionByPath(path, "", false)
+	if err != nil || session == nil {
+		t.Fatalf("GetAgentChatSessionByPath = %v, %v", session, err)
+	}
+	want := []string{
+		"0:user:text=User ran a shell command:\n\n```bash\necho marker-77\n```,text=Output:\n\n```text\nmarker-77\n```",
+		"1:user:text=User ran a shell command:\n\n```bash\nls /no-such-dir\n```,text=Output:\n\n```text\nls: /no-such-dir: No such file or directory\n```\n\nExit code: 1",
+		"2:user:text=Reply with the word done",
+		"2:agent:text=done",
+	}
+	if got := renderExchanges(session.SessionData.Exchanges); !slices.Equal(got, want) {
+		t.Errorf("exchanges mismatch\n got: %q\nwant: %q", got, want)
+	}
+	if session.Slug != "reply-with-the-word" {
+		t.Errorf("slug = %q, want it named by the prompt, not a command", session.Slug)
+	}
+	if !session.SessionData.Validate() {
+		t.Error("captured session fails schema validation")
 	}
 }

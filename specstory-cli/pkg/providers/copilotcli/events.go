@@ -1157,8 +1157,9 @@ func decodeArguments(raw json.RawMessage) map[string]any {
 
 // toolType classifies a tool from Copilot's inventory (testdata/tools.txt) by
 // what it acts on: workspace files are read, write or search; shell commands
-// are shell, under their bash names or the powershell names Copilot uses on
-// Windows; the todo list is task; and agent state (sub-agents, sessions,
+// are shell, under their bash names, the powershell names Copilot uses on
+// Windows, or local_shell, the name it records for a user's `!command`; the todo
+// list is task; and agent state (sub-agents, sessions,
 // skills, the session database, canvases, workflows, pull requests, the
 // editor host's browser) is generic. A remote read, such as a URL fetch or a
 // GitHub file, is read; a remote query is search. A tool outside the inventory
@@ -1172,11 +1173,12 @@ func toolType(name string) string {
 }
 
 var toolTypes = map[string]string{
-	"bash":       schema.ToolTypeShell,
-	"read_bash":  schema.ToolTypeShell,
-	"stop_bash":  schema.ToolTypeShell,
-	"list_bash":  schema.ToolTypeShell,
-	"write_bash": schema.ToolTypeShell,
+	"bash":        schema.ToolTypeShell,
+	"read_bash":   schema.ToolTypeShell,
+	"stop_bash":   schema.ToolTypeShell,
+	"list_bash":   schema.ToolTypeShell,
+	"write_bash":  schema.ToolTypeShell,
+	"local_shell": schema.ToolTypeShell,
 
 	"powershell":       schema.ToolTypeShell,
 	"read_powershell":  schema.ToolTypeShell,

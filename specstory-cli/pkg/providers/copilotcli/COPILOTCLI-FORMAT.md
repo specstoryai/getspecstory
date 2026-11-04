@@ -40,7 +40,7 @@ Observed kinds and how the provider treats them:
 | `user.message` | A prompt, a message from another session, a sub-agent's prompt, or injected machinery (see below) |
 | `assistant.message` | Agent text, reasoning and tool requests |
 | `tool.execution_complete` | A tool call's result or error, paired to its request by `toolCallId` |
-| `tool.user_requested` | A tool the user started themselves (`toolName`, `arguments`, `toolCallId`), such as a `!` command. A shell command renders as a user message; other tools are left to the raw data. Its shape comes from the published `@github/copilot-sdk` event types, not from a capture |
+| `tool.user_requested` | A tool the user started themselves (`toolName`, `arguments`, `toolCallId`). A `!` command has `toolName` `local_shell` and renders as a user message, with its output from the `tool.execution_complete` of the same `toolCallId`. Other tools are left to the raw data |
 | `tool.execution_start` | Not rendered: duplicates the request already carried by `assistant.message` |
 | `session.*` (other than start), `subagent.*`, `skill.*`, `external_tool.*`, `assistant.turn_*`, `system.notification`, `abort` | Not rendered: lifecycle, sub-agent and skill bookkeeping, turn boundaries, and notices shown in the terminal rather than in the conversation |
 | `hook.*`, `permission.*`, `model.*`, `system.message`, `session.usage_checkpoint`, `session.usage_record` | Harness machinery; `session.usage_record` supplies token counts (see below): not rendered (see below) |
@@ -71,6 +71,8 @@ Copilot records failure in two shapes, both rendered:
 
 - `success: false` with `error.message` (and an `error.code` such as `failure`): the tool itself failed, for example `view` of a missing path or an MCP server error. The error text renders as the result.
 - A shell command that exits non-zero is a successful call: `success: true`, the command's output in `result.content` ending with a `<shellId: <id> completed with exit code <n>>` line, and the code repeated in `shellExecution.exitCode`. The output renders with that exit line, so the exit code is shown.
+
+A user's `!` command that exits non-zero is the opposite shape: `success: false`, with the output in `error.message` and the code in `shellExecution.exitCode`. A `!` command reaches `events.jsonl` only once a prompt follows it: a session with nothing but `!` commands leaves no transcript, so there is nothing to save.
 
 Tool names in `toolRequests` are the names the model calls, so the recorded names and the model-facing inventory are the same list.
 
@@ -115,3 +117,4 @@ No end-of-session record is needed: resumed with `copilot --resume=<id> -p ...`,
 - Token usage comes from `session.usage_record`, written once per model call just before the `assistant.message` that shares its `usage.apiCallId`. It carries `inputTokens` (which includes cached tokens), `outputTokens`, `cacheReadTokens`, `cacheWriteTokens` and `reasoningTokens`, and goes on the first schema message built from that call. A session with no such record falls back on the message's own `outputTokens`, which only some models write (`gpt-5.3-codex` does; Claude models do not).
 - Opaque reasoning (`reasoningOpaque`, `encryptedContent`) is kept in the raw data only.
 - Reconstruction keeps the conversation as plain text turns; Copilot's own tool records, reasoning and model metadata are not recreated.
+- A session's display name is not used. Copilot keeps it in `workspace.yaml`, which it rewrites in place, and `session.title_changed` is never written to `events.jsonl`, so listings name a session after its first input. For the same reason a reconstructed session cannot carry a title: Copilot names it from the first prompt after resuming.
