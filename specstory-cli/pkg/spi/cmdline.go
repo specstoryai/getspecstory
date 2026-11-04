@@ -9,6 +9,20 @@ import (
 	"strings"
 )
 
+// AgentWorkingDir returns the directory a launched agent runs in, so anything
+// observing the agent's work looks where RunInProject puts it. --project-path
+// need not name a local directory: it can be a remote workspace's path or a
+// .code-workspace file. No process can run there, so the agent stays in
+// launchDir. A relative path counts as remote: on Windows \home\user is not
+// absolute, and statting it would find an unrelated directory on the current
+// drive.
+func AgentWorkingDir(projectPath, launchDir string) string {
+	if info, err := os.Stat(projectPath); err == nil && filepath.IsAbs(projectPath) && info.IsDir() {
+		return projectPath
+	}
+	return launchDir
+}
+
 // RunInProject makes cmd run in the project directory. Agents key their sessions
 // to the directory they run in, so with --project-path a child left in the
 // launch directory writes sessions the watcher never looks at. Moving the child
@@ -17,19 +31,12 @@ import (
 // otherwise look for under Dir, and pathEnvVars, the variables naming a storage
 // directory the provider reads from the same place the agent writes. A value
 // starting with ~ is left for the reader to expand.
-//
-// --project-path need not name a local directory: it can be a remote workspace's
-// path or a .code-workspace file. The child cannot run there, so it stays in the
-// launch directory rather than failing to start. Relative paths are not moved
-// to either: on Windows a remote-style \home\user path is not absolute, and
-// statting it would find an unrelated directory on the current drive.
 func RunInProject(cmd *exec.Cmd, projectPath string, pathEnvVars ...string) {
-	if projectPath == "" {
-		return
-	}
-	if info, err := os.Stat(projectPath); !filepath.IsAbs(projectPath) || err != nil || !info.IsDir() {
-		slog.Warn("RunInProject: not a local directory, running the agent in the launch directory",
-			"projectPath", projectPath)
+	if AgentWorkingDir(projectPath, "") == "" {
+		if projectPath != "" {
+			slog.Warn("RunInProject: not a local directory, running the agent in the launch directory",
+				"projectPath", projectPath)
+		}
 		return
 	}
 	if cmd.Path != filepath.Base(cmd.Path) && !filepath.IsAbs(cmd.Path) {

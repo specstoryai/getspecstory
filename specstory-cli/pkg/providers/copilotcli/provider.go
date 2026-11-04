@@ -385,7 +385,9 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		}
 	}
 
-	execErr := ExecuteCopilot(root, customCommand, resumeSessionID)
+	// The caller's path, not root: root has a current drive stapled onto a
+	// remote path, which could name an unrelated local directory.
+	execErr := ExecuteCopilot(projectPath, customCommand, resumeSessionID)
 
 	if watcher != nil {
 		watcher.Stop()
@@ -423,6 +425,11 @@ func canonicalProjectPath(projectPath string) (string, error) {
 			return "", fmt.Errorf("failed to get current working directory: %w", err)
 		}
 		projectPath = cwd
+	}
+	// A remote workspace's path on Windows. Canonicalizing would staple on the
+	// current drive; forward slashes are how Copilot recorded it.
+	if spi.IsDrivelessRootedPath(projectPath) {
+		return filepath.ToSlash(projectPath), nil
 	}
 	canonical, err := spi.GetCanonicalPath(projectPath)
 	if err != nil {

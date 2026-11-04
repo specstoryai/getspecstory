@@ -341,7 +341,9 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		slog.Error("ExecAgentAndWatch: Failed to start OpenCode session watcher", "error", err)
 	}
 
-	execErr := executeOpenCode(customCommand, root, resumeSessionID)
+	// The caller's path, not root: root has a current drive stapled onto a
+	// remote path on Windows, which could name an unrelated local directory.
+	execErr := executeOpenCode(customCommand, projectPath, resumeSessionID)
 
 	if watcher != nil {
 		watcher.Stop()

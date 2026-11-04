@@ -189,6 +189,55 @@ func TestTerminalAgentRunsInProjectDirectory(t *testing.T) {
 	}
 }
 
+// A remote workspace's root must not gain the current drive on its way to the
+// launcher, or the agent starts in whatever local directory that names.
+func TestDrivelessRemoteRootKeepsAgentInLaunchDirectoryOnWindows(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("only Windows has rooted paths without a drive")
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := fmt.Sprintf("%q -test.run=^TestAgentExitChild$", exe)
+	for _, id := range []string{"copilot", "opencode"} {
+		t.Run(id, func(t *testing.T) {
+			testutil.SetHome(t, t.TempDir())
+			provider, err := GetRegistry().Get(id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			unrelated := t.TempDir()
+			launchDir := t.TempDir()
+			t.Chdir(launchDir)
+			cwdFile := filepath.Join(t.TempDir(), "cwd")
+			t.Setenv("SPECSTORY_EXIT_TEST_CODE", "0")
+			t.Setenv("SPECSTORY_EXIT_TEST_CWD_FILE", cwdFile)
+
+			driveless := unrelated[len(filepath.VolumeName(unrelated)):]
+			err = provider.ExecAgentAndWatch(driveless, command, "", false, func(*spi.AgentChatSession) {})
+			if err != nil {
+				t.Fatal(err)
+			}
+			cwd, err := os.ReadFile(cwdFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.Stat(string(cwd))
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := os.Stat(launchDir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !os.SameFile(got, want) {
+				t.Errorf("agent ran in %q, want the launch directory %q", cwd, launchDir)
+			}
+		})
+	}
+}
+
 // A child that writes and exits immediately can outrun fsnotify delivery. Run
 // each provider twice to also exercise a stopped watcher's fresh context.
 func TestRunFinalWriteAndWatcherRestart(t *testing.T) {

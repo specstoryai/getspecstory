@@ -416,7 +416,9 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			}
 			defer provenanceCleanup()
 
-			fsCleanup, err := provenance.StartFSWatcher(ctx, provenanceEngine, cwd)
+			// Watch where the agent runs: with --project-path that is the project,
+			// and its edits never reach a watcher left on the launch directory.
+			fsCleanup, err := provenance.StartFSWatcher(ctx, provenanceEngine, spi.AgentWorkingDir(effectiveProjectPath, cwd))
 			if err != nil {
 				return err
 			}

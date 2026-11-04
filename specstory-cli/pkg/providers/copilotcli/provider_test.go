@@ -221,6 +221,27 @@ func TestSessionRecordedInAnotherCaseOnWindows(t *testing.T) {
 	}
 }
 
+// A remote workspace's root reaches Windows without a drive and must match the
+// Unix path Copilot recorded, not a path on the current drive.
+func TestDrivelessRemoteRootMatchesRecordedPathOnWindows(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("only Windows has rooted paths without a drive")
+	}
+	home := useSessionStore(t)
+	writeSession(t, home, "s1",
+		sessionStart(t, "s1", "/home/user/project"),
+		record(t, eventUserMessage, "u1", map[string]any{"content": "hello"}),
+	)
+
+	sessions, err := NewProvider().GetAgentChatSessions(`\home\user\project`, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 1 {
+		t.Errorf("found %d sessions, want the one recorded at /home/user/project", len(sessions))
+	}
+}
+
 // A Unix root keeps exact matching: on a case-sensitive disk these are two
 // projects, so folding case everywhere would merge their sessions.
 func TestBelongsToProjectKeepsCaseDistinctUnixRoots(t *testing.T) {

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 	"unicode"
@@ -213,6 +214,19 @@ func appendRemainingParts(result string, parts []string, startIdx int) string {
 		}
 	}
 	return result
+}
+
+// IsDrivelessRootedPath reports whether p is, on Windows, a rooted path with no
+// drive letter — the shape VS Code's fsPath produces for WSL and SSH remote
+// workspaces (e.g. /home/user/project or \home\user\project). Such a path names
+// a directory on another machine, but Windows path APIs would resolve it against
+// the process's current drive: filepath.Abs staples the drive letter on and
+// os.Stat may find an unrelated local directory of the same shape. Callers must
+// treat these paths as opaque strings. Always false off Windows, where a rooted
+// volume-less path is just a normal absolute path.
+func IsDrivelessRootedPath(p string) bool {
+	return runtime.GOOS == "windows" && filepath.VolumeName(p) == "" &&
+		(strings.HasPrefix(p, "/") || strings.HasPrefix(p, `\`))
 }
 
 // GetCanonicalPath resolves a path to its canonical form by resolving symlinks

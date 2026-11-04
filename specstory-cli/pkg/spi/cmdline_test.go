@@ -4,10 +4,45 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
 )
+
+func TestAgentWorkingDir(t *testing.T) {
+	launchDir := t.TempDir()
+	project := t.TempDir()
+	workspaceFile := filepath.Join(project, "my.code-workspace")
+	if err := os.WriteFile(workspaceFile, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name        string
+		projectPath string
+		want        string
+	}{
+		{"another local project", project, project},
+		{"no project path", "", launchDir},
+		{"missing local path", filepath.Join(project, "not-here"), launchDir},
+		{"code-workspace file", workspaceFile, launchDir},
+		// Rooted without a drive on Windows; a relative path elsewhere.
+		{"driveless path to a real directory", project[len(filepath.VolumeName(project)):][1:], launchDir},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := AgentWorkingDir(tt.projectPath, launchDir); got != tt.want {
+				t.Errorf("AgentWorkingDir(%q) = %q, want %q", tt.projectPath, got, tt.want)
+			}
+		})
+	}
+	if runtime.GOOS == "windows" {
+		driveless := project[len(filepath.VolumeName(project)):]
+		if got := AgentWorkingDir(driveless, launchDir); got != launchDir {
+			t.Errorf("AgentWorkingDir(%q) = %q, want the launch directory", driveless, got)
+		}
+	}
+}
 
 func TestSplitCommandLine(t *testing.T) {
 	tests := []struct {

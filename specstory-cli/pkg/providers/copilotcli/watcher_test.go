@@ -2,6 +2,7 @@ package copilotcli
 
 import (
 	"bytes"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -317,6 +318,65 @@ func TestWatcherShutdown(t *testing.T) {
 			t.Error("drained delivery does not include the pending update")
 		}
 	})
+}
+
+// eventOnlyWatcher starts a watcher on an already-watched transcript with the
+// reconcile scan pushed past any deadline, so only the fsnotify path can deliver.
+func eventOnlyWatcher(t *testing.T, debounce, burst time.Duration) (string, *deliveries, *sessionWatcher) {
+	t.Helper()
+	savedDebounce, savedBurst, savedReconcile := debounceDelay, maxBurstDelay, reconcileInterval
+	t.Cleanup(func() { debounceDelay, maxBurstDelay, reconcileInterval = savedDebounce, savedBurst, savedReconcile })
+	debounceDelay, maxBurstDelay, reconcileInterval = debounce, burst, time.Hour
+
+	home := useSessionStore(t)
+	project := newProjectDir(t, "project")
+	path := writeOldSession(t, home, "s1", project)
+	got := &deliveries{}
+	watcher, err := startWatcher(project, "", false, got.callback)
+	if err != nil {
+		t.Fatalf("startWatcher: %v", err)
+	}
+	t.Cleanup(watcher.Stop)
+	return path, got, watcher
+}
+
+// A quick run of appends, one streamed reply, is one delivery holding them all.
+func TestWatcherCollapsesAQuietBurstIntoOneDelivery(t *testing.T) {
+	const debounce = 200 * time.Millisecond
+	path, got, _ := eventOnlyWatcher(t, debounce, time.Hour)
+
+	for i := range 5 {
+		appendRecord(t, path, record(t, eventAssistantMsg, fmt.Sprintf("a%d", i), map[string]any{"content": "chunk"}))
+	}
+	if !waitFor(t, func() bool { return len(got.ids()) > 0 }) {
+		t.Fatal("no delivery after the burst went quiet")
+	}
+	time.Sleep(3 * debounce)
+
+	got.mu.Lock()
+	defer got.mu.Unlock()
+	if len(got.sessions) != 1 {
+		t.Fatalf("%d deliveries, want the burst collapsed into 1", len(got.sessions))
+	}
+	exchanges := got.sessions[0].SessionData.Exchanges
+	if len(exchanges) != 1 || len(exchanges[0].Messages) != 6 {
+		t.Errorf("delivered exchanges = %+v, want the prompt and all 5 chunks", exchanges)
+	}
+}
+
+// The debounce never fires here, so only maxBurstDelay can deliver: a long agent
+// turn must reach the user while it is still being written.
+func TestWatcherDeliversDuringASustainedBurst(t *testing.T) {
+	path, got, _ := eventOnlyWatcher(t, time.Hour, 100*time.Millisecond)
+
+	deadline := time.Now().Add(5 * time.Second)
+	for i := 0; len(got.ids()) == 0; i++ {
+		if time.Now().After(deadline) {
+			t.Fatal("no delivery while writes continued")
+		}
+		appendRecord(t, path, record(t, eventAssistantMsg, fmt.Sprintf("a%d", i), map[string]any{"content": "chunk"}))
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func TestWatcherDeliversLiveUpdatesForProjectOnly(t *testing.T) {
