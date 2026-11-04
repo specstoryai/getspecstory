@@ -224,7 +224,12 @@ func listSessionFiles() ([]sessionFile, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		if file, ok := statSessionFile(filepath.Join(root, entry.Name(), eventsFileName)); ok {
+		file, ok, err := statSessionFile(filepath.Join(root, entry.Name(), eventsFileName))
+		if err != nil {
+			slog.Debug("Skipping unreadable Copilot CLI session", "path", entry.Name(), "error", err)
+			continue
+		}
+		if ok {
 			files = append(files, file)
 		}
 	}
@@ -570,12 +575,10 @@ func convertSession(file sessionFile, header *sessionHeader, fallbackRoot string
 		return nil, nil
 	}
 
-	// The header's ID names the debug directory, so one that is not a safe
-	// path segment falls back to the session directory's own name.
-	sessionID := header.SessionID
-	if !isValidSessionID(sessionID) {
-		sessionID = file.SessionID
-	}
+	// The directory is the session's identity: it is what listings show and
+	// what `copilot --resume` opens, and a transcript copied into another
+	// session's directory keeps its old header ID.
+	sessionID := file.SessionID
 	version := header.CopilotVersion
 	if version == "" {
 		version = "unknown"

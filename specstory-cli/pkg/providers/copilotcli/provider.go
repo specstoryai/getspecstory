@@ -253,7 +253,10 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 	if err != nil {
 		return nil, err
 	}
-	file, ok := statSessionFile(filepath.Join(sessionsDir, sessionID, eventsFileName))
+	file, ok, err := statSessionFile(filepath.Join(sessionsDir, sessionID, eventsFileName))
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return nil, nil
 	}
@@ -273,7 +276,10 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 // as recorded by reindex. The transcript records its own working directory;
 // originCwd is the workspace root for one that does not.
 func (p *Provider) GetAgentChatSessionByPath(nativePath string, originCwd string, debugRaw bool) (*spi.AgentChatSession, error) {
-	file, ok := statSessionFile(nativePath)
+	file, ok, err := statSessionFile(nativePath)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return nil, nil
 	}
@@ -284,19 +290,26 @@ func (p *Provider) GetAgentChatSessionByPath(nativePath string, originCwd string
 	return convertSession(file, header, originCwd, debugRaw, false)
 }
 
-// statSessionFile describes the transcript at path, or reports false when it is
-// missing.
-func statSessionFile(path string) (sessionFile, bool) {
+// statSessionFile describes the transcript at path, or reports false when there
+// is none. Any other failure is an error, so a lookup cannot pass off a
+// filesystem problem as a session that does not exist.
+func statSessionFile(path string) (sessionFile, bool, error) {
 	info, err := os.Stat(path)
-	if err != nil || info.IsDir() {
-		return sessionFile{}, false
+	if errors.Is(err, os.ErrNotExist) {
+		return sessionFile{}, false, nil
+	}
+	if err != nil {
+		return sessionFile{}, false, fmt.Errorf("failed to stat Copilot CLI session %s: %w", path, err)
+	}
+	if info.IsDir() {
+		return sessionFile{}, false, nil
 	}
 	return sessionFile{
 		SessionID: filepath.Base(filepath.Dir(path)),
 		Path:      path,
 		Size:      info.Size(),
 		ModTime:   info.ModTime(),
-	}, true
+	}, true, nil
 }
 
 // ListAgentChatSessions returns lightweight metadata for the project's

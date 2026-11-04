@@ -31,7 +31,7 @@ export COPILOT_AUTO_UPDATE=false
 
 rm -rf stream.jsonl logs
 status=0
-"$copilot" -p "List the name of every tool you can call, one per line, spelled exactly as you call it. Output only the names: no numbering, no descriptions, no other text. Do not call any tool." \
+timeout 300 "$copilot" -p "List the name of every tool you can call, one per line, spelled exactly as you call it. Output only the names: no numbering, no descriptions, no other text. Do not call any tool." \
   --no-auto-update --no-custom-instructions --deny-tool=shell --deny-tool=write \
   --output-format json --log-dir ./logs \
   < /dev/null > stream.jsonl || status=$?

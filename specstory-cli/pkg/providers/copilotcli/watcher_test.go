@@ -2,6 +2,8 @@ package copilotcli
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -377,6 +379,43 @@ func TestWatcherDeliversDuringASustainedBurst(t *testing.T) {
 		appendRecord(t, path, record(t, eventAssistantMsg, fmt.Sprintf("a%d", i), map[string]any{"content": "chunk"}))
 		time.Sleep(10 * time.Millisecond)
 	}
+}
+
+// A store that does not exist yet is normal, and adopted when it appears. One
+// that exists but cannot be listed must fail at startup rather than wait forever.
+func TestWatcherStartupDistinguishesMissingAndInvalidStores(t *testing.T) {
+	fastWatcherTiming(t)
+	project := newProjectDir(t, "project")
+	callback := func(*spi.AgentChatSession) {}
+
+	t.Run("missing store", func(t *testing.T) {
+		useSessionStore(t)
+		watcher, err := startWatcher(project, "", false, callback)
+		if err != nil {
+			t.Fatalf("startWatcher: %v", err)
+		}
+		watcher.Stop()
+	})
+	t.Run("store is a regular file", func(t *testing.T) {
+		useSessionStore(t)
+		root, err := sessionsRoot()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(root, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if watcher, err := startWatcher(project, "", false, callback); err == nil {
+			watcher.Stop()
+			t.Fatal("startWatcher accepted a store that cannot be listed")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		err = NewProvider().WatchAgent(ctx, project, false, callback)
+		if err == nil || errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("WatchAgent = %v, want the startup failure", err)
+		}
+	})
 }
 
 func TestWatcherDeliversLiveUpdatesForProjectOnly(t *testing.T) {

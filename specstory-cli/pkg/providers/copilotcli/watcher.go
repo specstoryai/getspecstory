@@ -134,9 +134,15 @@ func startWatcherWithHook(projectRoot string, resumedSessionID string, debugRaw 
 		cancel:           cancel,
 	}
 
+	// A missing store lists as empty and is adopted when it appears. Any other
+	// failure would leave the watcher waiting on a store it can never read.
 	files, err := listSessionFiles()
 	if err != nil {
-		slog.Warn("Copilot CLI watcher: Could not baseline existing sessions", "error", err)
+		cancel()
+		if closeErr := fsWatcher.Close(); closeErr != nil {
+			slog.Debug("Copilot CLI watcher: Failed to close file watcher", "error", closeErr)
+		}
+		return nil, err
 	}
 	for _, file := range files {
 		// A write that lands after the boundary is activity, even when it

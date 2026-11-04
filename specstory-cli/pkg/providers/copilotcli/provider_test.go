@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 func TestProviderSessionsAreScopedToProject(t *testing.T) {
@@ -239,6 +241,84 @@ func TestDrivelessRemoteRootMatchesRecordedPathOnWindows(t *testing.T) {
 	}
 	if len(sessions) != 1 {
 		t.Errorf("found %d sessions, want the one recorded at /home/user/project", len(sessions))
+	}
+}
+
+// A transcript copied into another session's directory is that directory's
+// session: listings, reads and `copilot --resume` must all agree on its ID.
+func TestSessionIdentityComesFromItsDirectory(t *testing.T) {
+	home := useSessionStore(t)
+	project := newProjectDir(t, "project")
+	path := writeSession(t, home, "directory-id",
+		sessionStart(t, "header-id", project),
+		record(t, eventUserMessage, "u1", map[string]any{"content": "hello"}),
+	)
+
+	p := NewProvider()
+	listed, err := p.ListAgentChatSessions(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 1 || listed[0].SessionID != "directory-id" {
+		t.Fatalf("listed = %+v, want one session named directory-id", listed)
+	}
+	bulk, err := p.GetAgentChatSessions(project, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bulk) != 1 {
+		t.Fatalf("bulk read found %d sessions, want 1", len(bulk))
+	}
+	byID, err := p.GetAgentChatSession(project, "directory-id", false)
+	if err != nil || byID == nil {
+		t.Fatalf("by-ID read = %v, %v", byID, err)
+	}
+	byPath, err := p.GetAgentChatSessionByPath(path, "", false)
+	if err != nil || byPath == nil {
+		t.Fatalf("by-path read = %v, %v", byPath, err)
+	}
+	for name, session := range map[string]*spi.AgentChatSession{"bulk": &bulk[0], "by ID": byID, "by path": byPath} {
+		if session.SessionID != "directory-id" || session.SessionData.SessionID != "directory-id" {
+			t.Errorf("%s read: SessionID = %q, SessionData.SessionID = %q, want directory-id",
+				name, session.SessionID, session.SessionData.SessionID)
+		}
+	}
+}
+
+// A session that cannot be examined is not a session that does not exist.
+func TestDirectLookupsReportFilesystemFailures(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("creating the symlink loop needs privileges Windows runners may lack")
+	}
+	home := useSessionStore(t)
+	project := newProjectDir(t, "project")
+	path := writeSession(t, home, "looped",
+		sessionStart(t, "looped", project),
+		record(t, eventUserMessage, "u1", map[string]any{"content": "hello"}),
+	)
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(path, path); err != nil {
+		t.Fatal(err)
+	}
+
+	p := NewProvider()
+	if session, err := p.GetAgentChatSession(project, "looped", false); err == nil {
+		t.Errorf("GetAgentChatSession = %v, nil; want the stat error", session)
+	}
+	if session, err := p.GetAgentChatSessionByPath(path, "", false); err == nil {
+		t.Errorf("GetAgentChatSessionByPath = %v, nil; want the stat error", session)
+	}
+	// Discovery skips what it cannot read, and absence stays absence.
+	if sessions, err := p.GetAgentChatSessions(project, false, nil); err != nil || len(sessions) != 0 {
+		t.Errorf("bulk read = %d sessions, %v; want 0, nil", len(sessions), err)
+	}
+	if session, err := p.GetAgentChatSession(project, "missing", false); session != nil || err != nil {
+		t.Errorf("missing session = %v, %v; want nil, nil", session, err)
+	}
+	if session, err := p.GetAgentChatSessionByPath(path+"-gone", "", false); session != nil || err != nil {
+		t.Errorf("missing path = %v, %v; want nil, nil", session, err)
 	}
 }
 
