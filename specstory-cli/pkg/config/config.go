@@ -53,6 +53,10 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # Use local timezone for file name and content timestamps (default: false, UTC)
 # local_time_zone = true # equivalent to --local-time-zone
 
+# Rotate history markdown into linked continuation files at this size in MB.
+# Default: 10
+# markdown_part_size_mb = 10
+
 [cloud_sync]
 # Sync session data to SpecStory Cloud. (default: true, when logged in to SpecStory Cloud)
 # enabled = false # equivalent to --no-cloud-sync
@@ -237,6 +241,9 @@ type LocalSyncConfig struct {
 	OutputDir string `toml:"output_dir"`
 	// LocalTimeZone enables local timezone for file name and content timestamps
 	LocalTimeZone *bool `toml:"local_time_zone"`
+	// MarkdownPartSizeMB rotates history markdown into linked continuation files.
+	// Values <= 0 use the 10 MB default.
+	MarkdownPartSizeMB int64 `toml:"markdown_part_size_mb"`
 }
 
 // LoggingConfig holds logging settings
@@ -760,6 +767,15 @@ func applyCLIOverrides(cfg *Config, o *CLIOverrides) {
 // GetOutputDir returns the output directory, or empty string to use default.
 func (c *Config) GetOutputDir() string {
 	return c.LocalSync.OutputDir
+}
+
+// GetMarkdownPartSizeBytes returns the history markdown rotation threshold.
+// Defaults to 10 MB when unset or nonpositive.
+func (c *Config) GetMarkdownPartSizeBytes() int64 {
+	if c.LocalSync.MarkdownPartSizeMB <= 0 {
+		return 10 * 1024 * 1024
+	}
+	return c.LocalSync.MarkdownPartSizeMB * 1024 * 1024
 }
 
 // IsVersionCheckEnabled returns whether version check is enabled.

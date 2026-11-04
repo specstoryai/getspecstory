@@ -88,7 +88,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 			// Read flags from the command. The session-processing flags
 			// resolve through the shared helper; watch-specific flags are
 			// read individually.
-			processing := ResolveProcessingOptions(cmd, true /* isAutosave */, false /* showOutput */)
+			processing := ResolveProcessingOptions(cmd, true /* isAutosave */, false /* showOutput */, defaults.MarkdownPartSizeBytes)
 			jsonOutput, _ := cmd.Flags().GetBool("json")
 			outputDir, _ := cmd.Flags().GetString("output-dir")
 			flagDebugDir, _ := cmd.Flags().GetString("debug-dir")

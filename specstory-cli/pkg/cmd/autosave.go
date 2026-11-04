@@ -27,11 +27,12 @@ import (
 // result here so every command registers the same flags with the same
 // defaults.
 type SessionFlagDefaults struct {
-	LocalTimeZone      bool
-	OutputDir          string
-	DebugDir           string
-	NoTelemetryPrompts bool
-	NoRedactSecrets    bool
+	LocalTimeZone         bool
+	OutputDir             string
+	DebugDir              string
+	NoTelemetryPrompts    bool
+	NoRedactSecrets       bool
+	MarkdownPartSizeBytes int64
 }
 
 // registerSessionProcessingFlags registers the flag set shared by watch,
@@ -71,7 +72,7 @@ func registerSessionProcessingFlags(cmd *cobra.Command, cloudURL *string, d Sess
 // A flag missing from a command resolves to its zero value, so the negative
 // no-* flags fail toward their feature staying ON — a command that forgets to
 // register one cannot silently disable redaction or telemetry privacy.
-func ResolveProcessingOptions(cmd *cobra.Command, isAutosave, showOutput bool) session.ProcessingOptions {
+func ResolveProcessingOptions(cmd *cobra.Command, isAutosave, showOutput bool, markdownPartSizeBytes int64) session.ProcessingOptions {
 	onlyCloudSync, _ := cmd.Flags().GetBool("only-cloud-sync")
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
 	useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
@@ -80,14 +81,15 @@ func ResolveProcessingOptions(cmd *cobra.Command, isAutosave, showOutput bool) s
 	noStats, _ := cmd.Flags().GetBool("no-stats")
 
 	return session.ProcessingOptions{
-		ShowOutput:         showOutput,
-		OnlyCloudSync:      onlyCloudSync,
-		IsAutosave:         isAutosave,
-		DebugRaw:           debugRaw,
-		UseUTC:             !useLocalTimezone,
-		NoTelemetryPrompts: noTelemetryPrompts,
-		RedactSecrets:      !noRedactSecrets,
-		NoStats:            noStats,
+		ShowOutput:            showOutput,
+		OnlyCloudSync:         onlyCloudSync,
+		IsAutosave:            isAutosave,
+		DebugRaw:              debugRaw,
+		UseUTC:                !useLocalTimezone,
+		NoTelemetryPrompts:    noTelemetryPrompts,
+		RedactSecrets:         !noRedactSecrets,
+		NoStats:               noStats,
+		MarkdownPartSizeBytes: markdownPartSizeBytes,
 	}
 }
 

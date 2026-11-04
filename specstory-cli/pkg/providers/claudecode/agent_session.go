@@ -195,29 +195,43 @@ func buildExchangesFromRecords(records []JSONLRecord, workspaceRoot string) ([]E
 // mergeToolResultIntoExchange finds the tool use in the exchange and adds the result to it.
 // The resultTimestamp is the time the tool completed (from the tool_result JSONL record).
 func mergeToolResultIntoExchange(exchange *Exchange, messageContent []interface{}, resultTimestamp string) {
-	// Extract tool_result data from message content
-	if len(messageContent) == 0 {
-		return
-	}
-
-	toolResultMap, ok := messageContent[0].(map[string]interface{})
+	toolUseID, output, ok := parseToolResult(messageContent)
 	if !ok {
 		return
 	}
 
-	// Get the tool_use_id that this result corresponds to
+	// Find the message with matching tool use ID and add the output
+	for i := range exchange.Messages {
+		msg := &exchange.Messages[i]
+		if msg.Tool != nil && msg.Tool.UseID == toolUseID {
+			msg.Tool.Output = output
+			// Update message timestamp to when the tool actually completed,
+			// not when the agent requested it (needed for provenance correlation)
+			msg.Timestamp = resultTimestamp
+			return
+		}
+	}
+}
+
+// parseToolResult normalizes both string and structured tool-result content.
+// The incremental session path uses the same decoder as the full rebuild.
+func parseToolResult(messageContent []interface{}) (string, map[string]interface{}, bool) {
+	if len(messageContent) == 0 {
+		return "", nil, false
+	}
+	toolResultMap, ok := messageContent[0].(map[string]interface{})
+	if !ok {
+		return "", nil, false
+	}
 	toolUseID, ok := toolResultMap["tool_use_id"].(string)
 	if !ok || toolUseID == "" {
-		return
+		return "", nil, false
 	}
 
-	// Extract result content and error status
-	// Content can be either a string or an array of text objects (for Task tool results)
 	var content string
 	if contentStr, ok := toolResultMap["content"].(string); ok {
 		content = contentStr
 	} else if contentArray, ok := toolResultMap["content"].([]interface{}); ok {
-		// Array of text objects like [{"type":"text","text":"..."}]
 		var parts []string
 		for _, item := range contentArray {
 			if itemMap, ok := item.(map[string]interface{}); ok {
@@ -229,21 +243,10 @@ func mergeToolResultIntoExchange(exchange *Exchange, messageContent []interface{
 		content = strings.Join(parts, "\n")
 	}
 	isError, _ := toolResultMap["is_error"].(bool)
-
-	// Find the message with matching tool use ID and add the output
-	for i := range exchange.Messages {
-		msg := &exchange.Messages[i]
-		if msg.Tool != nil && msg.Tool.UseID == toolUseID {
-			msg.Tool.Output = map[string]interface{}{
-				"content":  content,
-				"is_error": isError,
-			}
-			// Update message timestamp to when the tool actually completed,
-			// not when the agent requested it (needed for provenance correlation)
-			msg.Timestamp = resultTimestamp
-			return
-		}
-	}
+	return toolUseID, map[string]interface{}{
+		"content":  content,
+		"is_error": isError,
+	}, true
 }
 
 // buildUserMessage creates a Message from a user JSONL record

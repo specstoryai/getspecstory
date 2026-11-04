@@ -30,6 +30,10 @@ type AgentChatSession struct {
 	Slug        string              // Stable human-readable but file name safe slug, often derived from first user message
 	SessionData *schema.SessionData // Structured session data in unified format
 	RawData     string              // Raw session data (e.g., JSON blobs for Cursor CLI, JSONL for Claude Code and Codex CLI, etc.)
+	// AppendOnly is true only when a provider applied a validated append to its
+	// cached normalized state. Markdown writers may then reuse the stable prefix;
+	// full rebuilds leave it false so older-exchange edits always render afresh.
+	AppendOnly bool
 }
 
 // SessionDataJSON marshals the session's normalized SessionData to a JSON string for

@@ -41,15 +41,17 @@ type Session struct {
 
 // JSONLParser manages parsing and searching JSONL files
 type JSONLParser struct {
-	Sessions []Session
-	Records  []JSONLRecord // All records for searching
+	Sessions   []Session
+	Records    []JSONLRecord // All records for searching
+	fileStates map[string]jsonlFileParseState
 }
 
 // NewJSONLParser creates a new JSONL parser instance
 func NewJSONLParser() *JSONLParser {
 	return &JSONLParser{
-		Sessions: make([]Session, 0),
-		Records:  make([]JSONLRecord, 0),
+		Sessions:   make([]Session, 0),
+		Records:    make([]JSONLRecord, 0),
+		fileStates: make(map[string]jsonlFileParseState),
 	}
 }
 
@@ -308,12 +310,14 @@ func (p *JSONLParser) parseSessionFile(filePath string) ([]JSONLRecord, error) {
 		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
 	defer func() { _ = file.Close() }() // Read-only file; close errors not actionable
+	initialInfo, initialStatErr := file.Stat()
 
 	reader := bufio.NewReader(file)
 
 	lineNumber := 0
 	records := []JSONLRecord{}
 	var lastNonSummaryRecord *JSONLRecord
+	trailingPartial := false
 	// pendingSummary holds a summary string when it appears before any records in the file.
 	// This happens when the summary is on line 1 - we can't attach it to a previous record
 	// because none exists yet, so we hold it and attach it to the next record we process.
@@ -331,6 +335,9 @@ func (p *JSONLParser) parseSessionFile(filePath string) ([]JSONLRecord, error) {
 		// Determine if we're at end of file and if we have content to process
 		atEOF := errors.Is(err, io.EOF)
 		hasContent := len(line) > 0
+		// Live incremental reads resume only after newline-terminated records.
+		// Remember a final unterminated line so the cache can wait for its rest.
+		trailingPartial = atEOF && ((len(rawLine) > 0 && rawLine[len(rawLine)-1] != '\n') || (oversized && len(rawLine) == 0))
 
 		// Increment line number for every line read (including empty lines) to match text editor line numbers
 		if hasContent || oversized || !atEOF {
@@ -435,6 +442,27 @@ func (p *JSONLParser) parseSessionFile(filePath string) ([]JSONLRecord, error) {
 			break
 		}
 	}
+
+	finalInfo, finalStatErr := file.Stat()
+	state := jsonlFileParseState{
+		line:     lineNumber,
+		info:     finalInfo,
+		complete: !trailingPartial,
+		stable:   initialStatErr == nil && finalStatErr == nil && os.SameFile(initialInfo, finalInfo) && initialInfo.Size() == finalInfo.Size() && initialInfo.ModTime().Equal(finalInfo.ModTime()),
+	}
+	if finalInfo != nil {
+		state.offset = finalInfo.Size()
+		if checkpoint, err := computePrefixCheckpoint(file, state.offset); err == nil {
+			state.prefix = checkpoint
+		}
+	}
+	if lastNonSummaryRecord != nil {
+		state.lastUUID, _ = lastNonSummaryRecord.Data["uuid"].(string)
+	}
+	if p.fileStates == nil {
+		p.fileStates = make(map[string]jsonlFileParseState)
+	}
+	p.fileStates[filePath] = state
 
 	return records, nil
 }

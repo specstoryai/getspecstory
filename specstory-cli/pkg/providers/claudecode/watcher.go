@@ -23,6 +23,7 @@ var (
 	watcherCallback func(*spi.AgentChatSession) // Callback for session updates
 	watcherDebugRaw bool                        // Whether to write debug raw data files
 	watcherMutex    sync.RWMutex                // Protects watcherCallback and watcherDebugRaw
+	sessionReader   = newIncrementalSessionReader()
 )
 
 // watchReconcileInterval is how often the project directory is re-listed to
@@ -102,6 +103,7 @@ func StopWatcher() {
 	// No event or deadline scans can add work now. Save synchronously before
 	// the caller clears the callback and closes its persistence dependencies.
 	flushDeferredScans()
+	sessionReader.reset()
 	slog.Info("StopWatcher: Watcher stopped")
 }
 
@@ -229,6 +231,9 @@ func startProjectWatcher(claudeProjectDir string) error {
 		// Session files watched individually, one fd each. The project directory
 		// itself is never added to the watcher — see spi.WatchWindowDays for why.
 		watchedFiles := make(map[string]bool)
+		// Coalesce bursts of writes and watch additions into one scan per path
+		// per tick. The latest file state wins, so intermediate states need no work.
+		dirtyFiles := make(map[string]struct{})
 
 		// reconcile lists the project directory and converges the watched set on
 		// the files modified within the window. Files gaining a watch are scanned
@@ -290,7 +295,7 @@ func startProjectWatcher(claudeProjectDir string) error {
 				// Scan after adding the watch so writes landing in between are
 				// covered by either the scan or a subsequent event
 				if scanAdds {
-					scanJSONLFiles(claudeProjectDir, file)
+					dirtyFiles[file] = struct{}{}
 				}
 			}
 		}
@@ -303,6 +308,14 @@ func startProjectWatcher(claudeProjectDir string) error {
 
 		ticker := time.NewTicker(watchReconcileInterval)
 		defer ticker.Stop()
+		flushDirtyScans := func() {
+			flushDirtyJSONLFiles(dirtyFiles, func(path string) {
+				scanJSONLFiles(claudeProjectDir, path)
+			})
+		}
+		// Channel closures end the loop as well as cancellation, so every exit
+		// must persist the latest state before the callback is torn down.
+		defer flushDirtyScans()
 
 		// Watch for file events
 		for {
@@ -333,11 +346,13 @@ func startProjectWatcher(claudeProjectDir string) error {
 				}
 
 				slog.Info("JSONL file modified", "file", event.Name, "operation", event.Op.String())
-				scanJSONLFiles(claudeProjectDir, event.Name)
+				dirtyFiles[event.Name] = struct{}{}
 
 			case <-ticker.C:
 				reconcile(true)
+				flushDirtyScans()
 				flushExpiredDeferredScans(time.Now())
+				sessionReader.evictIdle(time.Now(), incrementalSessionIdleLimit)
 
 			case err, ok := <-watcher.Errors:
 				if !ok {
@@ -349,6 +364,16 @@ func startProjectWatcher(claudeProjectDir string) error {
 	})
 
 	return nil
+}
+
+// flushDirtyJSONLFiles scans each changed path once and empties the set. The
+// caller supplies the scan function so the batching behavior is testable without
+// parsing real transcripts.
+func flushDirtyJSONLFiles(dirty map[string]struct{}, scan func(string)) {
+	for path := range dirty {
+		delete(dirty, path)
+		scan(path)
+	}
 }
 
 // scanJSONLFiles scans JSONL files and optionally filters processing to a specific changed file
@@ -381,8 +406,6 @@ func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force
 	} else {
 		slog.Info("ScanJSONLFiles: Scanning JSONL files", "directory", claudeProjectDir)
 	}
-	// Parse files and create history files:
-	parser := NewJSONLParser()
 	var targetSessionUuid string
 
 	// Set the target file for conditional debug output
@@ -408,6 +431,85 @@ func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force
 			"file", targetFile)
 	}
 
+	// Get the session callback
+	callback := getWatcherCallback()
+	if callback == nil {
+		slog.Error("ScanJSONLFiles: No callback provided - this should not happen")
+		return
+	}
+
+	deliver := func(session Session, agentSession *spi.AgentChatSession, converted bool, shellGateIDs func() []string) bool {
+		// Shell gate: while a Bash call is open, saving would land inside
+		// Claude Code's before/after diff of that command and surface our
+		// files as its edits. Wait for the tool_result event instead.
+		pendingSession := deferredSession{claudeProjectDir: claudeProjectDir, sessionID: session.SessionUuid}
+		if targetFile != "" && !force {
+			var open []string
+			if shellGateIDs != nil {
+				open = shellGateIDs()
+			} else {
+				open = openShellToolUses(session.Records)
+			}
+			if len(open) > 0 {
+				deferScan(pendingSession, targetFile, open)
+				return false
+			}
+		}
+		if targetFile != "" {
+			clearDeferredScan(pendingSession)
+		}
+
+		// Full rebuilds convert here so debug-raw output remains behind the shell
+		// gate. Incremental reads already carry their cached normalized session.
+		if !converted {
+			agentSession = convertToAgentChatSession(session, "", getWatcherDebugRaw())
+		}
+		if agentSession == nil {
+			return false
+		}
+		slog.Info("ScanJSONLFiles: Calling callback for session", "sessionId", agentSession.SessionID)
+		// Deliver synchronously so Stop joins every save in order.
+		delivered := false
+		func(s *spi.AgentChatSession) {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("ScanJSONLFiles: Callback panicked", "panic", r)
+				}
+			}()
+			callback(s)
+			delivered = true
+		}(agentSession)
+		return delivered
+	}
+
+	if targetSessionUuid != "" && !getWatcherDebugRaw() && !GetJsonlBurst() {
+		result, err := sessionReader.read(claudeProjectDir, targetFile, targetSessionUuid, getWatcherDebugRaw())
+		if err != nil {
+			log.UserWarn("Error parsing project sessions: %v", err)
+			slog.Error("ScanJSONLFiles: Error parsing project sessions", "error", err)
+			return
+		}
+		if len(result.session.Records) == 0 || (result.incremental && !result.changed && !force) {
+			slog.Debug("ScanJSONLFiles: No complete appended records to save", "sessionId", targetSessionUuid)
+			return
+		}
+		slog.Info("ScanJSONLFiles: Processing targeted session",
+			"sessionId", targetSessionUuid,
+			"incremental", result.incremental)
+		if result.agentSession != nil {
+			// AppendOnly describes the last delivered save, not just this read.
+			result.agentSession.AppendOnly = !sessionReader.requiresFullRender(claudeProjectDir, targetSessionUuid, result.appendOnly)
+		}
+		if deliver(result.session, result.agentSession, true, result.openShellToolUses) {
+			sessionReader.delivered(claudeProjectDir, targetSessionUuid)
+		}
+		slog.Info("ScanJSONLFiles: Processing complete")
+		return
+	}
+
+	// Debug scans and untargeted manual sweeps retain the full rebuild, with
+	// conversion after the shell gate as before.
+	parser := NewJSONLParser()
 	var parseErr error
 	if targetSessionUuid != "" {
 		parseErr = parser.ParseProjectSessionsForSession(claudeProjectDir, true, targetSessionUuid)
@@ -419,61 +521,10 @@ func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force
 		slog.Error("ScanJSONLFiles: Error parsing project sessions", "error", parseErr)
 		return
 	}
-
-	// Process JSONL sessions (isAutosave = true, silent = false for autosave)
-	slog.Info("ScanJSONLFiles: Processing sessions",
-		"sessionCount", len(parser.Sessions),
-		"targetSessionUuid", targetSessionUuid)
-
-	// Get the session callback
-	callback := getWatcherCallback()
-	if callback == nil {
-		slog.Error("ScanJSONLFiles: No callback provided - this should not happen")
-		return
-	}
-
-	slog.Info("ScanJSONLFiles: Processing sessions with callback")
-	// Process sessions and call the callback for each
+	slog.Info("ScanJSONLFiles: Processing sessions", "sessionCount", len(parser.Sessions))
 	for _, session := range parser.Sessions {
-		// Skip empty sessions
-		if len(session.Records) == 0 {
-			continue
-		}
-
-		// Skip if we're targeting a specific session and this isn't it
-		if targetSessionUuid != "" && session.SessionUuid != targetSessionUuid {
-			continue
-		}
-
-		// Shell gate: while a Bash call is open, saving would land inside
-		// Claude Code's before/after diff of that command and surface our
-		// files as its edits. Wait for the tool_result event instead. This
-		// runs before convertToAgentChatSession because the debug-raw files
-		// are written in there too.
-		pendingSession := deferredSession{claudeProjectDir: claudeProjectDir, sessionID: session.SessionUuid}
-		if targetFile != "" && !force {
-			if open := openShellToolUses(session.Records); len(open) > 0 {
-				deferScan(pendingSession, targetFile, open)
-				continue
-			}
-		}
-		if targetFile != "" {
-			clearDeferredScan(pendingSession)
-		}
-
-		// Convert to AgentChatSession (workspaceRoot extracted from records' cwd field)
-		agentSession := convertToAgentChatSession(session, "", getWatcherDebugRaw())
-		if agentSession != nil {
-			slog.Info("ScanJSONLFiles: Calling callback for session", "sessionId", agentSession.SessionID)
-			// Deliver synchronously so Stop joins every save in order.
-			func(s *spi.AgentChatSession) {
-				defer func() {
-					if r := recover(); r != nil {
-						slog.Error("ScanJSONLFiles: Callback panicked", "panic", r)
-					}
-				}()
-				callback(s)
-			}(agentSession)
+		if len(session.Records) > 0 {
+			deliver(session, nil, false, nil)
 		}
 	}
 	slog.Info("ScanJSONLFiles: Processing complete")

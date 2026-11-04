@@ -57,6 +57,15 @@ func TestSessionProcessingFlagDefaults(t *testing.T) {
 	}
 }
 
+func TestResolveProcessingOptions_MarkdownPartSize(t *testing.T) {
+	var cloudURL string
+	watchCmd := CreateWatchCommand(&cloudURL, SessionFlagDefaults{})
+	opts := ResolveProcessingOptions(watchCmd, true, false, 4096)
+	if opts.MarkdownPartSizeBytes != 4096 {
+		t.Errorf("MarkdownPartSizeBytes = %d, want 4096", opts.MarkdownPartSizeBytes)
+	}
+}
+
 // An explicit flag still has to beat the configured default, matching the
 // precedence run and sync have always had.
 func TestSessionProcessingFlags_ExplicitFlagBeatsConfiguredDefault(t *testing.T) {
