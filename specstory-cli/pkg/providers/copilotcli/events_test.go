@@ -751,6 +751,60 @@ func TestExchangeEndsAtItsLatestMessage(t *testing.T) {
 	}
 }
 
+// outputTokens covers a whole native message, which can become several schema
+// messages or have no text at all. Stats sum per message, so it must land
+// exactly once, on the first.
+func TestOutputTokensCountedOnce(t *testing.T) {
+	tests := []struct {
+		name string
+		data string
+		want []int
+	}{
+		{
+			name: "text and tool calls",
+			data: `{"content":"hi","outputTokens":40,"toolRequests":[{"toolCallId":"c1","name":"view","arguments":{}},{"toolCallId":"c2","name":"view","arguments":{}}]}`,
+			want: []int{40, 0, 0},
+		},
+		{
+			name: "tool calls only",
+			data: `{"outputTokens":30,"toolRequests":[{"toolCallId":"c1","name":"view","arguments":{}},{"toolCallId":"c2","name":"view","arguments":{}}]}`,
+			want: []int{30, 0},
+		},
+		{
+			name: "task_complete summary only",
+			data: `{"outputTokens":20,"toolRequests":[{"toolCallId":"c1","name":"task_complete","arguments":{"summary":"done"}}]}`,
+			want: []int{20},
+		},
+		{
+			name: "model that records no count",
+			data: `{"toolRequests":[{"toolCallId":"c1","name":"view","arguments":{}}]}`,
+			want: []int{0},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder := newTranscriptBuilder("/w")
+			builder.add(event("user.message", "u", `{"content":"go"}`))
+			builder.add(event("assistant.message", "a", tt.data))
+
+			var got []int
+			for _, message := range builder.finish()[0].Messages {
+				if message.Role != schema.RoleAgent {
+					continue
+				}
+				tokens := 0
+				if message.Usage != nil {
+					tokens = message.Usage.OutputTokens
+				}
+				got = append(got, tokens)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("output tokens per message = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 // apply_patch carries no path argument, so the files it writes come from its
 // patch headers, including a rename's destination.
 func TestApplyPatchPathHints(t *testing.T) {

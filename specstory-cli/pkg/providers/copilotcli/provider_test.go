@@ -190,6 +190,37 @@ func TestProjectReachedThroughOtherSpellings(t *testing.T) {
 	}
 }
 
+// TestSessionRecordedInAnotherCaseOnWindows puts the case difference on the
+// recorded side. A Windows process can hold a current directory spelled
+// differently from the disk, and Copilot records what the process reports (Go
+// and Node both read it from GetCurrentDirectory), so that spelling must still
+// match the canonical project root. Other platforms report on-disk spelling.
+func TestSessionRecordedInAnotherCaseOnWindows(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("only Windows keeps the caller's spelling of the current directory")
+	}
+	home := useSessionStore(t)
+	real := newProjectDir(t, "MixedCase")
+	t.Chdir(filepath.Join(filepath.Dir(real), strings.ToUpper(filepath.Base(real))))
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("project %q, process reports %q", real, cwd)
+	writeSession(t, home, "s1",
+		sessionStart(t, "s1", cwd),
+		record(t, eventUserMessage, "u1", map[string]any{"content": "hello"}),
+	)
+
+	sessions, err := NewProvider().GetAgentChatSessions(real, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 1 {
+		t.Errorf("session recorded in %q: found %d sessions for project %q, want 1", cwd, len(sessions), real)
+	}
+}
+
 func TestCheck(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("POSIX executable fixtures")

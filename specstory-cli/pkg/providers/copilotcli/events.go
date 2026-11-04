@@ -390,6 +390,7 @@ func classifyUserMessage(data userMessageData) inputKind {
 	case strings.HasPrefix(data.Source, "agent-"):
 		return subagentPrompt
 	case data.Source != "" && data.Source != "user":
+		slog.Debug("Not rendering Copilot CLI input from a non-user source", "source", data.Source)
 		return machinery
 	case strings.Contains(strings.Replace(data.TransformedContent, data.Content, "", 1), crossSessionTag):
 		return sessionMessage
@@ -674,19 +675,16 @@ func (b *transcriptBuilder) addAssistantMessage(event rawEvent, data assistantMe
 	}
 
 	exchange := b.ensureExchange(event)
+	first := len(exchange.Messages)
 	if len(content) > 0 {
-		message := schema.Message{
+		exchange.Messages = append(exchange.Messages, schema.Message{
 			ID:        event.ID,
 			Timestamp: event.Timestamp,
 			Role:      schema.RoleAgent,
 			Model:     data.Model,
 			Content:   content,
 			Metadata:  metadata,
-		}
-		if data.OutputTokens > 0 {
-			message.Usage = &schema.Usage{OutputTokens: data.OutputTokens}
-		}
-		exchange.Messages = append(exchange.Messages, message)
+		})
 	}
 	for _, request := range data.ToolRequests {
 		arguments := decodeArguments(request.Arguments)
@@ -721,6 +719,13 @@ func (b *transcriptBuilder) addAssistantMessage(event rawEvent, data assistantMe
 		if request.ToolCallID != "" {
 			b.pendingTools[request.ToolCallID] = pending
 		}
+	}
+	// One native message can become several schema messages, and a turn that
+	// only calls tools has no text message at all. The count covers the whole
+	// native message, so it goes on the first one: stats sum per message, and
+	// repeating it would double count.
+	if data.OutputTokens > 0 && len(exchange.Messages) > first {
+		exchange.Messages[first].Usage = &schema.Usage{OutputTokens: data.OutputTokens}
 	}
 	return true
 }

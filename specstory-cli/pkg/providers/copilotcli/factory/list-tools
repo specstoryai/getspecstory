@@ -46,11 +46,23 @@ if ! reply=$(jq -r 'select(.type=="assistant.message") | .data.content // empty'
   head -c 600 stream.jsonl >&2
   exit 1
 fi
-tools=$(printf '%s\n' "$reply" | tr -d '`*' | sed -E 's/^[[:space:]-]+//; s/[[:space:]]+$//' \
-  | awk '/^[A-Za-z][A-Za-z0-9_.-]*$/')
-if [ -z "$tools" ]; then
-  echo "list-tools: no tool names in the reply" >&2
-  head -c 600 stream.jsonl >&2
+# Markdown decoration is tolerated, but a line that is still not a bare name
+# fails the run: dropping it would turn a numbered, annotated or chatty reply
+# into a partial inventory that looks like a success.
+tools=$(printf '%s\n' "$reply" | tr -d '`*' | sed -E 's/^[[:space:]-]+//; s/[[:space:]]+$//' | awk 'NF')
+rejected=$(printf '%s\n' "$tools" | awk '!/^[A-Za-z][A-Za-z0-9_.-]*$/')
+if [ -n "$rejected" ]; then
+  echo "list-tools: reply has lines that are not tool names:" >&2
+  printf '%s\n' "$rejected" | head -n 10 >&2
   exit 1
 fi
+# Every configuration has these, so a reply without them is not an inventory,
+# whatever else it lists. This cannot catch a clean reply that omits other tools.
+for required in bash view edit; do
+  if ! printf '%s\n' "$tools" | grep -qx "$required"; then
+    echo "list-tools: reply does not list $required" >&2
+    head -c 600 stream.jsonl >&2
+    exit 1
+  fi
+done
 printf '%s\n' "$tools"
