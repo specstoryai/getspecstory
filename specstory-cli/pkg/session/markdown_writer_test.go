@@ -326,3 +326,130 @@ func TestProcessSingleSession_IncrementalEmptyExchange(t *testing.T) {
 		t.Errorf("populated empty exchange differs from full rebuild\nincremental:\n%s\nfull:\n%s", incrementalContent, fullContent)
 	}
 }
+
+func TestProcessSingleSession_FullRebuildRemovesObsoleteContinuations(t *testing.T) {
+	cloud.InitSyncManager(false)
+	for _, tt := range []struct {
+		name     string
+		prompts  []string
+		capBytes int64
+		want     int
+	}{
+		{name: "transcript shrank", prompts: []string{"keep one", "keep two"}, capBytes: 1, want: 2},
+		{name: "cap increased to one part", prompts: []string{"keep one", "keep two", "keep three", "keep four"}, capBytes: DefaultMarkdownPartSizeBytes, want: 1},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			config := markdownWriterTestConfig(t)
+			id := "obsolete-" + strings.ReplaceAll(tt.name, " ", "-")
+			original := markdownWriterTestSession(id, "keep one", "keep two", "removed three", "removed four")
+			if _, err := ProcessSingleSession(t.Context(), "claude", original, config, markdownWriterTestOptions(1)); err != nil {
+				t.Fatal(err)
+			}
+			basePath := BuildSessionFilePath(original, config.GetHistoryDir(), true)
+			if _, err := os.Stat(markdownPartPath(basePath, 4)); err != nil {
+				t.Fatalf("setup should have written four parts: %v", err)
+			}
+
+			rebuilt := markdownWriterTestSession(id, tt.prompts...)
+			if _, err := ProcessSingleSession(t.Context(), "claude", rebuilt, config, markdownWriterTestOptions(tt.capBytes)); err != nil {
+				t.Fatal(err)
+			}
+			for part := 1; part <= 4; part++ {
+				data, err := os.ReadFile(markdownPartPath(basePath, part))
+				if part > tt.want {
+					if err == nil {
+						t.Errorf("obsolete part %d still exists", part)
+					}
+					continue
+				}
+				if err != nil {
+					t.Fatalf("part %d: %v", part, err)
+				}
+				if strings.Contains(string(data), "removed") {
+					t.Errorf("part %d retains removed content", part)
+				}
+			}
+		})
+	}
+}
+
+func TestProcessSingleSession_EditedEarlierPartForcesRebuild(t *testing.T) {
+	cloud.InitSyncManager(false)
+	for _, tt := range []struct {
+		name   string
+		damage func(t *testing.T, base string)
+	}{
+		{"deleted base part", func(t *testing.T, base string) {
+			if err := os.Remove(base); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"edited middle part", func(t *testing.T, base string) {
+			path := markdownPartPath(base, 2)
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, append(data, []byte("tampered\n")...), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			config := markdownWriterTestConfig(t)
+			id := "earlier-" + strings.ReplaceAll(tt.name, " ", "-")
+			opts := markdownWriterTestOptions(1)
+			first := markdownWriterTestSession(id, "one", "two", "three")
+			if _, err := ProcessSingleSession(t.Context(), "claude", first, config, opts); err != nil {
+				t.Fatal(err)
+			}
+			basePath := BuildSessionFilePath(first, config.GetHistoryDir(), true)
+			tt.damage(t, basePath)
+
+			next := markdownWriterTestSession(id, "one", "two", "three", "four")
+			next.AppendOnly = true
+			if _, err := ProcessSingleSession(t.Context(), "claude", next, config, opts); err != nil {
+				t.Fatal(err)
+			}
+
+			reference := markdownWriterTestConfig(t)
+			full := markdownWriterTestSession(id, "one", "two", "three", "four")
+			if _, err := ProcessSingleSession(t.Context(), "claude", full, reference, opts); err != nil {
+				t.Fatal(err)
+			}
+			refBase := BuildSessionFilePath(full, reference.GetHistoryDir(), true)
+			for part := 1; part <= 4; part++ {
+				got, err := os.ReadFile(markdownPartPath(basePath, part))
+				if err != nil {
+					t.Fatalf("part %d not repaired: %v", part, err)
+				}
+				want, _ := os.ReadFile(markdownPartPath(refBase, part))
+				if string(got) != string(want) {
+					t.Errorf("part %d differs from a full render:\n%s", part, got)
+				}
+			}
+		})
+	}
+}
+
+func TestProcessSingleSession_NonAutosaveDoesNotRetainMarkdownCache(t *testing.T) {
+	cloud.InitSyncManager(false)
+	config := markdownWriterTestConfig(t)
+	opts := markdownWriterTestOptions(DefaultMarkdownPartSizeBytes)
+	opts.IsAutosave = false
+	markdownCacheMu.Lock()
+	before := len(markdownCache)
+	markdownCacheMu.Unlock()
+	for i := 0; i < 5; i++ {
+		session := markdownWriterTestSession(fmt.Sprintf("bulk-%d", i), "prompt")
+		if _, err := ProcessSingleSession(t.Context(), "claude", session, config, opts); err != nil {
+			t.Fatal(err)
+		}
+	}
+	markdownCacheMu.Lock()
+	after := len(markdownCache)
+	markdownCacheMu.Unlock()
+	if after != before {
+		t.Errorf("bulk saves left %d cache entries, want none", after-before)
+	}
+}

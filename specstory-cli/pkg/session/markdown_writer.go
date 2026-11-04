@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -102,7 +103,29 @@ type markdownCacheEntry struct {
 	prefixHasExchange bool
 	currentSize       int
 	fileInfo          os.FileInfo
+	earlierParts      []markdownFileState
 	valid             bool
+}
+
+// markdownFileState is the size and identity of a finished part as last written.
+// Editing or deleting a finished part must force a full rebuild, because only the
+// current part is otherwise checked before a tail write.
+type markdownFileState struct {
+	path string
+	size int64
+	info os.FileInfo
+}
+
+func newMarkdownFileState(path string, size int) markdownFileState {
+	return markdownFileState{path: path, size: int64(size), info: statMarkdownFile(path)}
+}
+
+func (f markdownFileState) unchanged() bool {
+	if f.info == nil {
+		return false
+	}
+	info, err := os.Stat(f.path)
+	return err == nil && info.Size() == f.size && info.ModTime().Equal(f.info.ModTime()) && os.SameFile(f.info, info)
 }
 
 // The cache retains only the current part, not the whole session. Its key also
@@ -324,6 +347,32 @@ func writeMarkdownPart(path, content string) (existed, identical bool, err error
 	return existed, false, os.WriteFile(path, []byte(content), 0o644)
 }
 
+// removeObsoleteParts deletes this session's continuation files numbered above
+// lastPart. They hold exchanges a full rebuild no longer produces, which may
+// include content that is now redacted or removed.
+func removeObsoleteParts(basePath string, lastPart int) error {
+	dir := filepath.Dir(basePath)
+	prefix := strings.TrimSuffix(filepath.Base(basePath), filepath.Ext(basePath)) + ".part-"
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, ".md") {
+			continue
+		}
+		number, convErr := strconv.Atoi(strings.TrimSuffix(strings.TrimPrefix(name, prefix), ".md"))
+		if convErr != nil || number <= lastPart {
+			continue
+		}
+		if err := os.Remove(filepath.Join(dir, name)); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
 func statMarkdownFile(path string) os.FileInfo {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -374,6 +423,10 @@ func saveFullMarkdown(session *spi.AgentChatSession, basePath string, opts Proce
 			entry.currentSize = len(content)
 			entry.fileInfo = statMarkdownFile(basePath)
 			entry.valid = entry.valid && entry.fileInfo != nil
+			entry.earlierParts = nil
+			if err := removeObsoleteParts(basePath, 1); err != nil {
+				return result, err
+			}
 		}
 		return result, nil
 	}
@@ -383,6 +436,7 @@ func saveFullMarkdown(session *spi.AgentChatSession, basePath string, opts Proce
 	parts := buildMarkdownParts(basePath, 1, header, exchanges, capBytes, opts.RedactSecrets)
 	var fullContent strings.Builder
 	previousPartsSize := 0
+	var earlierParts []markdownFileState
 	result.redactedCount = 0
 	result.identical = true
 	for i, part := range parts {
@@ -397,10 +451,15 @@ func saveFullMarkdown(session *spi.AgentChatSession, basePath string, opts Proce
 		if i == len(parts)-1 {
 			entry.basePath = basePath
 			setCachePart(entry, part, i+1, previousPartsSize)
+			entry.earlierParts = earlierParts
 			result.currentPath = part.path
 		} else {
 			previousPartsSize += len(part.content)
+			earlierParts = append(earlierParts, newMarkdownFileState(part.path, len(part.content)))
 		}
+	}
+	if err := removeObsoleteParts(basePath, len(parts)); err != nil {
+		return result, err
 	}
 	result.content = fullContent.String()
 	result.size = len(result.content)
@@ -411,6 +470,11 @@ func saveFullMarkdown(session *spi.AgentChatSession, basePath string, opts Proce
 func (entry *markdownCacheEntry) fileUnchanged() bool {
 	if entry.fileInfo == nil {
 		return false
+	}
+	for _, earlier := range entry.earlierParts {
+		if !earlier.unchanged() {
+			return false
+		}
 	}
 	info, err := os.Stat(entry.currentPath)
 	return err == nil && info.Size() == int64(entry.currentSize) && info.ModTime().Equal(entry.fileInfo.ModTime()) && os.SameFile(entry.fileInfo, info)
@@ -474,6 +538,7 @@ func saveIncrementalMarkdown(session *spi.AgentChatSession, opts ProcessingOptio
 			return result, true, err
 		}
 		oldPartSize := len(oldPrefix) + len(oldTail)
+		finished := append(entry.earlierParts, newMarkdownFileState(entry.currentPath, oldPartSize))
 		parts := buildMarkdownParts(entry.basePath, nextPart, "", exchanges[rotationIndex:], capBytes, opts.RedactSecrets)
 		previousPartsSize := entry.previousPartsSize + oldPartSize
 		for i, part := range parts {
@@ -485,9 +550,11 @@ func saveIncrementalMarkdown(session *spi.AgentChatSession, opts ProcessingOptio
 			result.redactedCount += part.redactedCount
 			if i < len(parts)-1 {
 				previousPartsSize += len(part.content)
+				finished = append(finished, newMarkdownFileState(part.path, len(part.content)))
 			}
 		}
 		setCachePart(entry, parts[len(parts)-1], nextPart+len(parts)-1, previousPartsSize)
+		entry.earlierParts = finished
 		result.currentPath = entry.currentPath
 	} else {
 		var rawTail strings.Builder
@@ -546,7 +613,11 @@ func saveSessionMarkdown(session *spi.AgentChatSession, config utils.OutputConfi
 	entry, ok := markdownCache[key]
 	if !ok {
 		entry = &markdownCacheEntry{basePath: basePath}
-		markdownCache[key] = entry
+		// Only autosave reuses a cached tail. Other saves (bulk manual sync) use a
+		// temporary entry so rendered buffers are not retained for every session.
+		if opts.IsAutosave {
+			markdownCache[key] = entry
+		}
 	}
 	markdownCacheMu.Unlock()
 	entry.mu.Lock()
