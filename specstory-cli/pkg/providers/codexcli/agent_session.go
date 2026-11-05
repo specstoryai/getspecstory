@@ -732,12 +732,10 @@ func extractPathHints(toolName string, input map[string]interface{}, inputText s
 	var paths []string
 
 	if toolName == "apply_patch" {
-		// Parse patch format to extract file paths
-		// Look for lines like "*** Modify File: path", "*** Create File: path", "*** Delete File: path"
 		if inputText != "" {
-			paths = extractPathsFromPatch(inputText, workspaceRoot)
+			paths = spi.ExtractPatchPathHints(inputText, workspaceRoot)
 		} else if inputStr, ok := input["input"].(string); ok {
-			paths = extractPathsFromPatch(inputStr, workspaceRoot)
+			paths = spi.ExtractPatchPathHints(inputStr, workspaceRoot)
 		}
 	} else {
 		// For other tools, check common path fields
@@ -766,53 +764,6 @@ func extractPathHints(toolName string, input map[string]interface{}, inputText s
 			for _, sp := range shellPaths {
 				if !contains(paths, sp) {
 					paths = append(paths, sp)
-				}
-			}
-		}
-	}
-
-	return paths
-}
-
-// extractPathsFromPatch parses apply_patch input to find file paths
-func extractPathsFromPatch(patchText string, workspaceRoot string) []string {
-	var paths []string
-	lines := strings.Split(patchText, "\n")
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-
-		// Look for patch markers - both "Create File" and "Add File" are valid
-		markers := []string{
-			"*** Modify File:",
-			"*** Update File:",
-			"*** Create File:",
-			"*** Add File:",
-			"*** Delete File:",
-			"*** Rename File:",
-			"*** Remove File:",
-		}
-
-		for _, marker := range markers {
-			if strings.HasPrefix(line, marker) {
-				path := strings.TrimSpace(strings.TrimPrefix(line, marker))
-				if path != "" {
-					normalizedPath := spi.NormalizePath(path, workspaceRoot)
-					if !contains(paths, normalizedPath) {
-						paths = append(paths, normalizedPath)
-					}
-				}
-				break
-			}
-		}
-
-		// For rename, also check for "*** New Name:" marker
-		if strings.HasPrefix(line, "*** New Name:") {
-			path := strings.TrimSpace(strings.TrimPrefix(line, "*** New Name:"))
-			if path != "" {
-				normalizedPath := spi.NormalizePath(path, workspaceRoot)
-				if !contains(paths, normalizedPath) {
-					paths = append(paths, normalizedPath)
 				}
 			}
 		}

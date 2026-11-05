@@ -51,7 +51,7 @@ func ExecuteGrok(projectPath string, customCommand string, resumeSessionID strin
 	cmd := exec.Command(grokCmd, customArgs...)
 	// Native discovery and the watcher must refer to the same project even
 	// when the CLI was launched elsewhere with --project-path.
-	cmd.Dir = projectPath
+	spi.RunInProject(cmd, projectPath)
 	if os.Getenv("GROK_HOME") != "" {
 		home, err := GetGrokHome()
 		if err != nil {

@@ -85,8 +85,8 @@ func parseCursorCommand(customCommand string) (string, []string) {
 	return getDefaultCursorCommand(), nil
 }
 
-// ExecuteCursorCLI runs the Cursor CLI with the given arguments and optional resume session
-func ExecuteCursorCLI(customCommand string, resumeSessionId string) error {
+// ExecuteCursorCLI runs the Cursor CLI in projectPath with the given arguments and optional resume session
+func ExecuteCursorCLI(projectPath string, customCommand string, resumeSessionId string) error {
 	slog.Info("Preparing to execute Cursor CLI", "command", customCommand, "resumeSessionId", resumeSessionId)
 
 	// Parse the command and any custom arguments
@@ -100,6 +100,7 @@ func ExecuteCursorCLI(customCommand string, resumeSessionId string) error {
 
 	// Create the command
 	cmd := exec.Command(cursorCmd, customArgs...)
+	spi.RunInProject(cmd, projectPath)
 
 	// Set up stdin/stdout/stderr to match the parent process
 	cmd.Stdin = os.Stdin
@@ -107,7 +108,8 @@ func ExecuteCursorCLI(customCommand string, resumeSessionId string) error {
 	cmd.Stderr = os.Stderr
 
 	// Ensure cursor-agent runs with proper terminal settings
-	cmd.Env = append(os.Environ(), "FORCE_COLOR=1")
+	// Environ, not os.Environ: it carries PWD for the project directory.
+	cmd.Env = append(cmd.Environ(), "FORCE_COLOR=1")
 
 	// Start the command
 	slog.Info("ExecuteCursorCLI: Starting Cursor CLI process", "command", cursorCmd, "args", customArgs)

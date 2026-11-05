@@ -166,7 +166,7 @@ type Provider interface {
 
 	// ExecAgentAndWatch executes the agent in interactive mode and watches for session updates
 	// Blocks until the agent exits, calling sessionCallback for each new/updated session
-	// projectPath: Agent's working directory
+	// projectPath: Agent's working directory; start the agent there with RunInProject
 	// customCommand: empty string = use detected/default binary with default args, non-empty = use this specific command/path
 	// resumeSessionID: empty string = start new session, non-empty = resume this specific session ID
 	// debugRaw: if true, provider should write provider-specific raw debug files to .specstory/debug/<sessionID>/

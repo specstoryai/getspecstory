@@ -39,7 +39,7 @@ func ExecuteQwen(projectPath string, customCommand string, resumeSessionID strin
 
 	// Create the command
 	cmd := exec.Command(qwenCmd, customArgs...)
-	cmd.Dir = projectPath
+	spi.RunInProject(cmd, projectPath)
 	// Relative storage paths must keep the same meaning for discovery and the
 	// child even when --project-path launches Qwen in a different directory.
 	// os/exec keeps the last occurrence of a duplicated key, so appending the

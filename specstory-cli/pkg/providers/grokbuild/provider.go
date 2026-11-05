@@ -229,7 +229,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	slog.Info("ExecAgentAndWatch: starting Grok Build", "project", projectPath)
 
 	SetWatcherDebugRaw(debugRaw)
-	if err := WatchGrokProject(projectPath, sessionCallback); err != nil {
+	if err := WatchGrokProject(spi.RunningAgentDir(projectPath), sessionCallback); err != nil {
 		return fmt.Errorf("failed to start Grok watcher: %w", err)
 	}
 	defer StopWatcher()

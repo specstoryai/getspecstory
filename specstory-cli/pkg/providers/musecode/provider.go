@@ -429,7 +429,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	slog.Info("ExecAgentAndWatch: Starting Muse Code", "project", projectPath)
 
 	SetWatcherDebugRaw(debugRaw)
-	if err := WatchMuseProject(projectPath, sessionCallback); err != nil {
+	if err := WatchMuseProject(spi.RunningAgentDir(projectPath), sessionCallback); err != nil {
 		slog.Error("Failed to start watcher", "error", err)
 	}
 	defer StopWatcher()
@@ -438,7 +438,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		slog.Info("Attempting to resume Muse Code session", "sessionId", resumeSessionID)
 	}
 
-	return ExecuteMuse(customCommand, resumeSessionID)
+	return ExecuteMuse(projectPath, customCommand, resumeSessionID)
 }
 
 // WatchAgent watches for Muse Code agent activity and calls the callback with

@@ -105,18 +105,18 @@ func StopWatcher() {
 	slog.Info("StopWatcher: Watcher stopped")
 }
 
-// WatchForProjectDir watches for a project directory that matches the current working directory
-func WatchForProjectDir() error {
+// WatchForProjectDir watches for the project directory of projectPath, or of the current working directory
+func WatchForProjectDir(projectPath string) error {
 	watcherCtx, watcherCancel = context.WithCancel(context.Background())
 	slog.Info("WatchForProjectDir: Determining project directory to monitor")
-	claudeProjectDir, err := GetClaudeCodeProjectDir("")
+	claudeProjectDir, err := GetClaudeCodeProjectDir(projectPath)
 	if err != nil {
 		slog.Error("WatchForProjectDir: Failed to get project directory", "error", err)
 		// Check if error is specifically about missing Claude projects directory
 		if strings.Contains(err.Error(), "claude projects directory not found") {
 			slog.Error("WatchForProjectDir: Claude projects directory not found while starting setup watcher")
 			// Start watching for Claude directory creation
-			return WatchForClaudeSetup()
+			return WatchForClaudeSetup(projectPath)
 		}
 		return fmt.Errorf("failed to get project directory: %v", err)
 	}
@@ -481,7 +481,7 @@ func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force
 }
 
 // WatchForClaudeSetup watches for the creation of Claude directories
-func WatchForClaudeSetup() error {
+func WatchForClaudeSetup(projectPath string) error {
 	slog.Info("WatchForClaudeSetup: Starting Claude directory setup watcher")
 	claudeDir, err := claudeConfigDir()
 	if err != nil {
@@ -591,7 +591,7 @@ func WatchForClaudeSetup() error {
 					slog.Info("Claude projects directory now exists, starting normal file watcher\n")
 					// Try to get the project directory again
 					slog.Info("WatchForClaudeSetup: Getting project directory name")
-					if projectDir, err := GetClaudeCodeProjectDir(""); err == nil {
+					if projectDir, err := GetClaudeCodeProjectDir(projectPath); err == nil {
 						slog.Info("WatchForClaudeSetup: Project directory will be", "directory", projectDir)
 						if err := startProjectWatcher(projectDir); err != nil {
 							log.UserWarn("Error starting project watcher: %v", err)

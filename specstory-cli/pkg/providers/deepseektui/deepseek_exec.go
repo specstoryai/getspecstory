@@ -36,8 +36,8 @@ func parseCommand(customCommand string) (string, []string) {
 	return defaultCommand, nil
 }
 
-// ExecuteDeepSeek launches the DeepSeek TUI process and blocks until it exits.
-func ExecuteDeepSeek(customCommand string, resumeSessionID string) error {
+// ExecuteDeepSeek launches the DeepSeek TUI process in projectPath and blocks until it exits.
+func ExecuteDeepSeek(projectPath string, customCommand string, resumeSessionID string) error {
 	cmdName, args := parseCommand(customCommand)
 	args = ensureResumeArgs(args, resumeSessionID)
 	if resumeSessionID != "" {
@@ -45,6 +45,7 @@ func ExecuteDeepSeek(customCommand string, resumeSessionID string) error {
 	}
 
 	command := exec.Command(cmdName, args...)
+	spi.RunInProject(command, projectPath)
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
