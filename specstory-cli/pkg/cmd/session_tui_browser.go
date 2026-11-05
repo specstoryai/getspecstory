@@ -569,6 +569,9 @@ func (m sessionTUI) renderProjects() string {
 	return b.String()
 }
 
+// projectNameMaxWidth is the widest a project name renders in the all-projects browser.
+const projectNameMaxWidth = 30
+
 func (m sessionTUI) projectRow(p sessionindex.ProjectSummary, selected bool) string {
 	cursor := "  "
 	if selected {
@@ -576,12 +579,24 @@ func (m sessionTUI) projectRow(p sessionindex.ProjectSummary, selected bool) str
 	}
 	chips := m.agentCountChips(p.AgentCounts)
 	when := relativeTime(p.LastActivity)
-	row := cursor + cloudMark(p.IsCloud) + " " + renderName(projectDisplayName(p), selected, 30) + "  " +
-		chips + styDim.Render("  · "+when)
-	if by := ownerLabel(p.OwnerID, p.OwnerName, p.OwnerEmail, m.viewerEmail); by != "" {
-		row += styFaint.Render("  · " + by)
+	name := projectDisplayName(p)
+	render := func(nameWidth int) string {
+		return cursor + cloudMark(p.IsCloud) + " " + renderName(name, selected, nameWidth) + "  " +
+			chips + styDim.Render("  · "+when)
 	}
-	return row
+
+	row := render(projectNameMaxWidth)
+	suffix := ownerSuffix(projectOwnerLabel(p, m.viewerEmail))
+	if suffix == "" {
+		return row
+	}
+	// Chips and the date are the row's content and vary per project, so on a narrow terminal the
+	// name gives up the room attribution needs rather than using a fixed budget.
+	overflow := lipgloss.Width(row) + lipgloss.Width(suffix) - m.lineWidth()
+	if overflow > 0 {
+		row = render(lipgloss.Width(truncate(name, projectNameMaxWidth)) - overflow)
+	}
+	return row + styFaint.Render(suffix)
 }
 
 // agentCountChips renders "claude 12 · codex 3" with colored agent tags.
@@ -946,29 +961,20 @@ func (m sessionTUI) globalRow(s sessionindex.Session, selected bool, snippet str
 
 	pad := m.agentColW - agentColMinWidth // widen with a long agent id so columns stay aligned
 
-	// Attribution is appended AFTER the label width maths rather than folded into it: the row
-	// budget is tuned for the title/snippet, and on a shared project every row would otherwise
-	// lose the same handful of columns whether or not it turned out to be a teammate's.
-	by := ownerLabel(s.OwnerID, s.OwnerName, s.OwnerEmail, m.viewerEmail)
+	by := ownerLabel(s.Owner, m.viewerEmail)
 
 	if m.viewMode == "sparse" {
-		label := rowLabel(s, selected, snippet, m.lineWidth()-33-pad, m.lineWidth()-35-pad)
+		titleWidth := m.lineWidth() - 35 - pad
+		label := rowLabel(s, selected, snippet, titleWidth, titleWidth-snippetEllipsisWidth)
 		head := cursor + mark + " " + agent + "  " + styFaint.Render(proj) + "  " + label
-		meta := fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID))
-		if by != "" {
-			meta += " · " + by
-		}
-		sub := "       " + styFaint.Render(meta)
-		return head + "\n" + sub
+		return head + "\n" + sparseMeta(s, by)
 	}
 
 	when := fmt.Sprintf("%-4s", relativeTime(s.UpdatedAt))
+	suffix := ownerSuffix(by)
+	pad += lipgloss.Width(suffix)
 	label := rowLabel(s, selected, snippet, m.lineWidth()-49-pad, m.lineWidth()-51-pad)
-	row := cursor + mark + " " + agent + " " + styDim.Render(when) + "  " + styFaint.Render(proj) + "  " + label
-	if by != "" {
-		row += styFaint.Render("  · " + by)
-	}
-	return row
+	return cursor + mark + " " + agent + " " + styDim.Render(when) + "  " + styFaint.Render(proj) + "  " + label + styFaint.Render(suffix)
 }
 
 func sessionProject(s sessionindex.Session) string {

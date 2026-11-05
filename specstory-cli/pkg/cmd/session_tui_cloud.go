@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -212,23 +213,49 @@ type cloudProjectsMsg struct {
 //   - the cloud deployment predates attribution and sends no owner fields at all;
 //   - the owner's profile has not been cached yet, so ownerEmail is empty and the row cannot be
 //     compared against the viewer;
-//   - the viewer's email is unknown (not signed in, or auth.json unreadable).
+//   - the viewer's email is unknown (not signed in, a session token, or auth.json unreadable).
 //
 // Missing a teammate's label occasionally is far cheaper than telling someone their own session
-// belongs to a colleague. This mirrors ownerLabel() in the VS Code extension
-// (src/webview/lib/format.ts) — the two must agree, or the same session reads differently
-// depending on where you look at it.
-func ownerLabel(ownerID, ownerName, ownerEmail, viewerEmail string) string {
-	if ownerID == "" || ownerEmail == "" || viewerEmail == "" {
+// belongs to a colleague. Who gets credited mirrors ownerLabel() in the VS Code extension
+// (specstory-monorepo, src/webview/lib/format.ts) — those rules must agree, or the same session
+// reads differently depending on where you look at it. Sanitizing and the width cap are
+// terminal concerns; the webview gets both from React and CSS.
+func ownerLabel(owner sessionindex.Owner, viewerEmail string) string {
+	if owner.OwnerID == "" || owner.OwnerEmail == "" || viewerEmail == "" {
 		return ""
 	}
-	if strings.EqualFold(ownerEmail, viewerEmail) {
+	if strings.EqualFold(owner.OwnerEmail, viewerEmail) {
 		return ""
 	}
-	if n := strings.TrimSpace(ownerName); n != "" {
-		return n
+	label := sanitizeOwnerText(owner.OwnerName)
+	if label == "" {
+		label = sanitizeOwnerText(owner.OwnerEmail)
 	}
-	return ownerEmail
+	return truncate(label, ownerLabelMaxWidth)
+}
+
+// projectOwnerLabel is ownerLabel for a project row, which can stand for several copies. The
+// label names one owner, so "Greg +1" stops the rest from being hidden. Any label means the
+// server had no copy of yours to prefer, so every other copy is a teammate's.
+func projectOwnerLabel(p sessionindex.ProjectSummary, viewerEmail string) string {
+	label := ownerLabel(p.Owner, viewerEmail)
+	if label == "" || p.ContributorCount <= 1 {
+		return label
+	}
+	return fmt.Sprintf("%s +%d", label, p.ContributorCount-1)
+}
+
+// sanitizeOwnerText makes a profile value safe to print into a row. These values are written by
+// other users and reach the terminal directly: a newline would split the row, and an escape
+// sequence would be interpreted by the terminal.
+func sanitizeOwnerText(s string) string {
+	collapsed := strings.Join(strings.Fields(s), " ")
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, collapsed)
 }
 
 // cloudEligibilityCmd runs the (networked) eligibility check off the UI thread.
@@ -324,9 +351,7 @@ func cloudToSessions(cs []cloud.CloudSession, agentIDByName map[string]string) [
 			IsCloud:     true,
 			DeviceID:    c.Metadata.DeviceID,
 			MachineName: c.Metadata.MachineName,
-			OwnerID:     c.OwnerID,
-			OwnerName:   c.OwnerName,
-			OwnerEmail:  c.OwnerEmail,
+			Owner:       sessionindex.Owner(c.Owner),
 		})
 	}
 	return out
@@ -459,9 +484,7 @@ func cloudSearchHitsToSessions(
 			IsCloud:     true,
 			DeviceID:    h.Metadata.DeviceID,
 			MachineName: h.Metadata.MachineName,
-			OwnerID:     h.OwnerID,
-			OwnerName:   h.OwnerName,
-			OwnerEmail:  h.OwnerEmail,
+			Owner:       sessionindex.Owner(h.Owner),
 		})
 		if h.Snippet != "" {
 			snippets[sessionindex.FingerprintKey(agentID, h.ClientID)] = h.Snippet
@@ -785,11 +808,9 @@ func mergeCloudProjects(local []sessionindex.ProjectSummary, localKeys map[strin
 			LastActivity: maxReal,
 			IsCloud:      true,
 			// Attribution rides only on cloud-ONLY projects. A project you also have locally is
-			// one you work in yourself, so labelling it with whichever teammate's copy the
-			// server picked as representative would be actively misleading.
-			OwnerID:          c.OwnerID,
-			OwnerName:        c.OwnerName,
-			OwnerEmail:       c.OwnerEmail,
+			// one you work in yourself. The server prefers your own copy, but if you have not
+			// synced one it falls back to a teammate's, and naming them would be misleading.
+			Owner:            sessionindex.Owner(c.Owner),
 			ContributorCount: c.ContributorCount,
 		}
 		if ps.LastActivity == "" {

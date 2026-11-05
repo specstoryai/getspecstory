@@ -83,10 +83,17 @@ type Session struct {
 	DeviceID    string // cloud metadata.deviceId — stable machine id for the machine filter
 	MachineName string // cloud metadata.machineName — human machine label for the machine filter
 
-	// Owner attribution on a team-shared project: who synced this copy. Carried raw rather
-	// than pre-formatted so the "is this mine?" comparison happens once at render, against the
-	// signed-in user. Empty on local rows and on cloud rows from a deployment that predates
-	// attribution.
+	Owner
+}
+
+// Owner is the owner attribution on a team-shared cloud row: who synced this copy. Carried raw
+// rather than pre-formatted so the "is this mine?" comparison happens once at render, against
+// the signed-in user. Empty on local rows and on cloud rows from a deployment that predates
+// attribution.
+//
+// Mirrors cloud.Owner field for field so the two convert directly; this package stays free of
+// the cloud client. The Owner prefix is kept because a bare Name would be shadowed by Session's.
+type Owner struct {
 	OwnerID    string
 	OwnerName  string
 	OwnerEmail string
@@ -712,12 +719,10 @@ type ProjectSummary struct {
 	// breakdown).
 	IsCloud bool
 
-	// Owner attribution for a team-shared project, on cloud-only rows only. OwnerID names
-	// the teammate whose copy this entry describes; ContributorCount is how many team members
-	// (including you) hold a copy the server collapsed into it.
-	OwnerID          string
-	OwnerName        string
-	OwnerEmail       string
+	// Owner attribution for a team-shared project, on cloud-only rows only. Owner is whose copy
+	// this entry describes; ContributorCount is how many copies visible to you the server
+	// collapsed into it, which need not include one of yours.
+	Owner
 	ContributorCount int
 }
 

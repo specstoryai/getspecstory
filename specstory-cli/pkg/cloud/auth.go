@@ -551,10 +551,18 @@ func refreshAccessToken(refreshToken string) error {
 	return nil
 }
 
-// AuthenticatedAs returns the user's authentication details (who they're logged in as and when)
+// AuthenticatedAs returns the user's authentication details (who they're logged in as and when).
+// Both are empty when the identity is unknown, which is not the same as being signed out.
 func AuthenticatedAs() (username string, loginTime string) {
 	// Check if authenticated first
 	if !IsAuthenticated() {
+		return "", ""
+	}
+
+	// A --cloud-token session is not recorded anywhere. Any auth.json on this machine belongs to
+	// whoever last ran `specstory login`, which may be a different user entirely.
+	if hasSessionToken {
+		slog.Debug("Session token in use; no user identity available")
 		return "", ""
 	}
 
@@ -565,17 +573,16 @@ func AuthenticatedAs() (username string, loginTime string) {
 		return "", ""
 	}
 
-	// Read auth data. Both failure paths below return "" — the caller cannot act on the
-	// difference — but they are NOT the same condition, so say which one happened. A corrupt or
-	// unreadable auth.json otherwise looks identical to "no credentials stored", and callers
-	// that degrade quietly on an empty result (the resume browser drops owner attribution) give
-	// no clue why.
+	// IsAuthenticated can answer from its cache, so the file may have changed since it last
+	// parsed cleanly.
 	authData, err := readAuthData(authPath)
 	if err != nil {
 		slog.Debug("Could not read auth data for authenticated user info",
 			"path", authPath, "error", err)
 		return "", ""
 	}
+	// The identity lives on the refresh token, so an access-token-only file authenticates
+	// without saying who the user is.
 	if authData.CloudRefresh == nil {
 		slog.Debug("Auth data has no cloud refresh token; no user identity available",
 			"path", authPath)

@@ -1,14 +1,20 @@
 package cmd
 
 import (
+	"fmt"
 	"strings"
 	"testing"
+	"time"
+
+	"charm.land/lipgloss/v2"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
 )
 
-const viewer = "eric@specstory.com"
+const testViewerEmail = "eric@specstory.com"
+
+var gregOwner = sessionindex.Owner{OwnerID: "user_greg", OwnerName: "Greg", OwnerEmail: "greg@specstory.com"}
 
 // TestOwnerLabel pins the conservative attribution rule.
 //
@@ -17,66 +23,58 @@ const viewer = "eric@specstory.com"
 // indistinguishable from "this row is yours", and labelling your own session with a colleague's
 // name is a worse failure than showing nothing.
 //
-// This must stay in step with ownerLabel() in the VS Code extension
-// (src/webview/lib/format.ts): the same session should read the same way in both.
+// Who gets credited must stay in step with ownerLabel() in the VS Code extension
+// (specstory-monorepo, src/webview/lib/format.ts): the same session should read the same way in
+// both. The sanitizing and cap cases are terminal-only.
 func TestOwnerLabel(t *testing.T) {
 	tests := []struct {
-		name                           string
-		ownerID, ownerName, ownerEmail string
-		viewerEmail                    string
-		want                           string
+		name        string
+		owner       sessionindex.Owner
+		viewerEmail string
+		want        string
 	}{
 		{
 			name:        "names the teammate who owns the row",
-			ownerID:     "user_greg",
-			ownerName:   "Greg",
-			ownerEmail:  "greg@specstory.com",
-			viewerEmail: viewer,
+			owner:       gregOwner,
+			viewerEmail: testViewerEmail,
 			want:        "Greg",
 		},
 		{
 			name:        "falls back to the email when the profile has no name",
-			ownerID:     "user_greg",
-			ownerEmail:  "greg@specstory.com",
-			viewerEmail: viewer,
+			owner:       sessionindex.Owner{OwnerID: "user_greg", OwnerEmail: "greg@specstory.com"},
+			viewerEmail: testViewerEmail,
 			want:        "greg@specstory.com",
 		},
 		{
 			name:        "a whitespace-only name is not a name",
-			ownerID:     "user_greg",
-			ownerName:   "   ",
-			ownerEmail:  "greg@specstory.com",
-			viewerEmail: viewer,
+			owner:       sessionindex.Owner{OwnerID: "user_greg", OwnerName: "   ", OwnerEmail: "greg@specstory.com"},
+			viewerEmail: testViewerEmail,
 			want:        "greg@specstory.com",
 		},
 		{
 			name:        "credits nobody for your own row",
-			ownerID:     "user_me",
-			ownerName:   "Eric",
-			ownerEmail:  viewer,
-			viewerEmail: viewer,
+			owner:       sessionindex.Owner{OwnerID: "user_me", OwnerName: "Eric", OwnerEmail: testViewerEmail},
+			viewerEmail: testViewerEmail,
 			want:        "",
 		},
 		{
 			name:        "matches your own row regardless of email casing",
-			ownerID:     "user_me",
-			ownerName:   "Eric",
-			ownerEmail:  "Eric@SpecStory.com",
-			viewerEmail: viewer,
+			owner:       sessionindex.Owner{OwnerID: "user_me", OwnerName: "Eric", OwnerEmail: "Eric@SpecStory.com"},
+			viewerEmail: testViewerEmail,
 			want:        "",
 		},
 		{
 			// An older cloud deployment: the fields are simply not on the wire.
 			name:        "silent when the cloud sends no attribution",
-			viewerEmail: viewer,
+			viewerEmail: testViewerEmail,
 			want:        "",
 		},
 		{
 			// ownerId known, but the Clerk webhook has not backfilled a profile, so there is
 			// nothing to compare against the viewer.
 			name:        "silent when the owner has no cached profile",
-			ownerID:     "user_ghost",
-			viewerEmail: viewer,
+			owner:       sessionindex.Owner{OwnerID: "user_ghost"},
+			viewerEmail: testViewerEmail,
 			want:        "",
 		},
 		{
@@ -84,94 +82,83 @@ func TestOwnerLabel(t *testing.T) {
 			// attributable but cannot be compared against the viewer. Returning the name here
 			// is how you end up telling someone their own session belongs to a colleague.
 			name:        "silent when a name arrives without an email to compare",
-			ownerID:     "user_unknown",
-			ownerName:   "Eric",
-			viewerEmail: viewer,
+			owner:       sessionindex.Owner{OwnerID: "user_unknown", OwnerName: "Eric"},
+			viewerEmail: testViewerEmail,
 			want:        "",
 		},
 		{
-			// Not signed in, or auth.json unreadable — nothing is comparable.
-			name:       "silent when the viewer is unknown",
-			ownerID:    "user_greg",
-			ownerName:  "Greg",
-			ownerEmail: "greg@specstory.com",
-			want:       "",
+			// Not signed in, a session token, or auth.json unreadable — nothing is comparable.
+			name:  "silent when the viewer is unknown",
+			owner: gregOwner,
+			want:  "",
+		},
+		{
+			name:        "a newline in a name cannot split the row",
+			owner:       sessionindex.Owner{OwnerID: "u", OwnerName: "Greg\nJones", OwnerEmail: "greg@specstory.com"},
+			viewerEmail: testViewerEmail,
+			want:        "Greg Jones",
+		},
+		{
+			name:        "an escape sequence in a name cannot reach the terminal",
+			owner:       sessionindex.Owner{OwnerID: "u", OwnerName: "Gr\x1beg\x07", OwnerEmail: "greg@specstory.com"},
+			viewerEmail: testViewerEmail,
+			want:        "Greg",
+		},
+		{
+			name:        "a name of only control characters falls back to the email",
+			owner:       sessionindex.Owner{OwnerID: "u", OwnerName: "\x1b\x07", OwnerEmail: "greg@specstory.com"},
+			viewerEmail: testViewerEmail,
+			want:        "greg@specstory.com",
+		},
+		{
+			name:        "a long name is capped",
+			owner:       sessionindex.Owner{OwnerID: "u", OwnerName: "Gregory Montgomery Andersson", OwnerEmail: "greg@specstory.com"},
+			viewerEmail: testViewerEmail,
+			want:        "Gregory Montgomery …",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := ownerLabel(tc.ownerID, tc.ownerName, tc.ownerEmail, tc.viewerEmail)
-			if got != tc.want {
-				t.Errorf("ownerLabel(%q, %q, %q, %q) = %q, want %q",
-					tc.ownerID, tc.ownerName, tc.ownerEmail, tc.viewerEmail, got, tc.want)
+			if got := ownerLabel(tc.owner, tc.viewerEmail); got != tc.want {
+				t.Errorf("ownerLabel(%+v, %q) = %q, want %q", tc.owner, tc.viewerEmail, got, tc.want)
 			}
 		})
 	}
 }
 
-// TestCloudToSessionsCarriesOwner verifies the browse listing's converter keeps attribution on
-// the row. The fields are carried RAW rather than pre-formatted, so the "is this mine?"
-// comparison happens once at render against the signed-in user.
-func TestCloudToSessionsCarriesOwner(t *testing.T) {
-	agentIDByName := map[string]string{"Claude Code": "claude"}
+// TestProjectOwnerLabel covers the "+N" tail. It must count only the copies the named owner
+// doesn't cover, and must never appear without a label to attach to.
+func TestProjectOwnerLabel(t *testing.T) {
+	yours := sessionindex.Owner{OwnerID: "user_me", OwnerName: "Eric", OwnerEmail: testViewerEmail}
 
-	got := cloudToSessions([]cloud.CloudSession{
-		{
-			ClientID:   "aaa",
-			ProjectID:  "p1",
-			Name:       "n",
-			Metadata:   cloud.CloudSessionMetadata{AgentName: "Claude Code"},
-			OwnerID:    "user_greg",
-			OwnerName:  "Greg",
-			OwnerEmail: "greg@specstory.com",
-		},
-	}, agentIDByName)
-
-	if len(got) != 1 {
-		t.Fatalf("expected 1 session, got %d", len(got))
+	tests := []struct {
+		name         string
+		owner        sessionindex.Owner
+		contributors int
+		want         string
+	}{
+		{name: "older deployment sends no count", owner: gregOwner, contributors: 0, want: "Greg"},
+		{name: "one copy adds no tail", owner: gregOwner, contributors: 1, want: "Greg"},
+		{name: "second copy is counted", owner: gregOwner, contributors: 2, want: "Greg +1"},
+		{name: "every extra copy is counted", owner: gregOwner, contributors: 4, want: "Greg +3"},
+		{name: "your own copy shows nothing", owner: yours, contributors: 3, want: ""},
+		{name: "no owner shows no bare tail", contributors: 3, want: ""},
 	}
-	if got[0].OwnerID != "user_greg" || got[0].OwnerName != "Greg" ||
-		got[0].OwnerEmail != "greg@specstory.com" {
-		t.Errorf("owner not carried through: %+v", got[0])
-	}
-	if ownerLabel(got[0].OwnerID, got[0].OwnerName, got[0].OwnerEmail, viewer) != "Greg" {
-		t.Error("converted row should attribute to Greg for a different viewer")
-	}
-}
 
-// TestCloudSearchHitsCarryOwner does the same for the search path. Search collapses every
-// teammate's copy of a conversation into ONE hit, so which owner survives decides whose blob a
-// resume from that hit pulls — the label has to describe that copy, not an arbitrary one.
-func TestCloudSearchHitsCarryOwner(t *testing.T) {
-	agentIDByName := map[string]string{"Claude Code": "claude"}
-
-	sessions, _ := cloudSearchHitsToSessions([]cloud.CloudSearchHit{
-		{
-			CloudSession: cloud.CloudSession{
-				ClientID:   "aaa",
-				ProjectID:  "p1",
-				Metadata:   cloud.CloudSessionMetadata{AgentName: "Claude Code"},
-				OwnerID:    "user_greg",
-				OwnerName:  "Greg",
-				OwnerEmail: "greg@specstory.com",
-			},
-			Snippet: "hit",
-		},
-	}, agentIDByName)
-
-	if len(sessions) != 1 {
-		t.Fatalf("expected 1 session, got %d", len(sessions))
-	}
-	if sessions[0].OwnerEmail != "greg@specstory.com" {
-		t.Errorf("owner not carried through: %+v", sessions[0])
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := sessionindex.ProjectSummary{Owner: tc.owner, ContributorCount: tc.contributors}
+			if got := projectOwnerLabel(p, testViewerEmail); got != tc.want {
+				t.Errorf("projectOwnerLabel() = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 
 // TestMergeCloudProjectsAttribution covers the deliberate asymmetry: a cloud-ONLY project
 // carries its owner, a project you also have locally does not. A project present on this
-// machine is one you work in yourself, so labelling it with whichever teammate's copy the
-// server picked as representative would be actively misleading.
+// machine is one you work in yourself, even when the only synced copy is a teammate's.
 func TestMergeCloudProjectsAttribution(t *testing.T) {
 	agentIDByName := map[string]string{"Claude Code": "claude"}
 
@@ -185,26 +172,17 @@ func TestMergeCloudProjectsAttribution(t *testing.T) {
 		},
 	}
 
+	cloudOwner := cloud.Owner(gregOwner)
 	gregs := cloud.CloudSession{
-		ClientID:   "bbb",
-		Metadata:   cloud.CloudSessionMetadata{AgentName: "Claude Code"},
-		EndedAt:    "2026-08-02T10:00:00Z",
-		OwnerID:    "user_greg",
-		OwnerName:  "Greg",
-		OwnerEmail: "greg@specstory.com",
+		ClientID: "bbb",
+		Metadata: cloud.CloudSessionMetadata{AgentName: "Claude Code"},
+		EndedAt:  "2026-08-02T10:00:00Z",
+		Owner:    cloudOwner,
 	}
 
 	merged := mergeCloudProjects(local, nil, []cloud.CloudProject{
-		{
-			ID: "shared", Name: "shared", Sessions: []cloud.CloudSession{gregs},
-			OwnerID: "user_greg", OwnerName: "Greg", OwnerEmail: "greg@specstory.com",
-			ContributorCount: 2,
-		},
-		{
-			ID: "cloudonly", Name: "cloudonly", Sessions: []cloud.CloudSession{gregs},
-			OwnerID: "user_greg", OwnerName: "Greg", OwnerEmail: "greg@specstory.com",
-			ContributorCount: 2,
-		},
+		{ID: "shared", Name: "shared", Sessions: []cloud.CloudSession{gregs}, Owner: cloudOwner, ContributorCount: 2},
+		{ID: "cloudonly", Name: "cloudonly", Sessions: []cloud.CloudSession{gregs}, Owner: cloudOwner, ContributorCount: 2},
 	}, agentIDByName)
 
 	byID := map[string]sessionindex.ProjectSummary{}
@@ -216,103 +194,187 @@ func TestMergeCloudProjectsAttribution(t *testing.T) {
 	if !ok {
 		t.Fatal("cloud-only project missing from the merge")
 	}
-	if got := ownerLabel(cloudOnly.OwnerID, cloudOnly.OwnerName, cloudOnly.OwnerEmail, viewer); got != "Greg" {
-		t.Errorf("cloud-only project should attribute to Greg, got %q", got)
-	}
-	if cloudOnly.ContributorCount != 2 {
-		t.Errorf("contributorCount = %d, want 2", cloudOnly.ContributorCount)
+	if got := projectOwnerLabel(cloudOnly, testViewerEmail); got != "Greg +1" {
+		t.Errorf("cloud-only project label = %q, want %q", got, "Greg +1")
 	}
 
 	shared, ok := byID["shared"]
 	if !ok {
 		t.Fatal("shared project missing from the merge")
 	}
-	if got := ownerLabel(shared.OwnerID, shared.OwnerName, shared.OwnerEmail, viewer); got != "" {
+	if got := projectOwnerLabel(shared, testViewerEmail); got != "" {
 		t.Errorf("a project held locally must not be attributed to a teammate, got %q", got)
 	}
 }
 
-// TestProjectRowRendersAttribution checks the label actually reaches the rendered row, and that
-// a row with nothing to say renders no trailing separator. Style codes are stripped by
-// comparing on substrings rather than exact output, which would pin the styling too.
-func TestProjectRowRendersAttribution(t *testing.T) {
-	m := sessionTUI{viewerEmail: viewer}
+// attributedRows lists every row that can show attribution. Each lays the label out differently,
+// so one can lose it, or overflow, while the others still work. snippet is ignored by the
+// project row, which has none.
+func attributedRows() []struct {
+	name   string
+	render func(m sessionTUI, title, snippet string, owner sessionindex.Owner) string
+} {
+	// Recent on purpose: an older date renders wider once it gains a year stamp, which would make
+	// the width assertions depend on when the test runs.
+	updatedAt := time.Now().Add(-2 * time.Hour).Format(time.RFC3339)
 
-	theirs := sessionindex.ProjectSummary{
-		ProjectID: "p1", ProjectName: "stoa", IsCloud: true,
-		LastActivity: "2026-08-02T10:00:00Z",
-		OwnerID:      "user_greg", OwnerName: "Greg", OwnerEmail: "greg@specstory.com",
+	session := func(title string, owner sessionindex.Owner) sessionindex.Session {
+		return sessionindex.Session{
+			ProjectID: "p1", ProjectName: "stoa", Agent: "claude", SessionID: "aaaaaaaa",
+			Name: title, UpdatedAt: updatedAt, IsCloud: true, Owner: owner,
+		}
 	}
-	if got := m.projectRow(theirs, false); !strings.Contains(got, "Greg") {
-		t.Errorf("teammate's project row should name Greg, got %q", got)
+	sessionRowIn := func(mode string) func(sessionTUI, string, string, sessionindex.Owner) string {
+		return func(m sessionTUI, title, snippet string, owner sessionindex.Owner) string {
+			m.viewMode = mode
+			return m.sessionRow(session(title, owner), false, snippet)
+		}
+	}
+	globalRowIn := func(mode string) func(sessionTUI, string, string, sessionindex.Owner) string {
+		return func(m sessionTUI, title, snippet string, owner sessionindex.Owner) string {
+			m.viewMode = mode
+			return m.globalRow(session(title, owner), false, snippet)
+		}
 	}
 
-	mine := theirs
-	mine.OwnerEmail = viewer
-	mine.OwnerName = "Eric"
-	got := m.projectRow(mine, false)
-	if strings.Contains(got, "Eric") {
-		t.Errorf("your own project row must not be attributed, got %q", got)
-	}
-
-	// An un-attributed row (older cloud deployment) must not render a dangling separator.
-	bare := theirs
-	bare.OwnerID, bare.OwnerName, bare.OwnerEmail = "", "", ""
-	if strings.HasSuffix(strings.TrimSpace(m.projectRow(bare, false)), "·") {
-		t.Error("un-attributed row should not end in a separator")
+	return []struct {
+		name   string
+		render func(m sessionTUI, title, snippet string, owner sessionindex.Owner) string
+	}{
+		{"sessionRow sparse", sessionRowIn("sparse")},
+		{"sessionRow dense", sessionRowIn("dense")},
+		{"globalRow sparse", globalRowIn("sparse")},
+		{"globalRow dense", globalRowIn("dense")},
+		{"projectRow", func(m sessionTUI, title, _ string, owner sessionindex.Owner) string {
+			return m.projectRow(sessionindex.ProjectSummary{
+				ProjectID: "p1", ProjectName: title, IsCloud: true, LastActivity: updatedAt,
+				AgentCounts: map[string]int{"claude": 12, "codex": 3, "cursor": 9},
+				Owner:       owner,
+			}, false)
+		}},
 	}
 }
 
-// TestGlobalRowRendersAttribution covers the search rows, in both view modes.
-//
-// globalRow lays out sparse and dense differently — sparse puts the label on the row's second
-// (meta) line, dense appends it to the single line — so a regression can drop it from one while
-// the other still works. Both are asserted, along with the un-attributed case not leaving a
-// dangling separator behind.
-func TestGlobalRowRendersAttribution(t *testing.T) {
-	// agentColW at its historical minimum keeps the label width maths at pad=0, and lineWidth()
-	// falls back to 80 when width is unset — enough room that the title is not truncated into
-	// the assertions.
-	base := sessionTUI{viewerEmail: viewer, agentColW: agentColMinWidth}
+// TestRowsRenderAttribution checks the label reaches every row type, stays off your own rows,
+// and leaves no dangling separator when there is nothing to say.
+func TestRowsRenderAttribution(t *testing.T) {
+	m := sessionTUI{viewerEmail: testViewerEmail, agentColW: agentColMinWidth}
 
-	theirs := sessionindex.Session{
-		ProjectID: "p1", ProjectName: "stoa", Agent: "claude",
-		SessionID: "aaaaaaaa", Name: "retry logic", UpdatedAt: "2026-08-02T10:00:00Z",
-		IsCloud: true,
-		OwnerID: "user_greg", OwnerName: "Greg", OwnerEmail: "greg@specstory.com",
-	}
+	// "Winifred" appears nowhere else in a row, so a hit is unambiguously the attribution.
+	mine := sessionindex.Owner{OwnerID: "user_me", OwnerName: "Winifred", OwnerEmail: testViewerEmail}
 
-	mine := theirs
-	mine.OwnerID, mine.OwnerName, mine.OwnerEmail = "user_me", "Winifred", viewer
-
-	bare := theirs
-	bare.OwnerID, bare.OwnerName, bare.OwnerEmail = "", "", ""
-
-	for _, mode := range []string{"sparse", "dense"} {
-		t.Run(mode, func(t *testing.T) {
-			m := base
-			m.viewMode = mode
-
-			if got := m.globalRow(theirs, false, ""); !strings.Contains(got, "Greg") {
-				t.Errorf("teammate's search row should name Greg, got %q", got)
+	for _, row := range attributedRows() {
+		t.Run(row.name, func(t *testing.T) {
+			if got := stripANSI(row.render(m, "retry logic", "", gregOwner)); !strings.Contains(got, "Greg") {
+				t.Errorf("teammate's row should name Greg, got %q", got)
+			}
+			if got := stripANSI(row.render(m, "retry logic", "", mine)); strings.Contains(got, "Winifred") {
+				t.Errorf("your own row must not be attributed, got %q", got)
 			}
 
-			// "Winifred" appears nowhere else in the row, so a hit here is unambiguously the
-			// attribution label rather than an incidental substring.
-			if got := m.globalRow(mine, false, ""); strings.Contains(got, "Winifred") {
-				t.Errorf("your own search row must not be attributed, got %q", got)
-			}
-
-			// An older cloud deployment sends no owner fields; the row must not trail a
-			// separator with nothing after it.
-			got := m.globalRow(bare, false, "")
-			lines := strings.Split(got, "\n")
-			// stripANSI is the package's existing helper (skills_test.go) — a suffix assertion
-			// must see visible text, not a trailing style reset.
-			last := strings.TrimSpace(stripANSI(lines[len(lines)-1]))
-			if strings.HasSuffix(last, "·") {
+			// An older cloud deployment sends no owner fields.
+			lines := strings.Split(stripANSI(row.render(m, "retry logic", "", sessionindex.Owner{})), "\n")
+			if last := strings.TrimSpace(lines[len(lines)-1]); strings.HasSuffix(last, "·") {
 				t.Errorf("un-attributed row should not end in a separator, got %q", last)
 			}
 		})
+	}
+}
+
+// TestRowsKeepAttributionOnScreen guards the row budgets. The terminal clips an overlong line
+// and attribution sits last, so an overflow silently cuts off the name, and widening the
+// terminal doesn't help because title budgets grow with it.
+func TestRowsKeepAttributionOnScreen(t *testing.T) {
+	longText := strings.Repeat("refactor the retry logic ", 12)
+
+	owners := []struct {
+		name  string
+		owner sessionindex.Owner
+	}{
+		{"short name", gregOwner},
+		{"long name", sessionindex.Owner{OwnerID: "u", OwnerName: "Gregory Montgomery Andersson", OwnerEmail: "greg@specstory.com"}},
+		{"email only", sessionindex.Owner{OwnerID: "u", OwnerEmail: "gregory.andersson@specstory.com"}},
+	}
+	labels := []struct {
+		name           string
+		title, snippet string
+	}{
+		{"long title", longText, ""},
+		{"long snippet", "retry logic", longText},
+	}
+
+	for _, width := range []int{80, 120} {
+		m := sessionTUI{viewerEmail: testViewerEmail, agentColW: agentColMinWidth, width: width}
+		for _, row := range attributedRows() {
+			for _, o := range owners {
+				for _, l := range labels {
+					t.Run(row.name+"/"+o.name+"/"+l.name, func(t *testing.T) {
+						want := ownerLabel(o.owner, testViewerEmail)
+						rendered := stripANSI(row.render(m, l.title, l.snippet, o.owner))
+						if !strings.Contains(rendered, want) {
+							t.Fatalf("row should contain %q, got %q", want, rendered)
+						}
+						for line := range strings.SplitSeq(rendered, "\n") {
+							if lipgloss.Width(line) > width {
+								t.Errorf("line is %d wide on a %d-wide terminal: %q",
+									lipgloss.Width(line), width, line)
+							}
+						}
+					})
+				}
+			}
+		}
+	}
+}
+
+// TestRowsFitTerminal covers what TestRowsKeepAttributionOnScreen can't reach with its cloud rows:
+// local rows, whose turn count sits last and is what the terminal clips, and a wide agent column.
+func TestRowsFitTerminal(t *testing.T) {
+	longText := strings.Repeat("refactor the retry logic ", 12)
+	updatedAt := time.Now().Add(-2 * time.Hour).Format(time.RFC3339)
+
+	rows := []struct {
+		name   string
+		render func(m sessionTUI, s sessionindex.Session, snippet string) string
+	}{
+		{"sessionRow", func(m sessionTUI, s sessionindex.Session, snippet string) string {
+			return m.sessionRow(s, false, snippet)
+		}},
+		{"globalRow", func(m sessionTUI, s sessionindex.Session, snippet string) string {
+			return m.globalRow(s, false, snippet)
+		}},
+	}
+	labels := []struct {
+		name           string
+		title, snippet string
+	}{
+		{"long title", longText, ""},
+		{"long snippet", "retry logic", longText},
+	}
+
+	for _, width := range []int{80, 120} {
+		for _, agentColW := range []int{agentColMinWidth, agentColMinWidth + 4} {
+			for _, mode := range []string{"sparse", "dense"} {
+				for _, turns := range []int{7, 1234} {
+					for _, row := range rows {
+						for _, l := range labels {
+							name := fmt.Sprintf("%d/agent%d/%s/%d turns/%s/%s", width, agentColW, mode, turns, row.name, l.name)
+							t.Run(name, func(t *testing.T) {
+								m := sessionTUI{agentColW: agentColW, width: width, viewMode: mode}
+								s := sessionindex.Session{
+									ProjectID: "p1", ProjectName: "stoa", Agent: "claude", SessionID: "aaaaaaaa",
+									Name: l.title, UpdatedAt: updatedAt, UserTurns: turns,
+								}
+								for line := range strings.SplitSeq(stripANSI(row.render(m, s, l.snippet)), "\n") {
+									if lipgloss.Width(line) > width {
+										t.Errorf("line is %d wide on a %d-wide terminal: %q", lipgloss.Width(line), width, line)
+									}
+								}
+							})
+						}
+					}
+				}
+			}
+		}
 	}
 }

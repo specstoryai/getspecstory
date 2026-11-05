@@ -57,11 +57,18 @@ type CloudSession struct {
 	EndedAt   string               `json:"endedAt"`
 	Metadata  CloudSessionMetadata `json:"metadata"`
 
-	// Owner attribution (Teams). A team-shared project's listings union your own rows with
-	// teammates' copies, so these say whose row this is. Absent on an older cloud deployment,
-	// and OwnerName/OwnerEmail are empty when the owner's profile has not been cached yet —
-	// so attribution/presence checks should require a displayable owner value instead of
-	// branching on OwnerID alone.
+	Owner
+}
+
+// Owner is the owner attribution the cloud sends on team-visible rows (Teams). A team-shared
+// project's listings union your own rows with teammates' copies, so this says whose row it is.
+// Absent on an older cloud deployment, and OwnerName/OwnerEmail are empty when the owner's
+// profile has not been cached yet — so a row needs a displayable owner value before it can be
+// attributed; OwnerID alone is not enough.
+//
+// Embedded so the fields stay flat on the wire. The Owner prefix is kept on each field because
+// a bare ID or Name would be shadowed by the embedding struct's own.
+type Owner struct {
 	OwnerID    string `json:"ownerId"`
 	OwnerName  string `json:"ownerName"`
 	OwnerEmail string `json:"ownerEmail"`
@@ -93,16 +100,13 @@ type CloudProject struct {
 	SessionCount int            `json:"sessionCount"`
 	Sessions     []CloudSession `json:"sessions"` // populated only with ?resumable=true
 
-	// Owner attribution (Teams). A team-shared project's listings union your own rows with
-	// teammates' copies, so these say whose row this is. Absent on an older cloud deployment,
-	// and OwnerName/OwnerEmail are empty when the owner's profile has not been cached yet —
-	// so never branch on OwnerID alone, use ownerLabel() in pkg/cmd.
-	OwnerID    string `json:"ownerId"`
-	OwnerName  string `json:"ownerName"`
-	OwnerEmail string `json:"ownerEmail"`
+	// Whose copy this entry describes. The server prefers your own copy, so a teammate is named
+	// only when you have not synced this project yourself.
+	Owner
 
-	// Team members holding their own copy of this repo (including you), collapsed into this one
-	// entry by the server. 1 (or 0 on an older deployment) means only you have synced it.
+	// Copies of this repo visible to you that the server collapsed into this one entry. This
+	// counts copies, not people including you: 1 can be a single teammate's copy shared with
+	// you. 0 on an older deployment.
 	ContributorCount int `json:"contributorCount"`
 }
 
