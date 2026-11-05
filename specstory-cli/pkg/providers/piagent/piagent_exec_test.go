@@ -119,6 +119,9 @@ func TestExecAgentAndWatch_NonZeroExitStillSavesSession(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(envAgentDir, tmp)
 	projectPath := filepath.Join(t.TempDir(), "pi-exit-proj")
+	if mkErr := os.MkdirAll(projectPath, 0o755); mkErr != nil {
+		t.Fatalf("MkdirAll: %v", mkErr)
+	}
 
 	targetDir, err := ProjectSessionDir(projectPath)
 	if err != nil {

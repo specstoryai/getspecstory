@@ -17,6 +17,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/antigravitycli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/copilotcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/copilotide"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/deepseektui"
@@ -71,6 +72,15 @@ func TestRegisterAll_VariantRegistersViaUserDataDirOverride(t *testing.T) {
 func TestAgentExitChild(t *testing.T) {
 	if value := os.Getenv("SPECSTORY_EXIT_TEST_CODE"); value != "" {
 		code, _ := strconv.Atoi(value)
+		if cwdFile := os.Getenv("SPECSTORY_EXIT_TEST_CWD_FILE"); cwdFile != "" {
+			cwd, err := os.Getwd()
+			if err != nil {
+				os.Exit(93)
+			}
+			if err := os.WriteFile(cwdFile, []byte(cwd), 0600); err != nil {
+				os.Exit(94)
+			}
+		}
 		if destination := os.Getenv("SPECSTORY_EXIT_TEST_DESTINATION"); destination != "" {
 			data, err := os.ReadFile(os.Getenv("SPECSTORY_EXIT_TEST_SOURCE"))
 			if err != nil {
@@ -87,32 +97,54 @@ func TestAgentExitChild(t *testing.T) {
 	}
 }
 
+// useTempAgentStores keeps a test's fake agent out of the developer's real
+// session stores: a new home, and no inherited store override to escape it.
+func useTempAgentStores(t *testing.T) {
+	t.Helper()
+	testutil.SetHome(t, t.TempDir())
+	for _, key := range []string{
+		"CLAUDE_CONFIG_DIR", "CODEX_HOME", "COPILOT_HOME", "GROK_HOME", "QWEN_HOME", "QWEN_RUNTIME_DIR",
+		"PI_CODING_AGENT_DIR", "PI_CODING_AGENT_SESSION_DIR", "XDG_DATA_HOME", "OPENCODE_DB",
+	} {
+		t.Setenv(key, "")
+	}
+}
+
+// agentLaunchers lists every provider that starts a terminal agent.
+func agentLaunchers() []struct {
+	name string
+	run  func(projectPath, command, id string) error
+} {
+	return []struct {
+		name string
+		run  func(projectPath, command, id string) error
+	}{
+		{"claude", claudecode.ExecuteClaude},
+		{"codex", codexcli.ExecuteCodex},
+		{"copilot", copilotcli.ExecuteCopilot},
+		{"cursor", cursorcli.ExecuteCursorCLI},
+		{"gemini", geminicli.ExecuteGemini},
+		{"grok", grokbuild.ExecuteGrok},
+		{"droid", droidcli.ExecuteDroid},
+		{"deepseek", deepseektui.ExecuteDeepSeek},
+		{"antigravity", antigravitycli.ExecuteAntigravity},
+		{"pi", piagent.ExecutePi},
+		{"muse", musecode.ExecuteMuse},
+		{"qwen", qwencode.ExecuteQwen},
+	}
+}
+
 func TestTerminalAgentExitStatus(t *testing.T) {
 	exe, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
 	}
 	command := fmt.Sprintf("%q -test.run=^TestAgentExitChild$", exe)
-	for _, tt := range []struct {
-		name string
-		run  func(string, string) error
-	}{
-		{"claude", claudecode.ExecuteClaude},
-		{"codex", codexcli.ExecuteCodex},
-		{"cursor", cursorcli.ExecuteCursorCLI},
-		{"gemini", geminicli.ExecuteGemini},
-		{"grok", func(command, id string) error { return grokbuild.ExecuteGrok(t.TempDir(), command, id) }},
-		{"droid", droidcli.ExecuteDroid},
-		{"deepseek", deepseektui.ExecuteDeepSeek},
-		{"antigravity", antigravitycli.ExecuteAntigravity},
-		{"pi", piagent.ExecutePi},
-		{"muse", musecode.ExecuteMuse},
-		{"qwen", func(command, id string) error { return qwencode.ExecuteQwen(t.TempDir(), command, id) }},
-	} {
+	for _, tt := range agentLaunchers() {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, code := range []int{0, 7} {
 				t.Setenv("SPECSTORY_EXIT_TEST_CODE", strconv.Itoa(code))
-				err := tt.run(command, "")
+				err := tt.run(t.TempDir(), command, "")
 				if code == 0 {
 					if err != nil {
 						t.Fatal(err)
@@ -125,8 +157,165 @@ func TestTerminalAgentExitStatus(t *testing.T) {
 				}
 			}
 			var exit *spi.AgentExitError
-			if err := tt.run(filepath.Join(t.TempDir(), "missing-agent"), ""); err == nil || errors.As(err, &exit) {
+			if err := tt.run(t.TempDir(), filepath.Join(t.TempDir(), "missing-agent"), ""); err == nil || errors.As(err, &exit) {
 				t.Fatalf("launch failure classified as agent exit: %v", err)
+			}
+		})
+	}
+}
+
+// Agents key sessions to the directory they run in, so with --project-path the
+// agent must run in the project or the watcher never sees its sessions.
+func TestTerminalAgentRunsInProjectDirectory(t *testing.T) {
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := fmt.Sprintf("%q -test.run=^TestAgentExitChild$", exe)
+	for _, tt := range agentLaunchers() {
+		t.Run(tt.name, func(t *testing.T) {
+			project := t.TempDir()
+			cwdFile := filepath.Join(t.TempDir(), "cwd")
+			t.Setenv("SPECSTORY_EXIT_TEST_CODE", "0")
+			t.Setenv("SPECSTORY_EXIT_TEST_CWD_FILE", cwdFile)
+
+			if err := tt.run(project, command, ""); err != nil {
+				t.Fatal(err)
+			}
+			cwd, err := os.ReadFile(cwdFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.Stat(string(cwd))
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := os.Stat(project)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// SameFile: temp paths differ by symlink and case between platforms.
+			if !os.SameFile(got, want) {
+				t.Errorf("agent ran in %q, want %q", cwd, project)
+			}
+		})
+	}
+}
+
+// With a non-local --project-path the agent stays in the launch directory and
+// records that as its project, so the session must be followed there.
+func TestRunSavesSessionWhenProjectPathIsNotLocal(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		provider spi.Provider
+	}{
+		{"claude", claudecode.NewProvider()},
+		{"codex", codexcli.NewProvider()},
+		{"copilot", copilotcli.NewProvider()},
+		{"cursor", cursorcli.NewProvider()},
+		{"gemini", geminicli.NewProvider()},
+		{"grok", grokbuild.NewProvider()},
+		{"droid", droidcli.NewProvider()},
+		{"deepseek", deepseektui.NewProvider()},
+		{"pi", piagent.NewProvider()},
+		{"muse", musecode.NewProvider()},
+		{"qwen", qwencode.NewProvider()},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			useTempAgentStores(t)
+			launchDir := spi.CanonicalizePathOrClean(t.TempDir())
+			t.Chdir(launchDir)
+			exe, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			native, err := tt.provider.ReconstructSession(&schema.SessionData{
+				SchemaVersion: schema.CurrentSchemaVersion,
+				SessionID:     "source-session",
+				WorkspaceRoot: launchDir,
+				Exchanges: []schema.Exchange{{Messages: []schema.Message{
+					{Role: schema.RoleUser, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "work in the launch directory"}}},
+				}}},
+			}, spi.ReconstructOptions{WorkspaceRoot: launchDir})
+			if err != nil {
+				t.Fatal(err)
+			}
+			destination, err := tt.provider.NativeSessionPath(launchDir, native.Filename)
+			if err != nil {
+				t.Fatal(err)
+			}
+			staged := filepath.Join(t.TempDir(), "staged-session")
+			if err := os.WriteFile(staged, native.Content, 0600); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("SPECSTORY_EXIT_TEST_SOURCE", staged)
+			t.Setenv("SPECSTORY_EXIT_TEST_DESTINATION", destination)
+			t.Setenv("SPECSTORY_EXIT_TEST_CODE", "0")
+
+			var mu sync.Mutex
+			saved := make(map[string]bool)
+			command := fmt.Sprintf("%q -test.run=^TestAgentExitChild$", exe)
+			err = tt.provider.ExecAgentAndWatch("/no/such/remote/project", command, "", false, func(session *spi.AgentChatSession) {
+				mu.Lock()
+				defer mu.Unlock()
+				saved[session.SessionID] = true
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if !saved[native.SessionID] {
+				t.Errorf("session was not saved; delivered: %v", saved)
+			}
+		})
+	}
+}
+
+// A remote workspace's root must not gain the current drive on its way to the
+// launcher, or the agent starts in whatever local directory that names.
+func TestDrivelessRemoteRootKeepsAgentInLaunchDirectoryOnWindows(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("only Windows has rooted paths without a drive")
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := fmt.Sprintf("%q -test.run=^TestAgentExitChild$", exe)
+	for _, id := range []string{"copilot", "opencode"} {
+		t.Run(id, func(t *testing.T) {
+			useTempAgentStores(t)
+			provider, err := GetRegistry().Get(id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			unrelated := t.TempDir()
+			launchDir := t.TempDir()
+			t.Chdir(launchDir)
+			cwdFile := filepath.Join(t.TempDir(), "cwd")
+			t.Setenv("SPECSTORY_EXIT_TEST_CODE", "0")
+			t.Setenv("SPECSTORY_EXIT_TEST_CWD_FILE", cwdFile)
+
+			driveless := unrelated[len(filepath.VolumeName(unrelated)):]
+			err = provider.ExecAgentAndWatch(driveless, command, "", false, func(*spi.AgentChatSession) {})
+			if err != nil {
+				t.Fatal(err)
+			}
+			cwd, err := os.ReadFile(cwdFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.Stat(string(cwd))
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := os.Stat(launchDir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !os.SameFile(got, want) {
+				t.Errorf("agent ran in %q, want the launch directory %q", cwd, launchDir)
 			}
 		})
 	}
@@ -144,11 +333,10 @@ func TestRunFinalWriteAndWatcherRestart(t *testing.T) {
 		{"gemini", geminicli.NewProvider()},
 		{"deepseek", deepseektui.NewProvider()},
 		{"droid", droidcli.NewProvider()},
+		{"muse", musecode.NewProvider()},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			home := t.TempDir()
-			testutil.SetHome(t, home)
-			t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))
+			useTempAgentStores(t)
 			project := spi.CanonicalizePathOrClean(t.TempDir())
 			t.Chdir(project)
 			exe, err := os.Executable()
@@ -216,9 +404,7 @@ func TestWatchAgentRestart(t *testing.T) {
 		{"gemini", geminicli.NewProvider()},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			home := t.TempDir()
-			testutil.SetHome(t, home)
-			t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))
+			useTempAgentStores(t)
 			project := spi.CanonicalizePathOrClean(t.TempDir())
 			t.Chdir(project)
 			data := &schema.SessionData{SessionID: "source", WorkspaceRoot: project, Exchanges: []schema.Exchange{{Messages: []schema.Message{
@@ -290,7 +476,7 @@ func TestWatchAgentRestart(t *testing.T) {
 // filesystem/process failures, so one provider cannot silently soften a broken install.
 func TestCLIProviderCheckErrorTypes(t *testing.T) {
 	providers := []spi.Provider{
-		antigravitycli.NewProvider(), claudecode.NewProvider(), codexcli.NewProvider(),
+		antigravitycli.NewProvider(), claudecode.NewProvider(), codexcli.NewProvider(), copilotcli.NewProvider(),
 		cursorcli.NewProvider(), deepseektui.NewProvider(), droidcli.NewProvider(),
 		geminicli.NewProvider(), grokbuild.NewProvider(), musecode.NewProvider(), piagent.NewProvider(), qwencode.NewProvider(),
 	}

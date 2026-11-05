@@ -265,6 +265,60 @@ func TestGetCanonicalPath(t *testing.T) {
 	}
 }
 
+// On a case-sensitive filesystem two siblings can differ only by case, and each
+// must canonicalize to itself rather than to whichever the listing returns first.
+func TestGetCanonicalPath_CaseDistinctSiblings(t *testing.T) {
+	root, err := GetCanonicalPath(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(root, "Project"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(root, "project"), 0o755); err != nil {
+		if os.IsExist(err) {
+			t.Skip("filesystem is case-insensitive, so the siblings cannot both exist")
+		}
+		t.Fatal(err)
+	}
+	for _, name := range []string{"Project", "project"} {
+		t.Run(name, func(t *testing.T) {
+			want := filepath.Join(root, name)
+			got, err := GetCanonicalPath(want)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != want {
+				t.Errorf("GetCanonicalPath(%q) = %q", want, got)
+			}
+		})
+	}
+}
+
+func TestMatchDirEntry(t *testing.T) {
+	tests := []struct {
+		name      string
+		names     []string
+		component string
+		want      string
+		wantFound bool
+	}{
+		{"exact match wins when listed last", []string{"PROJECT", "Project", "project"}, "project", "project", true},
+		{"exact match wins when listed first", []string{"project", "PROJECT"}, "project", "project", true},
+		{"falls back to on-disk case", []string{"other", "Project"}, "project", "Project", true},
+		{"no match", []string{"other"}, "project", "", false},
+		{"empty directory", nil, "project", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, found := matchDirEntry(tt.names, tt.component)
+			if got != tt.want || found != tt.wantFound {
+				t.Errorf("matchDirEntry() = (%q, %v), want (%q, %v)", got, found, tt.want, tt.wantFound)
+			}
+		})
+	}
+}
+
 func TestCanonicalizePathOrClean(t *testing.T) {
 	// Use real temp dirs so canonicalization (which calls filepath.EvalSymlinks
 	// under the hood) can resolve them. We can't assert exact strings on macOS

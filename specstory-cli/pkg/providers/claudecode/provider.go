@@ -380,17 +380,18 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	// Start watching for project directory in the background
 	slog.Info("Initializing project directory monitoring...")
 
-	if err := WatchForProjectDir(); err != nil {
+	agentDir := spi.RunningAgentDir(projectPath)
+	if err := WatchForProjectDir(agentDir); err != nil {
 		// Log the error but don't fail - watcher might work later
 		slog.Error("Failed to start project directory watcher", "error", err)
 	}
 
-	projectDir, _ := resolveClaudeProjectDir(projectPath)
+	projectDir, _ := resolveClaudeProjectDir(agentDir)
 	finalChanges := spi.SessionFileChanges(projectDir, "*.jsonl")
 
 	// Execute Claude Code - this blocks until Claude exits
 	slog.Info("Executing Claude Code", "command", customCommand)
-	err := ExecuteClaude(customCommand, resumeSessionID)
+	err := ExecuteClaude(projectPath, customCommand, resumeSessionID)
 
 	// Stop the watcher goroutine before returning
 	slog.Info("Claude Code has exited, stopping watcher")

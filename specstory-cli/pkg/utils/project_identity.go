@@ -154,7 +154,7 @@ func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
 	// /home/u/repo).
 	var resolvedGitID, resolvedWorkspaceID, resolvedName string
 	detectionRoot := m.getDetectionRoot()
-	if info, statErr := os.Stat(detectionRoot); !IsDrivelessRootedPath(detectionRoot) && statErr == nil && info.IsDir() {
+	if info, statErr := os.Stat(detectionRoot); !spi.IsDrivelessRootedPath(detectionRoot) && statErr == nil && info.IsDir() {
 		resolvedGitID, resolvedWorkspaceID, resolvedName, _ = resolveIdentity(detectionRoot)
 	} else {
 		rooted := &ProjectIdentityManager{projectRoot: detectionRoot}

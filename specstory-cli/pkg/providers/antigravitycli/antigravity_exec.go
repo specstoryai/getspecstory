@@ -46,8 +46,8 @@ func parseCommand(customCommand string) (string, []string) {
 	return defaultCommand, nil
 }
 
-// ExecuteAntigravity launches the Antigravity CLI and blocks until it exits.
-func ExecuteAntigravity(customCommand string, resumeSessionID string) error {
+// ExecuteAntigravity launches the Antigravity CLI in projectPath and blocks until it exits.
+func ExecuteAntigravity(projectPath string, customCommand string, resumeSessionID string) error {
 	cmdName, args := parseCommand(customCommand)
 	args = ensureResumeArgs(args, resumeSessionID)
 	if resumeSessionID != "" {
@@ -55,6 +55,7 @@ func ExecuteAntigravity(customCommand string, resumeSessionID string) error {
 	}
 
 	command := exec.Command(cmdName, args...)
+	spi.RunInProject(command, projectPath)
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr

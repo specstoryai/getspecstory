@@ -30,10 +30,10 @@ func parseMuseCommand(customCommand string) (string, []string) {
 	return defaultMuseCommand, nil
 }
 
-// ExecuteMuse runs the Muse Code CLI, optionally resuming an existing session.
+// ExecuteMuse runs the Muse Code CLI in projectPath, optionally resuming an existing session.
 // Return the agent's exit status so ExecAgentAndWatch can stop the watcher and
 // join in-flight saves before the CLI applies that status to the process.
-func ExecuteMuse(customCommand string, resumeSessionID string) error {
+func ExecuteMuse(projectPath string, customCommand string, resumeSessionID string) error {
 	museCmd, args := parseMuseCommand(customCommand)
 
 	args = spi.EnsureResumeArgs(args, resumeSubcommand, resumeSessionID)
@@ -42,6 +42,7 @@ func ExecuteMuse(customCommand string, resumeSessionID string) error {
 	}
 
 	cmd := exec.Command(museCmd, args...)
+	spi.RunInProject(cmd, projectPath, "XDG_DATA_HOME")
 
 	// Interactive mode: connect to the user's terminal
 	cmd.Stdin = os.Stdin

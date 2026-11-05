@@ -99,8 +99,8 @@ func parseClaudeCommand(customCommand string, resumeSessionId string) (string, [
 	return cmd, args
 }
 
-// ExecuteClaude runs the Claude CLI with the given arguments
-func ExecuteClaude(customCommand string, resumeSessionId string) error {
+// ExecuteClaude runs the Claude CLI in projectPath with the given arguments
+func ExecuteClaude(projectPath string, customCommand string, resumeSessionId string) error {
 	// Parse the command and any custom arguments
 	claudeCmd, customArgs := parseClaudeCommand(customCommand, resumeSessionId)
 
@@ -111,6 +111,7 @@ func ExecuteClaude(customCommand string, resumeSessionId string) error {
 
 	// Create the command
 	cmd := exec.Command(claudeCmd, customArgs...)
+	spi.RunInProject(cmd, projectPath, "CLAUDE_CONFIG_DIR")
 
 	// Set up stdin/stdout/stderr to match the parent process
 	cmd.Stdin = os.Stdin

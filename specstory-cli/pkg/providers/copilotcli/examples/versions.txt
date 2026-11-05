@@ -1,0 +1,7 @@
+GitHub Copilot CLI: GitHub Copilot CLI 1.0.105. (capture, tool audit and manual tests)
+GitHub Copilot CLI (npm @github/copilot latest): 1.0.105 (factory install and list-tools, rerun 2026-11-04)
+Node: v24.21.0 (factory scripts; the npm launcher needs Node >= 20)
+Platform: macOS 26.7.1 arm64
+Go: go1.27.3 darwin/arm64
+SpecStory: dev build from ffba38e plus this change
+Validation date: 2026-11-04
