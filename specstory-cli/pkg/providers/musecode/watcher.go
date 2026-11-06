@@ -253,7 +253,7 @@ func WatchMuseProject(projectPath string, callback func(*spi.AgentChatSession)) 
 // watchSet tracks the fsnotify watches currently held on the session store.
 // Not synchronized: it is owned by the single watcher goroutine.
 type watchSet struct {
-	watcher      *fsnotify.Watcher
+	watcher      *spi.FSWatcher
 	sessionsRoot string
 	watched      map[string]bool
 

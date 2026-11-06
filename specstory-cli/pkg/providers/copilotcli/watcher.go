@@ -64,7 +64,7 @@ type sessionWatcher struct {
 	resumedSessionID string
 	debugRaw         bool
 	callback         func(*spi.AgentChatSession)
-	fsWatcher        *fsnotify.Watcher
+	fsWatcher        *spi.FSWatcher
 
 	// The fields below are owned by the worker goroutine after start.
 	// watched holds the transcript files under an fsnotify watch.

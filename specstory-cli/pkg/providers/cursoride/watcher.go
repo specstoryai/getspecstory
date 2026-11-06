@@ -107,7 +107,7 @@ type CursorIDEWatcher struct {
 	throttleDuration  time.Duration // Minimum time between checks (default: 10 seconds)
 	lastThrottledCall time.Time     // Track last throttled call
 	pendingCheck      bool          // Whether a check is pending after throttle
-	fsWatcher         *fsnotify.Watcher
+	fsWatcher         *spi.FSWatcher
 	// watchedDBPaths lists the database paths whose parent directories are being
 	// watched, so handleFileEvents can filter directory events down to the db files
 	// (state.vscdb and its -wal/-shm siblings) and ignore unrelated neighbors like
