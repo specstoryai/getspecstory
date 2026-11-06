@@ -69,7 +69,7 @@ func watchSessions(ctx context.Context, projectPath string, debugRaw bool, sessi
 // that unrelated projects' session directories are not monitored.
 // If the required directory doesn't exist yet, parent directories are watched so
 // creation can be detected.
-func setupDirectoryWatches(watcher *fsnotify.Watcher, sessionsDir string, projectPath string) error {
+func setupDirectoryWatches(watcher *spi.FSWatcher, sessionsDir string, projectPath string) error {
 	// Check if sessions directory exists
 	if _, err := os.Stat(sessionsDir); os.IsNotExist(err) {
 		// Watch parent (.factory) for sessions dir creation
@@ -119,7 +119,7 @@ func setupDirectoryWatches(watcher *fsnotify.Watcher, sessionsDir string, projec
 
 // handleWatchEvent processes fsnotify events, adding watches to new directories
 // and processing changed JSONL files.
-func handleWatchEvent(event fsnotify.Event, watcher *fsnotify.Watcher, sessionsDir string, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession), state *watchState) {
+func handleWatchEvent(event fsnotify.Event, watcher *spi.FSWatcher, sessionsDir string, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession), state *watchState) {
 	slog.Debug("droidcli: received fs event", "op", event.Op.String(), "path", event.Name)
 
 	// Handle directory creation - add new watch
