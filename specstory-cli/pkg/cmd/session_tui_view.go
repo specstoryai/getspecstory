@@ -170,6 +170,10 @@ func rowCursor(selected bool) string {
 	return "  "
 }
 
+// snippetEllipsisWidth is the column renderSnippet adds past its budget when it clips, which
+// callers fitting a snippet to the terminal have to leave room for.
+const snippetEllipsisWidth = 1
+
 // rowLabel picks a list row's primary text: the highlighted FTS snippet when a search
 // is active, otherwise the session title. titleWidth/snippetWidth are the separate
 // column budgets for each (snippet markup needs slightly more room). Shared by
@@ -181,6 +185,30 @@ func rowLabel(s sessionindex.Session, selected bool, snippet string, titleWidth,
 	return renderName(sessionTitle(s), selected, titleWidth)
 }
 
+// ownerLabelMaxWidth caps an owner label so a long name or email can't take over a row. Sized to
+// leave a title readable on an 80-column terminal.
+const ownerLabelMaxWidth = 20
+
+// ownerSuffix is the single-line row's attribution, or "" when there is nobody to credit. Rows
+// take its width out of their label budget: the terminal clips overlong lines, and attribution
+// sits last, so it would be what gets cut. An un-attributed row reserves nothing.
+func ownerSuffix(by string) string {
+	if by == "" {
+		return ""
+	}
+	return "  · " + by
+}
+
+// sparseMeta is the second line of a sparse session row, which has room for attribution without
+// squeezing the title.
+func sparseMeta(s sessionindex.Session, by string) string {
+	meta := fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID))
+	if by != "" {
+		meta += " · " + by
+	}
+	return "       " + styFaint.Render(meta)
+}
+
 // sessionRow renders one list row. When snippet is non-empty (search active) the row
 // shows the highlighted match context instead of the session title.
 func (m sessionTUI) sessionRow(s sessionindex.Session, selected bool, snippet string) string {
@@ -188,6 +216,7 @@ func (m sessionTUI) sessionRow(s sessionindex.Session, selected bool, snippet st
 	mark := cloudMark(s.IsCloud) // 2-col gutter: cloud glyph on cloud rows, blank on local
 	agent := m.agentTag(s.Agent)
 	when := fmt.Sprintf("%-4s", relativeTime(s.UpdatedAt))
+	by := ownerLabel(s.Owner, m.viewerEmail)
 
 	if m.viewMode == "sparse" {
 		// Cloud rows carry no turn count (the lean list omits it), so suppress the column rather
@@ -196,11 +225,12 @@ func (m sessionTUI) sessionRow(s sessionindex.Session, selected bool, snippet st
 		if !s.IsCloud {
 			turns = styDim.Render(fmt.Sprintf("%d prompts", s.UserTurns))
 		}
-		pad := m.agentColW - agentColMinWidth
-		label := rowLabel(s, selected, snippet, m.lineWidth()-27-pad, m.lineWidth()-29-pad)
+		// The turn count sits after the label and its width varies with the count, so charge what
+		// it actually takes: a fixed allowance lets a long count fall off the terminal's edge.
+		titleWidth := m.lineWidth() - 18 - (m.agentColW - agentColMinWidth) - lipgloss.Width(turns)
+		label := rowLabel(s, selected, snippet, titleWidth, titleWidth-snippetEllipsisWidth)
 		head := cursor + mark + " " + agent + "  " + label + "   " + turns
-		sub := "       " + styFaint.Render(fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID)))
-		return head + "\n" + sub
+		return head + "\n" + sparseMeta(s, by)
 	}
 	// Blank 4-col slot for cloud rows (no local turn count) so the column stays aligned.
 	turns := "    "
@@ -216,8 +246,10 @@ func (m sessionTUI) sessionRow(s sessionindex.Session, selected bool, snippet st
 	// A longer agent column (e.g. "antigravity") widens the fixed left columns;
 	// shrink the label budget to match so the right-hand turns count stays put.
 	extra += m.agentColW - agentColMinWidth
-	label := rowLabel(s, selected, snippet, m.lineWidth()-25-extra, m.lineWidth()-27-extra)
-	return cursor + mark + " " + agent + " " + styDim.Render(when) + "  " + label + "  " + turns
+	suffix := ownerSuffix(by)
+	extra += lipgloss.Width(suffix)
+	label := rowLabel(s, selected, snippet, m.lineWidth()-26-extra, m.lineWidth()-27-extra)
+	return cursor + mark + " " + agent + " " + styDim.Render(when) + "  " + label + styFaint.Render(suffix) + "  " + turns
 }
 
 // renderSnippet renders a FTS snippet (matched terms wrapped in the control-char marks)

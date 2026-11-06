@@ -56,6 +56,22 @@ type CloudSession struct {
 	StartedAt string               `json:"startedAt"`
 	EndedAt   string               `json:"endedAt"`
 	Metadata  CloudSessionMetadata `json:"metadata"`
+
+	Owner
+}
+
+// Owner is the owner attribution the cloud sends on team-visible rows (Teams). A team-shared
+// project's listings union your own rows with teammates' copies, so this says whose row it is.
+// Absent on an older cloud deployment, and OwnerName/OwnerEmail are empty when the owner's
+// profile has not been cached yet — so a row needs a displayable owner value before it can be
+// attributed; OwnerID alone is not enough.
+//
+// Embedded so the fields stay flat on the wire. The Owner prefix is kept on each field because
+// a bare ID or Name would be shadowed by the embedding struct's own.
+type Owner struct {
+	OwnerID    string `json:"ownerId"`
+	OwnerName  string `json:"ownerName"`
+	OwnerEmail string `json:"ownerEmail"`
 }
 
 // CloudProject is a project (workspace) known to the cloud (server type: Project). Used to blend
@@ -83,6 +99,15 @@ type CloudProject struct {
 	LastUpdated  string         `json:"lastUpdated"`
 	SessionCount int            `json:"sessionCount"`
 	Sessions     []CloudSession `json:"sessions"` // populated only with ?resumable=true
+
+	// Whose copy this entry describes. The server prefers your own copy, so a teammate is named
+	// only when you have not synced this project yourself.
+	Owner
+
+	// Copies of this repo visible to you that the server collapsed into this one entry. This
+	// counts copies, not people including you: 1 can be a single teammate's copy shared with
+	// you. 0 on an older deployment.
+	ContributorCount int `json:"contributorCount"`
 }
 
 // ResumeEligibility reports whether cross-machine cloud resume is available to the user, for

@@ -423,3 +423,98 @@ func TestAuthenticationCaching(t *testing.T) {
 		t.Errorf("Expected true from cache even after removing auth file, got %v", result4)
 	}
 }
+
+// TestAuthenticatedAs covers the identity lookup behind owner attribution in the resume browser.
+// The empty results matter as much as the successful one: an empty email disables attribution,
+// while a wrong one labels the viewer's own rows as someone else's.
+func TestAuthenticatedAs(t *testing.T) {
+	const (
+		corrupt = "{ this is not json"
+		// Expiries far enough in the future that IsAuthenticated accepts them.
+		refreshOnly = `{"cloud_refresh":{"token":"t","as":"eric@specstory.com",` +
+			`"createdAt":"2026-01-01T00:00:00Z","expiresAt":"2036-01-01T00:00:00Z"}}`
+		accessOnly = `{"cloud_access":{"token":"t",` +
+			`"updatedAt":"2026-01-01T00:00:00Z","expiresAt":"2036-01-01T00:00:00Z"}}`
+	)
+
+	tests := []struct {
+		name          string
+		authFile      string // contents of auth.json; "" leaves no file
+		rewrittenTo   string // replaces auth.json once IsAuthenticated has cached its answer
+		sessionToken  bool
+		wantEmail     string
+		wantLoginTime string
+	}{
+		{
+			name:          "returns the stored identity",
+			authFile:      refreshOnly,
+			wantEmail:     "eric@specstory.com",
+			wantLoginTime: "2026-01-01T00:00:00Z",
+		},
+		{
+			name: "empty when nothing is stored",
+		},
+		{
+			name:     "empty when auth.json is corrupt from the start",
+			authFile: corrupt,
+		},
+		{
+			// A long-running process trusts its cached answer, so this one does reach the read.
+			name:        "empty when auth.json is corrupted after the cached check",
+			authFile:    refreshOnly,
+			rewrittenTo: corrupt,
+		},
+		{
+			name:     "empty when an access token authenticates without an identity",
+			authFile: accessOnly,
+		},
+		{
+			// auth.json here belongs to whoever ran `specstory login`, not the token's user.
+			name:         "ignores stored identity for a session token",
+			authFile:     refreshOnly,
+			sessionToken: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// IsAuthenticated memoises in package state and the session token flag lives there
+			// too, so neither may leak between cases or into other tests.
+			ResetAuthCache()
+			t.Cleanup(ResetAuthCache)
+
+			home := t.TempDir()
+			testutil.SetHome(t, home)
+			dir := filepath.Join(home, ".specstory", "cli")
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatalf("mkdir: %v", err)
+			}
+			authPath := filepath.Join(dir, "auth.json")
+			writeAuth := func(contents string) {
+				t.Helper()
+				if err := os.WriteFile(authPath, []byte(contents), 0o600); err != nil {
+					t.Fatalf("write auth.json: %v", err)
+				}
+			}
+
+			if tt.authFile != "" {
+				writeAuth(tt.authFile)
+			}
+			if tt.rewrittenTo != "" {
+				if !IsAuthenticated() {
+					t.Fatal("setup: expected the original auth.json to authenticate")
+				}
+				writeAuth(tt.rewrittenTo)
+			}
+			hasSessionToken = tt.sessionToken
+
+			email, loginTime := AuthenticatedAs()
+			if email != tt.wantEmail {
+				t.Errorf("email = %q, want %q", email, tt.wantEmail)
+			}
+			if loginTime != tt.wantLoginTime {
+				t.Errorf("loginTime = %q, want %q", loginTime, tt.wantLoginTime)
+			}
+		})
+	}
+}
