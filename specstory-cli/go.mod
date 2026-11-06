@@ -33,7 +33,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0
 	golang.org/x/term v0.47.0 // terminal and console support
 	golang.org/x/text v0.43.0 // Text processing and Unicode normalization
-	modernc.org/sqlite v1.61.0 // Pure Go SQLite database driver
+	modernc.org/sqlite v1.61.1 // Pure Go SQLite database driver
 )
 
 require (

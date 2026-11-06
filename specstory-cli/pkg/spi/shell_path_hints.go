@@ -4,6 +4,7 @@ import (
 	"os"
 	slashpath "path"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -66,6 +67,51 @@ func expandTilde(path string) string {
 	}
 
 	return filepath.Join(home, path[2:])
+}
+
+// patchPathMarkers are the apply_patch header lines that name a file the patch
+// writes. "Add File" and "Update File" are the current grammar's spellings; the
+// others are kept because older patches and other models' patches use them.
+// "Move to" follows an "Update File" header when the patch renames the file, and
+// the destination is written too, so it is a path hint as well.
+var patchPathMarkers = []string{
+	"*** Add File:",
+	"*** Update File:",
+	"*** Delete File:",
+	"*** Move to:",
+	"*** Create File:",
+	"*** Modify File:",
+	"*** Remove File:",
+	"*** Rename File:",
+	"*** New Name:",
+}
+
+// ExtractPatchPathHints returns the files an apply_patch payload writes, read
+// from its file headers and normalized against workspaceRoot. Several agents
+// (Codex, Copilot) send the patch as raw text with no structured path field, so
+// these headers are the only record of which files a patch edited.
+func ExtractPatchPathHints(patchText, workspaceRoot string) []string {
+	var paths []string
+	for line := range strings.Lines(patchText) {
+		// Only trailing whitespace is trimmed: a leading space marks a hunk's
+		// context line, whose text can look just like a header when the patched
+		// file is itself a patch.
+		line = strings.TrimRight(line, " \t\r\n")
+		for _, marker := range patchPathMarkers {
+			rest, found := strings.CutPrefix(line, marker)
+			if !found {
+				continue
+			}
+			if path := strings.TrimSpace(rest); path != "" {
+				normalized := NormalizePath(path, workspaceRoot)
+				if !slices.Contains(paths, normalized) {
+					paths = append(paths, normalized)
+				}
+			}
+			break
+		}
+	}
+	return paths
 }
 
 // ExtractShellPathHints parses a shell command and extracts file paths that

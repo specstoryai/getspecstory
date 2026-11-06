@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Enumerate GitHub Copilot CLI's tool inventory, for TOOL-AUDIT.
+#
+# Source: the model's report of its declared tools. Copilot 1.0.94 exposes no
+# harness declaration: `copilot help`, the session.start and system.message
+# records, the model-call telemetry and the `--output-format json` stream
+# (whose session.tools_updated event names only the model) carry no tool list.
+# The model is asked to spell each name exactly as it calls the tool, which is
+# also how session data records it (the built-in GitHub MCP server's tools keep
+# their github-mcp-server- prefix).
+#
+# Run this in an empty throwaway directory under an isolated $HOME (the
+# caller's job — no plugins, no user MCP servers; --no-custom-instructions
+# keeps any instruction files out). Auth arrives as COPILOT_GITHUB_TOKEN, a
+# GitHub token with Copilot access, the variable the CLI reads before any
+# stored login. Shell and write tools are denied so the run cannot touch the
+# machine, and -p is a single non-interactive turn.
+#
+# Factory SPI contract: print the raw tool list, one name per line, to stdout
+# and exit 0. Non-zero exit means enumeration failed — never an empty or
+# partial inventory — with the reason on stderr so credential rot is
+# distinguishable from agent breakage. The event stream is left in
+# ./stream.jsonl and the CLI's logs in ./logs for diagnosis.
+set -euo pipefail
+if [ -z "${COPILOT_GITHUB_TOKEN:-}" ]; then
+  echo "list-tools: COPILOT_GITHUB_TOKEN is not set" >&2
+  exit 1
+fi
+copilot="$HOME/.local/bin/copilot"
+export COPILOT_AUTO_UPDATE=false
+
+rm -rf stream.jsonl logs
+status=0
+timeout 300 "$copilot" -p "List the name of every tool you can call, one per line, spelled exactly as you call it. Output only the names: no numbering, no descriptions, no other text. Do not call any tool." \
+  --no-auto-update --no-custom-instructions --deny-tool=shell --deny-tool=write \
+  --output-format json --log-dir ./logs \
+  < /dev/null > stream.jsonl || status=$?
+
+if [ "$status" -ne 0 ]; then
+  echo "list-tools: copilot exited $status" >&2
+  head -c 600 stream.jsonl >&2
+  exit 1
+fi
+if ! reply=$(jq -r 'select(.type=="assistant.message") | .data.content // empty' stream.jsonl); then
+  echo "list-tools: could not parse copilot's output" >&2
+  head -c 600 stream.jsonl >&2
+  exit 1
+fi
+# Markdown decoration is tolerated, but a line that is still not a bare name
+# fails the run: dropping it would turn a numbered, annotated or chatty reply
+# into a partial inventory that looks like a success.
+tools=$(printf '%s\n' "$reply" | tr -d '`*' | sed -E 's/^[[:space:]-]+//; s/[[:space:]]+$//' | awk 'NF')
+rejected=$(printf '%s\n' "$tools" | awk '!/^[A-Za-z][A-Za-z0-9_.-]*$/')
+if [ -n "$rejected" ]; then
+  echo "list-tools: reply has lines that are not tool names:" >&2
+  printf '%s\n' "$rejected" | head -n 10 >&2
+  exit 1
+fi
+# Every configuration has these, so a reply without them is not an inventory,
+# whatever else it lists. This cannot catch a clean reply that omits other tools.
+for required in bash view edit; do
+  if ! printf '%s\n' "$tools" | grep -qx "$required"; then
+    echo "list-tools: reply does not list $required" >&2
+    head -c 600 stream.jsonl >&2
+    exit 1
+  fi
+done
+printf '%s\n' "$tools"

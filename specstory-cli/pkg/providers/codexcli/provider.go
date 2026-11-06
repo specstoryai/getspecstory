@@ -385,7 +385,8 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	// Start watching for Codex sessions in the background
 	slog.Info("Initializing Codex session monitoring...")
 
-	if err := WatchForCodexSessions(projectPath, resumeSessionID); err != nil {
+	agentDir := spi.RunningAgentDir(projectPath)
+	if err := WatchForCodexSessions(agentDir, resumeSessionID); err != nil {
 		// Log the error but don't fail - watcher might work later
 		slog.Error("Failed to start Codex session watcher", "error", err)
 	}
@@ -394,13 +395,13 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	slog.Info("Executing Codex CLI", "command", customCommand, "resumeSessionID", resumeSessionID)
 	homeDir, _ := osUserHomeDir()
 	finalChanges := spi.SessionFileChanges(codexSessionsRoot(homeDir), "*/*/*/*.jsonl")
-	err := ExecuteCodex(customCommand, resumeSessionID)
+	err := ExecuteCodex(projectPath, customCommand, resumeSessionID)
 
 	// Stop the watcher goroutine and wait for it to finish before returning
 	slog.Info("Codex CLI has exited, stopping watcher")
 	StopWatcher()
 	for _, path := range finalChanges() {
-		ScanCodexSessions(projectPath, filepath.Dir(path), &path)
+		ScanCodexSessions(agentDir, filepath.Dir(path), &path)
 	}
 
 	// Return any execution error

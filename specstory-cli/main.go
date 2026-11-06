@@ -416,7 +416,9 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			}
 			defer provenanceCleanup()
 
-			fsCleanup, err := provenance.StartFSWatcher(ctx, provenanceEngine, cwd)
+			// Watch where the agent runs: with --project-path that is the project,
+			// and its edits never reach a watcher left on the launch directory.
+			fsCleanup, err := provenance.StartFSWatcher(ctx, provenanceEngine, spi.AgentWorkingDir(effectiveProjectPath, cwd))
 			if err != nil {
 				return err
 			}
@@ -443,8 +445,9 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			// Keep sessions.db current in real time alongside the markdown writes (nil/no-op
 			// if the index can't be opened — never block the running agent on it). Keyed to
 			// the effective project path so --project-path sessions index under the project
-			// they belong to, not the launch directory.
-			liveIndex := cmdpkg.NewLiveIndexer(effectiveProjectPath)
+			// they belong to, not the launch directory, with the origin set to
+			// where the agent actually runs.
+			liveIndex := cmdpkg.NewLiveIndexerForAgent(effectiveProjectPath, liveIndexOrigin(providerID, effectiveProjectPath))
 			defer liveIndex.Close()
 
 			// This callback pattern enables real-time processing of agent sessions
@@ -458,7 +461,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			// elsewhere, so per-save feedback belongs here. CLI agents own the
 			// terminal with their own TUI and must not have output interleaved.
 			var onSaved func(providerID string, sess *spi.AgentChatSession, fileExisted bool, markdownSize int)
-			if providerID == "cursoride" || providerID == "cursorcloud" || strings.HasPrefix(providerID, "copilotide") {
+			if !launchesTerminalAgent(providerID) {
 				onSaved = func(_ string, sess *spi.AgentChatSession, fileExisted bool, _ int) {
 					if log.IsSilent() {
 						return
@@ -1391,6 +1394,24 @@ func quietAgentExitErrorHandler(w io.Writer, styles fang.Styles, err error) {
 		return
 	}
 	fang.DefaultErrorHandler(w, styles, err)
+}
+
+// launchesTerminalAgent reports whether `run` starts the agent as a child of this
+// process. IDE-backed providers open an application and the Cursor Cloud Agent
+// runs remotely, so for them no process of ours runs anywhere.
+func launchesTerminalAgent(providerID string) bool {
+	return providerID != "cursoride" && providerID != "cursorcloud" && !strings.HasPrefix(providerID, "copilotide")
+}
+
+// liveIndexOrigin returns where a session from `run` can be found again. A
+// terminal agent runs in, and records, the directory RunningAgentDir names. An
+// IDE-backed provider looks sessions up by the workspace the user asked for,
+// which may be a .code-workspace file no process could run in.
+func liveIndexOrigin(providerID, projectPath string) string {
+	if launchesTerminalAgent(providerID) {
+		return spi.RunningAgentDir(projectPath)
+	}
+	return projectPath
 }
 
 // Main entry point for the CLI

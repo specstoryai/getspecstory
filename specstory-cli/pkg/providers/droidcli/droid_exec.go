@@ -32,7 +32,8 @@ func expandTilde(path string) string {
 	return path
 }
 
-func ExecuteDroid(customCommand string, resumeSessionID string) error {
+// ExecuteDroid runs the Droid CLI in projectPath and blocks until it exits.
+func ExecuteDroid(projectPath string, customCommand string, resumeSessionID string) error {
 	cmd, args := parseDroidCommand(customCommand)
 	args = ensureResumeArgs(args, resumeSessionID)
 	if resumeSessionID != "" {
@@ -40,6 +41,7 @@ func ExecuteDroid(customCommand string, resumeSessionID string) error {
 	}
 
 	command := exec.Command(cmd, args...)
+	spi.RunInProject(command, projectPath)
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr

@@ -324,7 +324,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		"resumeSessionId", resumeSessionID,
 		"debugRaw", debugRaw)
 
-	root, err := canonicalProjectPath(projectPath)
+	root, err := canonicalProjectPath(spi.RunningAgentDir(projectPath))
 	if err != nil {
 		return err
 	}
@@ -341,7 +341,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		slog.Error("ExecAgentAndWatch: Failed to start OpenCode session watcher", "error", err)
 	}
 
-	execErr := executeOpenCode(customCommand, root, resumeSessionID)
+	execErr := executeOpenCode(customCommand, projectPath, resumeSessionID)
 
 	if watcher != nil {
 		watcher.Stop()

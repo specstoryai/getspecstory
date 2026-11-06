@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -221,7 +220,7 @@ func ResolveProjectPath(overridePath, cwd string) string {
 	// Rootless remote paths must not be absolutized or canonicalized — they name
 	// directories on another machine, and filepath.Abs would corrupt them by
 	// prepending the current drive letter (e.g. C:\home\user\project).
-	if IsDrivelessRootedPath(overridePath) {
+	if spi.IsDrivelessRootedPath(overridePath) {
 		return filepath.Clean(overridePath)
 	}
 
@@ -245,19 +244,6 @@ func canonicalizeLocalPath(p string) string {
 		return p
 	}
 	return canonical
-}
-
-// IsDrivelessRootedPath reports whether p is, on Windows, a rooted path with no
-// drive letter — the shape VS Code's fsPath produces for WSL and SSH remote
-// workspaces (e.g. /home/user/project or \home\user\project). Such a path names
-// a directory on another machine, but Windows path APIs would resolve it against
-// the process's current drive: filepath.Abs staples the drive letter on and
-// os.Stat may find an unrelated local directory of the same shape. Callers must
-// treat these paths as opaque strings. Always false off Windows, where a rooted
-// volume-less path is just a normal absolute path.
-func IsDrivelessRootedPath(p string) bool {
-	return runtime.GOOS == "windows" && filepath.VolumeName(p) == "" &&
-		(strings.HasPrefix(p, "/") || strings.HasPrefix(p, `\`))
 }
 
 // GetAuthPath returns the path to the auth.json file

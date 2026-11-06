@@ -1,9 +1,14 @@
 package claudecode
 
 import (
+	"os"
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
 func TestReconcileFileWatches(t *testing.T) {
@@ -138,4 +143,82 @@ func equalStringSlices(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// With --project-path the agent runs in the project, not the launch directory,
+// and its session must arrive live: the sweep at exit would hide a watcher left
+// on the launch directory, so this asserts delivery before anything stops.
+func TestWatchForProjectDirFollowsProjectNotLaunchDirectory(t *testing.T) {
+	testutil.SetHome(t, t.TempDir())
+	// An inherited override outranks the temp home and would put the fake
+	// transcript in the developer's real store.
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	t.Chdir(t.TempDir())
+	project := spi.CanonicalizePathOrClean(t.TempDir())
+	dir, err := resolveClaudeProjectDir(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	delivered := make(chan string, 4)
+	SetWatcherCallback(func(session *spi.AgentChatSession) { delivered <- session.SessionID })
+	defer ClearWatcherCallback()
+	if err := WatchForProjectDir(project); err != nil {
+		t.Fatal(err)
+	}
+	defer StopWatcher()
+
+	provider := NewProvider()
+	native, err := provider.ReconstructSession(&schema.SessionData{
+		SchemaVersion: schema.CurrentSchemaVersion,
+		SessionID:     "source-session",
+		WorkspaceRoot: project,
+		Exchanges: []schema.Exchange{{Messages: []schema.Message{
+			{Role: schema.RoleUser, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "live work"}}},
+		}}},
+	}, spi.ReconstructOptions{WorkspaceRoot: project})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, err := provider.NativeSessionPath(project, native.Filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Keep writing, as a running agent does: the watch registers in the
+	// background, and a lone write ahead of it would look like existing history.
+	deadline := time.After(10 * time.Second)
+	for {
+		appendToFile(t, path, native.Content)
+		select {
+		case id := <-delivered:
+			if id != native.SessionID {
+				t.Errorf("delivered session %q, want %q", id, native.SessionID)
+			}
+			return
+		case <-deadline:
+			t.Fatal("no live delivery for the project's session")
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
+
+// appendToFile opens and closes the file for each write: Windows may not report
+// writes to a directory watcher until the writing handle closes.
+func appendToFile(t *testing.T, path string, data []byte) {
+	t.Helper()
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	if _, err := file.Write(data); err != nil {
+		t.Fatal(err)
+	}
 }

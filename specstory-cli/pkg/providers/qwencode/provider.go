@@ -260,7 +260,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 
 	// Start watching
 	SetWatcherDebugRaw(debugRaw)
-	if err := WatchQwenProject(projectPath, sessionCallback); err != nil {
+	if err := WatchQwenProject(spi.RunningAgentDir(projectPath), sessionCallback); err != nil {
 		return fmt.Errorf("start Qwen watcher: %w", err)
 	}
 	defer StopWatcher()

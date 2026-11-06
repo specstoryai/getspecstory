@@ -165,8 +165,12 @@ type sessionTUI struct {
 	// the provider id ("claude") that dedup and the resume/reconstruct path key on.
 	cloudChecked  bool
 	cloudEligible bool
-	cloudPending  bool
-	cloudNudge    string
+	// Signed-in user's email, from the eligibility check. Drives the "is this row mine?"
+	// comparison behind ownerLabel; empty until that check lands, which correctly means no
+	// attribution renders yet.
+	viewerEmail  string
+	cloudPending bool
+	cloudNudge   string
 	// cloudAll holds the active project's cloud sessions SEPARATELY from m.all. They must not live
 	// in m.all: the background index warm and post-delete refresh both do `m.all = ListByProject()`,
 	// which would discard anything merged into it. Instead they're merged with m.all at filter time

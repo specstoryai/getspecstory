@@ -1,10 +1,69 @@
 package spi
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
 )
+
+func TestAgentWorkingDir(t *testing.T) {
+	launchDir := t.TempDir()
+	project := t.TempDir()
+	workspaceFile := filepath.Join(project, "my.code-workspace")
+	if err := os.WriteFile(workspaceFile, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name        string
+		projectPath string
+		want        string
+	}{
+		{"another local project", project, project},
+		{"no project path", "", launchDir},
+		{"missing local path", filepath.Join(project, "not-here"), launchDir},
+		{"code-workspace file", workspaceFile, launchDir},
+		// Rooted without a drive on Windows; a relative path elsewhere.
+		{"driveless path to a real directory", project[len(filepath.VolumeName(project)):][1:], launchDir},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := AgentWorkingDir(tt.projectPath, launchDir); got != tt.want {
+				t.Errorf("AgentWorkingDir(%q) = %q, want %q", tt.projectPath, got, tt.want)
+			}
+		})
+	}
+	if runtime.GOOS == "windows" {
+		driveless := project[len(filepath.VolumeName(project)):]
+		if got := AgentWorkingDir(driveless, launchDir); got != launchDir {
+			t.Errorf("AgentWorkingDir(%q) = %q, want the launch directory", driveless, got)
+		}
+	}
+}
+
+// A watcher must follow the agent: into a local project, and to the launch
+// directory when the project path is one no process can run in.
+func TestRunningAgentDir(t *testing.T) {
+	project := t.TempDir()
+	t.Chdir(t.TempDir())
+	launchDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	launchDir = CanonicalizePathOrClean(launchDir)
+
+	if got := RunningAgentDir(project); got != project {
+		t.Errorf("local project: got %q, want %q", got, project)
+	}
+	for _, projectPath := range []string{"", filepath.Join(project, "not-here"), "/no/such/remote/project"} {
+		if got := RunningAgentDir(projectPath); got != launchDir {
+			t.Errorf("RunningAgentDir(%q) = %q, want the launch directory %q", projectPath, got, launchDir)
+		}
+	}
+}
 
 func TestSplitCommandLine(t *testing.T) {
 	tests := []struct {
@@ -312,5 +371,79 @@ func TestEnsureResumeFlagArgs(t *testing.T) {
 				t.Fatal("mutated caller's backing array")
 			}
 		})
+	}
+}
+
+// A child moved to the project directory must still find what the launch
+// directory's relative paths named.
+func TestRunInProject(t *testing.T) {
+	launchDir := t.TempDir()
+	project := t.TempDir()
+	t.Chdir(launchDir)
+	// Resolve through the OS: the temp dir may be reached through a symlink.
+	launchDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TEST_RELATIVE_HOME", filepath.Join("state", "agent"))
+	t.Setenv("TEST_ABSOLUTE_HOME", filepath.Join(launchDir, "abs"))
+	t.Setenv("TEST_TILDE_HOME", "~/agent")
+	t.Setenv("TEST_EMPTY_HOME", "")
+
+	relative := "." + string(filepath.Separator) + filepath.Join("bin", "agent")
+	cmd := exec.Command(relative)
+	RunInProject(cmd, project, "TEST_RELATIVE_HOME", "TEST_ABSOLUTE_HOME", "TEST_TILDE_HOME", "TEST_EMPTY_HOME")
+
+	if cmd.Dir != project {
+		t.Errorf("Dir = %q, want %q", cmd.Dir, project)
+	}
+	if want := filepath.Join(launchDir, "bin", "agent"); !strings.HasPrefix(cmd.Path, want) {
+		t.Errorf("Path = %q, want it under the launch directory: %q", cmd.Path, want)
+	}
+	wantRelativeHome := "TEST_RELATIVE_HOME=" + filepath.Join(launchDir, "state", "agent")
+	if !slices.Contains(cmd.Env, wantRelativeHome) {
+		t.Errorf("Env lacks %q", wantRelativeHome)
+	}
+	for _, unchanged := range []string{"TEST_ABSOLUTE_HOME", "TEST_TILDE_HOME", "TEST_EMPTY_HOME"} {
+		count := 0
+		for _, entry := range cmd.Env {
+			if strings.HasPrefix(entry, unchanged+"=") {
+				count++
+			}
+		}
+		if count > 1 {
+			t.Errorf("%s was rewritten: %d entries", unchanged, count)
+		}
+	}
+
+	// Remote workspaces and .code-workspace files are valid --project-path
+	// values, but no process can run in them.
+	workspaceFile := filepath.Join(launchDir, "my.code-workspace")
+	if err := os.WriteFile(workspaceFile, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for name, path := range map[string]string{
+		"empty":                "",
+		"missing local path":   filepath.Join(launchDir, "not-here"),
+		"code-workspace file":  workspaceFile,
+		"relative remote path": filepath.Join("home", "user", "project"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			stay := exec.Command(relative)
+			RunInProject(stay, path, "TEST_RELATIVE_HOME")
+			if stay.Dir != "" {
+				t.Errorf("Dir = %q, want the launch directory", stay.Dir)
+			}
+			if stay.Path != relative || stay.Env != nil {
+				t.Errorf("Path = %q, Env set = %v; want both untouched", stay.Path, stay.Env != nil)
+			}
+		})
+	}
+
+	// A bare name is a PATH lookup, not a path under the launch directory.
+	bare := exec.Command("specstory-no-such-agent")
+	RunInProject(bare, project)
+	if bare.Path != "specstory-no-such-agent" {
+		t.Errorf("bare command Path = %q, want it untouched", bare.Path)
 	}
 }

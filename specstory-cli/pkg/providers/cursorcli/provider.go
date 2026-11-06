@@ -336,14 +336,14 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		slog.Info("Resuming Cursor session", "sessionId", resumeSessionID)
 	}
 
-	watcher, err := WatchCursorProject(projectPath, debugRaw, sessionCallback)
+	watcher, err := WatchCursorProject(spi.RunningAgentDir(projectPath), debugRaw, sessionCallback)
 	if err != nil {
 		return fmt.Errorf("failed to start Cursor watcher: %w", err)
 	}
 
 	// Execute Cursor CLI - this blocks until Cursor exits
 	slog.Info("Executing Cursor CLI", "command", customCommand)
-	err = ExecuteCursorCLI(customCommand, resumeSessionID)
+	err = ExecuteCursorCLI(projectPath, customCommand, resumeSessionID)
 
 	// Stop the watcher if it was started
 	if watcher != nil {

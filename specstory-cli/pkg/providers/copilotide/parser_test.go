@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
@@ -313,13 +314,13 @@ func TestFormatToolMarkdown_Empty(t *testing.T) {
 func TestFormatToolMarkdown_ResultCap(t *testing.T) {
 	tool := &schema.ToolInfo{
 		Name:   "read_file",
-		Output: map[string]interface{}{"result": strings.Repeat("x", toolResultCap+500)},
+		Output: map[string]interface{}{"result": strings.Repeat("x", spi.ToolResultCap+500)},
 	}
 	got := FormatToolMarkdown(tool)
 	if !strings.Contains(got, "… (output truncated)") {
 		t.Error("oversized result should be marked truncated")
 	}
-	if len(got) > toolResultCap+200 {
+	if len(got) > spi.ToolResultCap+200 {
 		t.Errorf("result not capped: len=%d", len(got))
 	}
 

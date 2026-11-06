@@ -185,14 +185,14 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 
 	// Establish the watch before launching so startup errors are returned while
 	// the terminal is still ours and the first session write cannot be missed.
-	watcher, err := startProjectWatcher(projectPath)
+	watcher, err := startProjectWatcher(spi.RunningAgentDir(projectPath))
 	if err != nil {
 		slog.Error("ExecAgentAndWatch: Pi watcher startup failed", "error", err)
 		return fmt.Errorf("pi: failed to start session watcher: %w", err)
 	}
 
 	slog.Info("ExecAgentAndWatch: Pi watcher ready", "projectPath", projectPath)
-	err = ExecutePi(customCommand, resumeSessionID)
+	err = ExecutePi(projectPath, customCommand, resumeSessionID)
 	slog.Info("ExecAgentAndWatch: draining Pi session saves")
 	// Stop the watcher and join in-flight saves BEFORE the exit status is acted
 	// on: pi writes its session file right before it exits, and the callback

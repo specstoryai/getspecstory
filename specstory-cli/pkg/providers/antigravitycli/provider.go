@@ -233,24 +233,25 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 
 	if sessionCallback == nil {
 		slog.Info("ExecAgentAndWatch: no callback provided, running without watcher")
-		return ExecuteAntigravity(customCommand, resumeSessionID)
+		return ExecuteAntigravity(projectPath, customCommand, resumeSessionID)
 	}
 
 	// Capture before launching either goroutine so a fast child cannot become
 	// part of the watcher's silent startup baseline.
 	finalState := newWatchState()
 	seedProcessedConversations(finalState)
+	agentDir := spi.RunningAgentDir(projectPath)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	slog.Info("ExecAgentAndWatch: launching session watcher in background")
 	watchErr := make(chan error, 1)
 	go func() {
-		watchErr <- watchSessions(ctx, projectPath, debugRaw, sessionCallback)
+		watchErr <- watchSessions(ctx, agentDir, debugRaw, sessionCallback)
 	}()
 
 	slog.Info("ExecAgentAndWatch: executing Antigravity CLI", "command", customCommand)
-	err := ExecuteAntigravity(customCommand, resumeSessionID)
+	err := ExecuteAntigravity(projectPath, customCommand, resumeSessionID)
 	slog.Info("ExecAgentAndWatch: Antigravity CLI exited, stopping watcher", "execError", err)
 	cancel()
 
@@ -258,7 +259,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		slog.Warn("ExecAgentAndWatch: watcher stopped with error", "error", werr)
 	}
 
-	if scanErr := scanAndProcessConversations(projectPath, debugRaw, sessionCallback, finalState); scanErr != nil {
+	if scanErr := scanAndProcessConversations(agentDir, debugRaw, sessionCallback, finalState); scanErr != nil {
 		slog.Warn("Final session scan failed", "error", scanErr)
 	}
 
