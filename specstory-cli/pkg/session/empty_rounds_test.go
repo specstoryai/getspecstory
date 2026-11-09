@@ -27,7 +27,7 @@ func TestGenerateMarkdown_SkipsEmptyAgentRounds(t *testing.T) {
 		t.Fatalf("generate: %v", err)
 	}
 
-	if got := strings.Count(md, "_**Agent"); got != 1 {
+	if got := strings.Count(md, "_**🤖 Agent"); got != 1 {
 		t.Errorf("expected 1 agent header (empty one skipped), got %d\n---\n%s", got, md)
 	}
 	if !strings.Contains(md, "hello!") {
@@ -39,9 +39,9 @@ func TestGenerateMarkdown_SkipsEmptyAgentRounds(t *testing.T) {
 	if got := strings.Count(md, "\n---\n"); got != 1 {
 		t.Errorf("expected exactly 1 separator, got %d\n---\n%s", got, md)
 	}
-	userIdx := strings.Index(md, "_**User")
+	userIdx := strings.Index(md, "### 👤 User")
 	sepIdx := strings.Index(md, "\n---\n")
-	agentIdx := strings.Index(md, "_**Agent")
+	agentIdx := strings.Index(md, "_**🤖 Agent")
 	if userIdx >= sepIdx || sepIdx >= agentIdx {
 		t.Errorf("separator not positioned between user and agent turns:\n%s", md)
 	}
