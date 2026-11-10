@@ -61,6 +61,9 @@ specstory monitor ~/src --exclude "archive/*" --exclude scratch`,
 			}
 
 			rootDir, err := filepath.Abs(utils.ExpandTilde(args[0]))
+			if err == nil {
+				rootDir, err = filepath.EvalSymlinks(rootDir)
+			}
 			if err != nil {
 				return utils.ValidationError{Message: fmt.Sprintf("invalid root directory %q: %v", args[0], err)}
 			}
