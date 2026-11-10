@@ -88,3 +88,18 @@ func TestProviderGetAgentChatSessions(t *testing.T) {
 		t.Fatalf("SessionData should not be nil")
 	}
 }
+
+func TestParseGeminiCommand(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skip("cannot determine home directory")
+	}
+	cmd, args := parseGeminiCommand("~/bin/gemini --flag ~/not-the-binary")
+	want := filepath.Join(home, "bin/gemini")
+	if cmd != want {
+		t.Errorf("command = %q, want %q", cmd, want)
+	}
+	if len(args) != 2 || args[0] != "--flag" || args[1] != "~/not-the-binary" {
+		t.Errorf("args = %v, want [--flag ~/not-the-binary]", args)
+	}
+}

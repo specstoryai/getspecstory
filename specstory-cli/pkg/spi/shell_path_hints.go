@@ -53,10 +53,10 @@ func NormalizePath(path, workspaceRoot string) string {
 	return path
 }
 
-// expandTilde replaces a leading ~/ with the user's home directory.
+// ExpandHome replaces a leading ~/ with the user's home directory.
 // Returns the path unchanged if it doesn't start with ~/ or if the
 // home directory can't be determined.
-func expandTilde(path string) string {
+func ExpandHome(path string) string {
 	if !strings.HasPrefix(path, "~/") {
 		return path
 	}
@@ -715,7 +715,7 @@ func resolvePath(raw, cwd, workspaceRoot string) string {
 	}
 
 	// Expand tilde
-	p := strings.ReplaceAll(expandTilde(raw), `\`, "/")
+	p := strings.ReplaceAll(ExpandHome(raw), `\`, "/")
 
 	// Resolve relative paths against cwd
 	if !recordedAbs(p) && cwd != "" {

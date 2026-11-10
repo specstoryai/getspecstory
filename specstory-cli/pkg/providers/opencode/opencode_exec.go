@@ -34,7 +34,7 @@ func parseOpenCodeCommand(customCommand string) (string, []string) {
 	if customCommand != "" {
 		parts := spi.SplitCommandLine(customCommand)
 		if len(parts) > 0 {
-			return parts[0], parts[1:]
+			return spi.ExpandHome(parts[0]), parts[1:]
 		}
 	}
 	return defaultOpenCodeCommand, nil

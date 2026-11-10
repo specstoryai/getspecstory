@@ -1,5 +1,11 @@
 # Specstory CLI Changelog
 
+## Unreleased
+
+### 🐛 Bug Fixes
+
+- A custom command starting with `~/` now works for Grok Build, OpenCode, Gemini CLI, Qwen Code, and Muse Code. `specstory run` and `specstory check` with `-c "~/bin/…"`, and the same path in the agent's command setting, looked for a `~` directory inside the project and reported the command missing. The `~/` on the executable is expanded to your home directory. Absolute paths already worked. A `~user` path, a command that is only `~`, and arguments that start with `~/` stay as written.
+
 ## v2.17.0 2026-11-06
 
 ### 📢 Announcements
