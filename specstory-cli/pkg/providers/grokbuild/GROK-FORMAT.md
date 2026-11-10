@@ -66,7 +66,7 @@ The harness emits `available_commands.tools` in `--output-format streaming-json`
 
 Observed file reads preserve ranges; grep preserves options and fences its XML-like result; writes retain complete content; search/replace retains both complete edit halves; shell/monitor calls preserve command settings, Unicode, and nested fences while stripping terminal controls. Todo updates recover text from prior items. MCP discovery/dispatch retains the tool name and arguments; native errors take precedence over success formatting. Every specialized renderer retains unfamiliar input/result fields, and undeclared/unobserved payloads have generic rendering. Media payloads do not have speculative bespoke formatting.
 
-The [review report](../../../docs/GROK-REVIEW.md) separates declared, exercised, and unexercised tools, successful paths from captured failures, and current QA limits.
+The [tool audit](examples/session-1.0.34/tool-audit.md) separates declared, exercised, and unexercised tools, successful paths from captured failures, and its [coverage gaps](examples/session-1.0.34/tool-audit.md#coverage-gaps) state the QA limits.
 
 ## Native and cross-agent resume
 

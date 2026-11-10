@@ -15,3 +15,12 @@ dist/
 
 # pi until-done extension state (local goal-loop artifacts, not project code)
 .until-done/
+
+# RunStory: ignore files that belong to this machine only (runs, local state, secrets).
+# Commit the rest of .runstory/, e.g. findings.json and repro/, so teammates get the findings.
+.runstory/runs/
+.runstory/state/
+.runstory/dispatch.last
+.runstory/findings.json.lock
+.runstory/.findings.json.tmp-*
+.runstory/env

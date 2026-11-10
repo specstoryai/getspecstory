@@ -12,7 +12,7 @@ Follow the current task's authorization for review and fixes. A request to evalu
 
 Use the guide's requirements and self-review checklist, the current [SPI contracts](../pkg/spi/provider.go), and the repository's [code-review](../.claude/commands/code-review.md) or [PR-review](../.claude/commands/pr-review.md) checklist. Review documentation and release claims too, even where a general review command excludes them.
 
-Trace the implementation through discovery, parsing, rendering, watching, and resume, including its command and configuration wiring. Compare local helpers with the shared equivalents and investigate differences in behavior. Use the guide's concern-specific exemplars as examples, not proof of correctness: established providers can contain drift. Resolve discrepancies against the contract and observed native data rather than copying a sibling blindly.
+Trace the implementation through discovery, parsing, rendering, watching, and resume, including its command and configuration wiring. Compare local helpers with the shared equivalents and investigate differences in behavior. Use the guide's concern-specific exemplars as examples, not proof of correctness: established providers can contain drift. Resolve discrepancies against the contract and observed native data rather than copying a sibling blindly. Trace each SPI parameter to where the implementation honors its documented meaning; sibling comparison cannot expose a contract gap that most siblings share.
 
 Audit fixture placement against the guide's [testdata/examples rule](../NEW-PROVIDER-GUIDE.md#separate-test-fixtures-from-examples). Identify the automated test consumer and asserted behavior for every fixture set under `testdata/`; copying a containing directory is not consumption. Saved outputs that no test compares, manual QA results, and other review artifacts belong in `examples/`.
 
@@ -20,21 +20,21 @@ Audit fixture placement against the guide's [testdata/examples rule](../NEW-PROV
 
 Start with the cheapest experiment that can distinguish the suspected defect from correct behavior. Build a fresh `./specstory` for manual verification and use the guide's command matrix and tool audit. Compare native records, normalized session data, and rendered Markdown when diagnosing missing or incorrect content.
 
-Assess tests by the behavior they can disprove, not by their number. A regression test should fail without its fix and preserve the legitimate case. For resume, a serializer/parser round trip is insufficient evidence that the real agent can load and continue the conversation.
+Assess tests by the behavior they can disprove, not by their number. A regression test should fail without its fix and preserve the legitimate case, and its expected result should come from a rule or native record rather than from the code's current output, because a test can ratify a bug. For resume, a serializer/parser round trip is insufficient evidence that the real agent can load and continue the conversation.
 
-Separate code inspection, automated tests, and real-agent verification in the report. State the tested revision, agent version, and OS, and identify unavailable credentials, platforms, or sessions that limit verification. Run the applicable build, lint, and test checks; verify relevant CI results, including Windows, against the reviewed revision. Earlier green CI does not validate later local edits. Untested behavior remains untested, even when the code looks plausible.
+Separate code inspection, automated tests, and real-agent verification in the report. State the tested revision, agent version, and OS, and identify unavailable credentials, platforms, or sessions that limit verification. Run the applicable build, lint, and test checks; verify relevant CI results, including Windows, against the reviewed revision. Earlier green CI does not validate later local edits, and zero open review threads means little while automated review of the latest push is still running. Untested behavior remains untested, even when the code looks plausible. For a path comparison, vary the spelling on the recorded side as well as the project side; a test that varies only one can pass on the platform where the other fails.
 
 ## Check effects beyond the provider
 
 When shared code changes, identify affected callers and verify the relevant existing-provider behavior. For rendering changes, compare regenerated Markdown from representative captured sessions; explain intended differences. For path or identity changes, check consequences for persisted indexes, session identities, and output paths.
 
-If copied code exposes a defect in a sibling, investigate and report its scope. Fix related code when the task authorizes it; otherwise record a follow-up. Do not automatically expand a provider review into a cross-provider refactor.
+If copied code exposes a defect in a sibling, investigate and report its scope. Fix related code when the task authorizes it; otherwise record a follow-up in a tracked issue, because a note in a review document is not seen by the next provider's author. Do not automatically expand a provider review into a cross-provider refactor.
 
 ## Produce actionable findings
 
 Number findings so they can be discussed individually. Each should identify the code location, requirement or expected behavior, user impact, supporting evidence, and recommended action. Label uncertainty explicitly. Prioritize data loss, incorrect attribution, broken commands, and regressions; keep optional improvements separate from defects. Avoid findings based only on personal style, hypothetical scaling, or a smaller test suite than an exemplar.
 
-Evaluate bot feedback against the current code, including whether later changes already addressed it. Verify both the diagnosis and proposed remedy. Record a technical reason for accepting or rejecting a finding; the bot's severity is not evidence.
+Evaluate bot feedback against the current code, including whether later changes already addressed it. Read a bot's overview text as well as its inline threads: a review can name real risks while reporting no open issues. Verify both the diagnosis and proposed remedy. Record a technical reason for accepting or rejecting a finding; the bot's severity is not evidence.
 
 ## Hand back a decision
 

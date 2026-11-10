@@ -222,12 +222,12 @@ func classifyCheckError(err error) string {
 	return spi.ClassifyCheckError(err)
 }
 
-// ExecuteCodex executes the Codex CLI in interactive mode and blocks until it exits.
+// ExecuteCodex executes the Codex CLI in interactive mode in projectPath and blocks until it exits.
 // The customCommand parameter specifies the codex binary and optional arguments to use.
 // If customCommand is empty, falls back to the detected default codex binary.
 // If resumeSessionID is provided, runs "codex resume <sessionId>" to continue that session.
 // Otherwise, starts a new codex session.
-func ExecuteCodex(customCommand string, resumeSessionID string) error {
+func ExecuteCodex(projectPath string, customCommand string, resumeSessionID string) error {
 	var cmd *exec.Cmd
 
 	if resumeSessionID != "" {
@@ -253,6 +253,8 @@ func ExecuteCodex(customCommand string, resumeSessionID string) error {
 			"args", args)
 		cmd = exec.Command(codexCmd, args...)
 	}
+
+	spi.RunInProject(cmd, projectPath, "CODEX_HOME")
 
 	// Configure interactive mode - connect to user's terminal
 	cmd.Stdin = os.Stdin

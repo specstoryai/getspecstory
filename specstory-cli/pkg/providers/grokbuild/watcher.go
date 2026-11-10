@@ -173,7 +173,7 @@ func signatureFor(dir string) sessionSignature {
 }
 
 type grokWatchState struct {
-	watcher                            *fsnotify.Watcher
+	watcher                            *spi.FSWatcher
 	projectPath, sessionsDir, groupDir string
 	watched                            map[string]bool
 	signatures                         map[string]sessionSignature

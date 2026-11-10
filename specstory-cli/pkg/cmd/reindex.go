@@ -47,7 +47,10 @@ const (
 	//   7: recover Cursor session cwds (match their project-hash dir against other providers'
 	//      cwds) so Cursor sessions bucket under their real project instead of "unknown" —
 	//      existing Cursor rows stay "unknown" until re-parsed, so bump to re-bucket them
-	reindexVersion = 7
+	//   8: attribute Cursor multi-root sessions (saved .code-workspace and untitled windows)
+	//      to the window's first folder instead of the workspace file, so they list under a
+	//      project a sync can run from — bump to re-bucket existing Cursor rows
+	reindexVersion = 8
 )
 
 // CreateReindexCommand builds the `specstory reindex` command: a full, from-scratch
@@ -502,6 +505,15 @@ type LiveIndexer struct {
 // (not an error) when the index can't be opened, so the caller keeps running with real-time
 // indexing simply disabled. The caller owns Close.
 func NewLiveIndexer(cwd string) *LiveIndexer {
+	return NewLiveIndexerForAgent(cwd, cwd)
+}
+
+// NewLiveIndexerForAgent indexes sessions under projectPath's identity while
+// recording agentDir as where they live. The two differ for `run` with a
+// non-local --project-path: the session belongs to the project the user named,
+// but the agent ran in the launch directory, and that is where a later lookup
+// by origin finds it.
+func NewLiveIndexerForAgent(projectPath, agentDir string) *LiveIndexer {
 	dbPath, err := sessionindex.DefaultPath()
 	if err != nil {
 		slog.Debug("live index: no db path; real-time indexing disabled", "error", err)
@@ -512,13 +524,13 @@ func NewLiveIndexer(cwd string) *LiveIndexer {
 		slog.Debug("live index: cannot open index; real-time indexing disabled", "error", err)
 		return nil
 	}
-	projectID, projectName, err := utils.ComputeProjectID(cwd)
+	projectID, projectName, err := utils.ComputeProjectID(projectPath)
 	if err != nil || projectID == "" {
 		projectID, projectName = unknownProjectID, ""
 	}
 	return &LiveIndexer{
 		store:       store,
-		cwd:         cwd,
+		cwd:         agentDir,
 		projectID:   projectID,
 		projectName: projectName,
 		indexedAt:   time.Now().UTC().Format(time.RFC3339),

@@ -122,9 +122,9 @@ func createWorkspaceDB(t *testing.T, path string, composerIDs []string) {
 	}
 }
 
-// TestScanWorkspaceDirForComposerPaths verifies that composer IDs are correctly mapped
+// TestScanWorkspaceDir_ComposerPaths verifies that composer IDs are correctly mapped
 // to their project paths by scanning a workspace storage directory.
-func TestScanWorkspaceDirForComposerPaths(t *testing.T) {
+func TestScanWorkspaceDir_ComposerPaths(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Workspace 1: one composer under /project-a
@@ -159,10 +159,11 @@ func TestScanWorkspaceDirForComposerPaths(t *testing.T) {
 		t.Fatalf("write not-a-dir.txt: %v", err)
 	}
 
-	result, err := scanWorkspaceDirForComposerPaths(tmpDir)
+	index, err := scanWorkspaceDir(tmpDir)
 	if err != nil {
-		t.Fatalf("scanWorkspaceDirForComposerPaths: %v", err)
+		t.Fatalf("scanWorkspaceDir: %v", err)
 	}
+	result := index.ByComposer
 
 	if len(result) != 3 {
 		t.Errorf("expected 3 composer mappings, got %d: %v", len(result), result)
@@ -181,10 +182,10 @@ func TestScanWorkspaceDirForComposerPaths(t *testing.T) {
 	}
 }
 
-// TestScanWorkspaceDirForComposerPaths_DuplicateComposer verifies that when the same
+// TestScanWorkspaceDir_DuplicateComposer verifies that when the same
 // composer ID appears in multiple workspaces (e.g. WSL/SSH setups), the first-seen
 // project path is used and no entry is duplicated.
-func TestScanWorkspaceDirForComposerPaths_DuplicateComposer(t *testing.T) {
+func TestScanWorkspaceDir_DuplicateComposer(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	ws1 := filepath.Join(tmpDir, "ws1")
@@ -205,10 +206,11 @@ func TestScanWorkspaceDirForComposerPaths_DuplicateComposer(t *testing.T) {
 	}
 	createWorkspaceDB(t, filepath.Join(ws2, "state.vscdb"), []string{"shared-composer"})
 
-	result, err := scanWorkspaceDirForComposerPaths(tmpDir)
+	index, err := scanWorkspaceDir(tmpDir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	result := index.ByComposer
 	if len(result) != 1 {
 		t.Fatalf("expected 1 entry (deduped), got %d: %v", len(result), result)
 	}
@@ -217,15 +219,16 @@ func TestScanWorkspaceDirForComposerPaths_DuplicateComposer(t *testing.T) {
 	}
 }
 
-// TestScanWorkspaceDirForComposerPaths_Empty verifies an empty storage directory
-// returns an empty map without error.
-func TestScanWorkspaceDirForComposerPaths_Empty(t *testing.T) {
-	result, err := scanWorkspaceDirForComposerPaths(t.TempDir())
+// TestScanWorkspaceDir_Empty verifies an empty storage directory
+// returns an empty index without error.
+func TestScanWorkspaceDir_Empty(t *testing.T) {
+	index, err := scanWorkspaceDir(t.TempDir())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(result) != 0 {
-		t.Errorf("expected empty result, got %d entries", len(result))
+	if len(index.ByWorkspaceID) != 0 || len(index.ByComposer) != 0 {
+		t.Errorf("expected an empty index, got %d workspaces and %d composers",
+			len(index.ByWorkspaceID), len(index.ByComposer))
 	}
 }
 
@@ -424,6 +427,200 @@ func TestCheckDatabaseFailures(t *testing.T) {
 			result := NewProvider().Check("")
 			if result.ErrorType != tt.want || result.Success != (tt.want == "") {
 				t.Fatalf("Check = %+v, want ErrorType %q", result, tt.want)
+			}
+		})
+	}
+}
+
+// A multi-root entry (an untitled window's workspace.json or a saved .code-workspace)
+// resolves to its workspace file, not a project directory. It must be indexed under its
+// first listed folder, the project the extension and FindWorkspaces use: by workspace ID
+// always, and by the composers its database references when it has one. An entry with
+// no database yet is still indexed by ID, because a composer's embedded
+// workspaceIdentifier can name it.
+func TestScanWorkspaceDir_MultiRoot(t *testing.T) {
+	base := t.TempDir()
+	first := filepath.Join(base, "monorepo")
+	second := filepath.Join(base, "cli")
+	for _, dir := range []string{first, second} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	canonicalFirst, err := vscode.NormalizePathForComparison(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	folders := []byte(`{"folders":[{"path":` + testutil.JSONString(first) + `},{"path":` + testutil.JSONString(second) + `}]}`)
+
+	// Mirror Cursor's layout for an untitled window: <user data>/Workspaces/<timestamp>/workspace.json.
+	untitledDir := filepath.Join(base, "Workspaces", "1793105102369")
+	if err := os.MkdirAll(untitledDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	untitledFile := filepath.Join(untitledDir, "workspace.json")
+	savedFile := filepath.Join(base, "multi.code-workspace")
+	for _, file := range []string{untitledFile, savedFile} {
+		if err := os.WriteFile(file, folders, 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// An SSH workspace whose remote path happens to name a real local multi-root file.
+	// The remote host is dropped when the URI becomes a path, so reading that local file
+	// would attribute the remote sessions to an unrelated local project; the entry must
+	// keep its remote workspace-file path instead.
+	remoteURI := "vscode-remote://ssh-remote%2Bdevbox" + filepath.ToSlash(savedFile)
+	remotePath, err := vscode.URIToPath(remoteURI)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name         string
+		workspaceURI string
+		withDB       bool
+		want         string
+	}{
+		{name: "untitled window with a database", workspaceURI: vscode.PathToFileURI(untitledFile), withDB: true, want: canonicalFirst},
+		{name: "untitled window without a database", workspaceURI: vscode.PathToFileURI(untitledFile), withDB: false, want: canonicalFirst},
+		{name: "saved .code-workspace with a database", workspaceURI: vscode.PathToFileURI(savedFile), withDB: true, want: canonicalFirst},
+		{name: "saved .code-workspace without a database", workspaceURI: vscode.PathToFileURI(savedFile), withDB: false, want: canonicalFirst},
+		{name: "SSH workspace is not read from the local filesystem", workspaceURI: remoteURI, withDB: true, want: remotePath},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if runtime.GOOS == "windows" && strings.HasPrefix(tt.workspaceURI, "vscode-remote://") {
+				// A drive-letter path can't stand in for a remote POSIX path in the URI.
+				t.Skip("remote workspace URIs carry POSIX paths")
+			}
+			storage := t.TempDir()
+			writeEntry := func(id, workspaceJSON string, composerIDs []string) {
+				dir := filepath.Join(storage, id)
+				if err := os.Mkdir(dir, 0755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "workspace.json"), []byte(workspaceJSON), 0644); err != nil {
+					t.Fatal(err)
+				}
+				if composerIDs != nil {
+					createWorkspaceDB(t, filepath.Join(dir, "state.vscdb"), composerIDs)
+				}
+			}
+			var multiComposers []string
+			if tt.withDB {
+				multiComposers = []string{"composer-multi"}
+			}
+			writeEntry("ws-multi", `{"workspace":"`+tt.workspaceURI+`"}`, multiComposers)
+			// A single-folder neighbor shows multi-root resolution stays within its entry.
+			writeEntry("ws-folder", `{"folder":"file:///project-a"}`, []string{"composer-aaa"})
+
+			index, err := scanWorkspaceDir(storage)
+			if err != nil {
+				t.Fatalf("scanWorkspaceDir: %v", err)
+			}
+			if got := index.ByWorkspaceID["ws-multi"]; got != tt.want {
+				t.Errorf("ws-multi path = %q, want %q", got, tt.want)
+			}
+			if got := index.ByWorkspaceID["ws-folder"]; got != "/project-a" {
+				t.Errorf("ws-folder path = %q, want /project-a", got)
+			}
+			if got := index.ByComposer["composer-aaa"]; got != "/project-a" {
+				t.Errorf("composer-aaa path = %q, want /project-a", got)
+			}
+			wantComposers := 1
+			if tt.withDB {
+				wantComposers = 2
+				if got := index.ByComposer["composer-multi"]; got != tt.want {
+					t.Errorf("composer-multi path = %q, want %q", got, tt.want)
+				}
+			}
+			if len(index.ByComposer) != wantComposers {
+				t.Errorf("ByComposer should hold only referenced composers, got %v", index.ByComposer)
+			}
+		})
+	}
+}
+
+// resolveComposerProjectPath covers the association shapes seen in real databases:
+// an ID-only identifier for a multi-root window, an identifier with a folder URI,
+// an identifier whose entry is gone, and legacy composers known only to a
+// workspace database.
+func TestResolveComposerProjectPath(t *testing.T) {
+	// Every source maps to a distinct path, so each case can only pass by resolving
+	// through the source it names: a wrong precedence order returns another source's
+	// path. The workspace-DB paths are what a lower-priority fallback would yield.
+	index := &workspacePathIndex{
+		ByWorkspaceID: map[string]string{
+			"ws-multi":  "/code/monorepo", // first folder of a multi-root workspace
+			"ws-single": "/code/single",
+		},
+		ByComposer: map[string]string{
+			"in-db":  "/from-workspace-db",
+			"legacy": "/code/legacy",
+		},
+	}
+	identifier := func(id, fsPath string) *ComposerData {
+		wi := &ComposerWorkspaceIdentifier{ID: id}
+		if fsPath != "" {
+			wi.URI = &ComposerWorkspaceURI{FsPath: fsPath}
+		}
+		return &ComposerData{WorkspaceIdentifier: wi}
+	}
+
+	tests := []struct {
+		name       string
+		composerID string
+		composer   *ComposerData
+		want       string
+	}{
+		{
+			name:       "id-only identifier for a multi-root window resolves to the first folder",
+			composerID: "in-db",
+			composer:   identifier("ws-multi", ""),
+			want:       "/code/monorepo",
+		},
+		{
+			name:       "workspace entry wins over the identifier's workspace file URI",
+			composerID: "in-db",
+			composer:   identifier("ws-multi", "/code/multi.code-workspace"),
+			want:       "/code/monorepo",
+		},
+		{
+			name:       "single-folder identifier resolves through its entry",
+			composerID: "in-db",
+			composer:   identifier("ws-single", "/code/single"),
+			want:       "/code/single",
+		},
+		{
+			name:       "entry gone from workspace storage falls back to the identifier URI before the DB",
+			composerID: "in-db",
+			composer:   identifier("ws-deleted", "/code/moved"),
+			want:       "/code/moved",
+		},
+		{
+			name:       "id-only identifier with no entry falls back to the workspace-DB reference",
+			composerID: "in-db",
+			composer:   identifier("ws-deleted", ""),
+			want:       "/from-workspace-db",
+		},
+		{
+			name:       "id-only identifier with no entry and no DB reference has no path",
+			composerID: "unknown",
+			composer:   identifier("ws-deleted", ""),
+			want:       "",
+		},
+		{
+			name:       "legacy composer without identifier uses the workspace-DB reference",
+			composerID: "legacy",
+			composer:   &ComposerData{},
+			want:       "/code/legacy",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resolveComposerProjectPath(tt.composerID, tt.composer, index); got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
 			}
 		})
 	}

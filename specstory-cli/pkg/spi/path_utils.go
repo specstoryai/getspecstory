@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -214,6 +216,19 @@ func appendRemainingParts(result string, parts []string, startIdx int) string {
 	return result
 }
 
+// IsDrivelessRootedPath reports whether p is, on Windows, a rooted path with no
+// drive letter — the shape VS Code's fsPath produces for WSL and SSH remote
+// workspaces (e.g. /home/user/project or \home\user\project). Such a path names
+// a directory on another machine, but Windows path APIs would resolve it against
+// the process's current drive: filepath.Abs staples the drive letter on and
+// os.Stat may find an unrelated local directory of the same shape. Callers must
+// treat these paths as opaque strings. Always false off Windows, where a rooted
+// volume-less path is just a normal absolute path.
+func IsDrivelessRootedPath(p string) bool {
+	return runtime.GOOS == "windows" && filepath.VolumeName(p) == "" &&
+		(strings.HasPrefix(p, "/") || strings.HasPrefix(p, `\`))
+}
+
 // GetCanonicalPath resolves a path to its canonical form by resolving symlinks
 // and correcting case. This is important on case-insensitive filesystems like macOS
 // where "/Users/Foo" and "/users/foo" refer to the same directory but would produce
@@ -299,23 +314,31 @@ func GetCanonicalPath(p string) (string, error) {
 		}
 
 		// Find the correct case
-		found := false
-		for _, name := range names {
-			if strings.EqualFold(name, parts[i]) {
-				result = filepath.Join(result, name)
-				found = true
-				break
-			}
-		}
-
+		name, found := matchDirEntry(names, parts[i])
 		if !found {
 			// Component doesn't exist, append remaining as-is
 			result = appendRemainingParts(result, parts, i)
 			break
 		}
+		result = filepath.Join(result, name)
 	}
 
 	return result, nil
+}
+
+// matchDirEntry finds the directory entry a path component refers to. An exact
+// name wins over a case-insensitive match: a case-sensitive filesystem can hold
+// both "Project" and "project", and listing order must not swap one for the other.
+func matchDirEntry(names []string, component string) (string, bool) {
+	if slices.Contains(names, component) {
+		return component, true
+	}
+	for _, name := range names {
+		if strings.EqualFold(name, component) {
+			return name, true
+		}
+	}
+	return "", false
 }
 
 // CanonicalizePathOrClean resolves path to the canonical form used for

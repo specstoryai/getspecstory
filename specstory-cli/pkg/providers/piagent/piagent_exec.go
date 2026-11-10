@@ -49,9 +49,9 @@ func getDefaultPiCommand() string {
 	return defaultCmd
 }
 
-// ExecutePi runs pi with terminal passthrough and returns its exit status so
+// ExecutePi runs pi in projectPath with terminal passthrough and returns its exit status so
 // the watcher can finish saving the last session update before the CLI exits.
-func ExecutePi(customCommand string, resumeSessionID string) error {
+func ExecutePi(projectPath string, customCommand string, resumeSessionID string) error {
 	piCmd, args := parsePiRunCommand(customCommand, resumeSessionID)
 
 	if strings.TrimSpace(resumeSessionID) != "" {
@@ -59,6 +59,7 @@ func ExecutePi(customCommand string, resumeSessionID string) error {
 	}
 
 	cmd := exec.Command(piCmd, args...)
+	spi.RunInProject(cmd, projectPath, envAgentDir, envSessionDir)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

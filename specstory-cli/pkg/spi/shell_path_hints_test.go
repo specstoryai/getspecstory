@@ -3,6 +3,7 @@ package spi
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -484,5 +485,76 @@ func TestExtractShellPathHints_TildeExpansion(t *testing.T) {
 	}
 	if got[0] != "file.txt" {
 		t.Errorf("got %q, want %q", got[0], "file.txt")
+	}
+}
+
+func TestExtractPatchPathHints(t *testing.T) {
+	tests := []struct {
+		name          string
+		patch         string
+		workspaceRoot string
+		want          []string
+	}{
+		{
+			name:          "add, update and delete headers",
+			patch:         "*** Begin Patch\n*** Add File: /w/a.go\n+x\n*** Update File: /w/b.go\n@@\n-y\n+z\n*** Delete File: /w/c.go\n*** End Patch",
+			workspaceRoot: "/w",
+			want:          []string{"a.go", "b.go", "c.go"},
+		},
+		{
+			name:          "rename keeps both source and destination",
+			patch:         "*** Begin Patch\n*** Update File: src/old.go\n*** Move to: src/new.go\n*** End Patch",
+			workspaceRoot: "/w",
+			want:          []string{"src/old.go", "src/new.go"},
+		},
+		{
+			name:          "legacy marker spellings",
+			patch:         "*** Create File: a.go\n*** Modify File: b.go\n*** Remove File: c.go\n*** Rename File: d.go\n*** New Name: e.go",
+			workspaceRoot: "/w",
+			want:          []string{"a.go", "b.go", "c.go", "d.go", "e.go"},
+		},
+		{
+			name:          "duplicate paths are reported once",
+			patch:         "*** Update File: /w/a.go\n*** Update File: /w/a.go",
+			workspaceRoot: "/w",
+			want:          []string{"a.go"},
+		},
+		{
+			name:          "CRLF line endings",
+			patch:         "*** Begin Patch\r\n*** Add File: /w/a.go\r\n*** End Patch\r\n",
+			workspaceRoot: "/w",
+			want:          []string{"a.go"},
+		},
+		{
+			name:          "hunk context that looks like a header is not a file",
+			patch:         "*** Begin Patch\n*** Update File: /w/notes.patch\n@@\n *** Update File: /w/untouched.go\n-old\n+new\n*** End Patch",
+			workspaceRoot: "/w",
+			want:          []string{"notes.patch"},
+		},
+		{
+			name:          "path outside the workspace stays absolute",
+			patch:         "*** Update File: /elsewhere/a.go",
+			workspaceRoot: "/w",
+			want:          []string{"/elsewhere/a.go"},
+		},
+		{
+			name:          "header with no path and body lines are ignored",
+			patch:         "*** Add File:\n+*** Update File: not-a-header.go\n context",
+			workspaceRoot: "/w",
+			want:          nil,
+		},
+		{
+			name:  "empty patch",
+			patch: "",
+			want:  nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ExtractPatchPathHints(tt.patch, tt.workspaceRoot)
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("ExtractPatchPathHints() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

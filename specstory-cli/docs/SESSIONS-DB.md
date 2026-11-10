@@ -442,7 +442,7 @@ plus the same final summary, so logs stay clean.
 |-----------------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `project_id`    | TEXT    | Resolved identity (walk-up `git_id`, else `workspace_id`). The value the cloud groups by and Lore speaks. Indexed.                                     |
 | `project_name`  | TEXT    | Human-readable project name (repo name from the walked-up root).                                                                                       |
-| `agent`         | TEXT    | Provider id as registered in `pkg/spi/factory/registry.go` (`claude`, `codex`, `cursor`, `gemini`, `droid`, `deepseek`, `antigravity`, `muse`, `pi`, `qwen`, `cursoride`, `copilotide` and its variants). Part of the primary key. |
+| `agent`         | TEXT    | Provider id as registered in `pkg/spi/factory/registry.go` (`claude`, `codex`, `copilot`, `cursor`, `gemini`, `droid`, `deepseek`, `antigravity`, `muse`, `pi`, `qwen`, `cursoride`, `copilotide` and its variants). Part of the primary key. |
 | `session_id`    | TEXT    | Native session id (uuid). Part of the primary key.                                                                                                     |
 | `created_at`    | TEXT    | ISO 8601 session creation timestamp (first turn). Powers the "Created" sort.                                                                           |
 | `updated_at`    | TEXT    | ISO 8601 last-activity timestamp (last turn, else file mtime). Powers "X ago", the "Updated" sort, and resume-last.                                    |

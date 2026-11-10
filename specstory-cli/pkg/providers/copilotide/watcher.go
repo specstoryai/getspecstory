@@ -322,7 +322,7 @@ type fileSignature struct {
 // the directory exists or the context is canceled — callers must check ctx to
 // tell the two apart. The workspace-directory watch is removed on return so the
 // caller's chatSessions watch is the only one left on the shared watcher.
-func waitForChatSessionsDir(ctx context.Context, watcher *fsnotify.Watcher, workspaceDir, chatSessionsPath string) error {
+func waitForChatSessionsDir(ctx context.Context, watcher *spi.FSWatcher, workspaceDir, chatSessionsPath string) error {
 	if err := watcher.Add(workspaceDir); err != nil {
 		return fmt.Errorf("failed to watch workspace directory: %w", err)
 	}

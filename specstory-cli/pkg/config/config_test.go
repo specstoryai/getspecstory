@@ -1059,6 +1059,7 @@ func TestGetProviderCmd(t *testing.T) {
 			ClaudeCmd:                     "claude --dangerously-skip-permissions",
 			CodexCmd:                      "/usr/local/bin/codex",
 			CopilotIDECmd:                 "code",
+			CopilotCmd:                    "copilot --allow-all-tools",
 			CopilotIDEInsidersCmd:         "code-insiders",
 			CopilotIDEVSCodiumCmd:         "codium",
 			CopilotIDEVSCodiumInsidersCmd: "codium-insiders",
@@ -1082,6 +1083,7 @@ func TestGetProviderCmd(t *testing.T) {
 	}{
 		{"claude", "claude --dangerously-skip-permissions"},
 		{"codex", "/usr/local/bin/codex"},
+		{"copilot", "copilot --allow-all-tools"},
 		{"copilotide", "code"},
 		{"copilotide-insiders", "code-insiders"},
 		{"copilotide-vscodium", "codium"},
@@ -1272,7 +1274,7 @@ claude_cmd = "claude --project-level"
 		}
 
 		for _, id := range []string{
-			"antigravity", "claude", "codex",
+			"antigravity", "claude", "codex", "copilot",
 			"copilotide", "copilotide-insiders", "copilotide-vscodium", "copilotide-vscodium-insiders",
 			"cursor", "cursoride", "cursorcloud", "deepseek", "droid", "gemini", "grok", "muse", "opencode", "pi", "qwen",
 		} {

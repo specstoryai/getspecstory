@@ -174,29 +174,30 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 // invokes the callback as they are discovered.
 func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	if sessionCallback == nil {
-		return ExecuteDroid(customCommand, resumeSessionID)
+		return ExecuteDroid(projectPath, customCommand, resumeSessionID)
 	}
 
 	// Capture before launching either goroutine so a fast child cannot become
 	// part of the watcher's silent startup baseline.
 	finalState := &watchState{lastProcessed: make(map[string]int64)}
 	seedProcessedSessions(finalState)
+	agentDir := spi.RunningAgentDir(projectPath)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	watchErr := make(chan error, 1)
 	go func() {
-		watchErr <- watchSessions(ctx, projectPath, debugRaw, sessionCallback)
+		watchErr <- watchSessions(ctx, agentDir, debugRaw, sessionCallback)
 	}()
 
-	err := ExecuteDroid(customCommand, resumeSessionID)
+	err := ExecuteDroid(projectPath, customCommand, resumeSessionID)
 	cancel()
 
 	if werr := <-watchErr; werr != nil && !errors.Is(werr, context.Canceled) {
 		slog.Warn("droidcli: watcher stopped with error", "error", werr)
 	}
 
-	if scanErr := scanAndProcessSessions(projectPath, debugRaw, sessionCallback, finalState); scanErr != nil {
+	if scanErr := scanAndProcessSessions(agentDir, debugRaw, sessionCallback, finalState); scanErr != nil {
 		slog.Warn("Final session scan failed", "error", scanErr)
 	}
 

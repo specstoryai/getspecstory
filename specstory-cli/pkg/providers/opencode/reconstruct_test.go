@@ -3,6 +3,7 @@ package opencode
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -309,6 +310,38 @@ func TestImportArgs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := importArgs(tt.args); strings.Join(got, " ") != strings.Join(tt.want, " ") {
 				t.Errorf("importArgs(%v) = %v, want %v", tt.args, got, tt.want)
+			}
+		})
+	}
+}
+
+// OPENCODE_DB must reach the child as the user wrote it, or the child and the
+// watcher open different databases.
+func TestExecuteOpenCodeLeavesDatabaseOverrideAlone(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the stand-in opencode is a POSIX shell script")
+	}
+	for _, value := range []string{"custom.db", ":memory:"} {
+		t.Run(value, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv(dbEnvVar, value)
+			seen := filepath.Join(t.TempDir(), "seen")
+			fake := filepath.Join(t.TempDir(), "opencode")
+			script := "#!/bin/sh\nprintf %s \"$OPENCODE_DB\" > \"$FAKE_OPENCODE_SEEN\"\n"
+			if err := os.WriteFile(fake, []byte(script), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("FAKE_OPENCODE_SEEN", seen)
+
+			if err := executeOpenCode(fmt.Sprintf("%q", fake), t.TempDir(), ""); err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.ReadFile(seen)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(got) != value {
+				t.Errorf("child saw %s=%q, want %q", dbEnvVar, got, value)
 			}
 		})
 	}

@@ -9,6 +9,29 @@
 ### 🔧 CLI Configuration & Commands
 
 - The monitor also includes VS Code Copilot IDE chat-activity detection (stock VS Code, Insiders, VSCodium, and VSCodium Insiders), but it is compiled out of the default build behind the `copilotide_monitor` build tag and is inactive until the `copilotide` provider lands in this tree. Cursor IDE activity detection is deferred because Cursor stores chat activity in SQLite databases, which requires polling machinery rather than path mapping.
+## v2.17.0 2026-11-06
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports [GitHub Copilot CLI](https://github.com/features/copilot/cli) (i.e. `copilot`), for sessions created from Copilot CLI version `1.0.105` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI), [VS Code Copilot](https://code.visualstudio.com/docs/setup/copilot), [Muse Code](https://developer.meta.com/ai/products/muse-code/), [Pi](https://pi.dev), [Qwen Code](https://github.com/QwenLM/qwen-code), [Grok Build](https://x.ai/cli), [OpenCode](https://opencode.ai/) and [Cursor Cloud Agents](https://cursor.com/docs/cloud-agent). Sessions Copilot runs for the GitHub Copilot app and for VS Code's Agents window are saved too, since they are stored the same way. Thanks to [sawankumarbundelkhandi](https://github.com/sawankumarbundelkhandi) for the GitHub Copilot CLI provider contribution in [PR 349](https://github.com/specstoryai/getspecstory/pull/349).
+- Copilot CLI is a cross-provider `specstory resume` target: you can resume any agent's session into Copilot CLI, and resume a Copilot CLI session into another agent.
+
+### ⚙️ Improvements
+
+- `specstory resume` and `specstory search` now show who a session belongs to when a project is shared with your team in SpecStory Cloud. Teammates' sessions and search results are labeled with their name, or their email if they have no name set. Your own sessions stay unlabeled. Shared projects are labeled the same way, with a count when more teammates have their own copy, such as `Greg +1`.
+
+### 🐛 Bug Fixes
+
+- The last turn of a Muse Code session is saved when Muse exits. Muse could write it and exit before SpecStory noticed, leaving that turn out of the history until the next `specstory sync`.
+- Long session titles and search matches no longer run past the edge of the terminal in `specstory resume` and `specstory search`, which could cut off the end of the line, including the prompt count on sessions with a long one.
+
+## v2.16.1 2026-11-02
+
+### 🐛 Bug Fixes
+
+- Cursor IDE chats created in Cursor `3.27.14` or higher are saved again. That Cursor release changed how it stores a chat's message list, so SpecStory treated every new chat as empty: `specstory sync`, `run` and `watch` skipped it with "no conversation", and `specstory list`, `search` and `resume` left it out. Chats created before the Cursor update were not affected. Re-run `specstory sync cursoride` to save any chats that were skipped. Thanks to [diegodtanton](https://github.com/diegodtanton) for the detailed report in [issue 377](https://github.com/specstoryai/getspecstory/issues/377).
+- Cursor IDE chats from multi-root windows that were never saved as a `.code-workspace` file (folders added with "Add Folder to Workspace…") are now found. SpecStory only recognized saved `.code-workspace` files as multi-root workspaces, so `specstory sync` and `watch` run from one of the window's folders found none of its chats. Those chats are now saved to the first folder's `.specstory/history`, the same place a saved `.code-workspace` window already puts them. The same matching is used for VS Code Copilot. Re-run `specstory sync cursoride` from the first folder to save chats that were missed. Thanks to [iemgnod](https://github.com/iemgnod) for the report in [issue 223](https://github.com/specstoryai/getspecstory/issues/223).
+- `specstory list`, `search` and `resume` now show Cursor IDE chats from a multi-root window under the window's first folder instead of under the `.code-workspace` file path, so the project they list is one you can run `specstory sync` from.
 
 ## v2.16.0 2026-10-18
 

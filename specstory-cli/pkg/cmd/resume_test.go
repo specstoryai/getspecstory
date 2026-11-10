@@ -9,10 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
 
 func TestFTSQuery(t *testing.T) {
@@ -353,6 +355,48 @@ func TestPrepareResumeTargetFallsBackToCurrentCwd(t *testing.T) {
 	}
 	if from.gotLoadPath != currentCwd {
 		t.Errorf("source loaded from %q, want fallback to current cwd %q", from.gotLoadPath, currentCwd)
+	}
+}
+
+// A run with a non-local --project-path keeps the project the user named as the
+// session's identity, but the origin has to be where the agent ran: lookups by
+// origin read the session from there.
+func TestLiveIndexerForAgentSeparatesIdentityFromOrigin(t *testing.T) {
+	testutil.SetHome(t, t.TempDir())
+	const remoteProject = "/no/such/remote/project"
+	launchDir := t.TempDir()
+	wantProjectID, _, err := utils.ComputeProjectID(remoteProject)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	li := NewLiveIndexerForAgent(remoteProject, launchDir)
+	if li == nil {
+		t.Fatal("no live indexer")
+	}
+	defer li.Close()
+	li.Record("copilot", &spi.AgentChatSession{
+		SessionID: "sess-1",
+		CreatedAt: "2026-06-25T00:00:00Z",
+		Slug:      "hello",
+		SessionData: &schema.SessionData{
+			Exchanges: []schema.Exchange{{Messages: []schema.Message{{
+				Role:      schema.RoleUser,
+				Timestamp: "2026-06-25T00:01:00Z",
+				Content:   []schema.ContentPart{{Type: schema.ContentTypeText, Text: "hello"}},
+			}}}},
+		},
+	})
+
+	rows, err := li.store.ListByProject(wantProjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("%d rows under the named project, want 1", len(rows))
+	}
+	if rows[0].OriginCwd != launchDir {
+		t.Errorf("OriginCwd = %q, want where the agent ran: %q", rows[0].OriginCwd, launchDir)
 	}
 }
 
