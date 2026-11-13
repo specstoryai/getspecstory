@@ -1597,6 +1597,7 @@ func main() {
 	rootCmd = createRootCommand()
 	runCmd = createRunCommand()
 	watchCmd := cmdpkg.CreateWatchCommand(&cloudURL, sessionFlagDefaults)
+	monitorCmd := cmdpkg.CreateMonitorCommand(cfg.MonitorIdleTimeout(), cfg.MonitorMaxDepth(), cfg.MonitorExclude())
 	resumeCmd := cmdpkg.CreateResumeCommand(&cloudURL, sessionFlagDefaults)
 	reindexCmd := cmdpkg.CreateReindexCommand()
 	searchCmd := cmdpkg.CreateSearchCommand(&cloudURL, sessionFlagDefaults)
@@ -1621,6 +1622,7 @@ func main() {
 	// Add the subcommands
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(watchCmd)
+	rootCmd.AddCommand(monitorCmd)
 	rootCmd.AddCommand(resumeCmd)
 	rootCmd.AddCommand(reindexCmd)
 	rootCmd.AddCommand(searchCmd)

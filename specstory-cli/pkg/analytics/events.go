@@ -10,6 +10,7 @@ import (
 const (
 	EventExtensionActivated     = "ext_activated"                // Tracks when `run` command is started
 	EventWatchActivated         = "ext_watch_activated"          // Tracks when `watch` command is started
+	EventMonitorActivated       = "ext_monitor_activated"        // Tracks when `monitor` command is started
 	EventResumeActivated        = "ext_resume_activated"         // Tracks when `resume` command is started
 	EventReindexCompleted       = "ext_reindex_completed"        // Tracks when `reindex` finishes building the restore index
 	EventResumeReconstructed    = "ext_resume_reconstructed"     // Tracks the outcome of a cross-agent session reconstruction (success/unsupported/error)
