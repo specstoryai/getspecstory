@@ -29,7 +29,7 @@ type fileStamp struct {
 // qwenWatcher owns one start's state. Only its worker reads or writes stamps
 // and watches; callbacks run in that worker, in order, and Stop joins it.
 type qwenWatcher struct {
-	watcher     *fsnotify.Watcher
+	watcher     *spi.FSWatcher
 	cancel      context.CancelFunc
 	wg          sync.WaitGroup
 	projectPath string

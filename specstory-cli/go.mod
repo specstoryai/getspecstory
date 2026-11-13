@@ -5,22 +5,22 @@ module github.com/specstoryai/getspecstory/specstory-cli
 //   - .golangci.yml (run.go)
 //   - ../.github/workflows/ci.yml (setup-go)
 //   - ../.github/workflows/release.yml (setup-go)
-go 1.27.3
+go 1.27.4
 
 // To check for outdated direct dependencies:
 // `go list -m -u -json all | jq -r 'select(.Indirect != true) | select(.Update != null) | "\(.Path) \(.Version) -> \(.Update.Version)"'`
 require (
 	charm.land/bubbles/v2 v2.2.1 // Terminal UI components for Go https://github.com/charmbracelet/bubbles
 	charm.land/bubbletea/v2 v2.1.1 // Terminal UI framework for Go https://github.com/charmbracelet/bubbletea
-	charm.land/lipgloss/v2 v2.0.6 // Terminal styling for Go https://github.com/charmbracelet/lipgloss
+	charm.land/lipgloss/v2 v2.1.0 // Terminal styling for Go https://github.com/charmbracelet/lipgloss
 	github.com/BurntSushi/toml v1.6.0 // TOML parsing for configuration files
-	github.com/betterleaks/betterleaks v1.9.0 // Detect and redact secrets
+	github.com/betterleaks/betterleaks v1.10.1 // Detect and redact secrets
 	github.com/charmbracelet/fang v1.0.0 // Styled terminal output for Cobra commands
 	github.com/charmbracelet/glamour v1.0.0
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/fsnotify/fsnotify v1.10.1 // Cross-platform file system event notifications
 	github.com/google/uuid v1.6.0 // Generates and inspects UUIDs
-	github.com/posthog/posthog-go v1.39.0 // Analytics tracking
+	github.com/posthog/posthog-go v1.42.0 // Analytics tracking
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // Git ignore file parsing
 	github.com/spf13/cobra v1.10.2 // Command-line interface framework
 	github.com/xeipuuv/gojsonschema v1.2.0 // JSON document validation against a JSON schema
@@ -31,9 +31,9 @@ require (
 	go.opentelemetry.io/otel/sdk v1.47.0
 	go.opentelemetry.io/otel/sdk/metric v1.47.0
 	go.opentelemetry.io/otel/trace v1.47.0
-	golang.org/x/term v0.47.0 // terminal and console support
-	golang.org/x/text v0.43.0 // Text processing and Unicode normalization
-	modernc.org/sqlite v1.61.1 // Pure Go SQLite database driver
+	golang.org/x/term v0.48.0 // terminal and console support
+	golang.org/x/text v0.44.0 // Text processing and Unicode normalization
+	modernc.org/sqlite v1.62.0 // Pure Go SQLite database driver
 )
 
 require (
@@ -41,7 +41,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/STARRY-S/zip v0.2.3 // indirect
 	github.com/alecthomas/chroma/v2 v2.20.0 // indirect
-	github.com/andybalholm/brotli v1.2.1 // indirect
+	github.com/andybalholm/brotli v1.2.7 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
@@ -132,13 +132,13 @@ require (
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
 	golang.org/x/net v0.59.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/sync v0.25.0 // indirect
+	golang.org/x/sys v0.50.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260928230214-8a89bd6388cc // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260928230214-8a89bd6388cc // indirect
 	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
-	modernc.org/libc v1.79.0 // indirect
+	modernc.org/libc v1.80.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )

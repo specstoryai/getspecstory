@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -44,7 +43,7 @@ type CursorWatcher struct {
 	mu              sync.Mutex // Serializes starts and stops, including the final save.
 	cancel          context.CancelFunc
 	wg              sync.WaitGroup
-	watcher         *fsnotify.Watcher
+	watcher         *spi.FSWatcher
 	watched         map[string]bool
 	stamps          map[string]databaseStamp
 	walEnabled      map[string]bool
