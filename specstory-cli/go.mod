@@ -12,7 +12,7 @@ go 1.27.4
 require (
 	charm.land/bubbles/v2 v2.2.1 // Terminal UI components for Go https://github.com/charmbracelet/bubbles
 	charm.land/bubbletea/v2 v2.1.1 // Terminal UI framework for Go https://github.com/charmbracelet/bubbletea
-	charm.land/lipgloss/v2 v2.0.6 // Terminal styling for Go https://github.com/charmbracelet/lipgloss
+	charm.land/lipgloss/v2 v2.1.0 // Terminal styling for Go https://github.com/charmbracelet/lipgloss
 	github.com/BurntSushi/toml v1.6.0 // TOML parsing for configuration files
 	github.com/betterleaks/betterleaks v1.10.0 // Detect and redact secrets
 	github.com/charmbracelet/fang v1.0.0 // Styled terminal output for Cobra commands
