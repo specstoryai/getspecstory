@@ -14,7 +14,7 @@ require (
 	charm.land/bubbletea/v2 v2.1.1 // Terminal UI framework for Go https://github.com/charmbracelet/bubbletea
 	charm.land/lipgloss/v2 v2.0.6 // Terminal styling for Go https://github.com/charmbracelet/lipgloss
 	github.com/BurntSushi/toml v1.6.0 // TOML parsing for configuration files
-	github.com/betterleaks/betterleaks v1.10.0 // Detect and redact secrets
+	github.com/betterleaks/betterleaks v1.10.1 // Detect and redact secrets
 	github.com/charmbracelet/fang v1.0.0 // Styled terminal output for Cobra commands
 	github.com/charmbracelet/glamour v1.0.0
 	github.com/charmbracelet/x/ansi v0.11.9
@@ -41,7 +41,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/STARRY-S/zip v0.2.3 // indirect
 	github.com/alecthomas/chroma/v2 v2.20.0 // indirect
-	github.com/andybalholm/brotli v1.2.1 // indirect
+	github.com/andybalholm/brotli v1.2.7 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
