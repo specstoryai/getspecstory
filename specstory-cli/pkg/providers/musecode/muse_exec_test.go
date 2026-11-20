@@ -58,6 +58,21 @@ func TestParseMuseCommand(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("tilde executable expands", func(t *testing.T) {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			t.Skip("cannot determine home directory")
+		}
+		cmd, args := parseMuseCommand("~/bin/muse --flag ~/not-the-binary")
+		want := filepath.Join(home, "bin/muse")
+		if cmd != want {
+			t.Errorf("command = %q, want %q", cmd, want)
+		}
+		if !slices.Equal(args, []string{"--flag", "~/not-the-binary"}) {
+			t.Errorf("args = %v, want [--flag ~/not-the-binary]", args)
+		}
+	})
 }
 
 // The stand-in waits until a save starts before exiting. This isolates the

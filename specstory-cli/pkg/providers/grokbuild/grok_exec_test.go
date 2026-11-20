@@ -99,6 +99,19 @@ func TestParseGrokCommand(t *testing.T) {
 	if len(args) != 0 {
 		t.Errorf("default args = %v, want none", args)
 	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skip("cannot determine home directory")
+	}
+	want := filepath.Join(home, "bin/grok")
+	cmd, args = parseGrokCommand("~/bin/grok --flag ~/not-the-binary")
+	if cmd != want {
+		t.Errorf("tilde cmd = %q, want %q", cmd, want)
+	}
+	if !reflect.DeepEqual(args, []string{"--flag", "~/not-the-binary"}) {
+		t.Errorf("tilde args = %v, want [--flag ~/not-the-binary]", args)
+	}
 }
 
 func TestExecuteGrokUsesProjectDirectory(t *testing.T) {
