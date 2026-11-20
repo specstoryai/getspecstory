@@ -84,7 +84,7 @@ type scopedIgnore struct {
 type FSWatcher struct {
 	engine      *Engine
 	rootDir     string
-	watcher     *fsnotify.Watcher
+	watcher     *spi.FSWatcher
 	ignoreRules []scopedIgnore // scoped .gitignore/.intentignore matchers
 	cancel      context.CancelFunc
 	wg          sync.WaitGroup
