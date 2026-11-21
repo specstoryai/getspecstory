@@ -47,6 +47,7 @@ type SessionData struct {
 	CreatedAt     string       `json:"createdAt"`
 	UpdatedAt     string       `json:"updatedAt,omitempty"`
 	Slug          string       `json:"slug,omitempty"`
+	Title         string       `json:"title,omitempty"` // agent-generated session title (e.g. Claude Code's aiTitle); blank if none
 	WorkspaceRoot string       `json:"workspaceRoot"`
 	// Notes tell a reader something about the session as a whole that its
 	// messages cannot, such as content the provider could not recover. They
