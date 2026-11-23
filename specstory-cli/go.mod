@@ -17,7 +17,7 @@ require (
 	github.com/betterleaks/betterleaks v1.10.1 // Detect and redact secrets
 	github.com/charmbracelet/fang v1.0.0 // Styled terminal output for Cobra commands
 	github.com/charmbracelet/glamour v1.0.0
-	github.com/charmbracelet/x/ansi v0.11.9
+	github.com/charmbracelet/x/ansi v0.11.10
 	github.com/fsnotify/fsnotify v1.10.1 // Cross-platform file system event notifications
 	github.com/google/uuid v1.6.0 // Generates and inspects UUIDs
 	github.com/posthog/posthog-go v1.44.1 // Analytics tracking
