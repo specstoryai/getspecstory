@@ -10,7 +10,7 @@ go 1.27.4
 // To check for outdated direct dependencies:
 // `go list -m -u -json all | jq -r 'select(.Indirect != true) | select(.Update != null) | "\(.Path) \(.Version) -> \(.Update.Version)"'`
 require (
-	charm.land/bubbles/v2 v2.2.1 // Terminal UI components for Go https://github.com/charmbracelet/bubbles
+	charm.land/bubbles/v2 v2.2.2 // Terminal UI components for Go https://github.com/charmbracelet/bubbles
 	charm.land/bubbletea/v2 v2.1.2 // Terminal UI framework for Go https://github.com/charmbracelet/bubbletea
 	charm.land/lipgloss/v2 v2.1.1 // Terminal styling for Go https://github.com/charmbracelet/lipgloss
 	github.com/BurntSushi/toml v1.6.0 // TOML parsing for configuration files
@@ -86,7 +86,7 @@ require (
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
-	github.com/mattn/go-runewidth v0.0.30 // indirect
+	github.com/mattn/go-runewidth v0.0.31 // indirect
 	github.com/mholt/archives v0.1.6-0.20260429171216-ef71b7a32fae // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
 	github.com/mikelolasagasti/xz v1.0.1 // indirect
@@ -106,7 +106,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
 	github.com/pkoukk/tiktoken-go v0.1.8 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/rivo/uniseg v0.4.8-0.20261110175422-3a370411ca06 // indirect
 	github.com/rrethy/ahocorasick v1.0.0 // indirect
 	github.com/rs/zerolog v1.33.0 // indirect
 	github.com/shurcooL/githubv4 v0.0.0-20260209031235-2402fdf4a9ed // indirect
