@@ -49,7 +49,7 @@ type sessionWatcher struct {
 	dbPath      string
 	dbDir       string
 
-	fsWatcher  *fsnotify.Watcher
+	fsWatcher  *spi.FSWatcher
 	watchedDir string // owned by the worker after start
 
 	// startMillis is the startup boundary: sessions last written before it

@@ -82,7 +82,7 @@ func watchSessions(ctx context.Context, projectPath string, debugRaw bool, sessi
 // directories already watched are skipped via state.watchedDirs, so a re-scan
 // during an active session costs one ReadDir rather than an fsnotify.Add per
 // conversation.
-func setupWatches(watcher *fsnotify.Watcher, brainDir string, state *watchState) error {
+func setupWatches(watcher *spi.FSWatcher, brainDir string, state *watchState) error {
 	if _, err := os.Stat(brainDir); os.IsNotExist(err) {
 		ancestor := nearestExistingDir(filepath.Dir(brainDir))
 		if ancestor == "" {
@@ -100,7 +100,7 @@ func setupWatches(watcher *fsnotify.Watcher, brainDir string, state *watchState)
 }
 
 // addWatch registers dir with the watcher unless it is already watched.
-func addWatch(watcher *fsnotify.Watcher, state *watchState, dir string) error {
+func addWatch(watcher *spi.FSWatcher, state *watchState, dir string) error {
 	if state.watchedDirs[dir] {
 		return nil
 	}
@@ -116,7 +116,7 @@ func addWatch(watcher *fsnotify.Watcher, state *watchState, dir string) error {
 // holds the transcript, and the tasks dir that receives async command output.
 // Levels that don't exist yet are added later as their parent's Create event
 // arrives.
-func addConversationWatches(watcher *fsnotify.Watcher, brainDir string, state *watchState) {
+func addConversationWatches(watcher *spi.FSWatcher, brainDir string, state *watchState) {
 	entries, err := os.ReadDir(brainDir)
 	if err != nil {
 		// Without this listing no conversation is watched at all, so surface it.
@@ -170,7 +170,7 @@ func nearestExistingDir(dir string) string {
 // handleWatchEvent processes a filesystem event: directory creation extends the
 // watch set (and triggers a scan when the brain dir itself appears), while a
 // transcript write/create is parsed and dispatched.
-func handleWatchEvent(event fsnotify.Event, watcher *fsnotify.Watcher, brainDir string, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession), state *watchState) {
+func handleWatchEvent(event fsnotify.Event, watcher *spi.FSWatcher, brainDir string, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession), state *watchState) {
 	slog.Debug("antigravity: received fs event", "op", event.Op.String(), "path", event.Name)
 
 	// fsnotify drops the watch on a directory that goes away. Forget it so a

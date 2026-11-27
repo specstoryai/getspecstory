@@ -68,7 +68,7 @@ func watchSessions(ctx context.Context, projectPath string, debugRaw bool, sessi
 // setupWatcher adds a watch on the sessions directory.
 // If the directory doesn't exist yet, it watches the parent .deepseek directory
 // so we can detect when sessions/ is created.
-func setupWatcher(watcher *fsnotify.Watcher, sessionsDir string) error {
+func setupWatcher(watcher *spi.FSWatcher, sessionsDir string) error {
 	if _, err := os.Stat(sessionsDir); os.IsNotExist(err) {
 		// Watch parent .deepseek directory.
 		parentDir := filepath.Dir(sessionsDir)
@@ -86,7 +86,7 @@ func setupWatcher(watcher *fsnotify.Watcher, sessionsDir string) error {
 }
 
 // handleWatchEvent processes a filesystem event for new or modified session files.
-func handleWatchEvent(event fsnotify.Event, watcher *fsnotify.Watcher, sessionsDir string, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession), state *watchState) {
+func handleWatchEvent(event fsnotify.Event, watcher *spi.FSWatcher, sessionsDir string, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession), state *watchState) {
 	slog.Debug("deepseek: received fs event", "op", event.Op.String(), "path", event.Name)
 
 	// Handle directory creation — add new watches.
