@@ -314,3 +314,18 @@ func TestShellOnlySessionIsNamedByItsCommand(t *testing.T) {
 		t.Error("DetectAgent() = false for a shell-only session")
 	}
 }
+
+func TestParseOpenCodeCommand(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skip("cannot determine home directory")
+	}
+	cmd, args := parseOpenCodeCommand("~/bin/opencode --flag ~/not-the-binary")
+	want := filepath.Join(home, "bin/opencode")
+	if cmd != want {
+		t.Errorf("command = %q, want %q", cmd, want)
+	}
+	if !slices.Equal(args, []string{"--flag", "~/not-the-binary"}) {
+		t.Errorf("args = %v, want [--flag ~/not-the-binary]", args)
+	}
+}

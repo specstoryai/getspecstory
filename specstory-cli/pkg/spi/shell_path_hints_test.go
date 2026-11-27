@@ -386,9 +386,9 @@ func Test_expandTilde(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := expandTilde(tt.path)
+			got := ExpandHome(tt.path)
 			if got != tt.want {
-				t.Errorf("expandTilde(%q) = %q, want %q", tt.path, got, tt.want)
+				t.Errorf("ExpandHome(%q) = %q, want %q", tt.path, got, tt.want)
 			}
 		})
 	}
