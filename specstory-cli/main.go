@@ -1548,6 +1548,7 @@ func main() {
 		debugDir = utils.ExpandTilde(cfg.GetDebugDir())
 	}
 	localTimeZone = cfg.IsLocalTimeZoneEnabled()
+	sessionpkg.SetUserTurnColor(cfg.GetUserTurnColor())
 	noVersionCheck = !cfg.IsVersionCheckEnabled()
 	noCloudSync = !cfg.IsCloudSyncEnabled()
 	onlyCloudSync = !cfg.IsLocalSyncEnabled()

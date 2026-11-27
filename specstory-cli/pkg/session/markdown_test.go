@@ -127,7 +127,7 @@ func TestFormatTimestamp_LocalTimezone(t *testing.T) {
 // as its own comment, and cannot close their comment early.
 func TestGenerateMarkdown_SessionNotes(t *testing.T) {
 	const sessionComment = "<!-- Cursor Cloud Agent Session s1 (2026-10-06 14:24:04Z) -->\n\n"
-	const prompt = "_**User (2026-10-06 14:24:04Z)**_"
+	const prompt = "### 👤 User (2026-10-06 14:24:04Z)"
 	tests := []struct {
 		name  string
 		notes []string
